@@ -1,3 +1,5 @@
+use glam::{Mat3, Mat4, Quat, Vec3};
+
 #[derive(Debug, Clone, Default)]
 pub struct SplatGeo {
     pub positions: Vec<[f32; 3]>,
@@ -37,6 +39,160 @@ impl SplatGeo {
         }
         Ok(())
     }
+
+    pub fn transform(&mut self, matrix: Mat4) {
+        if self.positions.is_empty() {
+            return;
+        }
+
+        let use_log_scale = self.scales.iter().any(|value| {
+            value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0
+        });
+        let linear = Mat3::from_mat4(matrix);
+        let min_scale = 1.0e-6;
+
+        for idx in 0..self.positions.len() {
+            let position = matrix.transform_point3(Vec3::from(self.positions[idx]));
+            self.positions[idx] = position.to_array();
+
+            let mut scale = Vec3::from(self.scales[idx]);
+            if use_log_scale {
+                scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
+            }
+            scale = Vec3::new(
+                scale.x.max(min_scale),
+                scale.y.max(min_scale),
+                scale.z.max(min_scale),
+            );
+
+            let rotation = self.rotations[idx];
+            let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+            if quat.length_squared() > 0.0 {
+                quat = quat.normalize();
+            } else {
+                quat = Quat::IDENTITY;
+            }
+
+            let rot_mat = Mat3::from_quat(quat);
+            let cov_local = Mat3::from_diagonal(scale * scale);
+            let cov_world = linear * (rot_mat * cov_local * rot_mat.transpose()) * linear.transpose();
+
+            let (eigenvalues, mut eigenvectors) = eigen_decomposition_symmetric(cov_world);
+            if eigenvectors.determinant() < 0.0 {
+                eigenvectors = Mat3::from_cols(
+                    eigenvectors.x_axis,
+                    eigenvectors.y_axis,
+                    -eigenvectors.z_axis,
+                );
+            }
+
+            let mut sigma = Vec3::new(
+                eigenvalues.x.max(0.0).sqrt(),
+                eigenvalues.y.max(0.0).sqrt(),
+                eigenvalues.z.max(0.0).sqrt(),
+            );
+            sigma = Vec3::new(
+                sigma.x.max(min_scale),
+                sigma.y.max(min_scale),
+                sigma.z.max(min_scale),
+            );
+
+            let quat = Quat::from_mat3(&eigenvectors).normalize();
+            self.rotations[idx] = [quat.w, quat.x, quat.y, quat.z];
+
+            if use_log_scale {
+                self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
+            } else {
+                self.scales[idx] = sigma.to_array();
+            }
+        }
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
+fn eigen_decomposition_symmetric(mat: Mat3) -> (Vec3, Mat3) {
+    let cols = mat.to_cols_array_2d();
+    let mut a = [
+        [cols[0][0], cols[1][0], cols[2][0]],
+        [cols[0][1], cols[1][1], cols[2][1]],
+        [cols[0][2], cols[1][2], cols[2][2]],
+    ];
+    let mut v = [[1.0f32, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+
+    const MAX_ITERS: usize = 16;
+    const EPS: f32 = 1.0e-6;
+
+    for _ in 0..MAX_ITERS {
+        let mut p = 0usize;
+        let mut q = 1usize;
+        let mut max = a[0][1].abs();
+
+        let a02 = a[0][2].abs();
+        if a02 > max {
+            max = a02;
+            p = 0;
+            q = 2;
+        }
+        let a12 = a[1][2].abs();
+        if a12 > max {
+            max = a12;
+            p = 1;
+            q = 2;
+        }
+
+        if max < EPS {
+            break;
+        }
+
+        let app = a[p][p];
+        let aqq = a[q][q];
+        let apq = a[p][q];
+
+        if apq.abs() < EPS {
+            continue;
+        }
+
+        let tau = (aqq - app) / (2.0 * apq);
+        let t = if tau >= 0.0 {
+            1.0 / (tau + (1.0 + tau * tau).sqrt())
+        } else {
+            -1.0 / (-tau + (1.0 + tau * tau).sqrt())
+        };
+        let c = 1.0 / (1.0 + t * t).sqrt();
+        let s = t * c;
+
+        for i in 0..3 {
+            if i == p || i == q {
+                continue;
+            }
+            let aip = a[i][p];
+            let aiq = a[i][q];
+            a[i][p] = c * aip - s * aiq;
+            a[p][i] = a[i][p];
+            a[i][q] = s * aip + c * aiq;
+            a[q][i] = a[i][q];
+        }
+
+        a[p][p] = c * c * app - 2.0 * s * c * apq + s * s * aqq;
+        a[q][q] = s * s * app + 2.0 * s * c * apq + c * c * aqq;
+        a[p][q] = 0.0;
+        a[q][p] = 0.0;
+
+        for i in 0..3 {
+            let vip = v[i][p];
+            let viq = v[i][q];
+            v[i][p] = c * vip - s * viq;
+            v[i][q] = s * vip + c * viq;
+        }
+    }
+
+    let eigenvalues = Vec3::new(a[0][0], a[1][1], a[2][2]);
+    let eigenvectors = Mat3::from_cols(
+        Vec3::new(v[0][0], v[1][0], v[2][0]),
+        Vec3::new(v[0][1], v[1][1], v[2][1]),
+        Vec3::new(v[0][2], v[1][2], v[2][2]),
+    );
+    (eigenvalues, eigenvectors)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -454,7 +610,10 @@ impl SplatPropertyIndices {
 
 #[cfg(test)]
 mod tests {
+    use glam::{Mat4, Quat, Vec3};
+
     use super::parse_splat_ply_bytes;
+    use super::SplatGeo;
 
     #[test]
     fn parse_ascii_ply_positions_and_sh0() {
@@ -505,5 +664,45 @@ end_header
         assert_eq!(splats.len(), 1);
         assert_eq!(splats.positions[0], [1.0, 2.0, 3.0]);
         assert!((splats.opacity[0] - 0.25).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn transform_updates_positions_and_scales() {
+        let mut splats = SplatGeo::with_len(1);
+        splats.positions[0] = [1.0, 2.0, 3.0];
+        splats.scales[0] = [1.0, 1.0, 1.0];
+        splats.rotations[0] = [1.0, 0.0, 0.0, 0.0];
+
+        let matrix = Mat4::from_scale_rotation_translation(
+            Vec3::new(2.0, 3.0, 4.0),
+            Quat::IDENTITY,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        splats.transform(matrix);
+
+        let pos = splats.positions[0];
+        assert!((pos[0] - 3.0).abs() < 1.0e-4);
+        assert!((pos[1] - 6.0).abs() < 1.0e-4);
+        assert!((pos[2] - 12.0).abs() < 1.0e-4);
+
+        let scale = splats.scales[0];
+        assert!((scale[0] - 2.0).abs() < 1.0e-4);
+        assert!((scale[1] - 3.0).abs() < 1.0e-4);
+        assert!((scale[2] - 4.0).abs() < 1.0e-4);
+    }
+
+    #[test]
+    fn transform_preserves_log_scale_encoding() {
+        let mut splats = SplatGeo::with_len(1);
+        let log_half = 0.5f32.ln();
+        splats.scales[0] = [log_half, log_half, log_half];
+        splats.rotations[0] = [1.0, 0.0, 0.0, 0.0];
+
+        splats.transform(Mat4::from_scale(Vec3::splat(2.0)));
+
+        let scale = splats.scales[0];
+        assert!(scale[0].abs() < 1.0e-4);
+        assert!(scale[1].abs() < 1.0e-4);
+        assert!(scale[2].abs() < 1.0e-4);
     }
 }

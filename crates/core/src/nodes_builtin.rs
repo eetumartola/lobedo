@@ -1,5 +1,5 @@
 use crate::graph::{NodeDefinition, NodeParams};
-use crate::geometry::Geometry;
+use crate::geometry::{merge_splats, Geometry};
 use crate::mesh::Mesh;
 use crate::nodes;
 use crate::splat::SplatGeo;
@@ -177,9 +177,9 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
         }
-        BuiltinNodeKind::Transform
-        | BuiltinNodeKind::CopyTransform
-        | BuiltinNodeKind::Normal
+        BuiltinNodeKind::Transform => apply_transform(params, inputs),
+        BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
+        BuiltinNodeKind::Normal
         | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
@@ -219,6 +219,63 @@ fn apply_mesh_unary(
         meshes,
         splats: input.splats.clone(),
     })
+}
+
+fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let matrix = nodes::transform::transform_matrix(params);
+
+    let mut meshes = Vec::with_capacity(input.meshes.len());
+    for mesh in &input.meshes {
+        let mut mesh = mesh.clone();
+        mesh.transform(matrix);
+        meshes.push(mesh);
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        let mut splat = splat.clone();
+        splat.transform(matrix);
+        splats.push(splat);
+    }
+
+    Ok(Geometry { meshes, splats })
+}
+
+fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let matrices = nodes::copy_transform::transform_matrices(params);
+    if matrices.is_empty() {
+        return Ok(Geometry::default());
+    }
+
+    let mut meshes = Vec::with_capacity(input.meshes.len());
+    for mesh in &input.meshes {
+        let mut copies = Vec::with_capacity(matrices.len());
+        for matrix in &matrices {
+            let mut copy = mesh.clone();
+            copy.transform(*matrix);
+            copies.push(copy);
+        }
+        meshes.push(Mesh::merge(&copies));
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        let mut copies = Vec::with_capacity(matrices.len());
+        for matrix in &matrices {
+            let mut copy = splat.clone();
+            copy.transform(*matrix);
+            copies.push(copy);
+        }
+        splats.push(merge_splats(&copies));
+    }
+
+    Ok(Geometry { meshes, splats })
 }
 
 fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

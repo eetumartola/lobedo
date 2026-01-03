@@ -16,6 +16,7 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Practical editing pipeline nodes: crop, prune, regularize, LOD/decimate, pack/export
 - Conversion nodes between mesh/points/splats
 - Job-style ML nodes (async + cached) that do not block UI and run PyTorch-backed operators
+- Spreadsheet supports a splat view (default to first 100 splats)
 
 ## Non-goals (initially)
 - Full 3DGS training/optimization suite

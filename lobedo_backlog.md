@@ -36,3 +36,4 @@
 - **Q1**: Golden test assets + screenshot tests (native)
 - **Q2**: Project format migration + versioning
 - **Q3**: Performance profiling harness (splat count scaling)
+- **Q4**: Spreadsheet splat mode (show first 100 splats by default)
