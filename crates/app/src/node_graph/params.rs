@@ -1,0 +1,264 @@
+use egui::Ui;
+
+use lobedo_core::ParamValue;
+
+pub(super) fn edit_param(
+    ui: &mut Ui,
+    node_name: &str,
+    label: &str,
+    value: ParamValue,
+) -> (ParamValue, bool) {
+    match value {
+        ParamValue::Float(mut v) => {
+            let changed = param_row(ui, label, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let value_width = 72.0;
+                let height = ui.spacing().interact_size.y;
+                if ui
+                    .add_sized(
+                        [value_width, height],
+                        egui::DragValue::new(&mut v).speed(0.1),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+                let range = float_slider_range(node_name, label, v);
+                ui.add_space(spacing);
+                let slider_width = ui.available_width().max(120.0);
+                if ui
+                    .add_sized(
+                        [slider_width, height],
+                        egui::Slider::new(&mut v, range).show_value(false),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+                changed
+            });
+            (ParamValue::Float(v), changed)
+        }
+        ParamValue::Int(mut v) => {
+            let changed = if label == "domain" || label == "mode" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Point");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
+            } else if label == "op" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Add");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
+            } else {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let spacing = 8.0;
+                    let value_width = 64.0;
+                    let height = ui.spacing().interact_size.y;
+                    if ui
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(&mut v).speed(1.0),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    let range = int_slider_range(node_name, label, v);
+                    ui.add_space(spacing);
+                    let slider_width = ui.available_width().max(120.0);
+                    if ui
+                        .add_sized(
+                            [slider_width, height],
+                            egui::Slider::new(&mut v, range).show_value(false),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    changed
+                })
+            };
+            (ParamValue::Int(v), changed)
+        }
+        ParamValue::Bool(mut v) => {
+            let changed = param_row(ui, label, |ui| {
+                let checkbox = egui::Checkbox::without_text(&mut v);
+                ui.add(checkbox).changed()
+            });
+            (ParamValue::Bool(v), changed)
+        }
+        ParamValue::Vec2(mut v) => {
+            let changed = param_row(ui, label, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let available = ui.available_width();
+                let value_width = ((available - spacing) / 2.0).clamp(56.0, 120.0);
+                let height = ui.spacing().interact_size.y;
+                let len = v.len();
+                for (idx, item) in v.iter_mut().enumerate() {
+                    if ui
+                        .add_sized([value_width, height], egui::DragValue::new(item).speed(0.1))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    if idx + 1 < len {
+                        ui.add_space(spacing);
+                    }
+                }
+                changed
+            });
+            (ParamValue::Vec2(v), changed)
+        }
+        ParamValue::Vec3(mut v) => {
+            let changed = param_row(ui, label, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let available = ui.available_width();
+                let value_width = ((available - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
+                let height = ui.spacing().interact_size.y;
+                let len = v.len();
+                for (idx, item) in v.iter_mut().enumerate() {
+                    if ui
+                        .add_sized([value_width, height], egui::DragValue::new(item).speed(0.1))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    if idx + 1 < len {
+                        ui.add_space(spacing);
+                    }
+                }
+                changed
+            });
+            (ParamValue::Vec3(v), changed)
+        }
+        ParamValue::String(mut v) => {
+            let changed = if label == "code" {
+                param_row_with_height(ui, label, 120.0, |ui| {
+                    ui.add_sized(
+                        [ui.available_width().max(160.0), 100.0],
+                        egui::TextEdit::multiline(&mut v)
+                            .code_editor()
+                            .desired_rows(4),
+                    )
+                    .changed()
+                })
+            } else {
+                param_row(ui, label, |ui| {
+                    let height = ui.spacing().interact_size.y;
+                    ui.add_sized(
+                        [ui.available_width().max(160.0), height],
+                        egui::TextEdit::singleline(&mut v),
+                    )
+                    .changed()
+                })
+            };
+            (ParamValue::String(v), changed)
+        }
+    }
+}
+
+fn param_row(ui: &mut Ui, label: &str, add_controls: impl FnOnce(&mut Ui) -> bool) -> bool {
+    param_row_with_height(ui, label, 36.0, add_controls)
+}
+
+fn param_row_with_height(
+    ui: &mut Ui,
+    label: &str,
+    row_height: f32,
+    add_controls: impl FnOnce(&mut Ui) -> bool,
+) -> bool {
+    let total_width = ui.available_width();
+    let label_width = (total_width * 0.2).clamp(80.0, 160.0);
+    let controls_width = (total_width - label_width).max(120.0);
+    let mut changed = false;
+    ui.allocate_ui_with_layout(
+        egui::vec2(total_width, row_height),
+        egui::Layout::left_to_right(egui::Align::Min),
+        |ui| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(label_width, row_height),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.set_min_height(row_height);
+                    ui.label(label);
+                },
+            );
+            ui.allocate_ui_with_layout(
+                egui::vec2(controls_width, row_height),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.set_min_height(row_height);
+                    if add_controls(ui) {
+                        changed = true;
+                    }
+                },
+            );
+        },
+    );
+    changed
+}
+
+fn float_slider_range(
+    _node_name: &str,
+    label: &str,
+    _value: f32,
+) -> std::ops::RangeInclusive<f32> {
+    match label {
+        "threshold_deg" => 0.0..=180.0,
+        "amplitude" => -10.0..=10.0,
+        "frequency" => 0.0..=10.0,
+        "value_f" => -10.0..=10.0,
+        _ => -1000.0..=1000.0,
+    }
+}
+
+fn int_slider_range(
+    node_name: &str,
+    label: &str,
+    _value: i32,
+) -> std::ops::RangeInclusive<i32> {
+    match label {
+        "domain" => 0..=3,
+        "op" => 0..=3,
+        "rows" | "cols" => 2..=64,
+        "seed" => 0..=100,
+        "count" if node_name == "Scatter" => 0..=1000,
+        "count" if node_name == "Copy/Transform" => 1..=100,
+        _ => -1000..=1000,
+    }
+}
