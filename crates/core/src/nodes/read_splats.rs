@@ -17,7 +17,10 @@ pub fn definition() -> NodeDefinition {
 
 pub fn default_params() -> NodeParams {
     NodeParams {
-        values: BTreeMap::from([("path".to_string(), ParamValue::String(String::new()))]),
+        values: BTreeMap::from([(
+            "path".to_string(),
+            ParamValue::String("C:\\code\\lobedo\\geo\\CL.ply".to_string()),
+        )]),
     }
 }
 

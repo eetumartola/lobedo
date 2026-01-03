@@ -9,11 +9,13 @@ use egui::epaint::Rect;
 use egui_wgpu::wgpu::util::DeviceExt as _;
 use egui_wgpu::{CallbackResources, CallbackTrait};
 
-use super::mesh::{normals_vertices, point_cross_vertices, splat_billboard_vertices};
+use super::mesh::{
+    normals_vertices, point_cross_vertices, splat_billboard_vertices, SplatBillboardInputs,
+};
 use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
 use super::{ViewportDebug, ViewportSceneState, ViewportShadingMode, ViewportStatsState};
 use crate::camera::{camera_position, camera_view_proj, CameraState};
-use glam::{Mat4, Vec3};
+use glam::{Mat3, Mat4, Vec3};
 
 pub(super) struct ViewportCallback {
     pub(super) target_format: egui_wgpu::wgpu::TextureFormat,
@@ -84,8 +86,13 @@ impl CallbackTrait for ViewportCallback {
                             pipeline.splat_colors.clear();
                             pipeline.splat_opacity.clear();
                             pipeline.splat_scales.clear();
+                            pipeline.splat_rotations.clear();
                             pipeline.splat_count = 0;
                             pipeline.splat_point_size = -1.0;
+                            pipeline.splat_last_right = [0.0, 0.0, 0.0];
+                            pipeline.splat_last_up = [0.0, 0.0, 0.0];
+                            pipeline.splat_last_camera_pos = [0.0, 0.0, 0.0];
+                            pipeline.splat_last_viewport = [0, 0];
                             pipeline.scene_version = scene_state.version;
                         }
                     }
@@ -280,22 +287,49 @@ impl CallbackTrait for ViewportCallback {
             }
 
             if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
-                let size_factor = (self.debug.point_size.max(1.0) * 0.1).clamp(0.001, 10.0);
                 let right_delta = right - Vec3::from(pipeline.splat_last_right);
                 let up_delta = up - Vec3::from(pipeline.splat_last_up);
+                let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
+                let viewport_changed = pipeline.splat_last_viewport != [width, height];
                 let needs_rebuild = pipeline.splat_point_size < 0.0
-                    || (size_factor - pipeline.splat_point_size).abs() > 0.0001
                     || right_delta.length_squared() > 1.0e-6
-                    || up_delta.length_squared() > 1.0e-6;
+                    || up_delta.length_squared() > 1.0e-6
+                    || camera_delta.length_squared() > 1.0e-6
+                    || viewport_changed;
                 if needs_rebuild {
-                    let splat_vertices = splat_billboard_vertices(
+                    let sorted = sort_splats_by_depth(
                         &pipeline.splat_positions,
                         &pipeline.splat_colors,
                         &pipeline.splat_opacity,
                         &pipeline.splat_scales,
-                        right,
-                        up,
-                        size_factor,
+                        &pipeline.splat_rotations,
+                        camera_pos,
+                        forward,
+                    );
+                    let mut positions = Vec::with_capacity(sorted.len());
+                    let mut colors = Vec::with_capacity(sorted.len());
+                    let mut opacity = Vec::with_capacity(sorted.len());
+                    let mut scales = Vec::with_capacity(sorted.len());
+                    let mut rotations = Vec::with_capacity(sorted.len());
+                    for entry in sorted {
+                        positions.push(entry.position);
+                        colors.push(entry.color);
+                        opacity.push(entry.opacity);
+                        scales.push(entry.scale);
+                        rotations.push(entry.rotation);
+                    }
+                    let splat_vertices = splat_billboard_vertices(
+                        SplatBillboardInputs {
+                            positions: &positions,
+                            colors: &colors,
+                            opacities: &opacity,
+                            scales: &scales,
+                            rotations: &rotations,
+                            view: Mat4::look_at_rh(camera_pos, target, Vec3::Y),
+                            viewport: [width as f32, height as f32],
+                            fov_y: 45_f32.to_radians(),
+                            world_transform: Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0)),
+                        },
                     );
                     pipeline.splat_buffer =
                         device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
@@ -304,9 +338,11 @@ impl CallbackTrait for ViewportCallback {
                             usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
                         });
                     pipeline.splat_count = splat_vertices.len() as u32;
-                    pipeline.splat_point_size = size_factor;
+                    pipeline.splat_point_size = 0.0;
                     pipeline.splat_last_right = right.to_array();
                     pipeline.splat_last_up = up.to_array();
+                    pipeline.splat_last_camera_pos = camera_pos.to_array();
+                    pipeline.splat_last_viewport = [width, height];
                 }
                 if pipeline.splat_count > 0 {
                     render_pass.set_pipeline(&pipeline.splat_pipeline);
@@ -386,6 +422,46 @@ impl CallbackTrait for ViewportCallback {
         render_pass.set_bind_group(0, &pipeline.blit_bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }
+}
+
+#[derive(Clone, Copy)]
+struct SortedSplat {
+    depth: f32,
+    position: [f32; 3],
+    color: [f32; 3],
+    opacity: f32,
+    scale: [f32; 3],
+    rotation: [f32; 4],
+}
+
+fn sort_splats_by_depth(
+    positions: &[[f32; 3]],
+    colors: &[[f32; 3]],
+    opacity: &[f32],
+    scales: &[[f32; 3]],
+    rotations: &[[f32; 4]],
+    camera_pos: Vec3,
+    forward: Vec3,
+) -> Vec<SortedSplat> {
+    let mut entries = Vec::with_capacity(positions.len());
+    for (idx, position) in positions.iter().enumerate() {
+        let pos = Vec3::from(*position);
+        let depth = (pos - camera_pos).dot(forward);
+        entries.push(SortedSplat {
+            depth,
+            position: *position,
+            color: colors.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]),
+            opacity: opacity.get(idx).copied().unwrap_or(1.0),
+            scale: scales.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]),
+            rotation: rotations
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
+        });
+    }
+
+    entries.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    entries
 }
 
 fn light_view_projection(bounds: ([f32; 3], [f32; 3]), key_dir: Vec3) -> Mat4 {

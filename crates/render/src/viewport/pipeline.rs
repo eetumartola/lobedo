@@ -68,11 +68,14 @@ pub(super) struct PipelineState {
     pub(super) splat_colors: Vec<[f32; 3]>,
     pub(super) splat_opacity: Vec<f32>,
     pub(super) splat_scales: Vec<[f32; 3]>,
+    pub(super) splat_rotations: Vec<[f32; 4]>,
     pub(super) splat_count: u32,
     pub(super) splat_point_size: f32,
     pub(super) splat_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) splat_last_right: [f32; 3],
     pub(super) splat_last_up: [f32; 3],
+    pub(super) splat_last_camera_pos: [f32; 3],
+    pub(super) splat_last_viewport: [u32; 2],
     pub(super) scene_version: u64,
     pub(super) base_color: [f32; 3],
     pub(super) grid_buffer: egui_wgpu::wgpu::Buffer,
@@ -255,9 +258,10 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
 }
 
 struct SplatInput {
-    @location(0) position: vec3<f32>,
-    @location(1) uv: vec2<f32>,
-    @location(2) color: vec4<f32>,
+    @location(0) center: vec3<f32>,
+    @location(1) offset: vec2<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) color: vec4<f32>,
 };
 
 struct SplatOutput {
@@ -269,7 +273,8 @@ struct SplatOutput {
 @vertex
 fn vs_splat(input: SplatInput) -> SplatOutput {
     var out: SplatOutput;
-    out.position = uniforms.view_proj * vec4<f32>(input.position, 1.0);
+    let clip = uniforms.view_proj * vec4<f32>(input.center, 1.0);
+    out.position = clip + vec4<f32>(input.offset * clip.w, 0.0, 0.0);
     out.uv = input.uv;
     out.color = input.color;
     return out;
@@ -278,7 +283,7 @@ fn vs_splat(input: SplatInput) -> SplatOutput {
 @fragment
 fn fs_splat(input: SplatOutput) -> @location(0) vec4<f32> {
     let r2 = dot(input.uv, input.uv);
-    let weight = exp(-r2 * 2.0);
+    let weight = exp(-0.5 * r2);
     let alpha = input.color.a * weight;
     let rgb = input.color.rgb;
     return vec4<f32>(rgb, alpha);
@@ -753,7 +758,8 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_splat_vertices"),
                 contents: bytemuck::cast_slice(&[SplatVertex {
-                    position: [0.0, 0.0, 0.0],
+                    center: [0.0, 0.0, 0.0],
+                    offset: [0.0, 0.0],
                     uv: [0.0, 0.0],
                     color: [0.0, 0.0, 0.0, 0.0],
                 }]),
@@ -805,11 +811,14 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
             splat_colors: Vec::new(),
             splat_opacity: Vec::new(),
             splat_scales: Vec::new(),
+            splat_rotations: Vec::new(),
             splat_count: 0,
             splat_point_size: -1.0,
             splat_buffer,
             splat_last_right: [0.0, 0.0, 0.0],
             splat_last_up: [0.0, 0.0, 0.0],
+            splat_last_camera_pos: [0.0, 0.0, 0.0],
+            splat_last_viewport: [0, 0],
             scene_version: 0,
             base_color: [0.7, 0.72, 0.75],
             grid_buffer,
@@ -871,6 +880,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_colors = splats.colors.clone();
         pipeline.splat_opacity = splats.opacity.clone();
         pipeline.splat_scales = splats.scales.clone();
+        pipeline.splat_rotations = splats.rotations.clone();
         pipeline.splat_point_size = -1.0;
         pipeline.splat_count = 0;
         if pipeline.mesh_vertices.is_empty() {
@@ -881,6 +891,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_colors.clear();
         pipeline.splat_opacity.clear();
         pipeline.splat_scales.clear();
+        pipeline.splat_rotations.clear();
         pipeline.splat_count = 0;
         pipeline.splat_point_size = -1.0;
     }

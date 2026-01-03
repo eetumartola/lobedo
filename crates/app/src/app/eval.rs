@@ -243,11 +243,45 @@ fn render_mesh_from_scene(mesh: &lobedo_core::SceneMesh) -> RenderMesh {
 }
 
 fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
+    let mut colors = splats.colors.clone();
+    let mut opacity = splats.opacity.clone();
+    let mut scales = splats.scales.clone();
+
+    let use_log_opacity = opacity.iter().any(|value| *value < 0.0 || *value > 1.0);
+    if use_log_opacity {
+        for value in &mut opacity {
+            *value = 1.0 / (1.0 + (-*value).exp());
+        }
+    }
+
+    let use_log_scale = scales
+        .iter()
+        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
+    if use_log_scale {
+        for value in &mut scales {
+            *value = [value[0].exp(), value[1].exp(), value[2].exp()];
+        }
+    }
+
+    let use_sh0_colors = colors
+        .iter()
+        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
+    if use_sh0_colors {
+        const SH_C0: f32 = 0.2820948;
+        for value in &mut colors {
+            *value = [
+                value[0] * SH_C0 + 0.5,
+                value[1] * SH_C0 + 0.5,
+                value[2] * SH_C0 + 0.5,
+            ];
+        }
+    }
+
     RenderSplats {
         positions: splats.positions.clone(),
-        colors: splats.colors.clone(),
-        opacity: splats.opacity.clone(),
-        scales: splats.scales.clone(),
+        colors,
+        opacity,
+        scales,
         rotations: splats.rotations.clone(),
     }
 }
