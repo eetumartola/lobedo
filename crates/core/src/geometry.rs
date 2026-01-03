@@ -55,11 +55,20 @@ impl Geometry {
 pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
     let total: usize = splats.iter().map(|s| s.len()).sum();
     let mut merged = SplatGeo::default();
+    let max_coeffs = splats
+        .iter()
+        .map(|s| s.sh_coeffs)
+        .max()
+        .unwrap_or(0);
     merged.positions.reserve(total);
     merged.rotations.reserve(total);
     merged.scales.reserve(total);
     merged.opacity.reserve(total);
     merged.sh0.reserve(total);
+    if max_coeffs > 0 {
+        merged.sh_coeffs = max_coeffs;
+        merged.sh_rest.reserve(total * max_coeffs);
+    }
 
     for splat in splats {
         merged.positions.extend_from_slice(&splat.positions);
@@ -67,6 +76,26 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
         merged.scales.extend_from_slice(&splat.scales);
         merged.opacity.extend_from_slice(&splat.opacity);
         merged.sh0.extend_from_slice(&splat.sh0);
+        if max_coeffs > 0 {
+            let coeffs = splat.sh_coeffs;
+            if coeffs == 0 {
+                merged
+                    .sh_rest
+                    .extend(std::iter::repeat_n([0.0, 0.0, 0.0], splat.len() * max_coeffs));
+            } else {
+                for i in 0..splat.len() {
+                    let base = i * coeffs;
+                    for c in 0..max_coeffs {
+                        let value = if c < coeffs {
+                            splat.sh_rest[base + c]
+                        } else {
+                            [0.0, 0.0, 0.0]
+                        };
+                        merged.sh_rest.push(value);
+                    }
+                }
+            }
+        }
     }
 
     merged
@@ -87,5 +116,18 @@ mod tests {
         assert_eq!(merged.positions.len(), 2);
         assert_eq!(merged.positions[0], [1.0, 2.0, 3.0]);
         assert_eq!(merged.positions[1], [4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn merge_splats_pads_sh_coeffs() {
+        let mut a = SplatGeo::with_len_and_sh(1, 3);
+        a.sh_rest[0] = [1.0, 2.0, 3.0];
+        let b = SplatGeo::with_len(1);
+
+        let merged = merge_splats(&[a, b]);
+        assert_eq!(merged.sh_coeffs, 3);
+        assert_eq!(merged.sh_rest.len(), 2 * 3);
+        assert_eq!(merged.sh_rest[0], [1.0, 2.0, 3.0]);
+        assert_eq!(merged.sh_rest[3], [0.0, 0.0, 0.0]);
     }
 }

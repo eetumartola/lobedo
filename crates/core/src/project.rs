@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::graph::Graph;
 
-pub const PROJECT_VERSION: u32 = 1;
+pub const PROJECT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -17,6 +17,15 @@ impl Default for Project {
             version: PROJECT_VERSION,
             settings: ProjectSettings::default(),
             graph: Graph::default(),
+        }
+    }
+}
+
+impl Project {
+    pub fn migrate_to_latest(&mut self) {
+        if self.version < 2 {
+            self.graph.migrate_geometry_pins();
+            self.version = 2;
         }
     }
 }

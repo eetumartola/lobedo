@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "settings": {
     "viewport_split": 0.5,
     "panels": {
@@ -152,42 +152,42 @@
         "node": 1,
         "name": "out",
         "kind": "Output",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       },
       "2": {
         "id": 2,
         "node": 2,
         "name": "out",
         "kind": "Output",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       },
       "3": {
         "id": 3,
         "node": 3,
         "name": "source",
         "kind": "Input",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       },
       "4": {
         "id": 4,
         "node": 3,
         "name": "template",
         "kind": "Input",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       },
       "5": {
         "id": 5,
         "node": 3,
         "name": "out",
         "kind": "Output",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       },
       "6": {
         "id": 6,
         "node": 4,
         "name": "in",
         "kind": "Input",
-        "pin_type": "Mesh"
+        "pin_type": "Geometry"
       }
     },
     "links": {

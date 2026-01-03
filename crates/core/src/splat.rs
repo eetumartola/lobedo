@@ -7,6 +7,8 @@ pub struct SplatGeo {
     pub scales: Vec<[f32; 3]>,
     pub opacity: Vec<f32>,
     pub sh0: Vec<[f32; 3]>,
+    pub sh_coeffs: usize,
+    pub sh_rest: Vec<[f32; 3]>,
 }
 
 impl SplatGeo {
@@ -17,7 +19,18 @@ impl SplatGeo {
             scales: vec![[1.0, 1.0, 1.0]; count],
             opacity: vec![1.0; count],
             sh0: vec![[1.0, 1.0, 1.0]; count],
+            sh_coeffs: 0,
+            sh_rest: Vec::new(),
         }
+    }
+
+    pub fn with_len_and_sh(count: usize, sh_coeffs: usize) -> Self {
+        let mut splats = Self::with_len(count);
+        if sh_coeffs > 0 {
+            splats.sh_coeffs = sh_coeffs;
+            splats.sh_rest = vec![[0.0, 0.0, 0.0]; count * sh_coeffs];
+        }
+        splats
     }
 
     pub fn len(&self) -> usize {
@@ -37,6 +50,13 @@ impl SplatGeo {
         {
             return Err("SplatGeo arrays have inconsistent lengths".to_string());
         }
+        if self.sh_coeffs == 0 {
+            if !self.sh_rest.is_empty() {
+                return Err("SplatGeo SH coefficients are inconsistent".to_string());
+            }
+        } else if self.sh_rest.len() != count * self.sh_coeffs {
+            return Err("SplatGeo SH coefficients are inconsistent".to_string());
+        }
         Ok(())
     }
 
@@ -45,6 +65,14 @@ impl SplatGeo {
             return;
         }
 
+        let sh_mats = if self.sh_coeffs >= 3 {
+            Some(build_sh_rotation_matrices(
+                rotation_from_matrix(matrix),
+                self.sh_coeffs,
+            ))
+        } else {
+            None
+        };
         let use_log_scale = self.scales.iter().any(|value| {
             value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0
         });
@@ -105,8 +133,404 @@ impl SplatGeo {
             } else {
                 self.scales[idx] = sigma.to_array();
             }
+
+            if let Some(mats) = &sh_mats {
+                rotate_sh_bands(self, idx, mats);
+            }
         }
     }
+}
+
+struct ShRotationMatrices {
+    l1: Option<[[f32; 3]; 3]>,
+    l2: Option<[[f32; 5]; 5]>,
+    l3: Option<[[f32; 7]; 7]>,
+}
+
+fn build_sh_rotation_matrices(rot: Mat3, sh_coeffs: usize) -> ShRotationMatrices {
+    let max_band = sh_max_band(sh_coeffs).min(3);
+    let l1 = if max_band >= 1 {
+        Some(compute_sh_rotation_matrix(rot, sh_basis_l1))
+    } else {
+        None
+    };
+    let l2 = if max_band >= 2 {
+        Some(compute_sh_rotation_matrix(rot, sh_basis_l2))
+    } else {
+        None
+    };
+    let l3 = if max_band >= 3 {
+        Some(compute_sh_rotation_matrix(rot, sh_basis_l3))
+    } else {
+        None
+    };
+    ShRotationMatrices { l1, l2, l3 }
+}
+
+fn sh_max_band(sh_coeffs: usize) -> usize {
+    let mut band = 0usize;
+    loop {
+        let next = (band + 1) * (band + 1) - 1;
+        if next <= sh_coeffs {
+            band += 1;
+        } else {
+            break;
+        }
+    }
+    band
+}
+
+fn rotation_from_matrix(matrix: Mat4) -> Mat3 {
+    let linear = Mat3::from_mat4(matrix);
+    let mut x = linear.x_axis;
+    let mut y = linear.y_axis;
+
+    if x.length_squared() > 0.0 {
+        x = x.normalize();
+    } else {
+        x = Vec3::X;
+    }
+    y = (y - x * y.dot(x)).normalize_or_zero();
+    if y.length_squared() == 0.0 {
+        y = Vec3::Y;
+    }
+    let mut z = x.cross(y);
+    if z.length_squared() == 0.0 {
+        z = Vec3::Z;
+    } else {
+        z = z.normalize();
+    }
+
+    let mut rot = Mat3::from_cols(x, y, z);
+    if rot.determinant() < 0.0 {
+        rot = Mat3::from_cols(x, y, -z);
+    }
+    rot
+}
+
+fn rotate_sh_bands(splats: &mut SplatGeo, index: usize, mats: &ShRotationMatrices) {
+    if splats.sh_coeffs < 3 {
+        return;
+    }
+
+    let base = index * splats.sh_coeffs;
+
+    if let Some(l1) = &mats.l1 {
+        if splats.sh_coeffs >= 3 {
+            rotate_sh_band_3(&mut splats.sh_rest[base..base + 3], l1);
+        }
+    }
+    if let Some(l2) = &mats.l2 {
+        if splats.sh_coeffs >= 8 {
+            rotate_sh_band_5(&mut splats.sh_rest[base + 3..base + 8], l2);
+        }
+    }
+    if let Some(l3) = &mats.l3 {
+        if splats.sh_coeffs >= 15 {
+            rotate_sh_band_7(&mut splats.sh_rest[base + 8..base + 15], l3);
+        }
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
+fn rotate_sh_band_3(coeffs: &mut [[f32; 3]], mat: &[[f32; 3]; 3]) {
+    for channel in 0..3 {
+        let v0 = coeffs[0][channel];
+        let v1 = coeffs[1][channel];
+        let v2 = coeffs[2][channel];
+        let out0 = mat[0][0] * v0 + mat[0][1] * v1 + mat[0][2] * v2;
+        let out1 = mat[1][0] * v0 + mat[1][1] * v1 + mat[1][2] * v2;
+        let out2 = mat[2][0] * v0 + mat[2][1] * v1 + mat[2][2] * v2;
+        coeffs[0][channel] = out0;
+        coeffs[1][channel] = out1;
+        coeffs[2][channel] = out2;
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
+fn rotate_sh_band_5(coeffs: &mut [[f32; 3]], mat: &[[f32; 5]; 5]) {
+    for channel in 0..3 {
+        let v = [
+            coeffs[0][channel],
+            coeffs[1][channel],
+            coeffs[2][channel],
+            coeffs[3][channel],
+            coeffs[4][channel],
+        ];
+        let mut out = [0.0f32; 5];
+        for r in 0..5 {
+            out[r] = mat[r][0] * v[0]
+                + mat[r][1] * v[1]
+                + mat[r][2] * v[2]
+                + mat[r][3] * v[3]
+                + mat[r][4] * v[4];
+        }
+        for r in 0..5 {
+            coeffs[r][channel] = out[r];
+        }
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
+fn rotate_sh_band_7(coeffs: &mut [[f32; 3]], mat: &[[f32; 7]; 7]) {
+    for channel in 0..3 {
+        let v = [
+            coeffs[0][channel],
+            coeffs[1][channel],
+            coeffs[2][channel],
+            coeffs[3][channel],
+            coeffs[4][channel],
+            coeffs[5][channel],
+            coeffs[6][channel],
+        ];
+        let mut out = [0.0f32; 7];
+        for r in 0..7 {
+            out[r] = mat[r][0] * v[0]
+                + mat[r][1] * v[1]
+                + mat[r][2] * v[2]
+                + mat[r][3] * v[3]
+                + mat[r][4] * v[4]
+                + mat[r][5] * v[5]
+                + mat[r][6] * v[6];
+        }
+        for r in 0..7 {
+            coeffs[r][channel] = out[r];
+        }
+    }
+}
+
+fn compute_sh_rotation_matrix<const N: usize>(
+    rot: Mat3,
+    basis: fn(Vec3) -> [f32; N],
+) -> [[f32; N]; N] {
+    let samples = sh_sample_dirs();
+    let sample_count = samples.len();
+    if sample_count == 0 {
+        return identity_matrix();
+    }
+
+    let mut b = vec![vec![0.0f32; N]; sample_count];
+    for (row, dir) in samples.iter().enumerate() {
+        let values = basis(*dir);
+        b[row].copy_from_slice(&values);
+    }
+
+    let Some(pinv) = pseudo_inverse(&b) else {
+        return identity_matrix();
+    };
+
+    let rot_inv = rot.transpose();
+    let mut b_rot = vec![vec![0.0f32; N]; sample_count];
+    for (row, dir) in samples.iter().enumerate() {
+        let rotated = rot_inv * *dir;
+        let values = basis(rotated);
+        b_rot[row].copy_from_slice(&values);
+    }
+
+    let mut mat = [[0.0f32; N]; N];
+    for r in 0..N {
+        for c in 0..N {
+            let mut sum = 0.0;
+            for k in 0..sample_count {
+                sum += pinv[r][k] * b_rot[k][c];
+            }
+            mat[r][c] = sum;
+        }
+    }
+    mat
+}
+
+#[allow(clippy::needless_range_loop)]
+fn identity_matrix<const N: usize>() -> [[f32; N]; N] {
+    let mut mat = [[0.0f32; N]; N];
+    for i in 0..N {
+        mat[i][i] = 1.0;
+    }
+    mat
+}
+
+#[allow(clippy::needless_range_loop)]
+fn pseudo_inverse(matrix: &[Vec<f32>]) -> Option<Vec<Vec<f32>>> {
+    if matrix.is_empty() {
+        return None;
+    }
+    let rows = matrix.len();
+    let cols = matrix[0].len();
+    if cols == 0 {
+        return None;
+    }
+
+    let mut bt_b = vec![vec![0.0f32; cols]; cols];
+    for i in 0..cols {
+        for j in 0..cols {
+            let mut sum = 0.0;
+            for r in 0..rows {
+                sum += matrix[r][i] * matrix[r][j];
+            }
+            bt_b[i][j] = sum;
+        }
+    }
+
+    let bt_b_inv = invert_square(&bt_b)?;
+
+    let mut bt = vec![vec![0.0f32; rows]; cols];
+    for i in 0..cols {
+        for r in 0..rows {
+            bt[i][r] = matrix[r][i];
+        }
+    }
+
+    let mut result = vec![vec![0.0f32; rows]; cols];
+    for i in 0..cols {
+        for j in 0..rows {
+            let mut sum = 0.0;
+            for k in 0..cols {
+                sum += bt_b_inv[i][k] * bt[k][j];
+            }
+            result[i][j] = sum;
+        }
+    }
+
+    Some(result)
+}
+
+#[allow(clippy::needless_range_loop)]
+fn invert_square(matrix: &[Vec<f32>]) -> Option<Vec<Vec<f32>>> {
+    let n = matrix.len();
+    if n == 0 {
+        return None;
+    }
+    let mut aug = vec![vec![0.0f32; n * 2]; n];
+    for i in 0..n {
+        if matrix[i].len() != n {
+            return None;
+        }
+        for j in 0..n {
+            aug[i][j] = matrix[i][j];
+        }
+        aug[i][n + i] = 1.0;
+    }
+
+    for i in 0..n {
+        let mut pivot = i;
+        let mut max = aug[i][i].abs();
+        for r in (i + 1)..n {
+            let value = aug[r][i].abs();
+            if value > max {
+                max = value;
+                pivot = r;
+            }
+        }
+        if max < 1.0e-8 {
+            return None;
+        }
+        if pivot != i {
+            aug.swap(i, pivot);
+        }
+
+        let inv = 1.0 / aug[i][i];
+        for j in 0..(n * 2) {
+            aug[i][j] *= inv;
+        }
+        for r in 0..n {
+            if r == i {
+                continue;
+            }
+            let factor = aug[r][i];
+            if factor.abs() < 1.0e-8 {
+                continue;
+            }
+            for j in 0..(n * 2) {
+                aug[r][j] -= factor * aug[i][j];
+            }
+        }
+    }
+
+    let mut inv = vec![vec![0.0f32; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            inv[i][j] = aug[i][n + j];
+        }
+    }
+    Some(inv)
+}
+
+#[allow(clippy::excessive_precision)]
+const SH_C1: f32 = 0.4886025119029199;
+#[allow(clippy::excessive_precision)]
+const SH_C2: [f32; 5] = [
+    1.0925484305920792,
+    1.0925484305920792,
+    0.31539156525252005,
+    1.0925484305920792,
+    0.5462742152960396,
+];
+#[allow(clippy::excessive_precision)]
+const SH_C3: [f32; 7] = [
+    0.5900435899266435,
+    2.890611442640554,
+    0.4570457994644658,
+    0.3731763325901154,
+    0.4570457994644658,
+    1.445305721320277,
+    0.5900435899266435,
+];
+
+fn sh_basis_l1(dir: Vec3) -> [f32; 3] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [-SH_C1 * y, SH_C1 * z, -SH_C1 * x]
+}
+
+fn sh_basis_l2(dir: Vec3) -> [f32; 5] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [
+        SH_C2[0] * x * y,
+        SH_C2[1] * y * z,
+        SH_C2[2] * (3.0 * z * z - 1.0),
+        SH_C2[3] * x * z,
+        SH_C2[4] * (x * x - y * y),
+    ]
+}
+
+fn sh_basis_l3(dir: Vec3) -> [f32; 7] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [
+        SH_C3[0] * y * (3.0 * x * x - y * y),
+        SH_C3[1] * x * y * z,
+        SH_C3[2] * y * (5.0 * z * z - 1.0),
+        SH_C3[3] * z * (5.0 * z * z - 3.0),
+        SH_C3[4] * x * (5.0 * z * z - 1.0),
+        SH_C3[5] * z * (x * x - y * y),
+        SH_C3[6] * x * (x * x - 3.0 * y * y),
+    ]
+}
+
+fn sh_sample_dirs() -> Vec<Vec3> {
+    let phi = (1.0 + 5.0f32.sqrt()) * 0.5;
+    let mut dirs = vec![
+        Vec3::new(-1.0, phi, 0.0),
+        Vec3::new(1.0, phi, 0.0),
+        Vec3::new(-1.0, -phi, 0.0),
+        Vec3::new(1.0, -phi, 0.0),
+        Vec3::new(0.0, -1.0, phi),
+        Vec3::new(0.0, 1.0, phi),
+        Vec3::new(0.0, -1.0, -phi),
+        Vec3::new(0.0, 1.0, -phi),
+        Vec3::new(phi, 0.0, -1.0),
+        Vec3::new(phi, 0.0, 1.0),
+        Vec3::new(-phi, 0.0, -1.0),
+        Vec3::new(-phi, 0.0, 1.0),
+    ];
+    for dir in &mut dirs {
+        *dir = dir.normalize();
+    }
+    dirs
 }
 
 #[allow(clippy::needless_range_loop)]
@@ -388,7 +812,7 @@ fn parse_ascii_vertices(
     header: &PlyHeader,
     indices: &SplatPropertyIndices,
 ) -> Result<SplatGeo, String> {
-    let mut splats = SplatGeo::with_len(header.vertex_count);
+    let mut splats = SplatGeo::with_len_and_sh(header.vertex_count, indices.sh_coeffs());
     let mut read = 0usize;
     for line in text.lines() {
         if read >= header.vertex_count {
@@ -423,7 +847,7 @@ fn parse_binary_vertices(
     indices: &SplatPropertyIndices,
     little_endian: bool,
 ) -> Result<SplatGeo, String> {
-    let mut splats = SplatGeo::with_len(header.vertex_count);
+    let mut splats = SplatGeo::with_len_and_sh(header.vertex_count, indices.sh_coeffs());
     let mut values = vec![0.0f32; header.vertex_properties.len()];
     let mut cursor = 0usize;
 
@@ -565,6 +989,22 @@ fn fill_splat_from_values(
         }
         splats.sh0[read] = color;
     }
+
+    if splats.sh_coeffs > 0 && indices.sh_rest.len() >= splats.sh_coeffs * 3 {
+        let base = read * splats.sh_coeffs;
+        for coeff in 0..splats.sh_coeffs {
+            let r = indices.sh_rest.get(coeff).and_then(|idx| idx.map(|i| values[i]));
+            let g = indices
+                .sh_rest
+                .get(coeff + splats.sh_coeffs)
+                .and_then(|idx| idx.map(|i| values[i]));
+            let b = indices
+                .sh_rest
+                .get(coeff + splats.sh_coeffs * 2)
+                .and_then(|idx| idx.map(|i| values[i]));
+            splats.sh_rest[base + coeff] = [r.unwrap_or(0.0), g.unwrap_or(0.0), b.unwrap_or(0.0)];
+        }
+    }
 }
 
 #[derive(Default)]
@@ -577,11 +1017,13 @@ struct SplatPropertyIndices {
     rot: [Option<usize>; 4],
     sh0: [Option<usize>; 3],
     color: [Option<usize>; 3],
+    sh_rest: Vec<Option<usize>>,
 }
 
 impl SplatPropertyIndices {
     fn from_properties(properties: &[PlyProperty]) -> Self {
         let mut indices = SplatPropertyIndices::default();
+        let mut rest = Vec::new();
         for (idx, prop) in properties.iter().enumerate() {
             match prop.name.as_str() {
                 "x" => indices.x = Some(idx),
@@ -601,11 +1043,38 @@ impl SplatPropertyIndices {
                 "red" | "r" => indices.color[0] = Some(idx),
                 "green" | "g" => indices.color[1] = Some(idx),
                 "blue" | "b" => indices.color[2] = Some(idx),
-                _ => {}
+                _ => {
+                    if let Some(rest_idx) = parse_sh_rest_index(&prop.name) {
+                        rest.push((rest_idx, idx));
+                    }
+                }
+            }
+        }
+        if !rest.is_empty() {
+            let max = rest.iter().map(|(i, _)| *i).max().unwrap_or(0);
+            indices.sh_rest = vec![None; max + 1];
+            for (rest_idx, prop_idx) in rest {
+                if rest_idx < indices.sh_rest.len() {
+                    indices.sh_rest[rest_idx] = Some(prop_idx);
+                }
             }
         }
         indices
     }
+
+    fn sh_coeffs(&self) -> usize {
+        let rest = self.sh_rest.len();
+        if rest >= 3 && rest.is_multiple_of(3) {
+            rest / 3
+        } else {
+            0
+        }
+    }
+}
+
+fn parse_sh_rest_index(name: &str) -> Option<usize> {
+    let suffix = name.strip_prefix("f_rest_").or_else(|| name.strip_prefix("sh_rest_"))?;
+    suffix.parse::<usize>().ok()
 }
 
 #[cfg(test)]
@@ -667,6 +1136,36 @@ end_header
     }
 
     #[test]
+    fn parse_ascii_ply_sh_rest() {
+        let data = "\
+ply
+format ascii 1.0
+element vertex 1
+property float x
+property float y
+property float z
+property float f_rest_0
+property float f_rest_1
+property float f_rest_2
+property float f_rest_3
+property float f_rest_4
+property float f_rest_5
+property float f_rest_6
+property float f_rest_7
+property float f_rest_8
+end_header
+0 0 0 1 2 3 4 5 6 7 8 9
+";
+
+        let splats = parse_splat_ply_bytes(data.as_bytes()).expect("parse");
+        assert_eq!(splats.sh_coeffs, 3);
+        assert_eq!(splats.sh_rest.len(), 3);
+        assert_eq!(splats.sh_rest[0], [1.0, 4.0, 7.0]);
+        assert_eq!(splats.sh_rest[1], [2.0, 5.0, 8.0]);
+        assert_eq!(splats.sh_rest[2], [3.0, 6.0, 9.0]);
+    }
+
+    #[test]
     fn transform_updates_positions_and_scales() {
         let mut splats = SplatGeo::with_len(1);
         splats.positions[0] = [1.0, 2.0, 3.0];
@@ -704,5 +1203,45 @@ end_header
         assert!(scale[0].abs() < 1.0e-4);
         assert!(scale[1].abs() < 1.0e-4);
         assert!(scale[2].abs() < 1.0e-4);
+    }
+
+    #[test]
+    fn transform_rotates_sh_l1() {
+        let mut splats = SplatGeo::with_len_and_sh(1, 3);
+        splats.sh_rest[0] = [0.0, 0.0, 0.0];
+        splats.sh_rest[1] = [0.0, 0.0, 0.0];
+        splats.sh_rest[2] = [-1.0, 0.0, 0.0];
+
+        let matrix = Mat4::from_rotation_z(std::f32::consts::FRAC_PI_2);
+        splats.transform(matrix);
+
+        let coeffs = &splats.sh_rest[0..3];
+        assert!((coeffs[0][0] + 1.0).abs() < 1.0e-4);
+        assert!(coeffs[1][0].abs() < 1.0e-4);
+        assert!(coeffs[2][0].abs() < 1.0e-4);
+    }
+
+    #[test]
+    fn transform_rotates_sh_l2() {
+        let mut splats = SplatGeo::with_len_and_sh(1, 8);
+        splats.sh_rest[4] = [1.0, 0.0, 0.0];
+
+        let matrix = Mat4::from_rotation_z(std::f32::consts::PI);
+        splats.transform(matrix);
+
+        let coeff = splats.sh_rest[4][0];
+        assert!((coeff + 1.0).abs() < 2.0e-3);
+    }
+
+    #[test]
+    fn transform_rotates_sh_l3() {
+        let mut splats = SplatGeo::with_len_and_sh(1, 15);
+        splats.sh_rest[13] = [1.0, 0.0, 0.0];
+
+        let matrix = Mat4::from_rotation_z(std::f32::consts::PI);
+        splats.transform(matrix);
+
+        let coeff = splats.sh_rest[13][0];
+        assert!((coeff - 1.0).abs() < 2.0e-3);
     }
 }

@@ -7,7 +7,7 @@
       "outputs": [
         {
           "name": "mesh",
-          "pin_type": "Mesh"
+          "pin_type": "Geometry"
         }
       ]
     },
@@ -17,7 +17,7 @@
       "inputs": [
         {
           "name": "in",
-          "pin_type": "Mesh"
+          "pin_type": "Geometry"
         }
       ],
       "outputs": []

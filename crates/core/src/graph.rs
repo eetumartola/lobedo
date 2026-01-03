@@ -352,6 +352,20 @@ impl Graph {
         self.next_link_id += 1;
         LinkId(id)
     }
+
+    pub fn migrate_geometry_pins(&mut self) -> bool {
+        let mut changed = false;
+        for pin in self.pins.values_mut() {
+            match pin.pin_type {
+                PinType::Mesh | PinType::Splats => {
+                    pin.pin_type = PinType::Geometry;
+                    changed = true;
+                }
+                _ => {}
+            }
+        }
+        changed
+    }
 }
 
 fn pin_types_compatible(from: PinType, to: PinType) -> bool {

@@ -41,8 +41,9 @@ impl LobedoApp {
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn load_project_from(&mut self, path: &Path) -> io::Result<()> {
         let data = std::fs::read(path)?;
-        let project: Project = serde_json::from_slice(&data)
+        let mut project: Project = serde_json::from_slice(&data)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        project.migrate_to_latest();
         self.project = project;
         self.project_path = Some(path.to_path_buf());
         self.node_graph.reset();
