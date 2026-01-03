@@ -6,7 +6,9 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use lobedo_core::{evaluate_mesh_graph, Mesh, SceneSnapshot, ShadingMode};
+use lobedo_core::{
+    evaluate_mesh_graph, evaluate_splat_graph, Mesh, PinType, SceneSnapshot, ShadingMode,
+};
 use render::{RenderMesh, RenderScene, ViewportDebug, ViewportShadingMode};
 
 use super::{DisplayState, LobedoApp};
@@ -55,8 +57,48 @@ impl LobedoApp {
         self.last_display_state = DisplayState::Ok;
         let template_nodes = self.project.graph.template_nodes();
 
+        let display_pin_type = display_pin_type(&self.project.graph, display_node);
         let start = Instant::now();
-        match evaluate_mesh_graph(&self.project.graph, display_node, &mut self.eval_state) {
+        match display_pin_type {
+            Some(PinType::Splats) => {
+                match evaluate_splat_graph(
+                    &self.project.graph,
+                    display_node,
+                    &mut self.splat_eval_state,
+                ) {
+                    Ok(result) => {
+                        self.last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
+                        let output_valid = result.report.output_valid;
+                        let mut error_nodes = HashSet::new();
+                        let mut error_messages = HashMap::new();
+                        merge_error_state(&result.report, &mut error_nodes, &mut error_messages);
+                        self.last_eval_report = Some(result.report);
+
+                        if result.output.is_some() {
+                            tracing::warn!("splat output is not rendered yet");
+                        }
+
+                        if let Some(renderer) = &self.viewport_renderer {
+                            renderer.clear_scene();
+                        }
+                        self.pending_scene = None;
+
+                        if !output_valid {
+                            if let Some(renderer) = &self.viewport_renderer {
+                                renderer.clear_scene();
+                            }
+                            self.pending_scene = None;
+                        }
+                        self.node_graph.set_error_state(error_nodes, error_messages);
+                    }
+                    Err(err) => {
+                        tracing::error!("eval failed: {:?}", err);
+                        self.node_graph
+                            .set_error_state(HashSet::new(), HashMap::new());
+                    }
+                }
+            }
+            _ => match evaluate_mesh_graph(&self.project.graph, display_node, &mut self.eval_state) {
             Ok(result) => {
                 self.last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
                 let output_valid = result.report.output_valid;
@@ -103,6 +145,7 @@ impl LobedoApp {
                 self.node_graph
                     .set_error_state(HashSet::new(), HashMap::new());
             }
+        },
         }
     }
 
@@ -126,6 +169,24 @@ impl LobedoApp {
             key_shadows: self.project.settings.render_debug.key_shadows,
         }
     }
+}
+
+fn display_pin_type(
+    graph: &lobedo_core::Graph,
+    display_node: lobedo_core::NodeId,
+) -> Option<PinType> {
+    let node = graph.node(display_node)?;
+    for pin_id in &node.outputs {
+        if let Some(pin) = graph.pin(*pin_id) {
+            return Some(pin.pin_type);
+        }
+    }
+    for pin_id in &node.inputs {
+        if let Some(pin) = graph.pin(*pin_id) {
+            return Some(pin.pin_type);
+        }
+    }
+    None
 }
 
 pub(super) fn scene_to_render_with_template(

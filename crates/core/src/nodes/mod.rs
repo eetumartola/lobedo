@@ -1,0 +1,52 @@
+pub mod attribute_math;
+pub mod box_node;
+pub mod color;
+pub mod copy_to_points;
+pub mod copy_transform;
+pub mod file;
+pub mod grid;
+pub mod merge;
+pub mod noise;
+pub mod normal;
+pub mod obj_output;
+pub mod output;
+pub mod read_splats;
+pub mod scatter;
+pub mod sphere;
+pub mod transform;
+pub mod wrangle;
+
+use crate::graph::{PinDefinition, PinType};
+use crate::mesh::Mesh;
+
+pub fn mesh_in(name: &str) -> PinDefinition {
+    PinDefinition {
+        name: name.to_string(),
+        pin_type: PinType::Mesh,
+    }
+}
+
+pub fn mesh_out(name: &str) -> PinDefinition {
+    PinDefinition {
+        name: name.to_string(),
+        pin_type: PinType::Mesh,
+    }
+}
+
+pub fn splat_out(name: &str) -> PinDefinition {
+    PinDefinition {
+        name: name.to_string(),
+        pin_type: PinType::Splats,
+    }
+}
+
+pub fn require_mesh_input(
+    inputs: &[Mesh],
+    index: usize,
+    message: &str,
+) -> Result<Mesh, String> {
+    inputs
+        .get(index)
+        .cloned()
+        .ok_or_else(|| message.to_string())
+}

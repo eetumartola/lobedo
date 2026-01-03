@@ -3,9 +3,12 @@ mod eval;
 mod graph;
 mod mesh;
 mod mesh_eval;
+mod nodes;
 mod nodes_builtin;
 mod project;
 mod scene;
+mod splat;
+mod splat_eval;
 mod wrangle;
 
 pub use attributes::{
@@ -23,11 +26,13 @@ pub use graph::{
 pub use mesh::{make_box, make_grid, Aabb, Mesh};
 pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};
 pub use nodes_builtin::{
-    builtin_definitions, builtin_kind_from_name, compute_mesh_node, default_params,
-    node_definition, BuiltinNodeKind,
+    builtin_definitions, builtin_kind_from_name, compute_mesh_node, compute_splat_node,
+    default_params, node_definition, BuiltinNodeKind,
 };
 pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
     PROJECT_VERSION,
 };
 pub use scene::{SceneMesh, SceneSnapshot};
+pub use splat::SplatGeo;
+pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};

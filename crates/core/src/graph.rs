@@ -465,6 +465,7 @@ pub struct PinDefinition {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PinType {
     Mesh,
+    Splats,
     Float,
     Int,
     Bool,

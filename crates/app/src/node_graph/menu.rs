@@ -29,6 +29,11 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
             category: "Sources",
         },
         MenuItem {
+            kind: BuiltinNodeKind::ReadSplats,
+            name: "Read Splats",
+            category: "Sources",
+        },
+        MenuItem {
             kind: BuiltinNodeKind::Scatter,
             name: "Scatter",
             category: "Operators",
