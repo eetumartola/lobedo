@@ -9,8 +9,39 @@ pub struct RenderMesh {
 }
 
 #[derive(Debug, Clone)]
+pub struct RenderSplats {
+    pub positions: Vec<[f32; 3]>,
+    pub colors: Vec<[f32; 3]>,
+    pub opacity: Vec<f32>,
+    pub scales: Vec<[f32; 3]>,
+    pub rotations: Vec<[f32; 4]>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RenderDrawable {
+    Mesh(RenderMesh),
+    Splats(RenderSplats),
+}
+
+#[derive(Debug, Clone)]
 pub struct RenderScene {
-    pub mesh: RenderMesh,
+    pub drawables: Vec<RenderDrawable>,
     pub base_color: [f32; 3],
     pub template_mesh: Option<RenderMesh>,
+}
+
+impl RenderScene {
+    pub fn mesh(&self) -> Option<&RenderMesh> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            RenderDrawable::Mesh(mesh) => Some(mesh),
+            _ => None,
+        })
+    }
+
+    pub fn splats(&self) -> Option<&RenderSplats> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            RenderDrawable::Splats(splats) => Some(splats),
+            _ => None,
+        })
+    }
 }

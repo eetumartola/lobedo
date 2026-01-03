@@ -9,7 +9,7 @@ use egui::epaint::Rect;
 use egui_wgpu::wgpu::util::DeviceExt as _;
 use egui_wgpu::{CallbackResources, CallbackTrait};
 
-use super::mesh::{normals_vertices, point_cross_vertices};
+use super::mesh::{normals_vertices, point_cross_vertices, splat_billboard_vertices};
 use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
 use super::{ViewportDebug, ViewportSceneState, ViewportShadingMode, ViewportStatsState};
 use crate::camera::{camera_position, camera_view_proj, CameraState};
@@ -80,6 +80,12 @@ impl CallbackTrait for ViewportCallback {
                             pipeline.mesh_bounds = ([0.0; 3], [0.0; 3]);
                             pipeline.base_color = [0.7, 0.72, 0.75];
                             pipeline.template_count = 0;
+                            pipeline.splat_positions.clear();
+                            pipeline.splat_colors.clear();
+                            pipeline.splat_opacity.clear();
+                            pipeline.splat_scales.clear();
+                            pipeline.splat_count = 0;
+                            pipeline.splat_point_size = -1.0;
                             pipeline.scene_version = scene_state.version;
                         }
                     }
@@ -272,6 +278,46 @@ impl CallbackTrait for ViewportCallback {
                     render_pass.draw(0..pipeline.point_count, 0..1);
                 }
             }
+
+            if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
+                let size_factor = (self.debug.point_size.max(1.0) * 0.1).clamp(0.001, 10.0);
+                let right_delta = right - Vec3::from(pipeline.splat_last_right);
+                let up_delta = up - Vec3::from(pipeline.splat_last_up);
+                let needs_rebuild = pipeline.splat_point_size < 0.0
+                    || (size_factor - pipeline.splat_point_size).abs() > 0.0001
+                    || right_delta.length_squared() > 1.0e-6
+                    || up_delta.length_squared() > 1.0e-6;
+                if needs_rebuild {
+                    let splat_vertices = splat_billboard_vertices(
+                        &pipeline.splat_positions,
+                        &pipeline.splat_colors,
+                        &pipeline.splat_opacity,
+                        &pipeline.splat_scales,
+                        right,
+                        up,
+                        size_factor,
+                    );
+                    pipeline.splat_buffer =
+                        device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                            label: Some("lobedo_splat_vertices"),
+                            contents: bytemuck::cast_slice(&splat_vertices),
+                            usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
+                        });
+                    pipeline.splat_count = splat_vertices.len() as u32;
+                    pipeline.splat_point_size = size_factor;
+                    pipeline.splat_last_right = right.to_array();
+                    pipeline.splat_last_up = up.to_array();
+                }
+                if pipeline.splat_count > 0 {
+                    render_pass.set_pipeline(&pipeline.splat_pipeline);
+                    render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, pipeline.splat_buffer.slice(..));
+                    render_pass.draw(0..pipeline.splat_count, 0..1);
+                }
+            }
+
+            render_pass.set_pipeline(&pipeline.line_pipeline);
+            render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
 
             if pipeline.template_count > 0 {
                 render_pass.set_vertex_buffer(0, pipeline.template_buffer.slice(..));

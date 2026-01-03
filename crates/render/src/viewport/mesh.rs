@@ -1,5 +1,6 @@
 use crate::scene::RenderMesh;
 use egui_wgpu::wgpu;
+use glam::Vec3;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -21,6 +22,17 @@ pub(crate) struct LineVertex {
 
 pub(crate) const LINE_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct SplatVertex {
+    pub(crate) position: [f32; 3],
+    pub(crate) uv: [f32; 2],
+    pub(crate) color: [f32; 4],
+}
+
+pub(crate) const SPLAT_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x4];
 
 pub(crate) struct CubeMesh {
     pub(crate) vertices: Vec<Vertex>,
@@ -197,9 +209,20 @@ pub(crate) fn point_cross_vertices(positions: &[[f32; 3]], size: f32) -> Vec<Lin
     if positions.is_empty() || size <= 0.0 {
         return Vec::new();
     }
+    point_cross_vertices_with_colors(positions, &[], size)
+}
+
+pub(crate) fn point_cross_vertices_with_colors(
+    positions: &[[f32; 3]],
+    colors: &[[f32; 3]],
+    size: f32,
+) -> Vec<LineVertex> {
+    if positions.is_empty() || size <= 0.0 {
+        return Vec::new();
+    }
     let mut lines = Vec::with_capacity(positions.len() * 6);
-    let color = [0.9, 0.9, 0.9];
-    for p in positions {
+    for (idx, p) in positions.iter().enumerate() {
+        let color = colors.get(idx).copied().unwrap_or([0.9, 0.9, 0.9]);
         let [x, y, z] = *p;
         lines.push(LineVertex {
             position: [x - size, y, z],
@@ -227,6 +250,80 @@ pub(crate) fn point_cross_vertices(positions: &[[f32; 3]], size: f32) -> Vec<Lin
         });
     }
     lines
+}
+
+pub(crate) fn splat_billboard_vertices(
+    positions: &[[f32; 3]],
+    colors: &[[f32; 3]],
+    opacities: &[f32],
+    scales: &[[f32; 3]],
+    right: Vec3,
+    up: Vec3,
+    size_factor: f32,
+) -> Vec<SplatVertex> {
+    if positions.is_empty() || size_factor <= 0.0 {
+        return Vec::new();
+    }
+    let mut vertices = Vec::with_capacity(positions.len() * 6);
+    for (idx, pos) in positions.iter().enumerate() {
+        let scale = scales.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]);
+        let max_scale = scale[0].max(scale[1]).max(scale[2]);
+        let base_scale = if max_scale <= 0.0 { max_scale.exp() } else { max_scale };
+        if !base_scale.is_finite() {
+            continue;
+        }
+        let size = (base_scale * size_factor).clamp(0.0005, 10.0);
+        let half = size * 0.5;
+        let r = right * half;
+        let u = up * half;
+        let center = Vec3::from(*pos);
+
+        let color = colors.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]);
+        let alpha = opacities.get(idx).copied().unwrap_or(1.0).clamp(0.0, 1.0);
+        let color = [color[0], color[1], color[2], alpha];
+
+        let p0 = center - r - u;
+        let p1 = center + r - u;
+        let p2 = center + r + u;
+        let p3 = center - r + u;
+
+        let uv0 = [-1.0, -1.0];
+        let uv1 = [1.0, -1.0];
+        let uv2 = [1.0, 1.0];
+        let uv3 = [-1.0, 1.0];
+
+        vertices.push(SplatVertex {
+            position: p0.to_array(),
+            uv: uv0,
+            color,
+        });
+        vertices.push(SplatVertex {
+            position: p1.to_array(),
+            uv: uv1,
+            color,
+        });
+        vertices.push(SplatVertex {
+            position: p2.to_array(),
+            uv: uv2,
+            color,
+        });
+        vertices.push(SplatVertex {
+            position: p0.to_array(),
+            uv: uv0,
+            color,
+        });
+        vertices.push(SplatVertex {
+            position: p2.to_array(),
+            uv: uv2,
+            color,
+        });
+        vertices.push(SplatVertex {
+            position: p3.to_array(),
+            uv: uv3,
+            color,
+        });
+    }
+    vertices
 }
 
 pub(crate) fn wireframe_vertices(positions: &[[f32; 3]], indices: &[u32]) -> Vec<LineVertex> {

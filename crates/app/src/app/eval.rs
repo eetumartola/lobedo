@@ -7,9 +7,12 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    evaluate_mesh_graph, evaluate_splat_graph, Mesh, PinType, SceneSnapshot, ShadingMode,
+    evaluate_mesh_graph, evaluate_splat_graph, Mesh, PinType, SceneDrawable, SceneSnapshot,
+    SceneSplats, ShadingMode,
 };
-use render::{RenderMesh, RenderScene, ViewportDebug, ViewportShadingMode};
+use render::{
+    RenderDrawable, RenderMesh, RenderScene, RenderSplats, ViewportDebug, ViewportShadingMode,
+};
 
 use super::{DisplayState, LobedoApp};
 
@@ -74,14 +77,20 @@ impl LobedoApp {
                         merge_error_state(&result.report, &mut error_nodes, &mut error_messages);
                         self.last_eval_report = Some(result.report);
 
-                        if result.output.is_some() {
-                            tracing::warn!("splat output is not rendered yet");
+                        if let Some(splats) = result.output {
+                            let snapshot = SceneSnapshot::from_splats(&splats, [1.0, 1.0, 1.0]);
+                            let scene = scene_to_render_with_template(&snapshot, None);
+                            if let Some(renderer) = &self.viewport_renderer {
+                                renderer.set_scene(scene);
+                            } else {
+                                self.pending_scene = Some(scene);
+                            }
+                        } else {
+                            if let Some(renderer) = &self.viewport_renderer {
+                                renderer.clear_scene();
+                            }
+                            self.pending_scene = None;
                         }
-
-                        if let Some(renderer) = &self.viewport_renderer {
-                            renderer.clear_scene();
-                        }
-                        self.pending_scene = None;
 
                         if !output_valid {
                             if let Some(renderer) = &self.viewport_renderer {
@@ -165,6 +174,7 @@ impl LobedoApp {
             depth_near: self.project.settings.render_debug.depth_near,
             depth_far: self.project.settings.render_debug.depth_far,
             show_points: self.project.settings.render_debug.show_points,
+            show_splats: self.project.settings.render_debug.show_splats,
             point_size: self.project.settings.render_debug.point_size,
             key_shadows: self.project.settings.render_debug.key_shadows,
         }
@@ -193,14 +203,29 @@ pub(super) fn scene_to_render_with_template(
     scene: &SceneSnapshot,
     template: Option<&Mesh>,
 ) -> RenderScene {
-    let has_colors = scene.mesh.colors.is_some() || scene.mesh.corner_colors.is_some();
-    let base_color = if has_colors {
+    let mut drawables = Vec::new();
+    let mut mesh_has_colors = false;
+    for drawable in &scene.drawables {
+        match drawable {
+            SceneDrawable::Mesh(mesh) => {
+                mesh_has_colors |=
+                    mesh.colors.is_some() || mesh.corner_colors.is_some();
+                drawables.push(RenderDrawable::Mesh(render_mesh_from_scene(mesh)));
+            }
+            SceneDrawable::Splats(splats) => {
+                drawables.push(RenderDrawable::Splats(render_splats_from_scene(splats)));
+            }
+        }
+    }
+
+    let base_color = if mesh_has_colors {
         [1.0, 1.0, 1.0]
     } else {
         scene.base_color
     };
+
     RenderScene {
-        mesh: render_mesh_from_scene(&scene.mesh),
+        drawables,
         base_color,
         template_mesh: template.map(render_mesh_from_mesh),
     }
@@ -217,9 +242,22 @@ fn render_mesh_from_scene(mesh: &lobedo_core::SceneMesh) -> RenderMesh {
     }
 }
 
+fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
+    RenderSplats {
+        positions: splats.positions.clone(),
+        colors: splats.colors.clone(),
+        opacity: splats.opacity.clone(),
+        scales: splats.scales.clone(),
+        rotations: splats.rotations.clone(),
+    }
+}
+
 fn render_mesh_from_mesh(mesh: &Mesh) -> RenderMesh {
     let snapshot = SceneSnapshot::from_mesh(mesh, [0.7, 0.72, 0.75]);
-    render_mesh_from_scene(&snapshot.mesh)
+    let mesh = snapshot
+        .mesh()
+        .expect("mesh snapshot missing mesh");
+    render_mesh_from_scene(mesh)
 }
 
 fn collect_template_meshes(

@@ -7,8 +7,8 @@ use crate::scene::RenderScene;
 
 use super::mesh::{
     bounds_from_positions, bounds_vertices, build_vertices, cube_mesh, grid_and_axes,
-    normals_vertices, point_cross_vertices, wireframe_vertices, LineVertex, Vertex,
-    LINE_ATTRIBUTES, VERTEX_ATTRIBUTES,
+    normals_vertices, point_cross_vertices, wireframe_vertices, LineVertex, SplatVertex, Vertex,
+    LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
 };
 
 pub(super) const DEPTH_FORMAT: egui_wgpu::wgpu::TextureFormat =
@@ -38,6 +38,7 @@ pub(super) struct PipelineState {
     pub(super) mesh_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) shadow_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) line_pipeline: egui_wgpu::wgpu::RenderPipeline,
+    pub(super) splat_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_bind_group: egui_wgpu::wgpu::BindGroup,
     pub(super) blit_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
@@ -63,6 +64,15 @@ pub(super) struct PipelineState {
     pub(super) point_count: u32,
     pub(super) point_size: f32,
     pub(super) point_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) splat_positions: Vec<[f32; 3]>,
+    pub(super) splat_colors: Vec<[f32; 3]>,
+    pub(super) splat_opacity: Vec<f32>,
+    pub(super) splat_scales: Vec<[f32; 3]>,
+    pub(super) splat_count: u32,
+    pub(super) splat_point_size: f32,
+    pub(super) splat_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) splat_last_right: [f32; 3],
+    pub(super) splat_last_up: [f32; 3],
     pub(super) scene_version: u64,
     pub(super) base_color: [f32; 3],
     pub(super) grid_buffer: egui_wgpu::wgpu::Buffer,
@@ -242,6 +252,36 @@ fn vs_line(input: LineInput) -> LineOutput {
 @fragment
 fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(input.color, 1.0);
+}
+
+struct SplatInput {
+    @location(0) position: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) color: vec4<f32>,
+};
+
+struct SplatOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn vs_splat(input: SplatInput) -> SplatOutput {
+    var out: SplatOutput;
+    out.position = uniforms.view_proj * vec4<f32>(input.position, 1.0);
+    out.uv = input.uv;
+    out.color = input.color;
+    return out;
+}
+
+@fragment
+fn fs_splat(input: SplatOutput) -> @location(0) vec4<f32> {
+    let r2 = dot(input.uv, input.uv);
+    let weight = exp(-r2 * 2.0);
+    let alpha = input.color.a * weight;
+    let rgb = input.color.rgb;
+    return vec4<f32>(rgb, alpha);
 }
 "#,
             )),
@@ -493,6 +533,48 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
                 cache: None,
             });
 
+        let splat_pipeline =
+            device.create_render_pipeline(&egui_wgpu::wgpu::RenderPipelineDescriptor {
+                label: Some("lobedo_viewport_splats"),
+                layout: Some(&pipeline_layout),
+                vertex: egui_wgpu::wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_splat"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<SplatVertex>()
+                            as egui_wgpu::wgpu::BufferAddress,
+                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                        attributes: &SPLAT_ATTRIBUTES,
+                    }],
+                },
+                fragment: Some(egui_wgpu::wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_splat"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(egui_wgpu::wgpu::ColorTargetState {
+                        format: target_format,
+                        blend: Some(egui_wgpu::wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: egui_wgpu::wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: egui_wgpu::wgpu::PrimitiveState {
+                    topology: egui_wgpu::wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(egui_wgpu::wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: egui_wgpu::wgpu::CompareFunction::LessEqual,
+                    stencil: egui_wgpu::wgpu::StencilState::default(),
+                    bias: egui_wgpu::wgpu::DepthBiasState::default(),
+                }),
+                multisample: egui_wgpu::wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
         let blit_shader = device.create_shader_module(egui_wgpu::wgpu::ShaderModuleDescriptor {
             label: Some("lobedo_viewport_blit"),
             source: egui_wgpu::wgpu::ShaderSource::Wgsl(Cow::Borrowed(
@@ -667,6 +749,17 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
                 usage: egui_wgpu::wgpu::BufferUsages::VERTEX
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             });
+        let splat_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_splat_vertices"),
+                contents: bytemuck::cast_slice(&[SplatVertex {
+                    position: [0.0, 0.0, 0.0],
+                    uv: [0.0, 0.0],
+                    color: [0.0, 0.0, 0.0, 0.0],
+                }]),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
         let grid_buffer = device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
             label: Some("lobedo_grid_vertices"),
             contents: bytemuck::cast_slice(&grid_vertices),
@@ -682,6 +775,7 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
             mesh_pipeline,
             shadow_pipeline,
             line_pipeline,
+            splat_pipeline,
             blit_pipeline,
             blit_bind_group,
             blit_bind_group_layout,
@@ -707,6 +801,15 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
             point_count,
             point_size,
             point_buffer,
+            splat_positions: Vec::new(),
+            splat_colors: Vec::new(),
+            splat_opacity: Vec::new(),
+            splat_scales: Vec::new(),
+            splat_count: 0,
+            splat_point_size: -1.0,
+            splat_buffer,
+            splat_last_right: [0.0, 0.0, 0.0],
+            splat_last_up: [0.0, 0.0, 0.0],
             scene_version: 0,
             base_color: [0.7, 0.72, 0.75],
             grid_buffer,
@@ -729,29 +832,62 @@ pub(super) fn apply_scene_to_pipeline(
     pipeline: &mut PipelineState,
     scene: &RenderScene,
 ) {
-    let (vertices, indices) = build_vertices(&scene.mesh);
-    pipeline.mesh_cache.upload_or_update(
-        device,
-        pipeline.mesh_id,
-        bytemuck::cast_slice(&vertices),
-        &indices,
-    );
+    if let Some(mesh) = scene.mesh() {
+        let (vertices, indices) = build_vertices(mesh);
+        pipeline.mesh_cache.upload_or_update(
+            device,
+            pipeline.mesh_id,
+            bytemuck::cast_slice(&vertices),
+            &indices,
+        );
 
-    pipeline.mesh_vertices = vertices;
-    pipeline.index_count = indices.len() as u32;
-    pipeline.point_count = pipeline.mesh_vertices.len() as u32;
-    pipeline.point_positions = scene.mesh.positions.clone();
-    pipeline.point_size = -1.0;
-    pipeline.mesh_bounds = bounds_from_positions(&scene.mesh.positions);
+        pipeline.mesh_vertices = vertices;
+        pipeline.index_count = indices.len() as u32;
+        pipeline.point_count = pipeline.mesh_vertices.len() as u32;
+        pipeline.point_positions = mesh.positions.clone();
+        pipeline.point_size = -1.0;
+        pipeline.mesh_bounds = bounds_from_positions(&mesh.positions);
 
-    let normals_vertices = normals_vertices(&pipeline.mesh_vertices, pipeline.normals_length);
-    pipeline.normals_buffer =
-        device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
-            label: Some("lobedo_normals_vertices"),
-            contents: bytemuck::cast_slice(&normals_vertices),
-            usage: egui_wgpu::wgpu::BufferUsages::VERTEX | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-        });
-    pipeline.normals_count = normals_vertices.len() as u32;
+        let normals_vertices = normals_vertices(&pipeline.mesh_vertices, pipeline.normals_length);
+        pipeline.normals_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_normals_vertices"),
+                contents: bytemuck::cast_slice(&normals_vertices),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
+        pipeline.normals_count = normals_vertices.len() as u32;
+    } else {
+        pipeline.mesh_vertices.clear();
+        pipeline.index_count = 0;
+        pipeline.point_positions.clear();
+        pipeline.point_count = 0;
+        pipeline.point_size = -1.0;
+        pipeline.normals_count = 0;
+    }
+
+    if let Some(splats) = scene.splats() {
+        pipeline.splat_positions = splats.positions.clone();
+        pipeline.splat_colors = splats.colors.clone();
+        pipeline.splat_opacity = splats.opacity.clone();
+        pipeline.splat_scales = splats.scales.clone();
+        pipeline.splat_point_size = -1.0;
+        pipeline.splat_count = 0;
+        if pipeline.mesh_vertices.is_empty() {
+            pipeline.mesh_bounds = bounds_from_positions(&pipeline.splat_positions);
+        }
+    } else {
+        pipeline.splat_positions.clear();
+        pipeline.splat_colors.clear();
+        pipeline.splat_opacity.clear();
+        pipeline.splat_scales.clear();
+        pipeline.splat_count = 0;
+        pipeline.splat_point_size = -1.0;
+    }
+
+    if pipeline.mesh_vertices.is_empty() && pipeline.splat_positions.is_empty() {
+        pipeline.mesh_bounds = ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]);
+    }
 
     let bounds_vertices = bounds_vertices(pipeline.mesh_bounds.0, pipeline.mesh_bounds.1);
     pipeline.bounds_buffer =

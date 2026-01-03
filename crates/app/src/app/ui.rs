@@ -156,7 +156,13 @@ impl eframe::App for LobedoApp {
                                     &mut self.project.settings.render_debug.show_points,
                                     "Points",
                                 );
-                                if self.project.settings.render_debug.show_points {
+                                ui.checkbox(
+                                    &mut self.project.settings.render_debug.show_splats,
+                                    "Splats",
+                                );
+                                if self.project.settings.render_debug.show_points
+                                    || self.project.settings.render_debug.show_splats
+                                {
                                     ui.horizontal(|ui| {
                                         ui.label("Point size");
                                         ui.add(
@@ -493,6 +499,13 @@ impl eframe::App for LobedoApp {
                             .clicked()
                         {
                             debug.show_points = !debug.show_points;
+                        }
+                        if ui
+                            .add(egui::Button::new("SP").selected(debug.show_splats))
+                            .on_hover_text("Splats")
+                            .clicked()
+                        {
+                            debug.show_splats = !debug.show_splats;
                         }
                         if ui
                             .add(egui::Button::new("S").selected(debug.key_shadows))

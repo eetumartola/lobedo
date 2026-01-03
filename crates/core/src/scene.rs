@@ -1,5 +1,6 @@
 use crate::attributes::{AttributeDomain, AttributeRef};
 use crate::mesh::Mesh;
+use crate::splat::SplatGeo;
 
 #[derive(Debug, Clone)]
 pub struct SceneMesh {
@@ -12,8 +13,23 @@ pub struct SceneMesh {
 }
 
 #[derive(Debug, Clone)]
+pub struct SceneSplats {
+    pub positions: Vec<[f32; 3]>,
+    pub colors: Vec<[f32; 3]>,
+    pub opacity: Vec<f32>,
+    pub scales: Vec<[f32; 3]>,
+    pub rotations: Vec<[f32; 4]>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SceneDrawable {
+    Mesh(SceneMesh),
+    Splats(SceneSplats),
+}
+
+#[derive(Debug, Clone)]
 pub struct SceneSnapshot {
-    pub mesh: SceneMesh,
+    pub drawables: Vec<SceneDrawable>,
     pub base_color: [f32; 3],
 }
 
@@ -98,12 +114,45 @@ impl SceneMesh {
     }
 }
 
+impl SceneSplats {
+    pub fn from_splats(splats: &SplatGeo) -> Self {
+        Self {
+            positions: splats.positions.clone(),
+            colors: splats.sh0.clone(),
+            opacity: splats.opacity.clone(),
+            scales: splats.scales.clone(),
+            rotations: splats.rotations.clone(),
+        }
+    }
+}
+
 impl SceneSnapshot {
     pub fn from_mesh(mesh: &Mesh, base_color: [f32; 3]) -> Self {
         Self {
-            mesh: SceneMesh::from_mesh(mesh),
+            drawables: vec![SceneDrawable::Mesh(SceneMesh::from_mesh(mesh))],
             base_color,
         }
+    }
+
+    pub fn from_splats(splats: &SplatGeo, base_color: [f32; 3]) -> Self {
+        Self {
+            drawables: vec![SceneDrawable::Splats(SceneSplats::from_splats(splats))],
+            base_color,
+        }
+    }
+
+    pub fn mesh(&self) -> Option<&SceneMesh> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            SceneDrawable::Mesh(mesh) => Some(mesh),
+            _ => None,
+        })
+    }
+
+    pub fn splats(&self) -> Option<&SceneSplats> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            SceneDrawable::Splats(splats) => Some(splats),
+            _ => None,
+        })
     }
 }
 

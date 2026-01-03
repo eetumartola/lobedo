@@ -33,6 +33,6 @@ pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
     PROJECT_VERSION,
 };
-pub use scene::{SceneMesh, SceneSnapshot};
+pub use scene::{SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
 pub use splat::SplatGeo;
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};
