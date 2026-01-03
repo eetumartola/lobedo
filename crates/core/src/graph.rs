@@ -189,7 +189,7 @@ impl Graph {
             return Err(GraphError::InputAlreadyConnected { to });
         }
 
-        if from_pin.pin_type != to_pin.pin_type {
+        if !pin_types_compatible(from_pin.pin_type, to_pin.pin_type) {
             return Err(GraphError::IncompatiblePinTypes {
                 from: from_pin.pin_type,
                 to: to_pin.pin_type,
@@ -354,6 +354,19 @@ impl Graph {
     }
 }
 
+fn pin_types_compatible(from: PinType, to: PinType) -> bool {
+    if from == to {
+        return true;
+    }
+    matches!(
+        (from, to),
+        (PinType::Geometry, PinType::Mesh)
+            | (PinType::Geometry, PinType::Splats)
+            | (PinType::Mesh, PinType::Geometry)
+            | (PinType::Splats, PinType::Geometry)
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
@@ -464,6 +477,7 @@ pub struct PinDefinition {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PinType {
+    Geometry,
     Mesh,
     Splats,
     Float,

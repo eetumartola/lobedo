@@ -1,7 +1,7 @@
 # Splat-Native Node Editor "Lobedo" Project Plan
 
 ## Vision
-A node-based 3D editor where **Meshes, Points, and Gaussian Splats** are first-class geometry types. The tool supports:
+A node-based 3D editor where **Geometry is a container of primitives** (mesh, point, spline, splat). The tool supports:
 - Shared editing operations that work on multiple primitive types (where meaningful)
 - Splat-specific operations that correctly handle **covariances/orientation** and **spherical harmonics (SH)**
 - Conversion between representations (mesh -> points -> splats)
@@ -10,11 +10,11 @@ A node-based 3D editor where **Meshes, Points, and Gaussian Splats** are first-c
 Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipeline + procedural editing graph**.
 
 ## Goals
-- First-class `SplatGeo` data type with robust import/export
+- Unified `Geometry` container with primitive variants and robust import/export per primitive
 - Real-time splat renderer in the viewport (native + web)
 - Correct transforms for splats, including **SH rotation** when the splat frame rotates
 - Practical editing pipeline nodes: crop, prune, regularize, LOD/decimate, pack/export
-- Conversion nodes between geo/points/splats
+- Conversion nodes between mesh/points/splats
 - Job-style ML nodes (async + cached) that do not block UI and run PyTorch-backed operators
 
 ## Non-goals (initially)
@@ -27,12 +27,21 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 
 ## Core Data Model
 
-### New geometry types
-- `MeshGeo` (existing `Mesh`)
-- `PointGeo` (existing points-only meshes or a dedicated type)
-- **`SplatGeo` (new)**
+### Architecture change: unified primitives
+All geometry flows through the graph as a **single geometry pin type**. Geometry carries a list of primitives (mesh, point, spline, splat). Nodes must:
+- Apply edits to each primitive they support
+- Preserve primitives they do not handle (pass-through)
+- Explicitly convert between primitive types when the user requests it
 
-### Proposed `SplatGeo` schema (internal)
+Splat-specific behaviors (ex: SH rotation under deformation) live inside primitive-aware node implementations.
+
+### Geometry primitives
+- `Mesh` (tri/quad surface primitives)
+- `Point` (unordered points)
+- `Spline` (future)
+- **`Splat` (Gaussian splats)**
+
+### Proposed `Splat` schema (internal)
 Minimum viable per-splat attributes:
 - `P: Vec3` (position)
 - `R: Quat` (orientation)
@@ -46,16 +55,12 @@ Optional but useful:
 - `feature masks` / user tags
 
 ### Attribute system integration
-Two viable approaches (pick one early):
-1) **Separate geometry types** with their own attribute storage; share common accessors for `P`, `Cd`, etc.
-2) Extend domains to include a **splat domain** (less recommended unless it stays clean).
-
-Recommendation: **separate type** with a lightweight attribute map (typed channels) plus required semantics.
+Each primitive type has its own attribute storage with a shared accessor interface for common semantics
+(`P`, `Cd`, etc). Splat attributes remain typed channels with required semantics (P/R/S/opacity/SH).
 
 ### Pin types (expanded)
 Add pin types:
-- `Splats`
-- `Points` (if separating from mesh)
+- `Geometry` (unified mesh/point/spline/splat container)
 - `Image` (for ML nodes later)
 - `Cameras` (for multi-view later)
 
@@ -103,7 +108,7 @@ SH evaluation:
 3. `Read Image` (for ML path)
 
 ### Shared transform / selection-like ops
-4. `Transform` (works on Mesh/Points/Splats)
+4. `Transform` (works on all supported primitives)
    - Splat-aware: transforms `P/R/S` and rotates SH coefficients when rotation is applied
 5. `Merge` (Mesh merge; Splat merge)
 6. `Filter by Mask` (for points/splats; mask source could be box/sphere/plane)
@@ -141,10 +146,16 @@ SH evaluation:
 
 ## Milestones
 
+### Milestone G0 - Geometry primitive unification
+- Introduce `Geometry` container with primitive list
+- Replace `Splats` pin type with unified `Geometry` pin type
+- Update node evaluation to operate per primitive with pass-through semantics
+- Add deformation policies for splats (SH rotation rules, scale handling)
+
 ### Milestone S0 - Baseline + splat scaffolding
 - Add feature flag `splats` to stage integration
 - Extend project format versioning for new pin types and drawable outputs
-- Add placeholder `SplatGeo` type and `Splats` pin kind
+- Add placeholder `Splat` primitive type
 
 ### Milestone S1 - Splat import + viewer baseline
 - Implement `Read Splats (PLY)` and `SplatGeo` internal representation

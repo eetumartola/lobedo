@@ -1,6 +1,6 @@
 use crate::graph::{NodeDefinition, NodeParams};
 use crate::mesh::Mesh;
-use crate::nodes::{mesh_in, mesh_out};
+use crate::nodes::{geometry_in, geometry_out};
 
 pub const NAME: &str = "Merge";
 
@@ -8,8 +8,8 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![mesh_in("a"), mesh_in("b")],
-        outputs: vec![mesh_out("out")],
+        inputs: vec![geometry_in("a"), geometry_in("b")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -23,3 +23,4 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(Mesh::merge(inputs))
 }
+

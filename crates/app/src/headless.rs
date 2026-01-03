@@ -143,7 +143,7 @@ fn default_headless_plan() -> HeadlessPlan {
                 inputs: Vec::new(),
                 outputs: vec![PlanPin {
                     name: "mesh".to_string(),
-                    pin_type: lobedo_core::PinType::Mesh,
+                    pin_type: lobedo_core::PinType::Geometry,
                 }],
             },
             PlanNode {
@@ -151,7 +151,7 @@ fn default_headless_plan() -> HeadlessPlan {
                 category: "Output".to_string(),
                 inputs: vec![PlanPin {
                     name: "in".to_string(),
-                    pin_type: lobedo_core::PinType::Mesh,
+                    pin_type: lobedo_core::PinType::Geometry,
                 }],
                 outputs: Vec::new(),
             },

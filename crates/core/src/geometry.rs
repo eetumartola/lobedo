@@ -1,0 +1,91 @@
+use crate::mesh::Mesh;
+use crate::splat::SplatGeo;
+
+#[derive(Debug, Clone, Default)]
+pub struct Geometry {
+    pub meshes: Vec<Mesh>,
+    pub splats: Vec<SplatGeo>,
+}
+
+impl Geometry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_mesh(mesh: Mesh) -> Self {
+        Self {
+            meshes: vec![mesh],
+            splats: Vec::new(),
+        }
+    }
+
+    pub fn with_splats(splats: SplatGeo) -> Self {
+        Self {
+            meshes: Vec::new(),
+            splats: vec![splats],
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.meshes.is_empty() && self.splats.is_empty()
+    }
+
+    pub fn append(&mut self, mut other: Geometry) {
+        self.meshes.append(&mut other.meshes);
+        self.splats.append(&mut other.splats);
+    }
+
+    pub fn merged_mesh(&self) -> Option<Mesh> {
+        match self.meshes.len() {
+            0 => None,
+            1 => Some(self.meshes[0].clone()),
+            _ => Some(Mesh::merge(&self.meshes)),
+        }
+    }
+
+    pub fn merged_splats(&self) -> Option<SplatGeo> {
+        match self.splats.len() {
+            0 => None,
+            1 => Some(self.splats[0].clone()),
+            _ => Some(merge_splats(&self.splats)),
+        }
+    }
+}
+
+pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
+    let total: usize = splats.iter().map(|s| s.len()).sum();
+    let mut merged = SplatGeo::default();
+    merged.positions.reserve(total);
+    merged.rotations.reserve(total);
+    merged.scales.reserve(total);
+    merged.opacity.reserve(total);
+    merged.sh0.reserve(total);
+
+    for splat in splats {
+        merged.positions.extend_from_slice(&splat.positions);
+        merged.rotations.extend_from_slice(&splat.rotations);
+        merged.scales.extend_from_slice(&splat.scales);
+        merged.opacity.extend_from_slice(&splat.opacity);
+        merged.sh0.extend_from_slice(&splat.sh0);
+    }
+
+    merged
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_splats_concatenates() {
+        let mut a = SplatGeo::with_len(1);
+        a.positions[0] = [1.0, 2.0, 3.0];
+        let mut b = SplatGeo::with_len(1);
+        b.positions[0] = [4.0, 5.0, 6.0];
+
+        let merged = merge_splats(&[a, b]);
+        assert_eq!(merged.positions.len(), 2);
+        assert_eq!(merged.positions[0], [1.0, 2.0, 3.0]);
+        assert_eq!(merged.positions[1], [4.0, 5.0, 6.0]);
+    }
+}

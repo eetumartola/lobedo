@@ -19,24 +19,17 @@ pub mod wrangle;
 use crate::graph::{PinDefinition, PinType};
 use crate::mesh::Mesh;
 
-pub fn mesh_in(name: &str) -> PinDefinition {
+pub fn geometry_in(name: &str) -> PinDefinition {
     PinDefinition {
         name: name.to_string(),
-        pin_type: PinType::Mesh,
+        pin_type: PinType::Geometry,
     }
 }
 
-pub fn mesh_out(name: &str) -> PinDefinition {
+pub fn geometry_out(name: &str) -> PinDefinition {
     PinDefinition {
         name: name.to_string(),
-        pin_type: PinType::Mesh,
-    }
-}
-
-pub fn splat_out(name: &str) -> PinDefinition {
-    PinDefinition {
-        name: name.to_string(),
-        pin_type: PinType::Splats,
+        pin_type: PinType::Geometry,
     }
 }
 

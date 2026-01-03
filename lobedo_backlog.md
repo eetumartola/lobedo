@@ -1,8 +1,14 @@
 # Lobedo Backlog (Issue List)
 
+## Epic G - Geometry primitives (architecture change)
+- **G1**: Introduce `Geometry` container with primitive list (mesh/point/spline/splat)
+- **G2**: Replace `Splats` pin type with unified `Geometry` pin type
+- **G3**: Node execution: apply per-primitive ops + pass-through for unsupported primitives
+- **G4**: Define splat deformation policy (SH rotation, scale handling, optional resampling)
+- **G5**: Migrate project format + graphs to new geometry pin type
+
 ## Epic S - Core splat data type
-- **S1**: Define `SplatGeo` schema + typed channel storage
-- **S2**: Add `Splats` pin type and graph typing rules
+- **S1**: Define `Splat` schema + typed channel storage
 - **S3**: Expand `SceneSnapshot` to multiple drawables
 - **S4**: Add validation + unit tests (sizes, NaN checks)
 

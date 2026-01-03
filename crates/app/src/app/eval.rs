@@ -7,8 +7,7 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    evaluate_mesh_graph, evaluate_splat_graph, Mesh, PinType, SceneDrawable, SceneSnapshot,
-    SceneSplats, ShadingMode,
+    evaluate_geometry_graph, Mesh, SceneDrawable, SceneSnapshot, SceneSplats, ShadingMode,
 };
 use render::{
     RenderDrawable, RenderMesh, RenderScene, RenderSplats, ViewportDebug, ViewportShadingMode,
@@ -60,54 +59,8 @@ impl LobedoApp {
         self.last_display_state = DisplayState::Ok;
         let template_nodes = self.project.graph.template_nodes();
 
-        let display_pin_type = display_pin_type(&self.project.graph, display_node);
         let start = Instant::now();
-        match display_pin_type {
-            Some(PinType::Splats) => {
-                match evaluate_splat_graph(
-                    &self.project.graph,
-                    display_node,
-                    &mut self.splat_eval_state,
-                ) {
-                    Ok(result) => {
-                        self.last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
-                        let output_valid = result.report.output_valid;
-                        let mut error_nodes = HashSet::new();
-                        let mut error_messages = HashMap::new();
-                        merge_error_state(&result.report, &mut error_nodes, &mut error_messages);
-                        self.last_eval_report = Some(result.report);
-
-                        if let Some(splats) = result.output {
-                            let snapshot = SceneSnapshot::from_splats(&splats, [1.0, 1.0, 1.0]);
-                            let scene = scene_to_render_with_template(&snapshot, None);
-                            if let Some(renderer) = &self.viewport_renderer {
-                                renderer.set_scene(scene);
-                            } else {
-                                self.pending_scene = Some(scene);
-                            }
-                        } else {
-                            if let Some(renderer) = &self.viewport_renderer {
-                                renderer.clear_scene();
-                            }
-                            self.pending_scene = None;
-                        }
-
-                        if !output_valid {
-                            if let Some(renderer) = &self.viewport_renderer {
-                                renderer.clear_scene();
-                            }
-                            self.pending_scene = None;
-                        }
-                        self.node_graph.set_error_state(error_nodes, error_messages);
-                    }
-                    Err(err) => {
-                        tracing::error!("eval failed: {:?}", err);
-                        self.node_graph
-                            .set_error_state(HashSet::new(), HashMap::new());
-                    }
-                }
-            }
-            _ => match evaluate_mesh_graph(&self.project.graph, display_node, &mut self.eval_state) {
+        match evaluate_geometry_graph(&self.project.graph, display_node, &mut self.eval_state) {
             Ok(result) => {
                 self.last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
                 let output_valid = result.report.output_valid;
@@ -115,8 +68,9 @@ impl LobedoApp {
                 let mut error_messages = HashMap::new();
                 merge_error_state(&result.report, &mut error_nodes, &mut error_messages);
                 self.last_eval_report = Some(result.report);
-                if let Some(mesh) = result.output {
-                    let snapshot = SceneSnapshot::from_mesh(&mesh, [0.7, 0.72, 0.75]);
+
+                if let Some(geometry) = result.output {
+                    let snapshot = SceneSnapshot::from_geometry(&geometry, [0.7, 0.72, 0.75]);
                     let template_mesh = if output_valid {
                         collect_template_meshes(
                             &self.project.graph,
@@ -141,6 +95,7 @@ impl LobedoApp {
                     }
                     self.pending_scene = None;
                 }
+
                 if !output_valid {
                     if let Some(renderer) = &self.viewport_renderer {
                         renderer.clear_scene();
@@ -154,7 +109,6 @@ impl LobedoApp {
                 self.node_graph
                     .set_error_state(HashSet::new(), HashMap::new());
             }
-        },
         }
     }
 
@@ -179,24 +133,6 @@ impl LobedoApp {
             key_shadows: self.project.settings.render_debug.key_shadows,
         }
     }
-}
-
-fn display_pin_type(
-    graph: &lobedo_core::Graph,
-    display_node: lobedo_core::NodeId,
-) -> Option<PinType> {
-    let node = graph.node(display_node)?;
-    for pin_id in &node.outputs {
-        if let Some(pin) = graph.pin(*pin_id) {
-            return Some(pin.pin_type);
-        }
-    }
-    for pin_id in &node.inputs {
-        if let Some(pin) = graph.pin(*pin_id) {
-            return Some(pin.pin_type);
-        }
-    }
-    None
 }
 
 pub(super) fn scene_to_render_with_template(
@@ -298,7 +234,7 @@ fn collect_template_meshes(
     graph: &lobedo_core::Graph,
     display_node: lobedo_core::NodeId,
     template_nodes: &[lobedo_core::NodeId],
-    state: &mut lobedo_core::MeshEvalState,
+    state: &mut lobedo_core::GeometryEvalState,
     error_nodes: &mut HashSet<lobedo_core::NodeId>,
     error_messages: &mut HashMap<lobedo_core::NodeId, String>,
 ) -> Option<Mesh> {
@@ -307,12 +243,14 @@ fn collect_template_meshes(
         if *node_id == display_node {
             continue;
         }
-        match evaluate_mesh_graph(graph, *node_id, state) {
+        match evaluate_geometry_graph(graph, *node_id, state) {
             Ok(result) => {
                 merge_error_state(&result.report, error_nodes, error_messages);
                 if result.report.output_valid {
-                    if let Some(mesh) = result.output {
-                        meshes.push(mesh);
+                    if let Some(geometry) = result.output {
+                        if let Some(mesh) = geometry.merged_mesh() {
+                            meshes.push(mesh);
+                        }
                     }
                 }
             }

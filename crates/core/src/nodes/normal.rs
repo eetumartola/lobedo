@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{mesh_in, mesh_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 
 pub const NAME: &str = "Normal";
 
@@ -10,8 +10,8 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![mesh_in("in")],
-        outputs: vec![mesh_out("out")],
+        inputs: vec![geometry_in("in")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -29,3 +29,4 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(input)
 }
+

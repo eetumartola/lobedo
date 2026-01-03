@@ -8,7 +8,7 @@ use std::time::Instant;
 use web_time::Instant;
 
 use eframe::egui;
-use lobedo_core::{MeshEvalState, Project, SplatEvalState};
+use lobedo_core::{GeometryEvalState, Project};
 use render::{RenderScene, ViewportRenderer};
 use tracing_subscriber::filter::LevelFilter;
 
@@ -40,8 +40,7 @@ pub(crate) struct LobedoApp {
     log_level_state: Arc<AtomicU8>,
     viewport_renderer: Option<ViewportRenderer>,
     pending_scene: Option<RenderScene>,
-    eval_state: MeshEvalState,
-    splat_eval_state: SplatEvalState,
+    eval_state: GeometryEvalState,
     last_eval_report: Option<lobedo_core::EvalReport>,
     last_eval_ms: Option<f32>,
     eval_dirty: bool,
@@ -74,8 +73,7 @@ impl LobedoApp {
             log_level_state,
             viewport_renderer: None,
             pending_scene: None,
-            eval_state: MeshEvalState::new(),
-            splat_eval_state: SplatEvalState::new(),
+            eval_state: GeometryEvalState::new(),
             last_eval_report: None,
             last_eval_ms: None,
             eval_dirty: false,

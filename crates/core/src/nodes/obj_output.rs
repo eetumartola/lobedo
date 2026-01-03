@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{mesh_in, mesh_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 
 pub const NAME: &str = "OBJ Output";
 
@@ -10,8 +10,8 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Outputs".to_string(),
-        inputs: vec![mesh_in("in")],
-        outputs: vec![mesh_out("out")],
+        inputs: vec![geometry_in("in")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -92,3 +92,4 @@ fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
     }
     Ok(())
 }
+

@@ -1,4 +1,5 @@
 use crate::graph::{NodeDefinition, NodeParams};
+use crate::geometry::Geometry;
 use crate::mesh::Mesh;
 use crate::nodes;
 use crate::splat::SplatGeo;
@@ -163,6 +164,34 @@ pub fn compute_mesh_node(
     }
 }
 
+pub fn compute_geometry_node(
+    kind: BuiltinNodeKind,
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    match kind {
+        BuiltinNodeKind::Box => Ok(Geometry::with_mesh(nodes::box_node::compute(params, &[])?)),
+        BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
+        BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
+        BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
+        BuiltinNodeKind::ReadSplats => {
+            Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
+        }
+        BuiltinNodeKind::Transform
+        | BuiltinNodeKind::CopyTransform
+        | BuiltinNodeKind::Normal
+        | BuiltinNodeKind::Scatter
+        | BuiltinNodeKind::Color
+        | BuiltinNodeKind::Noise
+        | BuiltinNodeKind::AttributeMath
+        | BuiltinNodeKind::Wrangle => apply_mesh_unary(kind, params, inputs),
+        BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
+        BuiltinNodeKind::Merge => merge_geometry(inputs),
+        BuiltinNodeKind::ObjOutput => apply_obj_output(params, inputs),
+        BuiltinNodeKind::Output => Ok(inputs.first().cloned().unwrap_or_default()),
+    }
+}
+
 pub fn compute_splat_node(
     kind: BuiltinNodeKind,
     params: &NodeParams,
@@ -172,6 +201,69 @@ pub fn compute_splat_node(
         BuiltinNodeKind::ReadSplats => nodes::read_splats::compute(params),
         _ => Err("Node does not produce splats".to_string()),
     }
+}
+
+fn apply_mesh_unary(
+    kind: BuiltinNodeKind,
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let mut meshes = Vec::with_capacity(input.meshes.len());
+    for mesh in input.meshes.iter() {
+        meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(mesh))?);
+    }
+    Ok(Geometry {
+        meshes,
+        splats: input.splats.clone(),
+    })
+}
+
+fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let mut output = Geometry::default();
+    if let Some(input) = inputs.first() {
+        output.splats = input.splats.clone();
+    }
+
+    let source = inputs
+        .first()
+        .and_then(|geo| geo.merged_mesh());
+    let template = inputs
+        .get(1)
+        .and_then(|geo| geo.merged_mesh());
+
+    if let (Some(source), Some(template)) = (source, template) {
+        let mesh = nodes::copy_to_points::compute(params, &[source, template])?;
+        output.meshes.push(mesh);
+    }
+
+    Ok(output)
+}
+
+fn apply_obj_output(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let mut output = Geometry::default();
+    if let Some(input) = inputs.first() {
+        output.splats = input.splats.clone();
+        if let Some(mesh) = input.merged_mesh() {
+            let mesh = nodes::obj_output::compute(params, &[mesh])?;
+            output.meshes.push(mesh);
+        }
+    }
+    Ok(output)
+}
+
+fn merge_geometry(inputs: &[Geometry]) -> Result<Geometry, String> {
+    if inputs.is_empty() {
+        return Ok(Geometry::default());
+    }
+    let mut output = Geometry::default();
+    for input in inputs {
+        output.append(input.clone());
+    }
+
+    Ok(output)
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use glam::{Mat4, Vec3};
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{make_uv_sphere, Mesh};
-use crate::nodes::mesh_out;
+use crate::nodes::geometry_out;
 
 pub const NAME: &str = "Sphere";
 
@@ -13,7 +13,7 @@ pub fn definition() -> NodeDefinition {
         name: NAME.to_string(),
         category: "Sources".to_string(),
         inputs: Vec::new(),
-        outputs: vec![mesh_out("out")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -42,3 +42,4 @@ pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(mesh)
 }
+

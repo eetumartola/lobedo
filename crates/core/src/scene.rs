@@ -1,4 +1,5 @@
 use crate::attributes::{AttributeDomain, AttributeRef};
+use crate::geometry::Geometry;
 use crate::mesh::Mesh;
 use crate::splat::SplatGeo;
 
@@ -137,6 +138,20 @@ impl SceneSnapshot {
     pub fn from_splats(splats: &SplatGeo, base_color: [f32; 3]) -> Self {
         Self {
             drawables: vec![SceneDrawable::Splats(SceneSplats::from_splats(splats))],
+            base_color,
+        }
+    }
+
+    pub fn from_geometry(geometry: &Geometry, base_color: [f32; 3]) -> Self {
+        let mut drawables = Vec::new();
+        for mesh in &geometry.meshes {
+            drawables.push(SceneDrawable::Mesh(SceneMesh::from_mesh(mesh)));
+        }
+        for splats in &geometry.splats {
+            drawables.push(SceneDrawable::Splats(SceneSplats::from_splats(splats)));
+        }
+        Self {
+            drawables,
             base_color,
         }
     }

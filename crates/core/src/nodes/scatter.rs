@@ -4,7 +4,7 @@ use glam::Vec3;
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{mesh_in, mesh_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 
 pub const NAME: &str = "Scatter";
 
@@ -12,8 +12,8 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![mesh_in("in")],
-        outputs: vec![mesh_out("out")],
+        inputs: vec![geometry_in("in")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -149,3 +149,4 @@ impl XorShift32 {
         value as f32 / u32::MAX as f32
     }
 }
+

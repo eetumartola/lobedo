@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::mesh_out;
+use crate::nodes::geometry_out;
 
 pub const NAME: &str = "File";
 
@@ -14,7 +14,7 @@ pub fn definition() -> NodeDefinition {
         name: NAME.to_string(),
         category: "Sources".to_string(),
         inputs: Vec::new(),
-        outputs: vec![mesh_out("out")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -118,3 +118,4 @@ fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
 
     Ok(mesh)
 }
+

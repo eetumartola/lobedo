@@ -5,7 +5,7 @@ use tracing::warn;
 use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{mesh_in, mesh_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 
 pub const NAME: &str = "Attribute Math";
 
@@ -13,8 +13,8 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![mesh_in("in")],
-        outputs: vec![mesh_out("out")],
+        inputs: vec![geometry_in("in")],
+        outputs: vec![geometry_out("out")],
     }
 }
 
@@ -146,3 +146,4 @@ fn apply_op_i(value: i32, rhs: i32, op: i32) -> i32 {
         _ => value,
     }
 }
+

@@ -534,8 +534,10 @@ impl eframe::App for LobedoApp {
                                 Some(egui::Color32::from_rgb(220, 220, 220));
                             style.spacing.item_spacing = egui::vec2(10.0, 6.0);
                             let selected = self.node_graph.selected_node_id();
-                            let mesh = selected.and_then(|id| self.eval_state.mesh_for_node(id));
-                            show_spreadsheet(ui, mesh, &mut self.spreadsheet_domain);
+                            let mesh = selected
+                                .and_then(|id| self.eval_state.geometry_for_node(id))
+                                .and_then(|geo| geo.merged_mesh());
+                            show_spreadsheet(ui, mesh.as_ref(), &mut self.spreadsheet_domain);
                         });
                     });
                 }

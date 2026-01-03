@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Mesh};
+use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Geometry, Mesh};
 
 use crate::app::LobedoApp;
 
@@ -37,8 +37,8 @@ impl LobedoApp {
             .open(&mut open);
 
         window.show(ctx, |ui| {
-            if let Some(mesh) = self.eval_state.mesh_for_node(node_id) {
-                self.show_mesh_info(ui, mesh);
+            if let Some(geometry) = self.eval_state.geometry_for_node(node_id) {
+                self.show_geometry_info(ui, geometry);
             } else {
                 ui.label("No geometry available for this node.");
             }
@@ -47,6 +47,32 @@ impl LobedoApp {
         panel.open = open;
         if panel.open {
             *panel_slot = Some(panel);
+        }
+    }
+
+    fn show_geometry_info(&self, ui: &mut egui::Ui, geometry: &Geometry) {
+        let splat_count: usize = geometry.splats.iter().map(|s| s.len()).sum();
+        ui.heading("Geometry");
+        egui::Grid::new("node_info_geo_counts")
+            .num_columns(2)
+            .spacing([12.0, 6.0])
+            .show(ui, |ui| {
+                ui.label("Mesh Primitives");
+                ui.label(geometry.meshes.len().to_string());
+                ui.end_row();
+
+                ui.label("Splat Primitives");
+                ui.label(geometry.splats.len().to_string());
+                ui.end_row();
+
+                ui.label("Splat Count");
+                ui.label(splat_count.to_string());
+                ui.end_row();
+            });
+
+        if let Some(mesh) = geometry.merged_mesh() {
+            ui.separator();
+            self.show_mesh_info(ui, &mesh);
         }
     }
 
