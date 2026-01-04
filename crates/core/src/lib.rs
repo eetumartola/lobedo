@@ -2,6 +2,7 @@ mod attributes;
 mod eval;
 mod geometry;
 mod geometry_eval;
+mod groups;
 mod graph;
 mod mesh;
 mod mesh_eval;

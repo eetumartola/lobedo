@@ -19,6 +19,8 @@ impl LobedoApp {
         self.pending_undo = None;
         self.eval_dirty = true;
         self.pending_scene = None;
+        self.last_scene = None;
+        self.last_selection_key = None;
         tracing::info!("new project created");
     }
 
@@ -51,6 +53,8 @@ impl LobedoApp {
         self.pending_undo = None;
         self.eval_dirty = true;
         self.pending_scene = None;
+        self.last_scene = None;
+        self.last_selection_key = None;
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-use crate::scene::RenderMesh;
+use crate::scene::{RenderMesh, SelectionShape};
 use egui_wgpu::wgpu;
 use glam::{Mat3, Mat4, Vec2, Vec3};
 
@@ -476,7 +476,14 @@ pub(crate) fn wireframe_vertices(positions: &[[f32; 3]], indices: &[u32]) -> Vec
 }
 
 pub(crate) fn bounds_vertices(min: [f32; 3], max: [f32; 3]) -> Vec<LineVertex> {
-    let color = [0.85, 0.85, 0.9];
+    bounds_vertices_with_color(min, max, [0.85, 0.85, 0.9])
+}
+
+pub(crate) fn bounds_vertices_with_color(
+    min: [f32; 3],
+    max: [f32; 3],
+    color: [f32; 3],
+) -> Vec<LineVertex> {
     let [min_x, min_y, min_z] = min;
     let [max_x, max_y, max_z] = max;
 
@@ -514,6 +521,114 @@ pub(crate) fn bounds_vertices(min: [f32; 3], max: [f32; 3]) -> Vec<LineVertex> {
         });
         lines.push(LineVertex {
             position: corners[b],
+            color,
+        });
+    }
+    lines
+}
+
+pub(crate) fn selection_shape_vertices(shape: &SelectionShape) -> Vec<LineVertex> {
+    let color = [1.0, 0.85, 0.2];
+    match shape {
+        SelectionShape::Box { center, size } => {
+            let center = Vec3::from(*center);
+            let size = Vec3::from(*size);
+            let half = size * 0.5;
+            let min = (center - half).to_array();
+            let max = (center + half).to_array();
+            bounds_vertices_with_color(min, max, color)
+        }
+        SelectionShape::Sphere { center, size } => {
+            let center = Vec3::from(*center);
+            let mut radii = Vec3::from(*size) * 0.5;
+            radii = Vec3::new(
+                radii.x.abs().max(0.001),
+                radii.y.abs().max(0.001),
+                radii.z.abs().max(0.001),
+            );
+            circle_vertices(center, Vec3::X, Vec3::Y, radii.x, radii.y, color)
+                .into_iter()
+                .chain(circle_vertices(center, Vec3::X, Vec3::Z, radii.x, radii.z, color))
+                .chain(circle_vertices(center, Vec3::Y, Vec3::Z, radii.y, radii.z, color))
+                .collect()
+        }
+        SelectionShape::Plane {
+            origin,
+            normal,
+            size,
+        } => {
+            let origin = Vec3::from(*origin);
+            let mut n = Vec3::from(*normal);
+            if n.length_squared() < 1.0e-6 {
+                n = Vec3::Y;
+            } else {
+                n = n.normalize();
+            }
+            let up = if n.abs().dot(Vec3::Y) < 0.95 {
+                Vec3::Y
+            } else {
+                Vec3::X
+            };
+            let mut tangent = n.cross(up);
+            if tangent.length_squared() < 1.0e-6 {
+                tangent = n.cross(Vec3::Z);
+            }
+            tangent = tangent.normalize_or_zero();
+            let bitangent = n.cross(tangent).normalize_or_zero();
+            let size = Vec3::from(*size);
+            let mut half_u = size.x.abs() * 0.5;
+            let mut half_v = size.y.abs() * 0.5;
+            if half_u <= 0.0 {
+                half_u = 1.0;
+            }
+            if half_v <= 0.0 {
+                half_v = 1.0;
+            }
+            let corners = [
+                origin - tangent * half_u - bitangent * half_v,
+                origin + tangent * half_u - bitangent * half_v,
+                origin + tangent * half_u + bitangent * half_v,
+                origin - tangent * half_u + bitangent * half_v,
+            ];
+            let mut lines = Vec::with_capacity(8);
+            for i in 0..4 {
+                let a = corners[i];
+                let b = corners[(i + 1) % 4];
+                lines.push(LineVertex {
+                    position: a.to_array(),
+                    color,
+                });
+                lines.push(LineVertex {
+                    position: b.to_array(),
+                    color,
+                });
+            }
+            lines
+        }
+    }
+}
+
+fn circle_vertices(
+    center: Vec3,
+    axis_u: Vec3,
+    axis_v: Vec3,
+    radius_u: f32,
+    radius_v: f32,
+    color: [f32; 3],
+) -> Vec<LineVertex> {
+    let segments = 64usize;
+    let mut lines = Vec::with_capacity(segments * 2);
+    for i in 0..segments {
+        let t0 = i as f32 / segments as f32 * std::f32::consts::TAU;
+        let t1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
+        let p0 = center + axis_u * (t0.cos() * radius_u) + axis_v * (t0.sin() * radius_v);
+        let p1 = center + axis_u * (t1.cos() * radius_u) + axis_v * (t1.sin() * radius_v);
+        lines.push(LineVertex {
+            position: p0.to_array(),
+            color,
+        });
+        lines.push(LineVertex {
+            position: p1.to_array(),
             color,
         });
     }

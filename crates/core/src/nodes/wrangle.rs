@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 use crate::wrangle::apply_wrangle;
 
 pub const NAME: &str = "Wrangle";
@@ -25,6 +25,8 @@ pub fn default_params() -> NodeParams {
                 "code".to_string(),
                 ParamValue::String("@Cd = vec3(1.0, 1.0, 1.0);".to_string()),
             ),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -39,7 +41,8 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         _ => AttributeDomain::Detail,
     };
     if !code.trim().is_empty() {
-        apply_wrangle(&mut input, domain, code)?;
+        let mask = mesh_group_mask(&input, params, domain);
+        apply_wrangle(&mut input, domain, code, mask.as_deref())?;
     }
     Ok(input)
 }

@@ -4,8 +4,8 @@ use glam::Vec3;
 
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
-use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::mesh::{Mesh, MeshGroups};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Delete";
 
@@ -34,6 +34,8 @@ pub fn default_params() -> NodeParams {
                 "plane_normal".to_string(),
                 ParamValue::Vec3([0.0, 1.0, 0.0]),
             ),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -50,7 +52,15 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
     let mut keep_points = Vec::with_capacity(mesh.positions.len());
     for position in &mesh.positions {
         let inside = is_inside(params, shape, Vec3::from(*position));
-        keep_points.push(if invert { !inside } else { inside });
+        keep_points.push(if invert { inside } else { !inside });
+    }
+
+    if let Some(mask) = mesh_group_mask(mesh, params, AttributeDomain::Point) {
+        for (idx, keep) in keep_points.iter_mut().enumerate() {
+            if !mask.get(idx).copied().unwrap_or(false) {
+                *keep = true;
+            }
+        }
     }
 
     if mesh.indices.is_empty() {
@@ -120,6 +130,7 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
     });
 
     let new_attributes = filter_mesh_attributes(mesh, &kept_points_indices, &kept_tris, &new_indices);
+    let new_groups = filter_mesh_groups(mesh, &kept_points_indices, &kept_tris, &new_indices);
 
     Mesh {
         positions: new_positions,
@@ -128,6 +139,7 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
         corner_normals: new_corner_normals,
         uvs: new_uvs,
         attributes: new_attributes,
+        groups: new_groups,
     }
 }
 
@@ -156,6 +168,7 @@ fn filter_point_cloud(mesh: &Mesh, keep_points: &[bool]) -> Mesh {
     });
 
     let new_attributes = filter_mesh_attributes(mesh, &kept_points, &[], &[]);
+    let new_groups = filter_mesh_groups(mesh, &kept_points, &[], &[]);
 
     Mesh {
         positions: new_positions,
@@ -164,6 +177,7 @@ fn filter_point_cloud(mesh: &Mesh, keep_points: &[bool]) -> Mesh {
         corner_normals: None,
         uvs: new_uvs,
         attributes: new_attributes,
+        groups: new_groups,
     }
 }
 
@@ -204,6 +218,52 @@ fn filter_mesh_attributes(
     }
 
     attributes
+}
+
+fn filter_mesh_groups(
+    mesh: &Mesh,
+    kept_points: &[usize],
+    kept_tris: &[usize],
+    kept_indices: &[u32],
+) -> MeshGroups {
+    let mut groups = MeshGroups::default();
+
+    for (name, values) in mesh.groups.map(AttributeDomain::Point) {
+        let filtered = filter_group_values(values, kept_points);
+        groups.map_mut(AttributeDomain::Point).insert(name.clone(), filtered);
+    }
+    for (name, values) in mesh.groups.map(AttributeDomain::Vertex) {
+        if !kept_indices.is_empty() {
+            let mut kept_corners = Vec::with_capacity(kept_indices.len());
+            for tri_index in kept_tris {
+                kept_corners.push(tri_index * 3);
+                kept_corners.push(tri_index * 3 + 1);
+                kept_corners.push(tri_index * 3 + 2);
+            }
+            let filtered = filter_group_values(values, &kept_corners);
+            groups
+                .map_mut(AttributeDomain::Vertex)
+                .insert(name.clone(), filtered);
+        }
+    }
+    for (name, values) in mesh.groups.map(AttributeDomain::Primitive) {
+        let filtered = filter_group_values(values, kept_tris);
+        groups
+            .map_mut(AttributeDomain::Primitive)
+            .insert(name.clone(), filtered);
+    }
+
+    groups
+}
+
+fn filter_group_values(values: &[bool], indices: &[usize]) -> Vec<bool> {
+    let mut out = Vec::with_capacity(indices.len());
+    for &idx in indices {
+        if let Some(value) = values.get(idx) {
+            out.push(*value);
+        }
+    }
+    out
 }
 
 fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> AttributeStorage {
@@ -274,8 +334,17 @@ pub(crate) fn is_inside(params: &NodeParams, shape: &str, position: Vec3) -> boo
     match shape.to_lowercase().as_str() {
         "sphere" => {
             let center = Vec3::from(params.get_vec3("center", [0.0, 0.0, 0.0]));
-            let radius = params.get_float("radius", 1.0).max(0.0);
-            position.distance_squared(center) <= radius * radius
+            let mut size = Vec3::from(params.get_vec3("size", [1.0, 1.0, 1.0]));
+            if size == Vec3::ONE {
+                let radius = params.get_float("radius", 1.0);
+                if (radius - 1.0).abs() > f32::EPSILON {
+                    size = Vec3::splat(radius * 2.0);
+                }
+            }
+            let radii = (size * 0.5).max(Vec3::splat(f32::EPSILON));
+            let delta = position - center;
+            let normalized = delta / radii;
+            normalized.length_squared() <= 1.0
         }
         "plane" => {
             let origin = Vec3::from(params.get_vec3("plane_origin", [0.0, 0.0, 0.0]));
@@ -289,7 +358,14 @@ pub(crate) fn is_inside(params: &NodeParams, shape: &str, position: Vec3) -> boo
         }
         _ => {
             let center = Vec3::from(params.get_vec3("center", [0.0, 0.0, 0.0]));
-            let size = Vec3::from(params.get_vec3("size", [1.0, 1.0, 1.0]));
+            let mut size = Vec3::from(params.get_vec3("size", [1.0, 1.0, 1.0]));
+            if size == Vec3::ONE {
+                let radius = params.get_float("radius", 1.0);
+                if (radius - 1.0).abs() > f32::EPSILON {
+                    // If only radius was adjusted, treat it as a uniform box size.
+                    size = Vec3::splat(radius * 2.0);
+                }
+            }
             let half = size * 0.5;
             let min = center - half;
             let max = center + half;

@@ -500,6 +500,14 @@ impl NodeGraphState {
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
         let node_name = node.name.clone();
+        let shape = node
+            .params
+            .values
+            .get("shape")
+            .and_then(|value| match value {
+                lobedo_core::ParamValue::String(value) => Some(value.to_lowercase()),
+                _ => None,
+            });
 
         if params.is_empty() {
             ui.label("No parameters.");
@@ -508,6 +516,17 @@ impl NodeGraphState {
 
         let mut changed = false;
         for (key, value) in params {
+            if matches!(node_name.as_str(), "Group" | "Delete") {
+                if let Some(shape) = shape.as_deref() {
+                    match key.as_str() {
+                        "size" if shape != "box" && shape != "sphere" => continue,
+                        "radius" => continue,
+                        "center" if shape == "plane" || shape == "group" => continue,
+                        "plane_origin" | "plane_normal" if shape != "plane" => continue,
+                        _ => {}
+                    }
+                }
+            }
             let (next_value, did_change) = edit_param(ui, &node_name, &key, value);
             if did_change && graph.set_param(node_id, key, next_value).is_ok() {
                 changed = true;

@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use glam::Vec3;
 
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Scatter";
 
@@ -22,6 +23,8 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("count".to_string(), ParamValue::Int(100)),
             ("seed".to_string(), ParamValue::Int(1)),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -30,10 +33,16 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let input = require_mesh_input(inputs, 0, "Scatter requires a mesh input")?;
     let count = params.get_int("count", 200).max(0) as usize;
     let seed = params.get_int("seed", 1).max(0) as u32;
-    scatter_points(&input, count, seed)
+    let mask = mesh_group_mask(&input, params, AttributeDomain::Primitive);
+    scatter_points(&input, count, seed, mask.as_deref())
 }
 
-fn scatter_points(input: &Mesh, count: usize, seed: u32) -> Result<Mesh, String> {
+fn scatter_points(
+    input: &Mesh,
+    count: usize,
+    seed: u32,
+    mask: Option<&[bool]>,
+) -> Result<Mesh, String> {
     if count == 0 {
         return Ok(Mesh::default());
     }
@@ -43,7 +52,14 @@ fn scatter_points(input: &Mesh, count: usize, seed: u32) -> Result<Mesh, String>
 
     let mut areas = Vec::new();
     let mut total = 0.0f32;
-    for tri in input.indices.chunks_exact(3) {
+    for (prim_index, tri) in input.indices.chunks_exact(3).enumerate() {
+        if mask
+            .as_ref()
+            .is_some_and(|mask| !mask.get(prim_index).copied().unwrap_or(false))
+        {
+            areas.push(total);
+            continue;
+        }
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;
@@ -61,7 +77,11 @@ fn scatter_points(input: &Mesh, count: usize, seed: u32) -> Result<Mesh, String>
     }
 
     if total <= 0.0 {
-        return Err("Scatter requires non-degenerate triangles".to_string());
+        return if mask.is_some() {
+            Ok(Mesh::default())
+        } else {
+            Err("Scatter requires non-degenerate triangles".to_string())
+        };
     }
 
     let mut rng = XorShift32::new(seed);
@@ -108,6 +128,7 @@ fn scatter_points(input: &Mesh, count: usize, seed: u32) -> Result<Mesh, String>
         corner_normals: None,
         uvs: None,
         attributes: Default::default(),
+        groups: Default::default(),
     })
 }
 

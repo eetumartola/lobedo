@@ -697,6 +697,8 @@ impl eframe::App for LobedoApp {
             self.last_node_graph_rect = Some(right_rect);
         });
 
+        self.sync_selection_overlay();
+
         if let Some(pos) = self.node_graph.take_wrangle_help_request() {
             self.wrangle_help_panel = Some(WrangleHelpPanel {
                 screen_pos: pos,

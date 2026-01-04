@@ -1,0 +1,1 @@
+Keep a project_directory.md file at the root of the project. The file has a list of all source files within the project, a short description of what is in the file, and a list of function names in that file, in order. Use this directory as a shortcut to find where something is implemented in the project. Every time you change/add files or functions, keep this directory in sync.

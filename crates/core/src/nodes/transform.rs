@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Transform";
 
@@ -24,6 +25,8 @@ pub fn default_params() -> NodeParams {
             ("rotate_deg".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("scale".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
             ("pivot".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -45,9 +48,64 @@ pub fn transform_matrix(params: &NodeParams) -> Mat4 {
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let input = require_mesh_input(inputs, 0, "Transform requires a mesh input")?;
-    let matrix = transform_matrix(params);
     let mut mesh = input;
-    mesh.transform(matrix);
+    let matrix = transform_matrix(params);
+    apply_to_mesh(params, &mut mesh, matrix);
     Ok(mesh)
+}
+
+pub fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh, matrix: Mat4) {
+    let mask = mesh_group_mask(mesh, params, AttributeDomain::Point);
+    if let Some(mask) = mask {
+        apply_transform_mask(mesh, matrix, &mask);
+    } else {
+        mesh.transform(matrix);
+    }
+}
+
+fn apply_transform_mask(mesh: &mut Mesh, matrix: Mat4, mask: &[bool]) {
+    if mask.len() != mesh.positions.len() {
+        mesh.transform(matrix);
+        return;
+    }
+    for (idx, pos) in mesh.positions.iter_mut().enumerate() {
+        if !mask[idx] {
+            continue;
+        }
+        let v = matrix.transform_point3(Vec3::from(*pos));
+        *pos = v.to_array();
+    }
+
+    let normal_matrix = matrix.inverse().transpose();
+    if let Some(normals) = &mut mesh.normals {
+        for (idx, n) in normals.iter_mut().enumerate() {
+            if !mask.get(idx).copied().unwrap_or(false) {
+                continue;
+            }
+            let v = normal_matrix.transform_vector3(Vec3::from(*n));
+            let len = v.length();
+            *n = if len > 0.0 {
+                (v / len).to_array()
+            } else {
+                [0.0, 1.0, 0.0]
+            };
+        }
+    }
+
+    if let Some(corner_normals) = &mut mesh.corner_normals {
+        for (idx, n) in corner_normals.iter_mut().enumerate() {
+            let point = mesh.indices.get(idx).copied().unwrap_or(0) as usize;
+            if !mask.get(point).copied().unwrap_or(false) {
+                continue;
+            }
+            let v = normal_matrix.transform_vector3(Vec3::from(*n));
+            let len = v.length();
+            *n = if len > 0.0 {
+                (v / len).to_array()
+            } else {
+                [0.0, 1.0, 0.0]
+            };
+        }
+    }
 }
 

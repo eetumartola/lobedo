@@ -34,8 +34,23 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
             category: "Sources",
         },
         MenuItem {
+            kind: BuiltinNodeKind::WriteSplats,
+            name: "Write Splats",
+            category: "Outputs",
+        },
+        MenuItem {
             kind: BuiltinNodeKind::Scatter,
             name: "Scatter",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::Delete,
+            name: "Delete",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::Group,
+            name: "Group",
             category: "Operators",
         },
         MenuItem {

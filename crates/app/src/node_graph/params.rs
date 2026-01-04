@@ -61,6 +61,31 @@ pub(super) fn edit_param(
                         });
                     changed
                 })
+            } else if label == "group_type" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [
+                        (0, "Auto"),
+                        (1, "Vertex"),
+                        (2, "Point"),
+                        (3, "Primitive"),
+                    ];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Auto");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
             } else if label == "op" {
                 param_row(ui, label, |ui| {
                     let mut changed = false;
@@ -167,7 +192,27 @@ pub(super) fn edit_param(
             (ParamValue::Vec3(v), changed)
         }
         ParamValue::String(mut v) => {
-            let changed = if label == "code" {
+            let changed = if label == "shape" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Box");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value.to_string(), name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
+            } else if label == "code" {
                 param_row_with_height(ui, label, 120.0, |ui| {
                     ui.add_sized(
                         [ui.available_width().max(160.0), 100.0],

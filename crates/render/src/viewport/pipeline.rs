@@ -7,8 +7,8 @@ use crate::scene::RenderScene;
 
 use super::mesh::{
     bounds_from_positions, bounds_vertices, build_vertices, cube_mesh, grid_and_axes,
-    normals_vertices, point_cross_vertices, wireframe_vertices, LineVertex, SplatVertex, Vertex,
-    LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
+    normals_vertices, point_cross_vertices, selection_shape_vertices, wireframe_vertices,
+    LineVertex, SplatVertex, Vertex, LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
 };
 
 pub(super) const DEPTH_FORMAT: egui_wgpu::wgpu::TextureFormat =
@@ -89,6 +89,8 @@ pub(super) struct PipelineState {
     pub(super) bounds_count: u32,
     pub(super) template_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) template_count: u32,
+    pub(super) selection_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) selection_count: u32,
 }
 
 impl PipelineState {
@@ -742,6 +744,16 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
                 usage: egui_wgpu::wgpu::BufferUsages::VERTEX
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             });
+        let selection_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_selection_vertices"),
+                contents: bytemuck::cast_slice(&[LineVertex {
+                    position: [0.0, 0.0, 0.0],
+                    color: [0.0, 0.0, 0.0],
+                }]),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
         let (grid_vertices, axes_vertices) = grid_and_axes();
         let point_count = mesh.vertices.len() as u32;
         let point_positions: Vec<[f32; 3]> = mesh.vertices.iter().map(|v| v.position).collect();
@@ -832,6 +844,8 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
             bounds_count: bounds_vertices.len() as u32,
             template_buffer,
             template_count: 0,
+            selection_buffer,
+            selection_count: 0,
         }
     }
 }
@@ -925,6 +939,24 @@ pub(super) fn apply_scene_to_pipeline(
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             });
         pipeline.template_count = template_lines.len() as u32;
+    }
+
+    let selection_lines = scene
+        .selection_shape
+        .as_ref()
+        .map(selection_shape_vertices)
+        .unwrap_or_default();
+    if selection_lines.is_empty() {
+        pipeline.selection_count = 0;
+    } else {
+        pipeline.selection_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_selection_vertices"),
+                contents: bytemuck::cast_slice(&selection_lines),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
+        pipeline.selection_count = selection_lines.len() as u32;
     }
 }
 

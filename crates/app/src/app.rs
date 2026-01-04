@@ -40,6 +40,7 @@ pub(crate) struct LobedoApp {
     log_level_state: Arc<AtomicU8>,
     viewport_renderer: Option<ViewportRenderer>,
     pending_scene: Option<RenderScene>,
+    last_scene: Option<RenderScene>,
     eval_state: GeometryEvalState,
     last_eval_report: Option<lobedo_core::EvalReport>,
     last_eval_ms: Option<f32>,
@@ -49,6 +50,7 @@ pub(crate) struct LobedoApp {
     last_display_state: DisplayState,
     last_node_graph_rect: Option<egui::Rect>,
     last_selected_node: Option<lobedo_core::NodeId>,
+    last_selection_key: Option<(lobedo_core::NodeId, u64)>,
     info_panel: Option<NodeInfoPanel>,
     held_info_panel: Option<NodeInfoPanel>,
     wrangle_help_panel: Option<WrangleHelpPanel>,
@@ -73,6 +75,7 @@ impl LobedoApp {
             log_level_state,
             viewport_renderer: None,
             pending_scene: None,
+            last_scene: None,
             eval_state: GeometryEvalState::new(),
             last_eval_report: None,
             last_eval_ms: None,
@@ -82,6 +85,7 @@ impl LobedoApp {
             last_display_state: DisplayState::Ok,
             last_node_graph_rect: None,
             last_selected_node: None,
+            last_selection_key: None,
             info_panel: None,
             held_info_panel: None,
             wrangle_help_panel: None,
@@ -129,7 +133,9 @@ impl LobedoApp {
         self.node_graph
             .restore_layout(&self.project.graph, &snapshot.layout);
         self.last_selected_node = snapshot.layout.selected;
+        self.last_selection_key = None;
         self.pending_scene = None;
+        self.last_scene = None;
         self.last_eval_report = None;
         self.eval_dirty = true;
         self.last_param_change = None;

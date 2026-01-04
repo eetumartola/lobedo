@@ -7,6 +7,7 @@ Status: done | in progress | not started
 - **G3**: Node execution: apply per-primitive ops + pass-through for unsupported primitives (done)
 - **G4**: Define splat deformation policy (SH rotation, scale handling, optional resampling) (done: L1-L3 SH rotation + scale handling in transform)
 - **G5**: Migrate project format + graphs to new geometry pin type (done)
+- **G6**: Add group system (named point/vertex/primitive groups; splats in primitive groups) (done)
 
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
@@ -24,6 +25,8 @@ Status: done | in progress | not started
 - **N1**: Read/Write Splats (PLY) (done)
 - **N2**: Transform (splat-aware) (done)
 - **N3**: Delete / Prune / Regularize (in progress: Delete done, Prune/Regularize pending)
+- **N6**: Group node (box/sphere/plane; group by existing group) (done)
+- **N7**: Group selection parameter on applicable nodes (Auto/Point/Vertex/Primitive) (done)
 - **N4**: LOD/Decimate (voxel clustering) (not started)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 
@@ -38,3 +41,12 @@ Status: done | in progress | not started
 - **Q2**: Project format migration + versioning (done)
 - **Q3**: Performance profiling harness (splat count scaling) (not started)
 - **Q4**: Spreadsheet splat mode (show first 100 splats by default) (not started)
+
+## Epic P - Polish
+- **P1**: Transient node info panel on middle mouse (not started)
+- **P2**: Open app fullscreen by default (not started)
+- **P3**: Pin hot area 2x radius of visual pin circle (not started)
+- **P4**: Viewport top-left icons for normals + stats toggles (not started)
+- **P5**: Parameter sliders are 2x wider (not started)
+- **P6**: Show splat info text in Read Splats parameter pane (not started)
+- **P7**: File requester buttons for Read/Write OBJ + Read/Write Splats (not started)

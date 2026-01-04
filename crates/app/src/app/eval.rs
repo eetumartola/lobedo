@@ -10,7 +10,8 @@ use lobedo_core::{
     evaluate_geometry_graph, Mesh, SceneDrawable, SceneSnapshot, SceneSplats, ShadingMode,
 };
 use render::{
-    RenderDrawable, RenderMesh, RenderScene, RenderSplats, ViewportDebug, ViewportShadingMode,
+    RenderDrawable, RenderMesh, RenderScene, RenderSplats, SelectionShape, ViewportDebug,
+    ViewportShadingMode,
 };
 
 use super::{DisplayState, LobedoApp};
@@ -83,17 +84,20 @@ impl LobedoApp {
                     } else {
                         None
                     };
-                    let scene = scene_to_render_with_template(&snapshot, template_mesh.as_ref());
-                    if let Some(renderer) = &self.viewport_renderer {
-                        renderer.set_scene(scene);
-                    } else {
-                        self.pending_scene = Some(scene);
-                    }
+                    let selection_shape =
+                        selection_shape_for_group(&self.project.graph, self.node_graph.selected_node_id());
+                    let scene = scene_to_render_with_template(
+                        &snapshot,
+                        template_mesh.as_ref(),
+                        selection_shape,
+                    );
+                    self.apply_scene(scene);
                 } else {
                     if let Some(renderer) = &self.viewport_renderer {
                         renderer.clear_scene();
                     }
                     self.pending_scene = None;
+                    self.last_scene = None;
                 }
 
                 if !output_valid {
@@ -101,6 +105,7 @@ impl LobedoApp {
                         renderer.clear_scene();
                     }
                     self.pending_scene = None;
+                    self.last_scene = None;
                 }
                 self.node_graph.set_error_state(error_nodes, error_messages);
             }
@@ -110,6 +115,40 @@ impl LobedoApp {
                     .set_error_state(HashSet::new(), HashMap::new());
             }
         }
+    }
+
+    pub(super) fn apply_scene(&mut self, scene: RenderScene) {
+        self.last_scene = Some(scene.clone());
+        if let Some(renderer) = &self.viewport_renderer {
+            renderer.set_scene(scene);
+        } else {
+            self.pending_scene = Some(scene);
+        }
+    }
+
+    pub(super) fn sync_selection_overlay(&mut self) {
+        let Some(scene) = self.last_scene.clone() else {
+            self.last_selection_key = None;
+            return;
+        };
+        let selection = selection_shape_for_group(
+            &self.project.graph,
+            self.node_graph.selected_node_id(),
+        );
+        let selection_key = self
+            .node_graph
+            .selected_node_id()
+            .and_then(|node_id| self.project.graph.node(node_id).map(|node| (node_id, node.param_version)));
+        if selection_key == self.last_selection_key
+            && selection == scene.selection_shape
+        {
+            return;
+        }
+
+        self.last_selection_key = selection_key;
+        let mut scene = scene;
+        scene.selection_shape = selection;
+        self.apply_scene(scene);
     }
 
     pub(super) fn viewport_debug(&self) -> ViewportDebug {
@@ -138,6 +177,7 @@ impl LobedoApp {
 pub(super) fn scene_to_render_with_template(
     scene: &SceneSnapshot,
     template: Option<&Mesh>,
+    selection_shape: Option<SelectionShape>,
 ) -> RenderScene {
     let mut drawables = Vec::new();
     let mut mesh_has_colors = false;
@@ -164,6 +204,7 @@ pub(super) fn scene_to_render_with_template(
         drawables,
         base_color,
         template_mesh: template.map(render_mesh_from_mesh),
+        selection_shape,
     }
 }
 
@@ -287,5 +328,46 @@ fn merge_error_state(
                 }
             }
         }
+    }
+}
+
+fn selection_shape_for_group(
+    graph: &lobedo_core::Graph,
+    node_id: Option<lobedo_core::NodeId>,
+) -> Option<SelectionShape> {
+    let node_id = node_id?;
+    let node = graph.node(node_id)?;
+    if node.name != "Group" {
+        return None;
+    }
+    let shape = node.params.get_string("shape", "box").to_lowercase();
+    match shape.as_str() {
+        "box" => {
+            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
+            let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
+            Some(SelectionShape::Box { center, size })
+        }
+        "sphere" => {
+            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
+            let mut size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
+            if size == [1.0, 1.0, 1.0] {
+                let radius = node.params.get_float("radius", 1.0);
+                if (radius - 1.0).abs() > f32::EPSILON {
+                    size = [radius * 2.0, radius * 2.0, radius * 2.0];
+                }
+            }
+            Some(SelectionShape::Sphere { center, size })
+        }
+        "plane" => {
+            let origin = node.params.get_vec3("plane_origin", [0.0, 0.0, 0.0]);
+            let normal = node.params.get_vec3("plane_normal", [0.0, 1.0, 0.0]);
+            let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
+            Some(SelectionShape::Plane {
+                origin,
+                normal,
+                size,
+            })
+        }
+        _ => None,
     }
 }

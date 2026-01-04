@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use glam::{Mat3, Mat4, Quat, Vec3};
 
 #[derive(Debug, Clone, Default)]
@@ -9,6 +11,7 @@ pub struct SplatGeo {
     pub sh0: Vec<[f32; 3]>,
     pub sh_coeffs: usize,
     pub sh_rest: Vec<[f32; 3]>,
+    pub groups: BTreeMap<String, Vec<bool>>,
 }
 
 impl SplatGeo {
@@ -21,6 +24,7 @@ impl SplatGeo {
             sh0: vec![[1.0, 1.0, 1.0]; count],
             sh_coeffs: 0,
             sh_rest: Vec::new(),
+            groups: BTreeMap::new(),
         }
     }
 
@@ -57,6 +61,11 @@ impl SplatGeo {
         } else if self.sh_rest.len() != count * self.sh_coeffs {
             return Err("SplatGeo SH coefficients are inconsistent".to_string());
         }
+        for (name, values) in &self.groups {
+            if values.len() != count {
+                return Err(format!("SplatGeo group '{}' has invalid length", name));
+            }
+        }
         Ok(())
     }
 
@@ -80,6 +89,94 @@ impl SplatGeo {
         let min_scale = 1.0e-6;
 
         for idx in 0..self.positions.len() {
+            let position = matrix.transform_point3(Vec3::from(self.positions[idx]));
+            self.positions[idx] = position.to_array();
+
+            let mut scale = Vec3::from(self.scales[idx]);
+            if use_log_scale {
+                scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
+            }
+            scale = Vec3::new(
+                scale.x.max(min_scale),
+                scale.y.max(min_scale),
+                scale.z.max(min_scale),
+            );
+
+            let rotation = self.rotations[idx];
+            let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+            if quat.length_squared() > 0.0 {
+                quat = quat.normalize();
+            } else {
+                quat = Quat::IDENTITY;
+            }
+
+            let rot_mat = Mat3::from_quat(quat);
+            let cov_local = Mat3::from_diagonal(scale * scale);
+            let cov_world = linear * (rot_mat * cov_local * rot_mat.transpose()) * linear.transpose();
+
+            let (eigenvalues, mut eigenvectors) = eigen_decomposition_symmetric(cov_world);
+            if eigenvectors.determinant() < 0.0 {
+                eigenvectors = Mat3::from_cols(
+                    eigenvectors.x_axis,
+                    eigenvectors.y_axis,
+                    -eigenvectors.z_axis,
+                );
+            }
+
+            let mut sigma = Vec3::new(
+                eigenvalues.x.max(0.0).sqrt(),
+                eigenvalues.y.max(0.0).sqrt(),
+                eigenvalues.z.max(0.0).sqrt(),
+            );
+            sigma = Vec3::new(
+                sigma.x.max(min_scale),
+                sigma.y.max(min_scale),
+                sigma.z.max(min_scale),
+            );
+
+            let quat = Quat::from_mat3(&eigenvectors).normalize();
+            self.rotations[idx] = [quat.w, quat.x, quat.y, quat.z];
+
+            if use_log_scale {
+                self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
+            } else {
+                self.scales[idx] = sigma.to_array();
+            }
+
+            if let Some(mats) = &sh_mats {
+                rotate_sh_bands(self, idx, mats);
+            }
+        }
+    }
+
+    pub fn transform_masked(&mut self, matrix: Mat4, mask: &[bool]) {
+        if self.positions.is_empty() {
+            return;
+        }
+        if mask.len() != self.positions.len() {
+            self.transform(matrix);
+            return;
+        }
+
+        let sh_mats = if self.sh_coeffs >= 3 {
+            Some(build_sh_rotation_matrices(
+                rotation_from_matrix(matrix),
+                self.sh_coeffs,
+            ))
+        } else {
+            None
+        };
+        let use_log_scale = self.scales.iter().any(|value| {
+            value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0
+        });
+        let linear = Mat3::from_mat4(matrix);
+        let min_scale = 1.0e-6;
+
+        for (idx, selected) in mask.iter().enumerate() {
+            if !*selected {
+                continue;
+            }
+
             let position = matrix.transform_point3(Vec3::from(self.positions[idx]));
             self.positions[idx] = position.to_array();
 

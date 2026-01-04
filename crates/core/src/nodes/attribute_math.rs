@@ -5,7 +5,7 @@ use tracing::warn;
 use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Attribute Math";
 
@@ -27,6 +27,8 @@ pub fn default_params() -> NodeParams {
             ("op".to_string(), ParamValue::Int(0)),
             ("value_f".to_string(), ParamValue::Float(1.0)),
             ("value_v3".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -55,57 +57,161 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
             return Ok(input);
         }
     };
+    let mask = mesh_group_mask(&input, params, domain);
     match attr_ref {
         crate::attributes::AttributeRef::Float(values) => {
-            let mut next = Vec::with_capacity(values.len());
-            for &v in values {
-                next.push(apply_op_f(v, value_f, op));
+            let expected_len = values.len();
+            let mut next = if let Some(existing) = input
+                .attribute(domain, result)
+                .and_then(|attr| match attr {
+                    crate::attributes::AttributeRef::Float(existing)
+                        if existing.len() == expected_len =>
+                    {
+                        Some(existing.to_vec())
+                    }
+                    _ => None,
+                })
+            {
+                existing
+            } else {
+                values.to_vec()
+            };
+            for (idx, &v) in values.iter().enumerate() {
+                if mask.as_ref().is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+                    continue;
+                }
+                if let Some(slot) = next.get_mut(idx) {
+                    *slot = apply_op_f(v, value_f, op);
+                }
             }
             input
                 .set_attribute(domain, result, AttributeStorage::Float(next))
                 .map_err(|err| format!("Attribute Math error: {:?}", err))?;
         }
         crate::attributes::AttributeRef::Int(values) => {
-            let mut next = Vec::with_capacity(values.len());
+            let expected_len = values.len();
+            let mut next = if let Some(existing) = input
+                .attribute(domain, result)
+                .and_then(|attr| match attr {
+                    crate::attributes::AttributeRef::Int(existing)
+                        if existing.len() == expected_len =>
+                    {
+                        Some(existing.to_vec())
+                    }
+                    _ => None,
+                })
+            {
+                existing
+            } else {
+                values.to_vec()
+            };
             let value_i = value_f.round() as i32;
-            for &v in values {
-                next.push(apply_op_i(v, value_i, op));
+            for (idx, &v) in values.iter().enumerate() {
+                if mask.as_ref().is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+                    continue;
+                }
+                if let Some(slot) = next.get_mut(idx) {
+                    *slot = apply_op_i(v, value_i, op);
+                }
             }
             input
                 .set_attribute(domain, result, AttributeStorage::Int(next))
                 .map_err(|err| format!("Attribute Math error: {:?}", err))?;
         }
         crate::attributes::AttributeRef::Vec2(values) => {
-            let mut next = Vec::with_capacity(values.len());
-            for &v in values {
-                next.push([apply_op_f(v[0], value_f, op), apply_op_f(v[1], value_f, op)]);
+            let expected_len = values.len();
+            let mut next = if let Some(existing) = input
+                .attribute(domain, result)
+                .and_then(|attr| match attr {
+                    crate::attributes::AttributeRef::Vec2(existing)
+                        if existing.len() == expected_len =>
+                    {
+                        Some(existing.to_vec())
+                    }
+                    _ => None,
+                })
+            {
+                existing
+            } else {
+                values.to_vec()
+            };
+            for (idx, &v) in values.iter().enumerate() {
+                if mask.as_ref().is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+                    continue;
+                }
+                if let Some(slot) = next.get_mut(idx) {
+                    *slot = [
+                        apply_op_f(v[0], value_f, op),
+                        apply_op_f(v[1], value_f, op),
+                    ];
+                }
             }
             input
                 .set_attribute(domain, result, AttributeStorage::Vec2(next))
                 .map_err(|err| format!("Attribute Math error: {:?}", err))?;
         }
         crate::attributes::AttributeRef::Vec3(values) => {
-            let mut next = Vec::with_capacity(values.len());
-            for &v in values {
-                next.push([
-                    apply_op_f(v[0], value_v3[0], op),
-                    apply_op_f(v[1], value_v3[1], op),
-                    apply_op_f(v[2], value_v3[2], op),
-                ]);
+            let expected_len = values.len();
+            let mut next = if let Some(existing) = input
+                .attribute(domain, result)
+                .and_then(|attr| match attr {
+                    crate::attributes::AttributeRef::Vec3(existing)
+                        if existing.len() == expected_len =>
+                    {
+                        Some(existing.to_vec())
+                    }
+                    _ => None,
+                })
+            {
+                existing
+            } else {
+                values.to_vec()
+            };
+            for (idx, &v) in values.iter().enumerate() {
+                if mask.as_ref().is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+                    continue;
+                }
+                if let Some(slot) = next.get_mut(idx) {
+                    *slot = [
+                        apply_op_f(v[0], value_v3[0], op),
+                        apply_op_f(v[1], value_v3[1], op),
+                        apply_op_f(v[2], value_v3[2], op),
+                    ];
+                }
             }
             input
                 .set_attribute(domain, result, AttributeStorage::Vec3(next))
                 .map_err(|err| format!("Attribute Math error: {:?}", err))?;
         }
         crate::attributes::AttributeRef::Vec4(values) => {
-            let mut next = Vec::with_capacity(values.len());
-            for &v in values {
-                next.push([
-                    apply_op_f(v[0], value_f, op),
-                    apply_op_f(v[1], value_f, op),
-                    apply_op_f(v[2], value_f, op),
-                    apply_op_f(v[3], value_f, op),
-                ]);
+            let expected_len = values.len();
+            let mut next = if let Some(existing) = input
+                .attribute(domain, result)
+                .and_then(|attr| match attr {
+                    crate::attributes::AttributeRef::Vec4(existing)
+                        if existing.len() == expected_len =>
+                    {
+                        Some(existing.to_vec())
+                    }
+                    _ => None,
+                })
+            {
+                existing
+            } else {
+                values.to_vec()
+            };
+            for (idx, &v) in values.iter().enumerate() {
+                if mask.as_ref().is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+                    continue;
+                }
+                if let Some(slot) = next.get_mut(idx) {
+                    *slot = [
+                        apply_op_f(v[0], value_f, op),
+                        apply_op_f(v[1], value_f, op),
+                        apply_op_f(v[2], value_f, op),
+                        apply_op_f(v[3], value_f, op),
+                    ];
+                }
             }
             input
                 .set_attribute(domain, result, AttributeStorage::Vec4(next))

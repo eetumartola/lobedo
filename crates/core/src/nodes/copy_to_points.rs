@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Copy to Points";
 
@@ -24,6 +25,8 @@ pub fn default_params() -> NodeParams {
             ("translate".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("rotate_deg".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("scale".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -41,6 +44,19 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let rotate_deg = params.get_vec3("rotate_deg", [0.0, 0.0, 0.0]);
     let scale = params.get_vec3("scale", [1.0, 1.0, 1.0]);
 
+    let mask = mesh_group_mask(&template, params, AttributeDomain::Point);
+    let selected: Vec<usize> = if let Some(mask) = &mask {
+        mask.iter()
+            .enumerate()
+            .filter_map(|(idx, value)| if *value { Some(idx) } else { None })
+            .collect()
+    } else {
+        (0..template.positions.len()).collect()
+    };
+    if selected.is_empty() {
+        return Ok(Mesh::default());
+    }
+
     let mut normals = template.normals.clone().unwrap_or_default();
     if align_to_normals && normals.len() != template.positions.len() {
         let mut temp = template.clone();
@@ -55,8 +71,9 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let scale = Vec3::from(scale);
     let translate = Vec3::from(translate);
 
-    let mut copies = Vec::with_capacity(template.positions.len());
-    for (idx, pos) in template.positions.iter().enumerate() {
+    let mut copies = Vec::with_capacity(selected.len());
+    for idx in selected {
+        let pos = template.positions.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
         let mut rotation = user_quat;
         if align_to_normals {
             let normal = normals.get(idx).copied().unwrap_or([0.0, 1.0, 0.0]);
@@ -67,7 +84,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
             }
         }
         let matrix =
-            Mat4::from_scale_rotation_translation(scale, rotation, Vec3::from(*pos) + translate);
+            Mat4::from_scale_rotation_translation(scale, rotation, Vec3::from(pos) + translate);
         let mut mesh = source.clone();
         mesh.transform(matrix);
         copies.push(mesh);

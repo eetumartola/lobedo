@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use eframe::egui;
 
 use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Geometry, Mesh};
@@ -104,10 +106,73 @@ impl LobedoApp {
                 });
         }
 
+        self.show_groups_section(ui, geometry);
+
         if let Some(mesh) = geometry.merged_mesh() {
             ui.separator();
             self.show_mesh_info(ui, &mesh);
         }
+    }
+
+    fn show_groups_section(&self, ui: &mut egui::Ui, geometry: &Geometry) {
+        let merged_mesh = geometry.merged_mesh();
+        let merged_splats = geometry.merged_splats();
+        if merged_mesh.is_none() && merged_splats.is_none() {
+            return;
+        }
+
+        ui.separator();
+        ui.heading("Groups");
+
+        if let Some(mesh) = merged_mesh {
+            self.show_group_table(
+                ui,
+                "Point",
+                mesh.groups.map(AttributeDomain::Point),
+                mesh.positions.len(),
+            );
+            self.show_group_table(
+                ui,
+                "Vertex",
+                mesh.groups.map(AttributeDomain::Vertex),
+                mesh.indices.len(),
+            );
+            self.show_group_table(
+                ui,
+                "Primitive",
+                mesh.groups.map(AttributeDomain::Primitive),
+                mesh.indices.len() / 3,
+            );
+        }
+
+        if let Some(splats) = merged_splats {
+            self.show_group_table(ui, "Splat Primitive", &splats.groups, splats.len());
+        }
+    }
+
+    fn show_group_table(
+        &self,
+        ui: &mut egui::Ui,
+        label: &str,
+        groups: &BTreeMap<String, Vec<bool>>,
+        total: usize,
+    ) {
+        if groups.is_empty() {
+            return;
+        }
+        ui.label(format!("{label} Groups"));
+        egui::Grid::new(format!("node_info_groups_{label}"))
+            .num_columns(2)
+            .spacing([10.0, 4.0])
+            .show(ui, |ui| {
+                for (name, values) in groups {
+                    let count = values.iter().filter(|v| **v).count();
+                    ui.label(name);
+                    ui.label(format!("{count}/{total}"));
+                    ui.end_row();
+                }
+            });
+        ui.add_space(6.0);
     }
 
     fn show_mesh_info(&self, ui: &mut egui::Ui, mesh: &Mesh) {

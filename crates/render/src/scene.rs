@@ -23,11 +23,23 @@ pub enum RenderDrawable {
     Splats(RenderSplats),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectionShape {
+    Box { center: [f32; 3], size: [f32; 3] },
+    Sphere { center: [f32; 3], size: [f32; 3] },
+    Plane {
+        origin: [f32; 3],
+        normal: [f32; 3],
+        size: [f32; 3],
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct RenderScene {
     pub drawables: Vec<RenderDrawable>,
     pub base_color: [f32; 3],
     pub template_mesh: Option<RenderMesh>,
+    pub selection_shape: Option<SelectionShape>,
 }
 
 impl RenderScene {

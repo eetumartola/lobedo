@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::mesh::Mesh;
 use crate::splat::SplatGeo;
 
@@ -60,6 +62,10 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
         .map(|s| s.sh_coeffs)
         .max()
         .unwrap_or(0);
+    let mut group_names = BTreeSet::new();
+    for splat in splats {
+        group_names.extend(splat.groups.keys().cloned());
+    }
     merged.positions.reserve(total);
     merged.rotations.reserve(total);
     merged.scales.reserve(total);
@@ -68,6 +74,11 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
     if max_coeffs > 0 {
         merged.sh_coeffs = max_coeffs;
         merged.sh_rest.reserve(total * max_coeffs);
+    }
+    if !group_names.is_empty() {
+        for name in &group_names {
+            merged.groups.insert(name.clone(), Vec::with_capacity(total));
+        }
     }
 
     for splat in splats {
@@ -93,6 +104,20 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
                         };
                         merged.sh_rest.push(value);
                     }
+                }
+            }
+        }
+        if !group_names.is_empty() {
+            for name in &group_names {
+                let entry = merged.groups.get_mut(name).expect("group");
+                if let Some(values) = splat.groups.get(name) {
+                    if values.len() == splat.len() {
+                        entry.extend_from_slice(values);
+                    } else {
+                        entry.extend(std::iter::repeat_n(false, splat.len()));
+                    }
+                } else {
+                    entry.extend(std::iter::repeat_n(false, splat.len()));
                 }
             }
         }

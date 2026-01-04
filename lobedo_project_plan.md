@@ -24,6 +24,13 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Perfect physically based relighting of captured splats
 - Unreal integration or `.uasset` authoring
 
+## Epic P - Polish (future)
+- Transient node info panel on middle mouse (dismiss on release)
+- Open app fullscreen by default
+- Pin hit area 2x radius of visual pin circle
+- Viewport top-left icons for normals + stats overlay toggles
+- Parameter sliders are 2x wider
+
 ---
 
 ## Core Data Model
@@ -58,6 +65,12 @@ Optional but useful:
 ### Attribute system integration
 Each primitive type has its own attribute storage with a shared accessor interface for common semantics
 (`P`, `Cd`, etc). Splat attributes remain typed channels with required semantics (P/R/S/opacity/SH).
+
+### Groups (Houdini-style)
+Geometry carries **named groups** for point/vertex/primitive membership. Groups can be populated via
+Delete-style rules (box/sphere/plane) or by copying existing groups. Nodes may optionally restrict
+their operation to a group or exclude a group; unsupported primitive types pass through.
+Group expressions use Houdini-style matching (wildcards) and exclusion tokens (e.g. `grp* ^tmp`).
 
 ### Pin types (expanded)
 Add pin types:
@@ -112,26 +125,27 @@ SH evaluation:
 4. `Transform` (works on all supported primitives)
    - Splat-aware: transforms `P/R/S` and rotates SH coefficients when rotation is applied
 5. `Merge` (Mesh merge; Splat merge)
-6. `Filter by Mask` (for points/splats; mask source could be box/sphere/plane)
+6. `Group` (create named groups by box/sphere/plane or from existing groups)
+7. `Filter by Mask` (for points/splats; mask source could be box/sphere/plane)
 
 ### Splat-native ops
-7. `Crop` (box/sphere/plane)
-8. `Prune` (by opacity/scale/confidence/outlier heuristics)
-9. `Regularize` (clamp scales, normalize opacity, remove invalid values)
-10. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)
-11. `SH Tools` (utility)
+8. `Crop` (box/sphere/plane)
+9. `Prune` (by opacity/scale/confidence/outlier heuristics)
+10. `Regularize` (clamp scales, normalize opacity, remove invalid values)
+11. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)
+12. `SH Tools` (utility)
    - `Rotate SH` (explicit)
    - `Reduce SH Order` (e.g., L3->L1)
 
 ### Conversion
-12. `Splats -> Points`
-13. `Points -> Splats (Fit)`
-14. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
+13. `Splats -> Points`
+14. `Points -> Splats (Fit)`
+15. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
 
 ### ML (MVP)
-15. `Depth Estimation (Job)`
-16. `Backproject to Points`
-17. (Optional) `Points -> Splats` downstream
+16. `Depth Estimation (Job)`
+17. `Backproject to Points`
+18. (Optional) `Points -> Splats` downstream
 
 ---
 

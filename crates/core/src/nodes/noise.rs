@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use glam::Vec3;
 
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
 
 pub const NAME: &str = "Noise/Mountain";
 
@@ -24,6 +25,8 @@ pub fn default_params() -> NodeParams {
             ("frequency".to_string(), ParamValue::Float(1.0)),
             ("seed".to_string(), ParamValue::Int(1)),
             ("offset".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
+            ("group".to_string(), ParamValue::String(String::new())),
+            ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
 }
@@ -34,6 +37,12 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let frequency = params.get_float("frequency", 1.0).max(0.0);
     let seed = params.get_int("seed", 1) as u32;
     let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
+    let mask = mesh_group_mask(&input, params, AttributeDomain::Point);
+    if let Some(mask) = &mask {
+        if !mask.iter().any(|value| *value) {
+            return Ok(input);
+        }
+    }
 
     if input.normals.is_none() {
         let _ = input.compute_normals();
@@ -43,7 +52,13 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         .clone()
         .ok_or_else(|| "Noise/Mountain requires point normals".to_string())?;
 
-    for (pos, normal) in input.positions.iter_mut().zip(normals.iter()) {
+    for (idx, (pos, normal)) in input.positions.iter_mut().zip(normals.iter()).enumerate() {
+        if mask
+            .as_ref()
+            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+        {
+            continue;
+        }
         let p = Vec3::from(*pos) * frequency + offset;
         let n = fractal_noise(p, seed);
         let displacement = Vec3::from(*normal) * (n * amplitude);

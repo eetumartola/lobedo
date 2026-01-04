@@ -92,7 +92,12 @@ enum Token {
     Semicolon,
 }
 
-pub fn apply_wrangle(mesh: &mut Mesh, domain: AttributeDomain, code: &str) -> Result<(), String> {
+pub fn apply_wrangle(
+    mesh: &mut Mesh,
+    domain: AttributeDomain,
+    code: &str,
+    mask: Option<&[bool]>,
+) -> Result<(), String> {
     let program = parse_program(code)?;
     if program.statements.is_empty() {
         return Ok(());
@@ -101,8 +106,13 @@ pub fn apply_wrangle(mesh: &mut Mesh, domain: AttributeDomain, code: &str) -> Re
     if len == 0 && domain != AttributeDomain::Detail {
         return Ok(());
     }
+    if let Some(mask) = mask {
+        if domain != AttributeDomain::Detail && mask.len() != len {
+            return Ok(());
+        }
+    }
 
-    let mut ctx = WrangleContext::new(mesh, domain);
+    let mut ctx = WrangleContext::new(mesh, domain, mask);
     for stmt in program.statements {
         ctx.apply_statement(stmt)?;
     }
@@ -115,6 +125,7 @@ struct WrangleContext<'a> {
     mesh: &'a Mesh,
     domain: AttributeDomain,
     len: usize,
+    mask: Option<&'a [bool]>,
     written: HashMap<String, AttributeStorage>,
     point_normals: Option<Vec<[f32; 3]>>,
     vertex_normals: Option<Vec<[f32; 3]>>,
@@ -125,12 +136,13 @@ struct WrangleContext<'a> {
 }
 
 impl<'a> WrangleContext<'a> {
-    fn new(mesh: &'a Mesh, domain: AttributeDomain) -> Self {
+    fn new(mesh: &'a Mesh, domain: AttributeDomain, mask: Option<&'a [bool]>) -> Self {
         let len = mesh.attribute_domain_len(domain);
         Self {
             mesh,
             domain,
             len,
+            mask,
             written: HashMap::new(),
             point_normals: None,
             vertex_normals: None,
@@ -155,13 +167,29 @@ impl<'a> WrangleContext<'a> {
             return Ok(());
         }
 
+        if self.mask.is_some() && !self.any_selected() {
+            return Ok(());
+        }
+
+        let target_type = self.target_type(&target).or_else(|| {
+            let idx = self.first_selected_index().unwrap_or(0);
+            self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
+        });
+
         let mut values = Vec::with_capacity(self.len.max(1));
         for idx in 0..self.len.max(1) {
-            let value = self.eval_expr(&expr, idx)?;
+            let selected = self
+                .mask
+                .and_then(|mask| mask.get(idx).copied())
+                .unwrap_or(true);
+            let value = if selected {
+                self.eval_expr(&expr, idx)?
+            } else {
+                self.read_attr_for_mask(&target, idx, target_type)?
+            };
             values.push(value);
         }
 
-        let target_type = self.target_type(&target);
         let storage = build_storage(&values, target_type)?;
         self.written.insert(target, storage);
         Ok(())
@@ -303,6 +331,41 @@ impl<'a> WrangleContext<'a> {
             return value_from_attr_ref(attr, idx);
         }
         Ok(Value::Float(0.0))
+    }
+
+    fn read_attr_for_mask(
+        &mut self,
+        name: &str,
+        idx: usize,
+        target_type: Option<AttributeType>,
+    ) -> Result<Value, String> {
+        if let Some(target_type) = target_type {
+            if let Some(attr) = self.mesh.attribute(self.domain, name) {
+                if attr.data_type() == target_type {
+                    return value_from_attr_ref(attr, idx);
+                }
+            }
+            if name == "P" && target_type == AttributeType::Vec3 {
+                return Ok(Value::Vec3(self.read_p(idx)));
+            }
+            if name == "N" && target_type == AttributeType::Vec3 {
+                return Ok(Value::Vec3(self.read_n(idx)));
+            }
+            return Ok(default_value_for_type(target_type));
+        }
+        self.read_attr(name, idx)
+    }
+
+    fn first_selected_index(&self) -> Option<usize> {
+        let mask = self.mask?;
+        mask.iter().position(|value| *value)
+    }
+
+    fn any_selected(&self) -> bool {
+        let Some(mask) = self.mask else {
+            return true;
+        };
+        mask.iter().any(|value| *value)
     }
 
     fn read_p(&mut self, idx: usize) -> [f32; 3] {
@@ -549,6 +612,16 @@ fn build_storage(
             }
             Ok(AttributeStorage::Vec4(out))
         }
+    }
+}
+
+fn default_value_for_type(target_type: AttributeType) -> Value {
+    match target_type {
+        AttributeType::Float => Value::Float(0.0),
+        AttributeType::Int => Value::Float(0.0),
+        AttributeType::Vec2 => Value::Vec2([0.0, 0.0]),
+        AttributeType::Vec3 => Value::Vec3([0.0, 0.0, 0.0]),
+        AttributeType::Vec4 => Value::Vec4([0.0, 0.0, 0.0, 0.0]),
     }
 }
 

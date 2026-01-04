@@ -67,6 +67,7 @@ pub fn evaluate_geometry_graph(
             BuiltinNodeKind::Transform
             | BuiltinNodeKind::CopyTransform
             | BuiltinNodeKind::Delete
+            | BuiltinNodeKind::Group
             | BuiltinNodeKind::Normal
             | BuiltinNodeKind::Scatter
             | BuiltinNodeKind::Color

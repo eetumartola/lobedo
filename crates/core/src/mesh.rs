@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use glam::{Mat4, Vec3};
 
 use crate::attributes::{
@@ -19,6 +21,34 @@ pub struct Mesh {
     pub corner_normals: Option<Vec<[f32; 3]>>,
     pub uvs: Option<Vec<[f32; 2]>>,
     pub attributes: MeshAttributes,
+    pub groups: MeshGroups,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MeshGroups {
+    point: BTreeMap<String, Vec<bool>>,
+    vertex: BTreeMap<String, Vec<bool>>,
+    primitive: BTreeMap<String, Vec<bool>>,
+}
+
+impl MeshGroups {
+    pub fn map(&self, domain: AttributeDomain) -> &BTreeMap<String, Vec<bool>> {
+        match domain {
+            AttributeDomain::Point => &self.point,
+            AttributeDomain::Vertex => &self.vertex,
+            AttributeDomain::Primitive => &self.primitive,
+            AttributeDomain::Detail => &self.primitive,
+        }
+    }
+
+    pub fn map_mut(&mut self, domain: AttributeDomain) -> &mut BTreeMap<String, Vec<bool>> {
+        match domain {
+            AttributeDomain::Point => &mut self.point,
+            AttributeDomain::Vertex => &mut self.vertex,
+            AttributeDomain::Primitive => &mut self.primitive,
+            AttributeDomain::Detail => &mut self.primitive,
+        }
+    }
 }
 
 impl Mesh {
@@ -34,6 +64,7 @@ impl Mesh {
             corner_normals: None,
             uvs: None,
             attributes: MeshAttributes::default(),
+            groups: MeshGroups::default(),
         }
     }
 
@@ -436,6 +467,7 @@ impl Mesh {
         }
 
         merged.attributes = merge_attributes(meshes);
+        merged.groups = merge_groups(meshes);
         merged
     }
 }
@@ -528,6 +560,42 @@ fn merge_attributes(meshes: &[Mesh]) -> MeshAttributes {
                     }
                 }
             }
+        }
+    }
+
+    merged
+}
+
+fn merge_groups(meshes: &[Mesh]) -> MeshGroups {
+    let mut merged = MeshGroups::default();
+    if meshes.is_empty() {
+        return merged;
+    }
+
+    for domain in [
+        AttributeDomain::Point,
+        AttributeDomain::Vertex,
+        AttributeDomain::Primitive,
+    ] {
+        let mut names = BTreeSet::new();
+        for mesh in meshes {
+            names.extend(mesh.groups.map(domain).keys().cloned());
+        }
+        for name in names {
+            let mut values = Vec::new();
+            for mesh in meshes {
+                let len = mesh.attribute_domain_len(domain);
+                if let Some(group) = mesh.groups.map(domain).get(&name) {
+                    if group.len() == len {
+                        values.extend_from_slice(group);
+                    } else {
+                        values.extend(std::iter::repeat_n(false, len));
+                    }
+                } else {
+                    values.extend(std::iter::repeat_n(false, len));
+                }
+            }
+            merged.map_mut(domain).insert(name, values);
         }
     }
 
@@ -665,6 +733,7 @@ pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
         corner_normals: None,
         uvs: None,
         attributes: MeshAttributes::default(),
+        groups: MeshGroups::default(),
     }
 }
 
