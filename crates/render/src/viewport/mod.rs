@@ -12,8 +12,12 @@ use crate::camera::CameraState;
 use crate::scene::RenderScene;
 
 mod callback;
+mod callback_helpers;
 mod mesh;
 mod pipeline;
+mod pipeline_scene;
+mod pipeline_shaders;
+mod pipeline_targets;
 
 use callback::ViewportCallback;
 

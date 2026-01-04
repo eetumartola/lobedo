@@ -5,12 +5,14 @@ mod geometry_eval;
 mod groups;
 mod graph;
 mod mesh;
+mod mesh_primitives;
 mod mesh_eval;
 mod nodes;
 mod nodes_builtin;
 mod project;
 mod scene;
 mod splat;
+mod splat_ply;
 mod splat_eval;
 mod wrangle;
 
