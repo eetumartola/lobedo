@@ -1,4 +1,5 @@
 # Lobedo Backlog (Issue List)
+Status: done | in progress | not started
 
 ## Epic G - Geometry primitives (architecture change)
 - **G1**: Introduce `Geometry` container with primitive list (mesh/point/spline/splat) (done)
@@ -8,32 +9,32 @@
 - **G5**: Migrate project format + graphs to new geometry pin type (done)
 
 ## Epic S - Core splat data type
-- **S1**: Define `Splat` schema + typed channel storage
-- **S3**: Expand `SceneSnapshot` to multiple drawables
-- **S4**: Add validation + unit tests (sizes, NaN checks)
+- **S1**: Define `Splat` schema + typed channel storage (done)
+- **S3**: Expand `SceneSnapshot` to multiple drawables (done)
+- **S4**: Add validation + unit tests (sizes, NaN checks) (in progress: validation + tests; NaN checks pending)
 
 ## Epic R - Splat rendering
-- **R1**: Baseline splat rasterization (SH0)
-- **R2**: Sorting strategy v1 (CPU) + web fallback
-- **R3**: Debug modes (opacity/scale/depth/overdraw)
-- **R4**: SH evaluation degree 2/3
-- **R5**: Sorting strategy v2 (GPU/tile binning)
+- **R1**: Baseline splat rasterization (SH0) (done)
+- **R2**: Sorting strategy v1 (CPU) + web fallback (in progress)
+- **R3**: Debug modes (opacity/scale/depth/overdraw) (not started)
+- **R4**: SH evaluation degree 2/3 (not started)
+- **R5**: Sorting strategy v2 (GPU/tile binning) (not started)
 
 ## Epic N - Nodes
-- **N1**: Read/Write Splats (PLY)
-- **N2**: Transform (splat-aware)
-- **N3**: Crop / Prune / Regularize
-- **N4**: LOD/Decimate (voxel clustering)
-- **N5**: Conversions (splats->points, mesh->splats)
+- **N1**: Read/Write Splats (PLY) (done)
+- **N2**: Transform (splat-aware) (done)
+- **N3**: Delete / Prune / Regularize (in progress: Delete done, Prune/Regularize pending)
+- **N4**: LOD/Decimate (voxel clustering) (not started)
+- **N5**: Conversions (splats->points, mesh->splats) (not started)
 
 ## Epic M - ML jobs
-- **M1**: Job framework (async, progress, cancel, cache)
-- **M2**: Depth estimation sidecar (PyTorch)
-- **M3**: Backproject -> points
-- **M4**: Fit splats
+- **M1**: Job framework (async, progress, cancel, cache) (not started)
+- **M2**: Depth estimation sidecar (PyTorch) (not started)
+- **M3**: Backproject -> points (not started)
+- **M4**: Fit splats (not started)
 
 ## Epic Q - Quality and UX
-- **Q1**: Golden test assets + screenshot tests (native)
-- **Q2**: Project format migration + versioning
-- **Q3**: Performance profiling harness (splat count scaling)
-- **Q4**: Spreadsheet splat mode (show first 100 splats by default)
+- **Q1**: Golden test assets + screenshot tests (native) (not started)
+- **Q2**: Project format migration + versioning (done)
+- **Q3**: Performance profiling harness (splat count scaling) (not started)
+- **Q4**: Spreadsheet splat mode (show first 100 splats by default) (not started)

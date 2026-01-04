@@ -66,6 +66,7 @@ pub fn evaluate_geometry_graph(
         let inputs = match kind {
             BuiltinNodeKind::Transform
             | BuiltinNodeKind::CopyTransform
+            | BuiltinNodeKind::Delete
             | BuiltinNodeKind::Normal
             | BuiltinNodeKind::Scatter
             | BuiltinNodeKind::Color

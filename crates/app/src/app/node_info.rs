@@ -38,7 +38,7 @@ impl LobedoApp {
 
         window.show(ctx, |ui| {
             if let Some(geometry) = self.eval_state.geometry_for_node(node_id) {
-                self.show_geometry_info(ui, geometry);
+                self.show_geometry_info(ui, geometry, node);
             } else {
                 ui.label("No geometry available for this node.");
             }
@@ -50,7 +50,12 @@ impl LobedoApp {
         }
     }
 
-    fn show_geometry_info(&self, ui: &mut egui::Ui, geometry: &Geometry) {
+    fn show_geometry_info(
+        &self,
+        ui: &mut egui::Ui,
+        geometry: &Geometry,
+        node: &lobedo_core::Node,
+    ) {
         let splat_count: usize = geometry.splats.iter().map(|s| s.len()).sum();
         ui.heading("Geometry");
         egui::Grid::new("node_info_geo_counts")
@@ -69,6 +74,35 @@ impl LobedoApp {
                 ui.label(splat_count.to_string());
                 ui.end_row();
             });
+
+        if node.name == "Read Splats" && !geometry.splats.is_empty() {
+            ui.separator();
+            ui.heading("Splats");
+            let splat_geo = &geometry.splats[0];
+            if geometry.splats.len() > 1 {
+                ui.label("Multiple splat primitives; showing the first.");
+            }
+            egui::Grid::new("node_info_splat_file")
+                .num_columns(2)
+                .spacing([12.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("Path");
+                    ui.label(node.params.get_string("path", "<unset>"));
+                    ui.end_row();
+
+                    ui.label("Splat Count");
+                    ui.label(splat_geo.len().to_string());
+                    ui.end_row();
+
+                    ui.label("SH Coeffs / Channel");
+                    ui.label(splat_geo.sh_coeffs.to_string());
+                    ui.end_row();
+
+                    ui.label("SH Order");
+                    ui.label(sh_order_label(splat_geo.sh_coeffs));
+                    ui.end_row();
+                });
+        }
 
         if let Some(mesh) = geometry.merged_mesh() {
             ui.separator();
@@ -218,5 +252,16 @@ fn attribute_domain_label(domain: AttributeDomain) -> &'static str {
         AttributeDomain::Vertex => "Vertex",
         AttributeDomain::Primitive => "Primitive",
         AttributeDomain::Detail => "Detail",
+    }
+}
+
+fn sh_order_label(sh_coeffs: usize) -> String {
+    let total = 1 + sh_coeffs;
+    let order = (total as f32).sqrt().round() as usize;
+    if order * order == total && order > 0 {
+        let max_l = order - 1;
+        format!("L{} ({} bands)", max_l, max_l + 1)
+    } else {
+        format!("Partial ({} coeffs)", total)
     }
 }

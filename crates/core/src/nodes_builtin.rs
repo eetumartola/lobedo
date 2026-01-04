@@ -11,6 +11,8 @@ pub enum BuiltinNodeKind {
     Sphere,
     File,
     ReadSplats,
+    WriteSplats,
+    Delete,
     Transform,
     CopyTransform,
     Merge,
@@ -33,6 +35,8 @@ impl BuiltinNodeKind {
             BuiltinNodeKind::Sphere => nodes::sphere::NAME,
             BuiltinNodeKind::File => nodes::file::NAME,
             BuiltinNodeKind::ReadSplats => nodes::read_splats::NAME,
+            BuiltinNodeKind::WriteSplats => nodes::write_splats::NAME,
+            BuiltinNodeKind::Delete => nodes::delete::NAME,
             BuiltinNodeKind::Transform => nodes::transform::NAME,
             BuiltinNodeKind::CopyTransform => nodes::copy_transform::NAME,
             BuiltinNodeKind::Merge => nodes::merge::NAME,
@@ -56,6 +60,8 @@ pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
         nodes::sphere::NAME => Some(BuiltinNodeKind::Sphere),
         nodes::file::NAME => Some(BuiltinNodeKind::File),
         nodes::read_splats::NAME => Some(BuiltinNodeKind::ReadSplats),
+        nodes::write_splats::NAME => Some(BuiltinNodeKind::WriteSplats),
+        nodes::delete::NAME => Some(BuiltinNodeKind::Delete),
         nodes::transform::NAME => Some(BuiltinNodeKind::Transform),
         nodes::copy_transform::NAME => Some(BuiltinNodeKind::CopyTransform),
         nodes::merge::NAME => Some(BuiltinNodeKind::Merge),
@@ -79,6 +85,8 @@ pub fn builtin_definitions() -> Vec<NodeDefinition> {
         node_definition(BuiltinNodeKind::Sphere),
         node_definition(BuiltinNodeKind::File),
         node_definition(BuiltinNodeKind::ReadSplats),
+        node_definition(BuiltinNodeKind::WriteSplats),
+        node_definition(BuiltinNodeKind::Delete),
         node_definition(BuiltinNodeKind::Transform),
         node_definition(BuiltinNodeKind::CopyTransform),
         node_definition(BuiltinNodeKind::Merge),
@@ -101,6 +109,8 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
         BuiltinNodeKind::Sphere => nodes::sphere::definition(),
         BuiltinNodeKind::File => nodes::file::definition(),
         BuiltinNodeKind::ReadSplats => nodes::read_splats::definition(),
+        BuiltinNodeKind::WriteSplats => nodes::write_splats::definition(),
+        BuiltinNodeKind::Delete => nodes::delete::definition(),
         BuiltinNodeKind::Transform => nodes::transform::definition(),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::definition(),
         BuiltinNodeKind::Merge => nodes::merge::definition(),
@@ -123,6 +133,8 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
         BuiltinNodeKind::Sphere => nodes::sphere::default_params(),
         BuiltinNodeKind::File => nodes::file::default_params(),
         BuiltinNodeKind::ReadSplats => nodes::read_splats::default_params(),
+        BuiltinNodeKind::WriteSplats => nodes::write_splats::default_params(),
+        BuiltinNodeKind::Delete => nodes::delete::default_params(),
         BuiltinNodeKind::Transform => nodes::transform::default_params(),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::default_params(),
         BuiltinNodeKind::Merge => nodes::merge::default_params(),
@@ -149,6 +161,8 @@ pub fn compute_mesh_node(
         BuiltinNodeKind::Sphere => nodes::sphere::compute(params, inputs),
         BuiltinNodeKind::File => nodes::file::compute(params, inputs),
         BuiltinNodeKind::ReadSplats => Err("Read Splats outputs splat geometry, not meshes".to_string()),
+        BuiltinNodeKind::WriteSplats => Err("Write Splats expects splat geometry, not meshes".to_string()),
+        BuiltinNodeKind::Delete => nodes::delete::compute(params, inputs),
         BuiltinNodeKind::Transform => nodes::transform::compute(params, inputs),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::compute(params, inputs),
         BuiltinNodeKind::Merge => nodes::merge::compute(params, inputs),
@@ -177,6 +191,8 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
         }
+        BuiltinNodeKind::WriteSplats => apply_write_splats(params, inputs),
+        BuiltinNodeKind::Delete => apply_delete(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
         BuiltinNodeKind::Normal
@@ -219,6 +235,54 @@ fn apply_mesh_unary(
         meshes,
         splats: input.splats.clone(),
     })
+}
+
+fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::with_capacity(input.meshes.len());
+    for mesh in &input.meshes {
+        meshes.push(nodes::delete::compute(params, std::slice::from_ref(mesh))?);
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(filter_splats(params, splat));
+    }
+
+    Ok(Geometry { meshes, splats })
+}
+
+fn filter_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
+    let shape = params.get_string("shape", "box");
+    let invert = params.get_bool("invert", false);
+
+    let mut kept = Vec::new();
+    for (idx, position) in splats.positions.iter().enumerate() {
+        let inside = crate::nodes::delete::is_inside(params, shape, glam::Vec3::from(*position));
+        let keep = if invert { !inside } else { inside };
+        if keep {
+            kept.push(idx);
+        }
+    }
+
+    let mut output = SplatGeo::with_len_and_sh(kept.len(), splats.sh_coeffs);
+    for (out_idx, &src_idx) in kept.iter().enumerate() {
+        output.positions[out_idx] = splats.positions[src_idx];
+        output.rotations[out_idx] = splats.rotations[src_idx];
+        output.scales[out_idx] = splats.scales[src_idx];
+        output.opacity[out_idx] = splats.opacity[src_idx];
+        output.sh0[out_idx] = splats.sh0[src_idx];
+        if splats.sh_coeffs > 0 {
+            let src_base = src_idx * splats.sh_coeffs;
+            let dst_base = out_idx * splats.sh_coeffs;
+            output.sh_rest[dst_base..dst_base + splats.sh_coeffs]
+                .copy_from_slice(&splats.sh_rest[src_base..src_base + splats.sh_coeffs]);
+        }
+    }
+    output
 }
 
 fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -309,6 +373,17 @@ fn apply_obj_output(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
         }
     }
     Ok(output)
+}
+
+fn apply_write_splats(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let Some(splats) = input.merged_splats() else {
+        return Err("Write Splats requires splat geometry".to_string());
+    };
+    nodes::write_splats::compute(params, &splats)?;
+    Ok(input.clone())
 }
 
 fn merge_geometry(inputs: &[Geometry]) -> Result<Geometry, String> {

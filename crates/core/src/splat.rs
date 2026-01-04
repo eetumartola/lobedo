@@ -673,6 +673,78 @@ pub fn load_splat_ply(_path: &str) -> Result<SplatGeo, String> {
     Err("Read Splats is not supported in web builds".to_string())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
+    use std::io::Write;
+
+    splats.validate()?;
+    let mut file = std::fs::File::create(path).map_err(|err| err.to_string())?;
+
+    writeln!(file, "ply").map_err(|err| err.to_string())?;
+    writeln!(file, "format ascii 1.0").map_err(|err| err.to_string())?;
+    writeln!(file, "element vertex {}", splats.len()).map_err(|err| err.to_string())?;
+    writeln!(file, "property float x").map_err(|err| err.to_string())?;
+    writeln!(file, "property float y").map_err(|err| err.to_string())?;
+    writeln!(file, "property float z").map_err(|err| err.to_string())?;
+    writeln!(file, "property float opacity").map_err(|err| err.to_string())?;
+    writeln!(file, "property float scale_0").map_err(|err| err.to_string())?;
+    writeln!(file, "property float scale_1").map_err(|err| err.to_string())?;
+    writeln!(file, "property float scale_2").map_err(|err| err.to_string())?;
+    writeln!(file, "property float rot_0").map_err(|err| err.to_string())?;
+    writeln!(file, "property float rot_1").map_err(|err| err.to_string())?;
+    writeln!(file, "property float rot_2").map_err(|err| err.to_string())?;
+    writeln!(file, "property float rot_3").map_err(|err| err.to_string())?;
+    writeln!(file, "property float f_dc_0").map_err(|err| err.to_string())?;
+    writeln!(file, "property float f_dc_1").map_err(|err| err.to_string())?;
+    writeln!(file, "property float f_dc_2").map_err(|err| err.to_string())?;
+
+    if splats.sh_coeffs > 0 {
+        for i in 0..(splats.sh_coeffs * 3) {
+            writeln!(file, "property float f_rest_{}", i).map_err(|err| err.to_string())?;
+        }
+    }
+
+    writeln!(file, "end_header").map_err(|err| err.to_string())?;
+
+    for idx in 0..splats.len() {
+        let [x, y, z] = splats.positions[idx];
+        let [sx, sy, sz] = splats.scales[idx];
+        let [r0, r1, r2, r3] = splats.rotations[idx];
+        let opacity = splats.opacity[idx];
+        let [c0, c1, c2] = splats.sh0[idx];
+        write!(
+            file,
+            "{x} {y} {z} {opacity} {sx} {sy} {sz} {r0} {r1} {r2} {r3} {c0} {c1} {c2}"
+        )
+        .map_err(|err| err.to_string())?;
+
+        if splats.sh_coeffs > 0 {
+            let base = idx * splats.sh_coeffs;
+            for coeff in 0..splats.sh_coeffs {
+                let value = splats.sh_rest[base + coeff][0];
+                write!(file, " {value}").map_err(|err| err.to_string())?;
+            }
+            for coeff in 0..splats.sh_coeffs {
+                let value = splats.sh_rest[base + coeff][1];
+                write!(file, " {value}").map_err(|err| err.to_string())?;
+            }
+            for coeff in 0..splats.sh_coeffs {
+                let value = splats.sh_rest[base + coeff][2];
+                write!(file, " {value}").map_err(|err| err.to_string())?;
+            }
+        }
+
+        writeln!(file).map_err(|err| err.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn save_splat_ply(_path: &str, _splats: &SplatGeo) -> Result<(), String> {
+    Err("Write Splats is not supported in web builds".to_string())
+}
+
 fn parse_splat_ply_bytes(data: &[u8]) -> Result<SplatGeo, String> {
     let (header, data_start) = parse_header_bytes(data)?;
     let indices = SplatPropertyIndices::from_properties(&header.vertex_properties);
@@ -1081,7 +1153,7 @@ fn parse_sh_rest_index(name: &str) -> Option<usize> {
 mod tests {
     use glam::{Mat4, Quat, Vec3};
 
-    use super::parse_splat_ply_bytes;
+    use super::{load_splat_ply, parse_splat_ply_bytes, save_splat_ply};
     use super::SplatGeo;
 
     #[test]
@@ -1243,5 +1315,32 @@ end_header
 
         let coeff = splats.sh_rest[13][0];
         assert!((coeff - 1.0).abs() < 2.0e-3);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn save_and_load_roundtrip() {
+        let mut splats = SplatGeo::with_len_and_sh(2, 3);
+        splats.positions[0] = [1.0, 2.0, 3.0];
+        splats.positions[1] = [4.0, 5.0, 6.0];
+        splats.opacity[0] = 0.8;
+        splats.sh0[0] = [0.1, 0.2, 0.3];
+        splats.sh_rest[0] = [1.0, 2.0, 3.0];
+        splats.sh_rest[1] = [4.0, 5.0, 6.0];
+        splats.sh_rest[2] = [7.0, 8.0, 9.0];
+
+        let path = std::env::temp_dir().join("lobedo_splats_roundtrip.ply");
+        save_splat_ply(path.to_str().unwrap(), &splats).expect("save");
+        let loaded = load_splat_ply(path.to_str().unwrap()).expect("load");
+
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded.sh_coeffs, 3);
+        assert_eq!(loaded.positions[0], [1.0, 2.0, 3.0]);
+        assert!((loaded.opacity[0] - 0.8).abs() < 1.0e-4);
+        assert_eq!(loaded.sh0[0], [0.1, 0.2, 0.3]);
+        assert_eq!(loaded.sh_rest[0], [1.0, 2.0, 3.0]);
+        assert_eq!(loaded.sh_rest[1], [4.0, 5.0, 6.0]);
+        assert_eq!(loaded.sh_rest[2], [7.0, 8.0, 9.0]);
+        let _ = std::fs::remove_file(path);
     }
 }

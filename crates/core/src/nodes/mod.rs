@@ -11,6 +11,8 @@ pub mod normal;
 pub mod obj_output;
 pub mod output;
 pub mod read_splats;
+pub mod write_splats;
+pub mod delete;
 pub mod scatter;
 pub mod sphere;
 pub mod transform;
