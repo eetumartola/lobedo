@@ -333,8 +333,12 @@ impl CallbackTrait for ViewportCallback {
 
             if self.debug.show_points || pipeline.index_count == 0 {
                 let camera_distance = (camera_pos - Vec3::from(self.camera.target)).length();
-                let desired_size =
-                    (self.debug.point_size.max(1.0) * camera_distance * 0.002).clamp(0.0005, 2.0);
+                let pixel_size = self.debug.point_size.max(1.0);
+                let viewport_height = height.max(1) as f32;
+                let fov = 45_f32.to_radians();
+                let world_per_pixel =
+                    2.0 * camera_distance.max(0.1) * (fov * 0.5).tan() / viewport_height;
+                let desired_size = (pixel_size * world_per_pixel).max(0.0001);
                 if pipeline.point_size < 0.0 || (desired_size - pipeline.point_size).abs() > 0.0001
                 {
                     let point_vertices =

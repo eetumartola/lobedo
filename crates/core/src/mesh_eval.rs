@@ -63,6 +63,7 @@ pub fn evaluate_mesh_graph(
             input_meshes.push(mesh);
         }
 
+        // Reminder: register new unary mesh nodes here so they receive their input mesh.
         let inputs = match kind {
             crate::nodes_builtin::BuiltinNodeKind::Transform
             | crate::nodes_builtin::BuiltinNodeKind::CopyTransform
@@ -70,6 +71,9 @@ pub fn evaluate_mesh_graph(
             | crate::nodes_builtin::BuiltinNodeKind::Scatter
             | crate::nodes_builtin::BuiltinNodeKind::Color
             | crate::nodes_builtin::BuiltinNodeKind::Noise
+            | crate::nodes_builtin::BuiltinNodeKind::Smooth
+            | crate::nodes_builtin::BuiltinNodeKind::AttributeNoise
+            | crate::nodes_builtin::BuiltinNodeKind::AttributeFromFeature
             | crate::nodes_builtin::BuiltinNodeKind::AttributeMath
             | crate::nodes_builtin::BuiltinNodeKind::Wrangle
             | crate::nodes_builtin::BuiltinNodeKind::ObjOutput
@@ -102,6 +106,44 @@ pub fn evaluate_mesh_graph(
                     return Err(format!("missing input '{}'", name));
                 }
                 vec![source.unwrap(), template.unwrap()]
+            }
+            crate::nodes_builtin::BuiltinNodeKind::AttributeTransfer => {
+                let target = input_meshes.first().and_then(|mesh| mesh.clone());
+                let source = input_meshes.get(1).and_then(|mesh| mesh.clone());
+                if target.is_none() {
+                    let name = input_names
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "target".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                if source.is_none() {
+                    let name = input_names
+                        .get(1)
+                        .cloned()
+                        .unwrap_or_else(|| "source".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                vec![target.unwrap(), source.unwrap()]
+            }
+            crate::nodes_builtin::BuiltinNodeKind::Ray => {
+                let source = input_meshes.first().and_then(|mesh| mesh.clone());
+                let target = input_meshes.get(1).and_then(|mesh| mesh.clone());
+                if source.is_none() {
+                    let name = input_names
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "in".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                if target.is_none() {
+                    let name = input_names
+                        .get(1)
+                        .cloned()
+                        .unwrap_or_else(|| "target".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                vec![source.unwrap(), target.unwrap()]
             }
             crate::nodes_builtin::BuiltinNodeKind::Merge => {
                 input_meshes.into_iter().flatten().collect()

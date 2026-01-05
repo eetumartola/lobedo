@@ -75,6 +75,7 @@ pub fn evaluate_geometry_graph(
             | BuiltinNodeKind::Scatter
             | BuiltinNodeKind::Color
             | BuiltinNodeKind::Noise
+            | BuiltinNodeKind::Smooth
             | BuiltinNodeKind::AttributeNoise
             | BuiltinNodeKind::AttributeFromFeature
             | BuiltinNodeKind::AttributeMath
@@ -109,6 +110,44 @@ pub fn evaluate_geometry_graph(
                     return Err(format!("missing input '{}'", name));
                 }
                 vec![source.unwrap(), template.unwrap()]
+            }
+            BuiltinNodeKind::AttributeTransfer => {
+                let target = input_geometries.first().and_then(|geo| geo.clone());
+                let source = input_geometries.get(1).and_then(|geo| geo.clone());
+                if target.is_none() {
+                    let name = input_names
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "target".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                if source.is_none() {
+                    let name = input_names
+                        .get(1)
+                        .cloned()
+                        .unwrap_or_else(|| "source".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                vec![target.unwrap(), source.unwrap()]
+            }
+            BuiltinNodeKind::Ray => {
+                let source = input_geometries.first().and_then(|geo| geo.clone());
+                let target = input_geometries.get(1).and_then(|geo| geo.clone());
+                if source.is_none() {
+                    let name = input_names
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "in".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                if target.is_none() {
+                    let name = input_names
+                        .get(1)
+                        .cloned()
+                        .unwrap_or_else(|| "target".to_string());
+                    return Err(format!("missing input '{}'", name));
+                }
+                vec![source.unwrap(), target.unwrap()]
             }
             BuiltinNodeKind::Merge => input_geometries.into_iter().flatten().collect(),
             _ => Vec::new(),

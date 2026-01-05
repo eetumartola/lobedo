@@ -2,9 +2,9 @@ use egui::{Frame, Pos2, Ui};
 
 use lobedo_core::{BuiltinNodeKind, Graph, NodeId};
 
-use super::menu::builtin_menu_items;
+use super::menu::{builtin_menu_items, menu_layout};
 use super::state::{NodeGraphState, NodeInfoRequest};
-use super::utils::add_builtin_node;
+use super::utils::{add_builtin_node, submenu_menu_button};
 
 impl NodeGraphState {
     pub(super) fn show_node_menu(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
@@ -31,15 +31,9 @@ impl NodeGraphState {
                 }
                 if ui.button("Delete node").clicked() {
                     if let Some(node_id) = node_id {
-                        graph.remove_node(node_id);
-                        if let Some(snarl_id) = self.core_to_snarl.remove(&node_id) {
-                            self.snarl_to_core.remove(&snarl_id);
-                            let _ = self.snarl.remove_node(snarl_id);
+                        if self.delete_node(graph, node_id) {
+                            changed = true;
                         }
-                        if self.selected_node.as_ref() == Some(&node_id) {
-                            self.selected_node = None;
-                        }
-                        changed = true;
                     }
                     close_menu = true;
                 }
@@ -158,54 +152,97 @@ impl NodeGraphState {
                     ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
                 }
 
+                let items = builtin_menu_items();
                 let filter = self.add_menu_filter.to_lowercase();
-                let mut last_category = None;
-                let mut matched = false;
-                let mut first_match: Option<BuiltinNodeKind> = None;
-                for item in builtin_menu_items() {
-                    if !filter.is_empty()
-                        && !item.name.to_lowercase().contains(&filter)
-                        && !item.category.to_lowercase().contains(&filter)
-                    {
-                        continue;
-                    }
-                    matched = true;
-                    if first_match.is_none() {
-                        first_match = Some(item.kind);
-                    }
-                    if last_category != Some(item.category) {
-                        ui.label(item.category);
-                        last_category = Some(item.category);
-                    }
-                    if ui.button(item.name).clicked() {
-                        if let Some(core_id) =
-                            self.try_add_node(graph, item.kind, self.add_menu_graph_pos)
-                        {
-                            changed = true;
-                            if let Some(pending) = self.pending_wire.take() {
-                                if self.connect_pending_wire(graph, core_id, pending) {
-                                    changed = true;
+                if filter.is_empty() {
+                    let layout = menu_layout(&items);
+                    for submenu in layout.submenus {
+                        submenu_menu_button(ui, submenu.name, |ui| {
+                            for item in &submenu.items {
+                                if ui.button(item.name).clicked() {
+                                    if let Some(core_id) = self.try_add_node(
+                                        graph,
+                                        item.kind,
+                                        self.add_menu_graph_pos,
+                                    ) {
+                                        changed = true;
+                                        if let Some(pending) = self.pending_wire.take() {
+                                            if self.connect_pending_wire(graph, core_id, pending) {
+                                                changed = true;
+                                            }
+                                        }
+                                    }
+                                    close_menu = true;
+                                    ui.close();
                                 }
                             }
-                        }
-                        close_menu = true;
+                        });
                     }
-                }
-                if !matched {
-                    ui.label("No matches.");
-                } else if activate_first {
-                    if let Some(kind) = first_match {
-                        if let Some(core_id) =
-                            self.try_add_node(graph, kind, self.add_menu_graph_pos)
-                        {
-                            changed = true;
-                            if let Some(pending) = self.pending_wire.take() {
-                                if self.connect_pending_wire(graph, core_id, pending) {
-                                    changed = true;
+                    for item in layout.items {
+                        if ui.button(item.name).clicked() {
+                            if let Some(core_id) =
+                                self.try_add_node(graph, item.kind, self.add_menu_graph_pos)
+                            {
+                                changed = true;
+                                if let Some(pending) = self.pending_wire.take() {
+                                    if self.connect_pending_wire(graph, core_id, pending) {
+                                        changed = true;
+                                    }
                                 }
                             }
+                            close_menu = true;
                         }
-                        close_menu = true;
+                    }
+                } else {
+                    let mut matched = false;
+                    let mut first_match: Option<BuiltinNodeKind> = None;
+                    for item in items {
+                        let submenu = item.submenu.unwrap_or("");
+                        if !item.name.to_lowercase().contains(&filter)
+                            && !item.category.to_lowercase().contains(&filter)
+                            && !submenu.to_lowercase().contains(&filter)
+                        {
+                            continue;
+                        }
+                        matched = true;
+                        if first_match.is_none() {
+                            first_match = Some(item.kind);
+                        }
+                        let label = if submenu.is_empty() {
+                            item.name.to_string()
+                        } else {
+                            format!("{} / {}", submenu, item.name)
+                        };
+                        if ui.button(label).clicked() {
+                            if let Some(core_id) =
+                                self.try_add_node(graph, item.kind, self.add_menu_graph_pos)
+                            {
+                                changed = true;
+                                if let Some(pending) = self.pending_wire.take() {
+                                    if self.connect_pending_wire(graph, core_id, pending) {
+                                        changed = true;
+                                    }
+                                }
+                            }
+                            close_menu = true;
+                        }
+                    }
+                    if !matched {
+                        ui.label("No matches.");
+                    } else if activate_first {
+                        if let Some(kind) = first_match {
+                            if let Some(core_id) =
+                                self.try_add_node(graph, kind, self.add_menu_graph_pos)
+                            {
+                                changed = true;
+                                if let Some(pending) = self.pending_wire.take() {
+                                    if self.connect_pending_wire(graph, core_id, pending) {
+                                        changed = true;
+                                    }
+                                }
+                            }
+                            close_menu = true;
+                        }
                     }
                 }
             });

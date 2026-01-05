@@ -31,9 +31,9 @@ Status: done | in progress | not started
 - **N8**: Tube (support splats where applicable) (done)
 - **N9**: Attribute Noise (named attribute, default P; float/vec2/vec3 + point/vertex/prim; noise type; shared noise library) (done)
 - **N10**: Attribute from Feature (area + gradient; Measure SOP + Heightfield Mask by Feature hybrid; support splats where applicable) (done)
-- **N11**: Attribute Transfer (space-delimited attribute names; domain selector; splats as source at minimum) (not started)
-- **N12**: Smooth (space-delimited attribute names, default P; support splats where applicable) (not started)
-- **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (not started)
+- **N11**: Attribute Transfer (space-delimited attribute names; domain selector; splats as source at minimum) (done)
+- **N12**: Smooth (space-delimited attribute names, default P; support splats where applicable) (done)
+- **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (done)
 - **N4**: LOD/Decimate (voxel clustering) (not started)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 

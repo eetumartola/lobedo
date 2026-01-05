@@ -181,6 +181,26 @@ pub(super) fn edit_param(
                         });
                     changed
                 })
+            } else if label == "method" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Normal"), (1, "Direction"), (2, "Closest")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Normal");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
             } else if label == "op" {
                 param_row(ui, label, |ui| {
                     let mut changed = false;
@@ -568,7 +588,9 @@ fn float_slider_range(
         "threshold_deg" => 0.0..=180.0,
         "amplitude" => -10.0..=10.0,
         "frequency" => 0.0..=10.0,
+        "strength" => 0.0..=1.0,
         "value_f" => -10.0..=10.0,
+        "max_distance" => 0.0..=1000.0,
         _ => -1000.0..=1000.0,
     }
 }
@@ -582,6 +604,7 @@ fn int_slider_range(
         "domain" => 0..=3,
         "op" => 0..=3,
         "rows" | "cols" => 2..=64,
+        "iterations" => 0..=20,
         "seed" => 0..=100,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,

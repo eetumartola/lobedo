@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{Color32, Pos2};
+use egui::{Color32, Pos2, RichText, Ui};
 use egui_snarl::Snarl;
 
 use lobedo_core::{
@@ -103,6 +103,47 @@ pub(super) fn point_snarl_wire_distance(point: Pos2, a: Pos2, b: Pos2) -> f32 {
         prev = p;
     }
     best
+}
+
+pub(super) fn submenu_menu_button<R>(
+    ui: &mut Ui,
+    label: &str,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let mut style = ui.style().as_ref().clone();
+    let base = style.visuals.widgets.inactive.bg_fill;
+    let hovered = style.visuals.widgets.hovered.bg_fill;
+    let active = style.visuals.widgets.active.bg_fill;
+    style.visuals.widgets.inactive.bg_fill = darken_color(base, 0.85);
+    style.visuals.widgets.hovered.bg_fill = darken_color(hovered, 0.85);
+    style.visuals.widgets.active.bg_fill = darken_color(active, 0.85);
+    let label = format_submenu_label(label);
+    let text = RichText::new(format!("{label} ->")).strong();
+    ui.scope(|ui| {
+        ui.set_style(style);
+        ui.menu_button(text, add_contents)
+    })
+    .inner
+}
+
+fn darken_color(color: Color32, factor: f32) -> Color32 {
+    let [r, g, b, a] = color.to_array();
+    let scale = factor.clamp(0.0, 1.0);
+    let r = (r as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let g = (g as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let b = (b as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgba_unmultiplied(r, g, b, a)
+}
+
+fn format_submenu_label(label: &str) -> String {
+    let mut chars = label.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let mut out = String::new();
+    out.push(first.to_ascii_uppercase());
+    out.push_str(chars.as_str());
+    out
 }
 
 fn wire_sample_count(a: Pos2, b: Pos2) -> i32 {

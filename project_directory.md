@@ -168,6 +168,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\attribute_transfer.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\box_node.rs
 Description: TODO: add description.
 Functions: None
@@ -232,6 +236,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\ray.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\read_splats.rs
 Description: TODO: add description.
 Functions: None
@@ -241,6 +249,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\scatter.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\smooth.rs
 Description: TODO: add description.
 Functions: None
 

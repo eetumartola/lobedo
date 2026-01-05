@@ -8,9 +8,9 @@ use egui_snarl::{InPinId, OutPinId, Snarl};
 
 use lobedo_core::{default_params, node_definition, BuiltinNodeKind, Graph, NodeId, PinId};
 
-use super::menu::builtin_menu_items;
+use super::menu::{builtin_menu_items, menu_layout};
 use super::state::{GraphTransformState, HeaderButtonRects, PendingWire, SnarlNode};
-use super::utils::pin_color;
+use super::utils::{pin_color, submenu_menu_button};
 
 pub(super) struct NodeGraphViewer<'a> {
     pub(super) graph: &'a mut Graph,
@@ -389,7 +389,19 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
 
     fn show_graph_menu(&mut self, pos: Pos2, ui: &mut Ui, snarl: &mut Snarl<SnarlNode>) {
         ui.label("Add node");
-        for item in builtin_menu_items() {
+        let items = builtin_menu_items();
+        let layout = menu_layout(&items);
+        for submenu in layout.submenus {
+            submenu_menu_button(ui, submenu.name, |ui| {
+                for item in &submenu.items {
+                    if ui.button(item.name).clicked() {
+                        self.add_node(snarl, item.kind, pos);
+                        ui.close();
+                    }
+                }
+            });
+        }
+        for item in layout.items {
             if ui.button(item.name).clicked() {
                 self.add_node(snarl, item.kind, pos);
                 ui.close();

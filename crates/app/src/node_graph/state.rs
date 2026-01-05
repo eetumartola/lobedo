@@ -236,6 +236,28 @@ impl NodeGraphState {
         self.selected_node
     }
 
+    pub fn delete_selected_node(&mut self, graph: &mut Graph) -> bool {
+        let Some(node_id) = self.selected_node else {
+            return false;
+        };
+        self.delete_node(graph, node_id)
+    }
+
+    pub fn delete_node(&mut self, graph: &mut Graph, node_id: NodeId) -> bool {
+        if !graph.remove_node(node_id) {
+            return false;
+        }
+        if let Some(snarl_id) = self.core_to_snarl.remove(&node_id) {
+            self.snarl_to_core.remove(&snarl_id);
+            let _ = self.snarl.remove_node(snarl_id);
+        }
+        if self.selected_node.as_ref() == Some(&node_id) {
+            self.selected_node = None;
+        }
+        self.needs_wire_sync = true;
+        true
+    }
+
     pub fn node_at_screen_pos(&self, pos: Pos2) -> Option<NodeId> {
         let pos = if self.graph_transform.valid {
             self.graph_transform.to_global.inverse() * pos
@@ -274,21 +296,13 @@ impl NodeGraphState {
         if self.node_ui_rects.is_empty() {
             return;
         }
-        let base = if self.graph_transform.valid {
-            self.graph_transform.to_global
-        } else {
-            egui::emath::TSTransform::IDENTITY
-        };
-        let inv = base.inverse();
         let mut min = Pos2::new(f32::INFINITY, f32::INFINITY);
         let mut max = Pos2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
         for rect in self.node_ui_rects.values() {
-            let graph_min = inv * rect.min;
-            let graph_max = inv * rect.max;
-            min.x = min.x.min(graph_min.x);
-            min.y = min.y.min(graph_min.y);
-            max.x = max.x.max(graph_max.x);
-            max.y = max.y.max(graph_max.y);
+            min.x = min.x.min(rect.min.x);
+            min.y = min.y.min(rect.min.y);
+            max.x = max.x.max(rect.max.x);
+            max.y = max.y.max(rect.max.y);
         }
         if !min.is_finite() || !max.is_finite() {
             return;

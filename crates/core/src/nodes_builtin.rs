@@ -26,8 +26,11 @@ pub enum BuiltinNodeKind {
     Normal,
     Color,
     Noise,
+    Smooth,
+    Ray,
     AttributeNoise,
     AttributeFromFeature,
+    AttributeTransfer,
     AttributeMath,
     Wrangle,
     ObjOutput,
@@ -56,8 +59,11 @@ impl BuiltinNodeKind {
             BuiltinNodeKind::Normal => nodes::normal::NAME,
             BuiltinNodeKind::Color => nodes::color::NAME,
             BuiltinNodeKind::Noise => nodes::noise::NAME,
+            BuiltinNodeKind::Smooth => nodes::smooth::NAME,
+            BuiltinNodeKind::Ray => nodes::ray::NAME,
             BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::NAME,
             BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::NAME,
+            BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::NAME,
             BuiltinNodeKind::AttributeMath => nodes::attribute_math::NAME,
             BuiltinNodeKind::Wrangle => nodes::wrangle::NAME,
             BuiltinNodeKind::ObjOutput => nodes::obj_output::NAME,
@@ -93,8 +99,11 @@ pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
         nodes::normal::NAME => Some(BuiltinNodeKind::Normal),
         nodes::color::NAME => Some(BuiltinNodeKind::Color),
         nodes::noise::NAME => Some(BuiltinNodeKind::Noise),
+        nodes::smooth::NAME => Some(BuiltinNodeKind::Smooth),
+        nodes::ray::NAME => Some(BuiltinNodeKind::Ray),
         nodes::attribute_noise::NAME => Some(BuiltinNodeKind::AttributeNoise),
         nodes::attribute_from_feature::NAME => Some(BuiltinNodeKind::AttributeFromFeature),
+        nodes::attribute_transfer::NAME => Some(BuiltinNodeKind::AttributeTransfer),
         nodes::attribute_math::NAME => Some(BuiltinNodeKind::AttributeMath),
         nodes::wrangle::NAME => Some(BuiltinNodeKind::Wrangle),
         nodes::obj_output::NAME => Some(BuiltinNodeKind::ObjOutput),
@@ -124,8 +133,11 @@ pub fn builtin_definitions() -> Vec<NodeDefinition> {
         node_definition(BuiltinNodeKind::Normal),
         node_definition(BuiltinNodeKind::Color),
         node_definition(BuiltinNodeKind::Noise),
+        node_definition(BuiltinNodeKind::Smooth),
+        node_definition(BuiltinNodeKind::Ray),
         node_definition(BuiltinNodeKind::AttributeNoise),
         node_definition(BuiltinNodeKind::AttributeFromFeature),
+        node_definition(BuiltinNodeKind::AttributeTransfer),
         node_definition(BuiltinNodeKind::AttributeMath),
         node_definition(BuiltinNodeKind::Wrangle),
         node_definition(BuiltinNodeKind::ObjOutput),
@@ -154,8 +166,11 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
         BuiltinNodeKind::Normal => nodes::normal::definition(),
         BuiltinNodeKind::Color => nodes::color::definition(),
         BuiltinNodeKind::Noise => nodes::noise::definition(),
+        BuiltinNodeKind::Smooth => nodes::smooth::definition(),
+        BuiltinNodeKind::Ray => nodes::ray::definition(),
         BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::definition(),
         BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::definition(),
+        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::definition(),
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::definition(),
         BuiltinNodeKind::Wrangle => nodes::wrangle::definition(),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::definition(),
@@ -184,8 +199,11 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
         BuiltinNodeKind::Normal => nodes::normal::default_params(),
         BuiltinNodeKind::Color => nodes::color::default_params(),
         BuiltinNodeKind::Noise => nodes::noise::default_params(),
+        BuiltinNodeKind::Smooth => nodes::smooth::default_params(),
+        BuiltinNodeKind::Ray => nodes::ray::default_params(),
         BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::default_params(),
         BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::default_params(),
+        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::default_params(),
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::default_params(),
         BuiltinNodeKind::Wrangle => nodes::wrangle::default_params(),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::default_params(),
@@ -222,10 +240,13 @@ pub fn compute_mesh_node(
         BuiltinNodeKind::Normal => nodes::normal::compute(params, inputs),
         BuiltinNodeKind::Color => nodes::color::compute(params, inputs),
         BuiltinNodeKind::Noise => nodes::noise::compute(params, inputs),
+        BuiltinNodeKind::Smooth => nodes::smooth::compute(params, inputs),
+        BuiltinNodeKind::Ray => nodes::ray::compute(params, inputs),
         BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::compute(params, inputs),
         BuiltinNodeKind::AttributeFromFeature => {
             nodes::attribute_from_feature::compute(params, inputs)
         }
+        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::compute(params, inputs),
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::compute(params, inputs),
         BuiltinNodeKind::Wrangle => nodes::wrangle::compute(params, inputs),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::compute(params, inputs),
@@ -254,14 +275,17 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
+        BuiltinNodeKind::Ray => nodes::ray::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Normal
         | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
+        | BuiltinNodeKind::Smooth
         | BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeMath
         | BuiltinNodeKind::Wrangle => apply_mesh_unary(kind, params, inputs),
+        BuiltinNodeKind::AttributeTransfer => apply_attribute_transfer(params, inputs),
         BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
         BuiltinNodeKind::Merge => merge_geometry(inputs),
         BuiltinNodeKind::ObjOutput => apply_obj_output(params, inputs),
@@ -303,6 +327,9 @@ fn apply_mesh_unary(
             BuiltinNodeKind::Noise => {
                 nodes::noise::apply_to_splats(params, &mut splat)?;
             }
+            BuiltinNodeKind::Smooth => {
+                nodes::smooth::apply_to_splats(params, &mut splat)?;
+            }
             BuiltinNodeKind::AttributeNoise => {
                 nodes::attribute_noise::apply_to_splats(params, &mut splat)?;
             }
@@ -321,6 +348,13 @@ fn apply_mesh_unary(
     }
 
     Ok(Geometry { meshes, splats })
+}
+
+fn apply_attribute_transfer(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    nodes::attribute_transfer::apply_to_geometry(params, inputs)
 }
 
 fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

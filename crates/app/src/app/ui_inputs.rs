@@ -15,10 +15,28 @@ impl LobedoApp {
                 || (i.key_pressed(egui::Key::Y) && i.modifiers.command)
         });
         let fit_pressed = ctx.input(|i| i.key_pressed(egui::Key::A));
+        let delete_pressed = ctx.input(|i| {
+            i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
+        });
         if undo_pressed {
             self.try_undo();
         } else if redo_pressed {
             self.try_redo();
+        } else if delete_pressed {
+            if self.node_graph.selected_node_id().is_some() {
+                ctx.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Delete);
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace);
+                });
+                let snapshot = self.snapshot_undo();
+                if self
+                    .node_graph
+                    .delete_selected_node(&mut self.project.graph)
+                {
+                    self.mark_eval_dirty();
+                    self.queue_undo_snapshot(snapshot, false);
+                }
+            }
         } else if fit_pressed {
             if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
                 if let Some(rect) = self.last_viewport_rect {
