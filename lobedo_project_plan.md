@@ -66,6 +66,8 @@ Optional but useful:
 ### Attribute system integration
 Each primitive type has its own attribute storage with a shared accessor interface for common semantics
 (`P`, `Cd`, etc). Splat attributes remain typed channels with required semantics (P/R/S/opacity/SH).
+Splat core channels are exposed as Houdini-style point attributes (`P`, `Cd`, `orient`, `scale`, `opacity`)
+and mapped back to PLY properties on export.
 
 ### Groups (Houdini-style)
 Geometry carries **named groups** for point/vertex/primitive membership. Groups can be populated via
@@ -129,24 +131,32 @@ SH evaluation:
 6. `Group` (create named groups by box/sphere/plane or from existing groups)
 7. `Filter by Mask` (for points/splats; mask source could be box/sphere/plane)
 
+### Houdini utility nodes (pre-splat-specific)
+8. `Tube` (mesh source)
+9. `Attribute Noise` (named attribute; float/vec2/vec3 + point/vertex/prim; shared noise library)
+10. `Attribute from Feature` (area + gradient features; Measure SOP + Heightfield Mask by Feature hybrid)
+11. `Attribute Transfer` (space-delimited attribute names; domain selector; splats as source at minimum)
+12. `Smooth` (space-delimited attribute names, default P; splat-aware where possible)
+13. `Ray` (normal/direction/closest; max distance; hit group + attribute import; optional no-transform)
+
 ### Splat-native ops
-8. `Crop` (box/sphere/plane)
-9. `Splat Prune` (by opacity/scale/confidence/outlier heuristics)
-10. `Splat Regularize` (clamp scales, normalize opacity, remove invalid values)
-11. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)
-12. `SH Tools` (utility)
+14. `Crop` (box/sphere/plane)
+15. `Splat Prune` (by opacity/scale/confidence/outlier heuristics)
+16. `Splat Regularize` (clamp scales, normalize opacity, remove invalid values)
+17. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)
+18. `SH Tools` (utility)
    - `Rotate SH` (explicit)
    - `Reduce SH Order` (e.g., L3->L1)
 
 ### Conversion
-13. `Splats -> Points`
-14. `Points -> Splats (Fit)`
-15. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
+19. `Splats -> Points`
+20. `Points -> Splats (Fit)`
+21. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
 
 ### ML (MVP)
-16. `Depth Estimation (Job)`
-17. `Backproject to Points`
-18. (Optional) `Points -> Splats` downstream
+22. `Depth Estimation (Job)`
+23. `Backproject to Points`
+24. (Optional) `Points -> Splats` downstream
 
 ---
 

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use glam::Vec3;
 
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
@@ -39,7 +40,7 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 }
 
 pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
-    let group_mask = splat_group_mask(splats, params);
+    let group_mask = splat_group_mask(splats, params, AttributeDomain::Point);
     let mut min_opacity = params.get_float("min_opacity", 0.0);
     if !min_opacity.is_finite() {
         min_opacity = 0.0;
@@ -97,7 +98,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         kept.push(idx);
     }
 
-    filter_splats(splats, &kept)
+    splats.filter_by_indices(&kept)
 }
 
 fn splat_opacity(value: f32, use_log_opacity: bool) -> f32 {
@@ -163,35 +164,6 @@ fn splat_is_finite(splats: &SplatGeo, idx: usize) -> bool {
     }
 
     true
-}
-
-fn filter_splats(splats: &SplatGeo, kept: &[usize]) -> SplatGeo {
-    let mut output = SplatGeo::with_len_and_sh(kept.len(), splats.sh_coeffs);
-    for (out_idx, src_idx) in kept.iter().copied().enumerate() {
-        output.positions[out_idx] = splats.positions[src_idx];
-        output.rotations[out_idx] = splats.rotations[src_idx];
-        output.scales[out_idx] = splats.scales[src_idx];
-        output.opacity[out_idx] = splats.opacity[src_idx];
-        output.sh0[out_idx] = splats.sh0[src_idx];
-        if splats.sh_coeffs > 0 {
-            let src_base = src_idx * splats.sh_coeffs;
-            let dst_base = out_idx * splats.sh_coeffs;
-            output.sh_rest[dst_base..dst_base + splats.sh_coeffs]
-                .copy_from_slice(&splats.sh_rest[src_base..src_base + splats.sh_coeffs]);
-        }
-    }
-
-    if !splats.groups.is_empty() {
-        for (name, values) in &splats.groups {
-            let filtered = kept
-                .iter()
-                .map(|&idx| values.get(idx).copied().unwrap_or(false))
-                .collect();
-            output.groups.insert(name.clone(), filtered);
-        }
-    }
-
-    output
 }
 
 #[cfg(test)]

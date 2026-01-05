@@ -8,6 +8,7 @@ Status: done | in progress | not started
 - **G4**: Define splat deformation policy (SH rotation, scale handling, optional resampling) (done: L1-L3 SH rotation + scale handling in transform)
 - **G5**: Migrate project format + graphs to new geometry pin type (done)
 - **G6**: Add group system (named point/vertex/primitive groups; splats in primitive groups) (done)
+- **G7**: Treat splat centers as points (point ops apply), add point vs primitive groups, map splat attributes to Houdini names (done)
 
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
@@ -28,11 +29,11 @@ Status: done | in progress | not started
 - **N6**: Group node (box/sphere/plane; group by existing group) (done)
 - **N7**: Group selection parameter on applicable nodes (Auto/Point/Vertex/Primitive) (done)
 - **N8**: Tube (support splats where applicable) (not started)
-- **N9**: Attribute Noise (support splats where applicable) (not started)
-- **N10**: Attribute from Feature (Measure SOP + Heightfield Mask by Feature hybrid; support splats where applicable) (not started)
-- **N11**: Attribute Transfer (support splats at least as source) (not started)
-- **N12**: Smooth (support splats where applicable) (not started)
-- **N13**: Ray (support splats where applicable) (not started)
+- **N9**: Attribute Noise (named attribute, default P; float/vec2/vec3 + point/vertex/prim; noise type; shared noise library) (not started)
+- **N10**: Attribute from Feature (area + gradient; Measure SOP + Heightfield Mask by Feature hybrid; support splats where applicable) (not started)
+- **N11**: Attribute Transfer (space-delimited attribute names; domain selector; splats as source at minimum) (not started)
+- **N12**: Smooth (space-delimited attribute names, default P; support splats where applicable) (not started)
+- **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (not started)
 - **N4**: LOD/Decimate (voxel clustering) (not started)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 

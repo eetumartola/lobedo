@@ -1,3 +1,4 @@
+use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams};
 use crate::geometry::{merge_splats, Geometry};
 use crate::mesh::Mesh;
@@ -265,10 +266,29 @@ fn apply_mesh_unary(
     for mesh in input.meshes.iter() {
         meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(mesh))?);
     }
-    Ok(Geometry {
-        meshes,
-        splats: input.splats.clone(),
-    })
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        let mut splat = splat.clone();
+        match kind {
+            BuiltinNodeKind::Color => {
+                nodes::color::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::Noise => {
+                nodes::noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::AttributeMath => {
+                nodes::attribute_math::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::Wrangle => {
+                nodes::wrangle::apply_to_splats(params, &mut splat)?;
+            }
+            _ => {}
+        }
+        splats.push(splat);
+    }
+
+    Ok(Geometry { meshes, splats })
 }
 
 fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -320,7 +340,7 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
 fn filter_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     let shape = params.get_string("shape", "box");
     let invert = params.get_bool("invert", false);
-    let group_mask = nodes::group_utils::splat_group_mask(splats, params);
+    let group_mask = nodes::group_utils::splat_group_mask(splats, params, AttributeDomain::Point);
 
     let mut kept = Vec::new();
     for (idx, position) in splats.positions.iter().enumerate() {
@@ -336,32 +356,7 @@ fn filter_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         }
     }
 
-    let mut output = SplatGeo::with_len_and_sh(kept.len(), splats.sh_coeffs);
-    for (out_idx, &src_idx) in kept.iter().enumerate() {
-        output.positions[out_idx] = splats.positions[src_idx];
-        output.rotations[out_idx] = splats.rotations[src_idx];
-        output.scales[out_idx] = splats.scales[src_idx];
-        output.opacity[out_idx] = splats.opacity[src_idx];
-        output.sh0[out_idx] = splats.sh0[src_idx];
-        if splats.sh_coeffs > 0 {
-            let src_base = src_idx * splats.sh_coeffs;
-            let dst_base = out_idx * splats.sh_coeffs;
-            output.sh_rest[dst_base..dst_base + splats.sh_coeffs]
-                .copy_from_slice(&splats.sh_rest[src_base..src_base + splats.sh_coeffs]);
-        }
-    }
-    if !splats.groups.is_empty() {
-        for (name, values) in &splats.groups {
-            let mut filtered = Vec::with_capacity(kept.len());
-            for &src_idx in &kept {
-                if let Some(value) = values.get(src_idx) {
-                    filtered.push(*value);
-                }
-            }
-            output.groups.insert(name.clone(), filtered);
-        }
-    }
-    output
+    splats.filter_by_indices(&kept)
 }
 
 fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -401,7 +396,9 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         let mut splat = splat.clone();
-        if let Some(mask) = nodes::group_utils::splat_group_mask(&splat, params) {
+        if let Some(mask) =
+            nodes::group_utils::splat_group_mask(&splat, params, AttributeDomain::Point)
+        {
             splat.transform_masked(matrix, &mask);
         } else {
             splat.transform(matrix);

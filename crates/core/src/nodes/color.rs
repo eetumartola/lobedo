@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::nodes::{
+    geometry_in, geometry_out, group_utils::{mesh_group_mask, splat_group_mask}, require_mesh_input,
+};
+use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Color";
 
@@ -70,5 +73,54 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
         .map_err(|err| format!("Color attribute error: {:?}", err))?;
     Ok(input)
+}
+
+pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
+    let color = params.get_vec3("color", [1.0, 1.0, 1.0]);
+    let domain = match params.get_int("domain", 0).clamp(0, 3) {
+        0 => AttributeDomain::Point,
+        1 => AttributeDomain::Vertex,
+        2 => AttributeDomain::Primitive,
+        _ => AttributeDomain::Detail,
+    };
+    let count = splats.attribute_domain_len(domain);
+    if count == 0 {
+        return Ok(());
+    }
+
+    let mask = splat_group_mask(splats, params, domain);
+    if let Some(mask) = &mask {
+        if !mask.iter().any(|value| *value) {
+            return Ok(());
+        }
+    }
+
+    let mut values = if let Some(existing) = splats
+        .attribute(domain, "Cd")
+        .and_then(|attr| match attr {
+            crate::attributes::AttributeRef::Vec3(values) if values.len() == count => {
+                Some(values.to_vec())
+            }
+            _ => None,
+        }) {
+        existing
+    } else {
+        vec![[0.0, 0.0, 0.0]; count]
+    };
+
+    if let Some(mask) = mask {
+        for (idx, value) in values.iter_mut().enumerate() {
+            if mask.get(idx).copied().unwrap_or(false) {
+                *value = color;
+            }
+        }
+    } else {
+        values.iter_mut().for_each(|value| *value = color);
+    }
+
+    splats
+        .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
+        .map_err(|err| format!("Color attribute error: {:?}", err))?;
+    Ok(())
 }
 

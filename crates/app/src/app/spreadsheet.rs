@@ -413,7 +413,7 @@ fn build_splat_columns(splats: &SplatGeo, max_rows: usize) -> Vec<Column> {
     }
     for (axis, idx) in [('w', 0usize), ('x', 1), ('y', 2), ('z', 3)] {
         columns.push(Column {
-            header: format!("rot_{}", axis),
+            header: format!("orient_{}", axis),
             kind: ColumnKind::Float(
                 (0..max_rows)
                     .map(|row| splats.rotations.get(row).map(|v| v[idx]))
@@ -447,7 +447,7 @@ fn build_splat_columns(splats: &SplatGeo, max_rows: usize) -> Vec<Column> {
     });
     for (axis, idx) in [('r', 0usize), ('g', 1), ('b', 2)] {
         columns.push(Column {
-            header: format!("sh0_{}", axis),
+            header: format!("Cd_{}", axis),
             kind: ColumnKind::Float(
                 (0..max_rows)
                     .map(|row| splats.sh0.get(row).map(|v| v[idx]))

@@ -99,10 +99,11 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
 }
 
 pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
-    let domain = params.get_int("domain", 2);
-    if domain != 2 {
-        return Ok(());
-    }
+    let domain = match params.get_int("domain", 2).clamp(0, 2) {
+        0 => AttributeDomain::Point,
+        1 => return Ok(()),
+        _ => AttributeDomain::Primitive,
+    };
 
     let group_name = params.get_string("group", "").trim();
     if group_name.is_empty() {
@@ -112,11 +113,11 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     let invert = params.get_bool("invert", false);
     let base_expr = params.get_string("base_group", "").trim();
 
-    let len = splats.len();
+    let len = splats.attribute_domain_len(domain);
     let base_mask = if base_expr.is_empty() {
         None
     } else {
-        build_group_mask(&splats.groups, base_expr, len)
+        build_group_mask(splats.groups.map(domain), base_expr, len)
     };
 
     let mut mask = if shape.eq_ignore_ascii_case("group") {
@@ -141,7 +142,10 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         }
     }
 
-    splats.groups.insert(group_name.to_string(), mask);
+    splats
+        .groups
+        .map_mut(domain)
+        .insert(group_name.to_string(), mask);
     Ok(())
 }
 

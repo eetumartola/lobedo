@@ -1,7 +1,10 @@
-use std::collections::BTreeMap;
-
 use glam::{Mat3, Mat4, Quat, Vec3};
 
+use crate::attributes::{
+    AttributeDomain, AttributeError, AttributeInfo, AttributeRef, AttributeStorage, AttributeType,
+    MeshAttributes,
+};
+use crate::mesh::MeshGroups;
 pub use crate::splat_ply::{load_splat_ply_with_mode, save_splat_ply, SplatLoadMode};
 
 #[derive(Debug, Clone, Default)]
@@ -13,7 +16,8 @@ pub struct SplatGeo {
     pub sh0: Vec<[f32; 3]>,
     pub sh_coeffs: usize,
     pub sh_rest: Vec<[f32; 3]>,
-    pub groups: BTreeMap<String, Vec<bool>>,
+    pub attributes: MeshAttributes,
+    pub groups: MeshGroups,
 }
 
 impl SplatGeo {
@@ -26,7 +30,8 @@ impl SplatGeo {
             sh0: vec![[1.0, 1.0, 1.0]; count],
             sh_coeffs: 0,
             sh_rest: Vec::new(),
-            groups: BTreeMap::new(),
+            attributes: MeshAttributes::default(),
+            groups: MeshGroups::default(),
         }
     }
 
@@ -45,6 +50,251 @@ impl SplatGeo {
 
     pub fn is_empty(&self) -> bool {
         self.positions.is_empty()
+    }
+
+    pub fn attribute_domain_len(&self, domain: AttributeDomain) -> usize {
+        match domain {
+            AttributeDomain::Point => self.positions.len(),
+            AttributeDomain::Vertex => 0,
+            AttributeDomain::Primitive => self.positions.len(),
+            AttributeDomain::Detail => {
+                if self.positions.is_empty() {
+                    0
+                } else {
+                    1
+                }
+            }
+        }
+    }
+
+    pub fn list_attributes(&self) -> Vec<AttributeInfo> {
+        let mut list = Vec::new();
+        if !self.positions.is_empty() {
+            list.push(AttributeInfo {
+                name: "P".to_string(),
+                domain: AttributeDomain::Point,
+                data_type: AttributeType::Vec3,
+                len: self.positions.len(),
+                implicit: true,
+            });
+        }
+        if !self.rotations.is_empty() {
+            list.push(AttributeInfo {
+                name: "orient".to_string(),
+                domain: AttributeDomain::Point,
+                data_type: AttributeType::Vec4,
+                len: self.rotations.len(),
+                implicit: true,
+            });
+        }
+        if !self.scales.is_empty() {
+            list.push(AttributeInfo {
+                name: "scale".to_string(),
+                domain: AttributeDomain::Point,
+                data_type: AttributeType::Vec3,
+                len: self.scales.len(),
+                implicit: true,
+            });
+        }
+        if !self.opacity.is_empty() {
+            list.push(AttributeInfo {
+                name: "opacity".to_string(),
+                domain: AttributeDomain::Point,
+                data_type: AttributeType::Float,
+                len: self.opacity.len(),
+                implicit: true,
+            });
+        }
+        if !self.sh0.is_empty() {
+            list.push(AttributeInfo {
+                name: "Cd".to_string(),
+                domain: AttributeDomain::Point,
+                data_type: AttributeType::Vec3,
+                len: self.sh0.len(),
+                implicit: true,
+            });
+        }
+        for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+            for (name, storage) in self.attributes.map(domain) {
+                list.push(AttributeInfo {
+                    name: name.clone(),
+                    domain,
+                    data_type: storage.data_type(),
+                    len: storage.len(),
+                    implicit: false,
+                });
+            }
+        }
+        list
+    }
+
+    pub fn attribute(&self, domain: AttributeDomain, name: &str) -> Option<AttributeRef<'_>> {
+        match (name, domain) {
+            ("P", AttributeDomain::Point) => Some(AttributeRef::Vec3(self.positions.as_slice())),
+            ("Cd", AttributeDomain::Point)
+            | ("Cd", AttributeDomain::Primitive)
+            | ("sh0", AttributeDomain::Point)
+            | ("sh0", AttributeDomain::Primitive) => {
+                Some(AttributeRef::Vec3(self.sh0.as_slice()))
+            }
+            ("opacity", AttributeDomain::Point)
+            | ("opacity", AttributeDomain::Primitive) => {
+                Some(AttributeRef::Float(self.opacity.as_slice()))
+            }
+            ("scale", AttributeDomain::Point) | ("scale", AttributeDomain::Primitive) => {
+                Some(AttributeRef::Vec3(self.scales.as_slice()))
+            }
+            ("orient", AttributeDomain::Point)
+            | ("orient", AttributeDomain::Primitive)
+            | ("rot", AttributeDomain::Point)
+            | ("rot", AttributeDomain::Primitive) => {
+                Some(AttributeRef::Vec4(self.rotations.as_slice()))
+            }
+            _ => self
+                .attributes
+                .get(domain, name)
+                .map(AttributeStorage::as_ref),
+        }
+    }
+
+    pub fn attribute_with_precedence(
+        &self,
+        name: &str,
+    ) -> Option<(AttributeDomain, AttributeRef<'_>)> {
+        if let Some(attr) = self.attribute(AttributeDomain::Point, name) {
+            return Some((AttributeDomain::Point, attr));
+        }
+        if let Some(attr) = self.attribute(AttributeDomain::Primitive, name) {
+            return Some((AttributeDomain::Primitive, attr));
+        }
+        if let Some(attr) = self.attribute(AttributeDomain::Detail, name) {
+            return Some((AttributeDomain::Detail, attr));
+        }
+        None
+    }
+
+    pub fn set_attribute(
+        &mut self,
+        domain: AttributeDomain,
+        name: impl Into<String>,
+        storage: AttributeStorage,
+    ) -> Result<(), AttributeError> {
+        let name = name.into();
+        let expected_len = self.attribute_domain_len(domain);
+        let actual_len = storage.len();
+        if expected_len != 0 && actual_len != expected_len {
+            return Err(AttributeError::InvalidLength {
+                expected: expected_len,
+                actual: actual_len,
+            });
+        }
+
+        match (name.as_str(), domain) {
+            ("P", AttributeDomain::Point) => {
+                if storage.data_type() != AttributeType::Vec3 {
+                    return Err(AttributeError::InvalidType {
+                        expected: AttributeType::Vec3,
+                        actual: storage.data_type(),
+                    });
+                }
+                if let AttributeStorage::Vec3(values) = storage {
+                    self.positions = values;
+                    return Ok(());
+                }
+            }
+            ("P", _) => return Err(AttributeError::InvalidDomain),
+            ("Cd", AttributeDomain::Point)
+            | ("Cd", AttributeDomain::Primitive)
+            | ("sh0", AttributeDomain::Point)
+            | ("sh0", AttributeDomain::Primitive) => {
+                if storage.data_type() != AttributeType::Vec3 {
+                    return Err(AttributeError::InvalidType {
+                        expected: AttributeType::Vec3,
+                        actual: storage.data_type(),
+                    });
+                }
+                if let AttributeStorage::Vec3(values) = storage {
+                    self.sh0 = values;
+                    return Ok(());
+                }
+            }
+            ("opacity", AttributeDomain::Point) | ("opacity", AttributeDomain::Primitive) => {
+                if storage.data_type() != AttributeType::Float {
+                    return Err(AttributeError::InvalidType {
+                        expected: AttributeType::Float,
+                        actual: storage.data_type(),
+                    });
+                }
+                if let AttributeStorage::Float(values) = storage {
+                    self.opacity = values;
+                    return Ok(());
+                }
+            }
+            ("scale", AttributeDomain::Point) | ("scale", AttributeDomain::Primitive) => {
+                if storage.data_type() != AttributeType::Vec3 {
+                    return Err(AttributeError::InvalidType {
+                        expected: AttributeType::Vec3,
+                        actual: storage.data_type(),
+                    });
+                }
+                if let AttributeStorage::Vec3(values) = storage {
+                    self.scales = values;
+                    return Ok(());
+                }
+            }
+            ("orient", AttributeDomain::Point)
+            | ("orient", AttributeDomain::Primitive)
+            | ("rot", AttributeDomain::Point)
+            | ("rot", AttributeDomain::Primitive) => {
+                if storage.data_type() != AttributeType::Vec4 {
+                    return Err(AttributeError::InvalidType {
+                        expected: AttributeType::Vec4,
+                        actual: storage.data_type(),
+                    });
+                }
+                if let AttributeStorage::Vec4(values) = storage {
+                    self.rotations = values;
+                    return Ok(());
+                }
+            }
+            _ => {}
+        }
+
+        self.attributes.map_mut(domain).insert(name, storage);
+        Ok(())
+    }
+
+    pub fn remove_attribute(
+        &mut self,
+        domain: AttributeDomain,
+        name: &str,
+    ) -> Option<AttributeStorage> {
+        match (name, domain) {
+            ("P", AttributeDomain::Point) => None,
+            ("Cd", AttributeDomain::Point)
+            | ("Cd", AttributeDomain::Primitive)
+            | ("sh0", AttributeDomain::Point)
+            | ("sh0", AttributeDomain::Primitive) => {
+                self.sh0.clear();
+                None
+            }
+            ("opacity", AttributeDomain::Point) | ("opacity", AttributeDomain::Primitive) => {
+                self.opacity.clear();
+                None
+            }
+            ("scale", AttributeDomain::Point) | ("scale", AttributeDomain::Primitive) => {
+                self.scales.clear();
+                None
+            }
+            ("orient", AttributeDomain::Point)
+            | ("orient", AttributeDomain::Primitive)
+            | ("rot", AttributeDomain::Point)
+            | ("rot", AttributeDomain::Primitive) => {
+                self.rotations.clear();
+                None
+            }
+            _ => self.attributes.remove(domain, name),
+        }
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -101,9 +351,26 @@ impl SplatGeo {
         } else if self.sh_rest.len() != count * self.sh_coeffs {
             return Err("SplatGeo SH coefficients are inconsistent".to_string());
         }
-        for (name, values) in &self.groups {
-            if values.len() != count {
-                return Err(format!("SplatGeo group '{}' has invalid length", name));
+        for domain in [AttributeDomain::Point, AttributeDomain::Primitive] {
+            for (name, values) in self.groups.map(domain) {
+                if values.len() != count {
+                    return Err(format!(
+                        "SplatGeo group '{}' has invalid length",
+                        name
+                    ));
+                }
+            }
+        }
+        for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+            let expected = self.attribute_domain_len(domain);
+            for (name, storage) in self.attributes.map(domain) {
+                let actual = storage.len();
+                if expected != 0 && actual != expected {
+                    return Err(format!(
+                        "SplatGeo attribute '{}' has invalid length",
+                        name
+                    ));
+                }
             }
         }
         Ok(())
@@ -185,6 +452,23 @@ impl SplatGeo {
 
             if let Some(mats) = &sh_mats {
                 rotate_sh_bands(self, idx, mats);
+            }
+        }
+
+        if let Some(AttributeStorage::Vec3(normals)) =
+            self.attributes.map_mut(AttributeDomain::Point).get_mut("N")
+        {
+            if normals.len() == self.positions.len() {
+                let normal_matrix = matrix.inverse().transpose();
+                for n in normals.iter_mut() {
+                    let v = normal_matrix.transform_vector3(Vec3::from(*n));
+                    let len = v.length();
+                    *n = if len > 0.0 {
+                        (v / len).to_array()
+                    } else {
+                        [0.0, 1.0, 0.0]
+                    };
+                }
             }
         }
     }
@@ -274,6 +558,124 @@ impl SplatGeo {
             if let Some(mats) = &sh_mats {
                 rotate_sh_bands(self, idx, mats);
             }
+        }
+
+        if let Some(AttributeStorage::Vec3(normals)) =
+            self.attributes.map_mut(AttributeDomain::Point).get_mut("N")
+        {
+            if normals.len() == self.positions.len() {
+                let normal_matrix = matrix.inverse().transpose();
+                for (idx, n) in normals.iter_mut().enumerate() {
+                    if !mask.get(idx).copied().unwrap_or(false) {
+                        continue;
+                    }
+                    let v = normal_matrix.transform_vector3(Vec3::from(*n));
+                    let len = v.length();
+                    *n = if len > 0.0 {
+                        (v / len).to_array()
+                    } else {
+                        [0.0, 1.0, 0.0]
+                    };
+                }
+            }
+        }
+    }
+
+    pub fn filter_by_indices(&self, kept: &[usize]) -> SplatGeo {
+        let mut output = SplatGeo::with_len_and_sh(kept.len(), self.sh_coeffs);
+        for (out_idx, src_idx) in kept.iter().copied().enumerate() {
+            output.positions[out_idx] = self.positions[src_idx];
+            output.rotations[out_idx] = self.rotations[src_idx];
+            output.scales[out_idx] = self.scales[src_idx];
+            output.opacity[out_idx] = self.opacity[src_idx];
+            output.sh0[out_idx] = self.sh0[src_idx];
+            if self.sh_coeffs > 0 {
+                let src_base = src_idx * self.sh_coeffs;
+                let dst_base = out_idx * self.sh_coeffs;
+                output.sh_rest[dst_base..dst_base + self.sh_coeffs]
+                    .copy_from_slice(&self.sh_rest[src_base..src_base + self.sh_coeffs]);
+            }
+        }
+
+        for domain in [AttributeDomain::Point, AttributeDomain::Primitive] {
+            for (name, values) in self.groups.map(domain) {
+                let filtered = kept
+                    .iter()
+                    .map(|&idx| values.get(idx).copied().unwrap_or(false))
+                    .collect();
+                output
+                    .groups
+                    .map_mut(domain)
+                    .insert(name.clone(), filtered);
+            }
+        }
+
+        for domain in [AttributeDomain::Point, AttributeDomain::Primitive] {
+            for (name, storage) in self.attributes.map(domain) {
+                let filtered = filter_attribute_storage(storage, kept);
+                output
+                    .attributes
+                    .map_mut(domain)
+                    .insert(name.clone(), filtered);
+            }
+        }
+        for (name, storage) in self.attributes.map(AttributeDomain::Detail) {
+            output
+                .attributes
+                .map_mut(AttributeDomain::Detail)
+                .insert(name.clone(), storage.clone());
+        }
+
+        output
+    }
+}
+
+fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> AttributeStorage {
+    match storage {
+        AttributeStorage::Float(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::Float(out)
+        }
+        AttributeStorage::Int(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::Int(out)
+        }
+        AttributeStorage::Vec2(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::Vec2(out)
+        }
+        AttributeStorage::Vec3(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::Vec3(out)
+        }
+        AttributeStorage::Vec4(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::Vec4(out)
         }
     }
 }

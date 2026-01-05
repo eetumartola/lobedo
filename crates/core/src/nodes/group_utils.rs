@@ -40,17 +40,40 @@ pub fn mesh_group_mask(
     Some(map_group_mask(mesh, source_domain, target_domain, &mask))
 }
 
-pub fn splat_group_mask(splats: &SplatGeo, params: &NodeParams) -> Option<Vec<bool>> {
+pub fn splat_group_mask(
+    splats: &SplatGeo,
+    params: &NodeParams,
+    target_domain: AttributeDomain,
+) -> Option<Vec<bool>> {
     let expr = params.get_string(GROUP_PARAM, "").trim();
     if expr.is_empty() {
         return None;
     }
     let group_type = group_type_from_params(params);
-    if matches!(group_type, GroupType::Point | GroupType::Vertex) {
-        return Some(vec![false; splats.len()]);
-    }
     let len = splats.len();
-    build_group_mask(&splats.groups, expr, len)
+    let mask = match group_type {
+        GroupType::Point => build_group_mask(splats.groups.map(AttributeDomain::Point), expr, len),
+        GroupType::Primitive => {
+            build_group_mask(splats.groups.map(AttributeDomain::Primitive), expr, len)
+        }
+        GroupType::Vertex => Some(vec![false; len]),
+        GroupType::Auto => {
+            let domain = if group_expr_matches(splats.groups.map(AttributeDomain::Point), expr) {
+                AttributeDomain::Point
+            } else if group_expr_matches(splats.groups.map(AttributeDomain::Primitive), expr) {
+                AttributeDomain::Primitive
+            } else {
+                AttributeDomain::Point
+            };
+            build_group_mask(splats.groups.map(domain), expr, len)
+        }
+    };
+
+    match target_domain {
+        AttributeDomain::Detail => mask.map(|mask| vec![mask.iter().any(|value| *value)]),
+        AttributeDomain::Vertex => Some(vec![false; splats.attribute_domain_len(target_domain)]),
+        _ => mask,
+    }
 }
 
 fn select_group_domain(mesh: &Mesh, expr: &str, group_type: GroupType) -> AttributeDomain {

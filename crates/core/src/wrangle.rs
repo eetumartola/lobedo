@@ -4,6 +4,7 @@ use glam::Vec3;
 
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, AttributeType};
 use crate::mesh::Mesh;
+use crate::splat::SplatGeo;
 
 #[derive(Debug, Clone)]
 struct Program {
@@ -118,6 +119,35 @@ pub fn apply_wrangle(
     }
     let written = ctx.into_written();
     apply_written(mesh, domain, written)?;
+    Ok(())
+}
+
+pub fn apply_wrangle_splats(
+    splats: &mut SplatGeo,
+    domain: AttributeDomain,
+    code: &str,
+    mask: Option<&[bool]>,
+) -> Result<(), String> {
+    let program = parse_program(code)?;
+    if program.statements.is_empty() {
+        return Ok(());
+    }
+    let len = splats.attribute_domain_len(domain);
+    if len == 0 && domain != AttributeDomain::Detail {
+        return Ok(());
+    }
+    if let Some(mask) = mask {
+        if domain != AttributeDomain::Detail && mask.len() != len {
+            return Ok(());
+        }
+    }
+
+    let mut ctx = SplatWrangleContext::new(splats, domain, mask);
+    for stmt in program.statements {
+        ctx.apply_statement(stmt)?;
+    }
+    let written = ctx.into_written();
+    apply_written_splats(splats, domain, written)?;
     Ok(())
 }
 
@@ -522,6 +552,340 @@ impl<'a> WrangleContext<'a> {
     }
 }
 
+struct SplatWrangleContext<'a> {
+    splats: &'a SplatGeo,
+    domain: AttributeDomain,
+    len: usize,
+    mask: Option<&'a [bool]>,
+    written: HashMap<String, AttributeStorage>,
+    point_normals: Option<Vec<[f32; 3]>>,
+    detail_center: Option<[f32; 3]>,
+    detail_normal: Option<[f32; 3]>,
+}
+
+impl<'a> SplatWrangleContext<'a> {
+    fn new(splats: &'a SplatGeo, domain: AttributeDomain, mask: Option<&'a [bool]>) -> Self {
+        let len = splats.attribute_domain_len(domain);
+        Self {
+            splats,
+            domain,
+            len,
+            mask,
+            written: HashMap::new(),
+            point_normals: None,
+            detail_center: None,
+            detail_normal: None,
+        }
+    }
+
+    fn apply_statement(&mut self, stmt: Statement) -> Result<(), String> {
+        match stmt {
+            Statement::Assign { target, expr } => self.assign(target, expr),
+        }
+    }
+
+    fn assign(&mut self, target: String, expr: Expr) -> Result<(), String> {
+        if target == "P" && self.domain != AttributeDomain::Point {
+            return Err("Wrangle can only write @P in Point mode".to_string());
+        }
+        if self.len == 0 {
+            return Ok(());
+        }
+
+        if self.mask.is_some() && !self.any_selected() {
+            return Ok(());
+        }
+
+        let target_type = self.target_type(&target).or_else(|| {
+            let idx = self.first_selected_index().unwrap_or(0);
+            self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
+        });
+
+        let mut values = Vec::with_capacity(self.len.max(1));
+        for idx in 0..self.len.max(1) {
+            let selected = self
+                .mask
+                .and_then(|mask| mask.get(idx).copied())
+                .unwrap_or(true);
+            let value = if selected {
+                self.eval_expr(&expr, idx)?
+            } else {
+                self.read_attr_for_mask(&target, idx, target_type)?
+            };
+            values.push(value);
+        }
+
+        let storage = build_storage(&values, target_type)?;
+        self.written.insert(target, storage);
+        Ok(())
+    }
+
+    fn into_written(self) -> HashMap<String, AttributeStorage> {
+        self.written
+    }
+
+    fn target_type(&self, name: &str) -> Option<AttributeType> {
+        if let Some(storage) = self.written.get(name) {
+            return Some(storage.data_type());
+        }
+        match (name, self.domain) {
+            ("P", AttributeDomain::Point) => return Some(AttributeType::Vec3),
+            ("N", AttributeDomain::Point) => return Some(AttributeType::Vec3),
+            _ => {}
+        }
+        self.splats
+            .attribute(self.domain, name)
+            .map(|attr| attr.data_type())
+    }
+
+    fn eval_expr(&mut self, expr: &Expr, idx: usize) -> Result<Value, String> {
+        match expr {
+            Expr::Literal(value) => Ok(*value),
+            Expr::Attr(name) => self.read_attr(name, idx),
+            Expr::Swizzle { expr, mask } => {
+                let value = self.eval_expr(expr, idx)?;
+                swizzle_value(value, mask)
+            }
+            Expr::Unary { op, expr } => {
+                let value = self.eval_expr(expr, idx)?;
+                Ok(match op {
+                    UnaryOp::Pos => value,
+                    UnaryOp::Neg => value.negate(),
+                })
+            }
+            Expr::Binary { op, left, right } => {
+                let a = self.eval_expr(left, idx)?;
+                let b = self.eval_expr(right, idx)?;
+                match op {
+                    BinaryOp::Add => add_values(a, b),
+                    BinaryOp::Sub => sub_values(a, b),
+                    BinaryOp::Mul => mul_values(a, b),
+                    BinaryOp::Div => div_values(a, b),
+                }
+            }
+            Expr::Call { name, args } => self.eval_call(name, args, idx),
+        }
+    }
+
+    fn eval_call(&mut self, name: &str, args: &[Expr], idx: usize) -> Result<Value, String> {
+        let name = name.to_lowercase();
+        match name.as_str() {
+            "sin" | "cos" | "tan" | "abs" | "floor" | "ceil" => {
+                let value = self.eval_args(args, idx, 1)?[0];
+                Ok(match name.as_str() {
+                    "sin" => map_value(value, f32::sin),
+                    "cos" => map_value(value, f32::cos),
+                    "tan" => map_value(value, f32::tan),
+                    "abs" => map_value(value, f32::abs),
+                    "floor" => map_value(value, f32::floor),
+                    _ => map_value(value, f32::ceil),
+                })
+            }
+            "pow" => {
+                let values = self.eval_args(args, idx, 2)?;
+                pow_values(values[0], values[1])
+            }
+            "min" => {
+                let values = self.eval_args(args, idx, 2)?;
+                min_values(values[0], values[1])
+            }
+            "max" => {
+                let values = self.eval_args(args, idx, 2)?;
+                max_values(values[0], values[1])
+            }
+            "clamp" => {
+                let values = self.eval_args(args, idx, 3)?;
+                clamp_values(values[0], values[1], values[2])
+            }
+            "lerp" => {
+                let values = self.eval_args(args, idx, 3)?;
+                lerp_values(values[0], values[1], values[2])
+            }
+            "len" => {
+                let value = self.eval_args(args, idx, 1)?[0];
+                Ok(Value::Float(length_value(value)))
+            }
+            "dot" => {
+                let values = self.eval_args(args, idx, 2)?;
+                let dot = dot_values(values[0], values[1])?;
+                Ok(Value::Float(dot))
+            }
+            "normalize" => {
+                let value = self.eval_args(args, idx, 1)?[0];
+                normalize_value(value)
+            }
+            "vec2" => build_vec_splats(args, idx, 2, self),
+            "vec3" => build_vec_splats(args, idx, 3, self),
+            "vec4" => build_vec_splats(args, idx, 4, self),
+            _ => Err(format!("Unknown function '{}'", name)),
+        }
+    }
+
+    fn eval_args(
+        &mut self,
+        args: &[Expr],
+        idx: usize,
+        expected: usize,
+    ) -> Result<Vec<Value>, String> {
+        if args.len() != expected {
+            return Err(format!(
+                "Expected {} argument(s), got {}",
+                expected,
+                args.len()
+            ));
+        }
+        let mut out = Vec::with_capacity(args.len());
+        for arg in args {
+            out.push(self.eval_expr(arg, idx)?);
+        }
+        Ok(out)
+    }
+
+    fn read_attr(&mut self, name: &str, idx: usize) -> Result<Value, String> {
+        if let Some(storage) = self.written.get(name) {
+            return value_from_storage(storage, idx);
+        }
+        if name == "P" {
+            return Ok(Value::Vec3(self.read_p(idx)));
+        }
+        if name == "N" {
+            return Ok(Value::Vec3(self.read_n(idx)));
+        }
+        if let Some(attr) = self.splats.attribute(self.domain, name) {
+            return value_from_attr_ref(attr, idx);
+        }
+        Ok(Value::Float(0.0))
+    }
+
+    fn read_attr_for_mask(
+        &mut self,
+        name: &str,
+        idx: usize,
+        target_type: Option<AttributeType>,
+    ) -> Result<Value, String> {
+        if let Some(target_type) = target_type {
+            if let Some(attr) = self.splats.attribute(self.domain, name) {
+                if attr.data_type() == target_type {
+                    return value_from_attr_ref(attr, idx);
+                }
+            }
+            if name == "P" && target_type == AttributeType::Vec3 {
+                return Ok(Value::Vec3(self.read_p(idx)));
+            }
+            if name == "N" && target_type == AttributeType::Vec3 {
+                return Ok(Value::Vec3(self.read_n(idx)));
+            }
+            return Ok(default_value_for_type(target_type));
+        }
+        self.read_attr(name, idx)
+    }
+
+    fn first_selected_index(&self) -> Option<usize> {
+        let mask = self.mask?;
+        mask.iter().position(|value| *value)
+    }
+
+    fn any_selected(&self) -> bool {
+        let Some(mask) = self.mask else {
+            return true;
+        };
+        mask.iter().any(|value| *value)
+    }
+
+    fn read_p(&mut self, idx: usize) -> [f32; 3] {
+        match self.domain {
+            AttributeDomain::Point | AttributeDomain::Primitive => self
+                .splats
+                .positions
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0; 3]),
+            AttributeDomain::Detail => {
+                self.ensure_detail_center();
+                self.detail_center.unwrap_or([0.0; 3])
+            }
+            AttributeDomain::Vertex => [0.0; 3],
+        }
+    }
+
+    fn read_n(&mut self, idx: usize) -> [f32; 3] {
+        match self.domain {
+            AttributeDomain::Point | AttributeDomain::Primitive => {
+                self.ensure_point_normals();
+                self.point_normals
+                    .as_ref()
+                    .and_then(|values| values.get(idx).copied())
+                    .unwrap_or([0.0, 1.0, 0.0])
+            }
+            AttributeDomain::Detail => {
+                self.ensure_detail_normal();
+                self.detail_normal.unwrap_or([0.0, 1.0, 0.0])
+            }
+            AttributeDomain::Vertex => [0.0, 1.0, 0.0],
+        }
+    }
+
+    fn ensure_point_normals(&mut self) {
+        if self.point_normals.is_some() {
+            return;
+        }
+        if let Some(AttributeRef::Vec3(values)) =
+            self.splats.attribute(AttributeDomain::Point, "N")
+        {
+            if values.len() == self.splats.positions.len() {
+                self.point_normals = Some(values.to_vec());
+                return;
+            }
+        }
+        self.point_normals =
+            Some(vec![[0.0, 1.0, 0.0]; self.splats.positions.len()]);
+    }
+
+    fn ensure_detail_center(&mut self) {
+        if self.detail_center.is_some() {
+            return;
+        }
+        let mut iter = self.splats.positions.iter();
+        let Some(first) = iter.next().copied() else {
+            self.detail_center = Some([0.0; 3]);
+            return;
+        };
+        let mut min = first;
+        let mut max = first;
+        for p in iter {
+            min[0] = min[0].min(p[0]);
+            min[1] = min[1].min(p[1]);
+            min[2] = min[2].min(p[2]);
+            max[0] = max[0].max(p[0]);
+            max[1] = max[1].max(p[1]);
+            max[2] = max[2].max(p[2]);
+        }
+        self.detail_center = Some([
+            (min[0] + max[0]) * 0.5,
+            (min[1] + max[1]) * 0.5,
+            (min[2] + max[2]) * 0.5,
+        ]);
+    }
+
+    fn ensure_detail_normal(&mut self) {
+        if self.detail_normal.is_some() {
+            return;
+        }
+        self.ensure_point_normals();
+        let normals = self.point_normals.as_ref().cloned().unwrap_or_default();
+        let mut sum = Vec3::ZERO;
+        for n in normals {
+            sum += Vec3::from(n);
+        }
+        let normal = if sum.length_squared() > 0.0 {
+            sum.normalize().to_array()
+        } else {
+            [0.0, 1.0, 0.0]
+        };
+        self.detail_normal = Some(normal);
+    }
+}
+
 fn value_from_attr_ref(attr: AttributeRef<'_>, idx: usize) -> Result<Value, String> {
     match attr {
         AttributeRef::Float(values) => Ok(Value::Float(values.get(idx).copied().unwrap_or(0.0))),
@@ -632,6 +996,19 @@ fn apply_written(
 ) -> Result<(), String> {
     for (name, storage) in written {
         mesh.set_attribute(domain, name, storage)
+            .map_err(|err| format!("Wrangle attribute error: {:?}", err))?;
+    }
+    Ok(())
+}
+
+fn apply_written_splats(
+    splats: &mut SplatGeo,
+    domain: AttributeDomain,
+    written: HashMap<String, AttributeStorage>,
+) -> Result<(), String> {
+    for (name, storage) in written {
+        splats
+            .set_attribute(domain, name, storage)
             .map_err(|err| format!("Wrangle attribute error: {:?}", err))?;
     }
     Ok(())
@@ -867,6 +1244,40 @@ fn build_vec(
     idx: usize,
     size: usize,
     ctx: &mut WrangleContext<'_>,
+) -> Result<Value, String> {
+    let values = if args.len() == 1 {
+        vec![ctx.eval_expr(&args[0], idx)?; size]
+    } else if args.len() == size {
+        let mut out = Vec::with_capacity(size);
+        for arg in args {
+            out.push(ctx.eval_expr(arg, idx)?);
+        }
+        out
+    } else {
+        return Err(format!("vec{} expects 1 or {} arguments", size, size));
+    };
+
+    let mut floats = Vec::with_capacity(size);
+    for value in values {
+        match value {
+            Value::Float(v) => floats.push(v),
+            _ => return Err("vec* arguments must be floats".to_string()),
+        }
+    }
+
+    Ok(match size {
+        2 => Value::Vec2([floats[0], floats[1]]),
+        3 => Value::Vec3([floats[0], floats[1], floats[2]]),
+        4 => Value::Vec4([floats[0], floats[1], floats[2], floats[3]]),
+        _ => Value::Float(0.0),
+    })
+}
+
+fn build_vec_splats(
+    args: &[Expr],
+    idx: usize,
+    size: usize,
+    ctx: &mut SplatWrangleContext<'_>,
 ) -> Result<Value, String> {
     let values = if args.len() == 1 {
         vec![ctx.eval_expr(&args[0], idx)?; size]

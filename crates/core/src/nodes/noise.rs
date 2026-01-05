@@ -5,7 +5,13 @@ use glam::Vec3;
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::nodes::{
+    geometry_in,
+    geometry_out,
+    group_utils::{mesh_group_mask, splat_group_mask},
+    require_mesh_input,
+};
+use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Noise/Mountain";
 
@@ -67,6 +73,55 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
 
     Ok(input)
+}
+
+pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
+    if splats.positions.is_empty() {
+        return Ok(());
+    }
+    let amplitude = params.get_float("amplitude", 0.2);
+    let frequency = params.get_float("frequency", 1.0).max(0.0);
+    let seed = params.get_int("seed", 1) as u32;
+    let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
+    let mask = splat_group_mask(splats, params, AttributeDomain::Point);
+    if let Some(mask) = &mask {
+        if !mask.iter().any(|value| *value) {
+            return Ok(());
+        }
+    }
+
+    let normals = splats
+        .attribute(AttributeDomain::Point, "N")
+        .and_then(|attr| match attr {
+            crate::attributes::AttributeRef::Vec3(values)
+                if values.len() == splats.positions.len() =>
+            {
+                Some(values.to_vec())
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| vec![[0.0, 1.0, 0.0]; splats.positions.len()]);
+
+    for (idx, (pos, normal)) in splats
+        .positions
+        .iter_mut()
+        .zip(normals.iter())
+        .enumerate()
+    {
+        if mask
+            .as_ref()
+            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+        {
+            continue;
+        }
+        let p = Vec3::from(*pos) * frequency + offset;
+        let n = fractal_noise(p, seed);
+        let displacement = Vec3::from(*normal) * (n * amplitude);
+        let next = Vec3::from(*pos) + displacement;
+        *pos = next.to_array();
+    }
+
+    Ok(())
 }
 
 fn fractal_noise(p: Vec3, seed: u32) -> f32 {

@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
 use crate::mesh::Mesh;
 use crate::splat::SplatGeo;
 
@@ -62,10 +63,6 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
         .map(|s| s.sh_coeffs)
         .max()
         .unwrap_or(0);
-    let mut group_names = BTreeSet::new();
-    for splat in splats {
-        group_names.extend(splat.groups.keys().cloned());
-    }
     merged.positions.reserve(total);
     merged.rotations.reserve(total);
     merged.scales.reserve(total);
@@ -75,12 +72,6 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
         merged.sh_coeffs = max_coeffs;
         merged.sh_rest.reserve(total * max_coeffs);
     }
-    if !group_names.is_empty() {
-        for name in &group_names {
-            merged.groups.insert(name.clone(), Vec::with_capacity(total));
-        }
-    }
-
     for splat in splats {
         merged.positions.extend_from_slice(&splat.positions);
         merged.rotations.extend_from_slice(&splat.rotations);
@@ -107,19 +98,132 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
                 }
             }
         }
-        if !group_names.is_empty() {
-            for name in &group_names {
-                let entry = merged.groups.get_mut(name).expect("group");
-                if let Some(values) = splat.groups.get(name) {
-                    if values.len() == splat.len() {
-                        entry.extend_from_slice(values);
-                    } else {
-                        entry.extend(std::iter::repeat_n(false, splat.len()));
-                    }
-                } else {
-                    entry.extend(std::iter::repeat_n(false, splat.len()));
+    }
+
+    merged.attributes = merge_splat_attributes(splats);
+    merged.groups = merge_splat_groups(splats);
+    merged
+}
+
+fn merge_splat_attributes(splats: &[SplatGeo]) -> MeshAttributes {
+    let mut merged = MeshAttributes::default();
+    if splats.is_empty() {
+        return merged;
+    }
+
+    for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+        let first = splats[0].attributes.map(domain);
+        for (name, storage) in first {
+            let data_type = storage.data_type();
+            let mut compatible = true;
+            for splat in &splats[1..] {
+                let Some(other) = splat.attributes.get(domain, name) else {
+                    compatible = false;
+                    break;
+                };
+                if other.data_type() != data_type {
+                    compatible = false;
+                    break;
                 }
             }
+            if !compatible {
+                continue;
+            }
+
+            match domain {
+                AttributeDomain::Detail => {
+                    let mut all_equal = true;
+                    for splat in &splats[1..] {
+                        let Some(other) = splat.attributes.get(domain, name) else {
+                            all_equal = false;
+                            break;
+                        };
+                        if other != storage {
+                            all_equal = false;
+                            break;
+                        }
+                    }
+                    if all_equal {
+                        merged.map_mut(domain).insert(name.clone(), storage.clone());
+                    }
+                }
+                _ => {
+                    let mut combined = match storage {
+                        AttributeStorage::Float(_) => AttributeStorage::Float(Vec::new()),
+                        AttributeStorage::Int(_) => AttributeStorage::Int(Vec::new()),
+                        AttributeStorage::Vec2(_) => AttributeStorage::Vec2(Vec::new()),
+                        AttributeStorage::Vec3(_) => AttributeStorage::Vec3(Vec::new()),
+                        AttributeStorage::Vec4(_) => AttributeStorage::Vec4(Vec::new()),
+                    };
+                    for splat in splats {
+                        let expected = splat.attribute_domain_len(domain);
+                        let Some(current) = splat.attributes.get(domain, name) else {
+                            continue;
+                        };
+                        if expected != 0 && current.len() != expected {
+                            compatible = false;
+                            break;
+                        }
+                        match (&mut combined, current) {
+                            (AttributeStorage::Float(out), AttributeStorage::Float(values)) => {
+                                out.extend_from_slice(values);
+                            }
+                            (AttributeStorage::Int(out), AttributeStorage::Int(values)) => {
+                                out.extend_from_slice(values);
+                            }
+                            (AttributeStorage::Vec2(out), AttributeStorage::Vec2(values)) => {
+                                out.extend_from_slice(values);
+                            }
+                            (AttributeStorage::Vec3(out), AttributeStorage::Vec3(values)) => {
+                                out.extend_from_slice(values);
+                            }
+                            (AttributeStorage::Vec4(out), AttributeStorage::Vec4(values)) => {
+                                out.extend_from_slice(values);
+                            }
+                            _ => {
+                                compatible = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if compatible {
+                        merged.map_mut(domain).insert(name.clone(), combined);
+                    }
+                }
+            }
+        }
+    }
+
+    merged
+}
+
+fn merge_splat_groups(splats: &[SplatGeo]) -> crate::mesh::MeshGroups {
+    let mut merged = crate::mesh::MeshGroups::default();
+    if splats.is_empty() {
+        return merged;
+    }
+
+    for domain in [AttributeDomain::Point, AttributeDomain::Primitive] {
+        let mut names = BTreeSet::new();
+        for splat in splats {
+            names.extend(splat.groups.map(domain).keys().cloned());
+        }
+        for name in names {
+            let mut values = Vec::new();
+            for splat in splats {
+                let len = splat.attribute_domain_len(domain);
+                if let Some(group) = splat.groups.map(domain).get(&name) {
+                    if group.len() == len {
+                        values.extend_from_slice(group);
+                    } else {
+                        values.extend(std::iter::repeat_n(false, len));
+                    }
+                } else {
+                    values.extend(std::iter::repeat_n(false, len));
+                }
+            }
+            merged.map_mut(domain).insert(name, values);
         }
     }
 

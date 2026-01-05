@@ -147,7 +147,18 @@ impl LobedoApp {
         }
 
         if let Some(splats) = merged_splats {
-            self.show_group_table(ui, "Splat Primitive", &splats.groups, splats.len());
+            self.show_group_table(
+                ui,
+                "Splat Point",
+                splats.groups.map(AttributeDomain::Point),
+                splats.len(),
+            );
+            self.show_group_table(
+                ui,
+                "Splat Primitive",
+                splats.groups.map(AttributeDomain::Primitive),
+                splats.len(),
+            );
         }
     }
 
