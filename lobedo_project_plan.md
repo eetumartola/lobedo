@@ -13,7 +13,7 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Unified `Geometry` container with primitive variants and robust import/export per primitive
 - Real-time splat renderer in the viewport (native + web)
 - Correct transforms for splats, including **SH rotation** when the splat frame rotates
-- Practical editing pipeline nodes: crop, prune, regularize, LOD/decimate, pack/export
+- Practical editing pipeline nodes: crop, splat prune, splat regularize, LOD/decimate, pack/export
 - Conversion nodes between mesh/points/splats
 - Job-style ML nodes (async + cached) that do not block UI and run PyTorch-backed operators
 - Spreadsheet supports a splat view (default to first 100 splats)
@@ -117,8 +117,8 @@ SH evaluation:
 ## Node Library (MVP)
 
 ### IO
-1. `Read Splats` (PLY + optional SPZ)
-2. `Write Splats` (PLY + optional SPZ)
+1. `Splat Read` (PLY + optional SPZ)
+2. `Splat Write` (PLY + optional SPZ)
 3. `Read Image` (for ML path)
 
 ### Shared transform / selection-like ops
@@ -130,8 +130,8 @@ SH evaluation:
 
 ### Splat-native ops
 8. `Crop` (box/sphere/plane)
-9. `Prune` (by opacity/scale/confidence/outlier heuristics)
-10. `Regularize` (clamp scales, normalize opacity, remove invalid values)
+9. `Splat Prune` (by opacity/scale/confidence/outlier heuristics)
+10. `Splat Regularize` (clamp scales, normalize opacity, remove invalid values)
 11. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)
 12. `SH Tools` (utility)
    - `Rotate SH` (explicit)
@@ -173,7 +173,7 @@ SH evaluation:
 - Add placeholder `Splat` primitive type
 
 ### Milestone S1 - Splat import + viewer baseline
-- Implement `Read Splats (PLY)` and `SplatGeo` internal representation
+- Implement `Splat Read (PLY)` and `SplatGeo` internal representation
 - Add `SplatDrawable` to `SceneSnapshot`
 - Implement splat rendering with SH0 color
 - Add splat debug modes (opacity/scale/depth)
@@ -187,7 +187,7 @@ SH evaluation:
   - verify covariance/orientation remains valid
 
 ### Milestone S3 - Editing pipeline nodes
-- Crop, Prune, Regularize
+- Crop, Splat Prune, Splat Regularize
 - Merge splat sets
 - Export PLY (round-trip)
 - Add "pipeline preset" example graph for cleanup

@@ -365,6 +365,9 @@ pub(crate) fn splat_billboard_vertices(
         if sigma1 <= 0.0 || sigma2 <= 0.0 {
             continue;
         }
+        if !sigma1.is_finite() || !sigma2.is_finite() {
+            continue;
+        }
 
         let mut v1 = if b.abs() > 1.0e-6 {
             Vec2::new(lambda1 - c, b).normalize_or_zero()

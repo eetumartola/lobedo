@@ -1,13 +1,40 @@
 use egui::{Align2, Color32, FontId, RichText, Ui};
-use lobedo_core::{AttributeDomain, AttributeRef, AttributeType, Mesh};
+use lobedo_core::{AttributeDomain, AttributeRef, AttributeType, Mesh, SplatGeo};
 
-pub(super) fn show_spreadsheet(ui: &mut Ui, mesh: Option<&Mesh>, domain: &mut AttributeDomain) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SpreadsheetMode {
+    Mesh,
+    Splat,
+}
+
+pub(super) fn show_spreadsheet(
+    ui: &mut Ui,
+    mesh: Option<&Mesh>,
+    splats: Option<&SplatGeo>,
+    mode: &mut SpreadsheetMode,
+    domain: &mut AttributeDomain,
+) {
     ui.horizontal(|ui| {
         ui.label(
             RichText::new("Spreadsheet")
                 .color(Color32::from_rgb(220, 220, 220))
                 .strong(),
         );
+        if ui
+            .selectable_label(*mode == SpreadsheetMode::Mesh, "Mesh")
+            .clicked()
+        {
+            *mode = SpreadsheetMode::Mesh;
+        }
+        if ui
+            .selectable_label(*mode == SpreadsheetMode::Splat, "Splat")
+            .clicked()
+        {
+            *mode = SpreadsheetMode::Splat;
+        }
+        if *mode != SpreadsheetMode::Mesh {
+            return;
+        }
         for (label, value) in [
             ("Point", AttributeDomain::Point),
             ("Vertex", AttributeDomain::Vertex),
@@ -21,100 +48,192 @@ pub(super) fn show_spreadsheet(ui: &mut Ui, mesh: Option<&Mesh>, domain: &mut At
     });
     ui.separator();
 
-    let Some(mesh) = mesh else {
-        ui.label("No mesh selected.");
-        return;
-    };
+    match *mode {
+        SpreadsheetMode::Mesh => {
+            let Some(mesh) = mesh else {
+                ui.label("No mesh selected.");
+                return;
+            };
 
-    let count = mesh.attribute_domain_len(*domain);
-    if count == 0 {
-        ui.label("No elements in this domain.");
-        return;
-    }
+            let count = mesh.attribute_domain_len(*domain);
+            if count == 0 {
+                ui.label("No elements in this domain.");
+                return;
+            }
 
-    let mut attrs: Vec<_> = mesh
-        .list_attributes()
-        .into_iter()
-        .filter(|attr| attr.domain == *domain)
-        .collect();
-    attrs.sort_by(|a, b| a.name.cmp(&b.name));
+            let mut attrs: Vec<_> = mesh
+                .list_attributes()
+                .into_iter()
+                .filter(|attr| attr.domain == *domain)
+                .collect();
+            attrs.sort_by(|a, b| a.name.cmp(&b.name));
 
-    if attrs.is_empty() {
-        ui.label("No attributes in this domain.");
-        return;
-    }
+            if attrs.is_empty() {
+                ui.label("No attributes in this domain.");
+                return;
+            }
 
-    let max_rows = count.min(128);
+            let max_rows = count.min(128);
+            let font_id = FontId::monospace(13.0);
+            let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, '0'));
 
-    let font_id = FontId::monospace(13.0);
-    let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, '0'));
+            let mut columns = build_columns(mesh, *domain, &attrs, max_rows);
+            for column in &mut columns {
+                column.finalize();
+            }
 
-    let mut columns = build_columns(mesh, *domain, &attrs, max_rows);
-    for column in &mut columns {
-        column.finalize();
-    }
+            let idx_width = (max_rows.saturating_sub(1)).to_string().len().max(3);
+            let idx_width = (idx_width as f32 * char_width + 12.0).max(36.0);
+            let row_height = 24.0;
 
-    let idx_width = (max_rows.saturating_sub(1)).to_string().len().max(3);
-    let idx_width = (idx_width as f32 * char_width + 12.0).max(36.0);
-    let row_height = 24.0;
-
-    egui::ScrollArea::both()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-
-            egui::Grid::new("attribute_spreadsheet_grid")
-                .spacing([0.0, 0.0])
+            egui::ScrollArea::both()
+                .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    draw_cell(
-                        ui,
-                        "idx",
-                        idx_width,
-                        row_height,
-                        Align2::LEFT_CENTER,
-                        true,
-                        &font_id,
-                    );
-                    for column in &columns {
-                        draw_cell(
-                            ui,
-                            &column.header,
-                            column.pixel_width(char_width),
-                            row_height,
-                            Align2::LEFT_CENTER,
-                            true,
-                            &font_id,
-                        );
-                    }
-                    ui.end_row();
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    for row in 0..max_rows {
-                        draw_cell(
-                            ui,
-                            &row.to_string(),
-                            idx_width,
-                            row_height,
-                            Align2::RIGHT_CENTER,
-                            false,
-                            &font_id,
-                        );
-                        for column in &columns {
-                            let value =
-                                column.formatted.get(row).map(String::as_str).unwrap_or("-");
+                    egui::Grid::new("attribute_spreadsheet_grid")
+                        .spacing([0.0, 0.0])
+                        .show(ui, |ui| {
                             draw_cell(
                                 ui,
-                                value,
-                                column.pixel_width(char_width),
+                                "idx",
+                                idx_width,
                                 row_height,
-                                Align2::RIGHT_CENTER,
-                                false,
+                                Align2::LEFT_CENTER,
+                                true,
                                 &font_id,
                             );
-                        }
-                        ui.end_row();
-                    }
+                            for column in &columns {
+                                draw_cell(
+                                    ui,
+                                    &column.header,
+                                    column.pixel_width(char_width),
+                                    row_height,
+                                    Align2::LEFT_CENTER,
+                                    true,
+                                    &font_id,
+                                );
+                            }
+                            ui.end_row();
+
+                            for row in 0..max_rows {
+                                draw_cell(
+                                    ui,
+                                    &row.to_string(),
+                                    idx_width,
+                                    row_height,
+                                    Align2::RIGHT_CENTER,
+                                    false,
+                                    &font_id,
+                                );
+                                for column in &columns {
+                                    let value = column
+                                        .formatted
+                                        .get(row)
+                                        .map(String::as_str)
+                                        .unwrap_or("-");
+                                    draw_cell(
+                                        ui,
+                                        value,
+                                        column.pixel_width(char_width),
+                                        row_height,
+                                        Align2::RIGHT_CENTER,
+                                        false,
+                                        &font_id,
+                                    );
+                                }
+                                ui.end_row();
+                            }
+                        });
                 });
-        });
+        }
+        SpreadsheetMode::Splat => {
+            let Some(splats) = splats else {
+                ui.label("No splats selected.");
+                return;
+            };
+
+            let count = splats.len();
+            if count == 0 {
+                ui.label("No splats.");
+                return;
+            }
+
+            let max_rows = count.min(100);
+            let font_id = FontId::monospace(13.0);
+            let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, '0'));
+
+            let mut columns = build_splat_columns(splats, max_rows);
+            for column in &mut columns {
+                column.finalize();
+            }
+
+            let idx_width = (max_rows.saturating_sub(1)).to_string().len().max(3);
+            let idx_width = (idx_width as f32 * char_width + 12.0).max(36.0);
+            let row_height = 24.0;
+
+            egui::ScrollArea::both()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+                    egui::Grid::new("splat_spreadsheet_grid")
+                        .spacing([0.0, 0.0])
+                        .show(ui, |ui| {
+                            draw_cell(
+                                ui,
+                                "idx",
+                                idx_width,
+                                row_height,
+                                Align2::LEFT_CENTER,
+                                true,
+                                &font_id,
+                            );
+                            for column in &columns {
+                                draw_cell(
+                                    ui,
+                                    &column.header,
+                                    column.pixel_width(char_width),
+                                    row_height,
+                                    Align2::LEFT_CENTER,
+                                    true,
+                                    &font_id,
+                                );
+                            }
+                            ui.end_row();
+
+                            for row in 0..max_rows {
+                                draw_cell(
+                                    ui,
+                                    &row.to_string(),
+                                    idx_width,
+                                    row_height,
+                                    Align2::RIGHT_CENTER,
+                                    false,
+                                    &font_id,
+                                );
+                                for column in &columns {
+                                    let value = column
+                                        .formatted
+                                        .get(row)
+                                        .map(String::as_str)
+                                        .unwrap_or("-");
+                                    draw_cell(
+                                        ui,
+                                        value,
+                                        column.pixel_width(char_width),
+                                        row_height,
+                                        Align2::RIGHT_CENTER,
+                                        false,
+                                        &font_id,
+                                    );
+                                }
+                                ui.end_row();
+                            }
+                        });
+                });
+        }
+    }
 }
 
 fn attr_type_label(attr_type: AttributeType) -> &'static str {
@@ -275,6 +394,90 @@ fn build_columns(
             }
         }
     }
+    columns
+}
+
+fn build_splat_columns(splats: &SplatGeo, max_rows: usize) -> Vec<Column> {
+    let mut columns = Vec::new();
+    for (axis, idx) in [('x', 0usize), ('y', 1), ('z', 2)] {
+        columns.push(Column {
+            header: format!("P{}", axis),
+            kind: ColumnKind::Float(
+                (0..max_rows)
+                    .map(|row| splats.positions.get(row).map(|v| v[idx]))
+                    .collect(),
+            ),
+            formatted: Vec::new(),
+            width_chars: 0,
+        });
+    }
+    for (axis, idx) in [('w', 0usize), ('x', 1), ('y', 2), ('z', 3)] {
+        columns.push(Column {
+            header: format!("rot_{}", axis),
+            kind: ColumnKind::Float(
+                (0..max_rows)
+                    .map(|row| splats.rotations.get(row).map(|v| v[idx]))
+                    .collect(),
+            ),
+            formatted: Vec::new(),
+            width_chars: 0,
+        });
+    }
+    for (axis, idx) in [('x', 0usize), ('y', 1), ('z', 2)] {
+        columns.push(Column {
+            header: format!("scale_{}", axis),
+            kind: ColumnKind::Float(
+                (0..max_rows)
+                    .map(|row| splats.scales.get(row).map(|v| v[idx]))
+                    .collect(),
+            ),
+            formatted: Vec::new(),
+            width_chars: 0,
+        });
+    }
+    columns.push(Column {
+        header: "opacity".to_string(),
+        kind: ColumnKind::Float(
+            (0..max_rows)
+                .map(|row| splats.opacity.get(row).copied())
+                .collect(),
+        ),
+        formatted: Vec::new(),
+        width_chars: 0,
+    });
+    for (axis, idx) in [('r', 0usize), ('g', 1), ('b', 2)] {
+        columns.push(Column {
+            header: format!("sh0_{}", axis),
+            kind: ColumnKind::Float(
+                (0..max_rows)
+                    .map(|row| splats.sh0.get(row).map(|v| v[idx]))
+                    .collect(),
+            ),
+            formatted: Vec::new(),
+            width_chars: 0,
+        });
+    }
+
+    if splats.sh_coeffs > 0 {
+        for coeff in 0..splats.sh_coeffs {
+            for (axis, idx) in [('r', 0usize), ('g', 1), ('b', 2)] {
+                columns.push(Column {
+                    header: format!("sh{}_{}", coeff + 1, axis),
+                    kind: ColumnKind::Float(
+                        (0..max_rows)
+                            .map(|row| {
+                                let base = row * splats.sh_coeffs + coeff;
+                                splats.sh_rest.get(base).map(|v| v[idx])
+                            })
+                            .collect(),
+                    ),
+                    formatted: Vec::new(),
+                    width_chars: 0,
+                });
+            }
+        }
+    }
+
     columns
 }
 

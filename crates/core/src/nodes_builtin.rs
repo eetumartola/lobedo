@@ -13,6 +13,8 @@ pub enum BuiltinNodeKind {
     ReadSplats,
     WriteSplats,
     Delete,
+    Prune,
+    Regularize,
     Group,
     Transform,
     CopyTransform,
@@ -38,6 +40,8 @@ impl BuiltinNodeKind {
             BuiltinNodeKind::ReadSplats => nodes::read_splats::NAME,
             BuiltinNodeKind::WriteSplats => nodes::write_splats::NAME,
             BuiltinNodeKind::Delete => nodes::delete::NAME,
+            BuiltinNodeKind::Prune => nodes::prune::NAME,
+            BuiltinNodeKind::Regularize => nodes::regularize::NAME,
             BuiltinNodeKind::Group => nodes::group::NAME,
             BuiltinNodeKind::Transform => nodes::transform::NAME,
             BuiltinNodeKind::CopyTransform => nodes::copy_transform::NAME,
@@ -61,9 +65,17 @@ pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
         nodes::grid::NAME => Some(BuiltinNodeKind::Grid),
         nodes::sphere::NAME => Some(BuiltinNodeKind::Sphere),
         nodes::file::NAME => Some(BuiltinNodeKind::File),
-        nodes::read_splats::NAME => Some(BuiltinNodeKind::ReadSplats),
-        nodes::write_splats::NAME => Some(BuiltinNodeKind::WriteSplats),
+        nodes::read_splats::NAME | nodes::read_splats::LEGACY_NAME => {
+            Some(BuiltinNodeKind::ReadSplats)
+        }
+        nodes::write_splats::NAME | nodes::write_splats::LEGACY_NAME => {
+            Some(BuiltinNodeKind::WriteSplats)
+        }
         nodes::delete::NAME => Some(BuiltinNodeKind::Delete),
+        nodes::prune::NAME | nodes::prune::LEGACY_NAME => Some(BuiltinNodeKind::Prune),
+        nodes::regularize::NAME | nodes::regularize::LEGACY_NAME => {
+            Some(BuiltinNodeKind::Regularize)
+        }
         nodes::group::NAME => Some(BuiltinNodeKind::Group),
         nodes::transform::NAME => Some(BuiltinNodeKind::Transform),
         nodes::copy_transform::NAME => Some(BuiltinNodeKind::CopyTransform),
@@ -90,6 +102,8 @@ pub fn builtin_definitions() -> Vec<NodeDefinition> {
         node_definition(BuiltinNodeKind::ReadSplats),
         node_definition(BuiltinNodeKind::WriteSplats),
         node_definition(BuiltinNodeKind::Delete),
+        node_definition(BuiltinNodeKind::Prune),
+        node_definition(BuiltinNodeKind::Regularize),
         node_definition(BuiltinNodeKind::Group),
         node_definition(BuiltinNodeKind::Transform),
         node_definition(BuiltinNodeKind::CopyTransform),
@@ -115,6 +129,8 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
         BuiltinNodeKind::ReadSplats => nodes::read_splats::definition(),
         BuiltinNodeKind::WriteSplats => nodes::write_splats::definition(),
         BuiltinNodeKind::Delete => nodes::delete::definition(),
+        BuiltinNodeKind::Prune => nodes::prune::definition(),
+        BuiltinNodeKind::Regularize => nodes::regularize::definition(),
         BuiltinNodeKind::Group => nodes::group::definition(),
         BuiltinNodeKind::Transform => nodes::transform::definition(),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::definition(),
@@ -140,6 +156,8 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
         BuiltinNodeKind::ReadSplats => nodes::read_splats::default_params(),
         BuiltinNodeKind::WriteSplats => nodes::write_splats::default_params(),
         BuiltinNodeKind::Delete => nodes::delete::default_params(),
+        BuiltinNodeKind::Prune => nodes::prune::default_params(),
+        BuiltinNodeKind::Regularize => nodes::regularize::default_params(),
         BuiltinNodeKind::Group => nodes::group::default_params(),
         BuiltinNodeKind::Transform => nodes::transform::default_params(),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::default_params(),
@@ -166,9 +184,15 @@ pub fn compute_mesh_node(
         BuiltinNodeKind::Grid => nodes::grid::compute(params, inputs),
         BuiltinNodeKind::Sphere => nodes::sphere::compute(params, inputs),
         BuiltinNodeKind::File => nodes::file::compute(params, inputs),
-        BuiltinNodeKind::ReadSplats => Err("Read Splats outputs splat geometry, not meshes".to_string()),
-        BuiltinNodeKind::WriteSplats => Err("Write Splats expects splat geometry, not meshes".to_string()),
+        BuiltinNodeKind::ReadSplats => {
+            Err("Splat Read outputs splat geometry, not meshes".to_string())
+        }
+        BuiltinNodeKind::WriteSplats => {
+            Err("Splat Write expects splat geometry, not meshes".to_string())
+        }
         BuiltinNodeKind::Delete => nodes::delete::compute(params, inputs),
+        BuiltinNodeKind::Prune => nodes::prune::compute(params, inputs),
+        BuiltinNodeKind::Regularize => nodes::regularize::compute(params, inputs),
         BuiltinNodeKind::Group => nodes::group::compute(params, inputs),
         BuiltinNodeKind::Transform => nodes::transform::compute(params, inputs),
         BuiltinNodeKind::CopyTransform => nodes::copy_transform::compute(params, inputs),
@@ -200,6 +224,8 @@ pub fn compute_geometry_node(
         }
         BuiltinNodeKind::WriteSplats => apply_write_splats(params, inputs),
         BuiltinNodeKind::Delete => apply_delete(params, inputs),
+        BuiltinNodeKind::Prune => apply_prune(params, inputs),
+        BuiltinNodeKind::Regularize => apply_regularize(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
@@ -258,6 +284,34 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(filter_splats(params, splat));
+    }
+
+    Ok(Geometry { meshes, splats })
+}
+
+fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let meshes = input.meshes.clone();
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::prune::apply_to_splats(params, splat));
+    }
+
+    Ok(Geometry { meshes, splats })
+}
+
+fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let meshes = input.meshes.clone();
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::regularize::apply_to_splats(params, splat));
     }
 
     Ok(Geometry { meshes, splats })
@@ -430,7 +484,7 @@ fn apply_write_splats(params: &NodeParams, inputs: &[Geometry]) -> Result<Geomet
         return Ok(Geometry::default());
     };
     let Some(splats) = input.merged_splats() else {
-        return Err("Write Splats requires splat geometry".to_string());
+        return Err("Splat Write requires splat geometry".to_string());
     };
     nodes::write_splats::compute(params, &splats)?;
     Ok(input.clone())

@@ -36,7 +36,18 @@ pub(super) fn sort_splats_by_depth(
         });
     }
 
-    entries.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Web fallback: keep input order to avoid heavy CPU sorting.
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        entries.sort_by(|a, b| {
+            b.depth
+                .partial_cmp(&a.depth)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+    }
     entries
 }
 

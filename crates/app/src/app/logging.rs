@@ -86,7 +86,10 @@ pub(crate) fn setup_tracing() -> (ConsoleBuffer, Arc<AtomicU8>) {
             value if value == level_filter_to_u8(LevelFilter::DEBUG) => Level::DEBUG,
             _ => Level::TRACE,
         };
-        metadata.level() <= &level
+        let target = metadata.target();
+        let is_lobedo = target.starts_with("lobedo");
+        let effective_level = if is_lobedo { level } else { Level::WARN };
+        metadata.level() <= &effective_level
     });
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false)

@@ -215,10 +215,16 @@ impl LobedoApp {
                 style.visuals.override_text_color = Some(egui::Color32::from_rgb(220, 220, 220));
                 style.spacing.item_spacing = egui::vec2(10.0, 6.0);
                 let selected = self.node_graph.selected_node_id();
-                let mesh = selected
-                    .and_then(|id| self.eval_state.geometry_for_node(id))
-                    .and_then(|geo| geo.merged_mesh());
-                show_spreadsheet(ui, mesh.as_ref(), &mut self.spreadsheet_domain);
+                let geometry = selected.and_then(|id| self.eval_state.geometry_for_node(id));
+                let mesh = geometry.and_then(|geo| geo.merged_mesh());
+                let splats = geometry.and_then(|geo| geo.merged_splats());
+                show_spreadsheet(
+                    ui,
+                    mesh.as_ref(),
+                    splats.as_ref(),
+                    &mut self.spreadsheet_mode,
+                    &mut self.spreadsheet_domain,
+                );
             });
         });
     }

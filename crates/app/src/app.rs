@@ -34,6 +34,7 @@ pub(crate) use logging::ConsoleBuffer;
 
 use logging::level_filter_to_u8;
 use node_info::NodeInfoPanel;
+use spreadsheet::SpreadsheetMode;
 use undo::{UndoSnapshot, UndoStack};
 use wrangle_help::WrangleHelpPanel;
 
@@ -61,6 +62,7 @@ pub(crate) struct LobedoApp {
     wrangle_help_panel: Option<WrangleHelpPanel>,
     undo_stack: UndoStack,
     pending_undo: Option<UndoSnapshot>,
+    spreadsheet_mode: SpreadsheetMode,
     spreadsheet_domain: lobedo_core::AttributeDomain,
 }
 
@@ -96,6 +98,7 @@ impl LobedoApp {
             wrangle_help_panel: None,
             undo_stack: UndoStack::new(),
             pending_undo: None,
+            spreadsheet_mode: SpreadsheetMode::Mesh,
             spreadsheet_domain: lobedo_core::AttributeDomain::Point,
         }
     }

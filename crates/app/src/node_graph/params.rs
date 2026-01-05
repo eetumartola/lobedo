@@ -284,6 +284,8 @@ fn float_slider_range(
     _value: f32,
 ) -> std::ops::RangeInclusive<f32> {
     match label {
+        "min_scale" | "max_scale" => -10.0..=10.0,
+        "min_opacity" | "max_opacity" => -2.0..=2.0,
         "threshold_deg" => 0.0..=180.0,
         "amplitude" => -10.0..=10.0,
         "frequency" => 0.0..=10.0,

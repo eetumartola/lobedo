@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::graph::Graph;
+use crate::nodes;
 
 pub const PROJECT_VERSION: u32 = 2;
 
@@ -27,6 +28,14 @@ impl Project {
             self.graph.migrate_geometry_pins();
             self.version = 2;
         }
+        self.graph
+            .rename_nodes(nodes::read_splats::LEGACY_NAME, nodes::read_splats::NAME);
+        self.graph
+            .rename_nodes(nodes::write_splats::LEGACY_NAME, nodes::write_splats::NAME);
+        self.graph
+            .rename_nodes(nodes::prune::LEGACY_NAME, nodes::prune::NAME);
+        self.graph
+            .rename_nodes(nodes::regularize::LEGACY_NAME, nodes::regularize::NAME);
     }
 }
 

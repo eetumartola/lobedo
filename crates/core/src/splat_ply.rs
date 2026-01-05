@@ -51,7 +51,7 @@ pub fn load_splat_ply(path: &str) -> Result<SplatGeo, String> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn load_splat_ply(_path: &str) -> Result<SplatGeo, String> {
-    Err("Read Splats is not supported in web builds".to_string())
+    Err("Splat Read is not supported in web builds".to_string())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -123,7 +123,7 @@ pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn save_splat_ply(_path: &str, _splats: &SplatGeo) -> Result<(), String> {
-    Err("Write Splats is not supported in web builds".to_string())
+    Err("Splat Write is not supported in web builds".to_string())
 }
 
 fn parse_splat_ply_bytes(data: &[u8]) -> Result<SplatGeo, String> {

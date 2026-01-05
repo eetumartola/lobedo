@@ -56,6 +56,44 @@ impl SplatGeo {
         {
             return Err("SplatGeo arrays have inconsistent lengths".to_string());
         }
+        if self
+            .positions
+            .iter()
+            .any(|p| p.iter().any(|value| !value.is_finite()))
+        {
+            return Err("SplatGeo positions contain non-finite values".to_string());
+        }
+        if self
+            .rotations
+            .iter()
+            .any(|r| r.iter().any(|value| !value.is_finite()))
+        {
+            return Err("SplatGeo rotations contain non-finite values".to_string());
+        }
+        if self
+            .scales
+            .iter()
+            .any(|s| s.iter().any(|value| !value.is_finite()))
+        {
+            return Err("SplatGeo scales contain non-finite values".to_string());
+        }
+        if self.opacity.iter().any(|value| !value.is_finite()) {
+            return Err("SplatGeo opacity contains non-finite values".to_string());
+        }
+        if self
+            .sh0
+            .iter()
+            .any(|c| c.iter().any(|value| !value.is_finite()))
+        {
+            return Err("SplatGeo SH0 contains non-finite values".to_string());
+        }
+        if self
+            .sh_rest
+            .iter()
+            .any(|c| c.iter().any(|value| !value.is_finite()))
+        {
+            return Err("SplatGeo SH coefficients contain non-finite values".to_string());
+        }
         if self.sh_coeffs == 0 {
             if !self.sh_rest.is_empty() {
                 return Err("SplatGeo SH coefficients are inconsistent".to_string());
@@ -802,5 +840,19 @@ mod tests {
 
         let coeff = splats.sh_rest[13][0];
         assert!((coeff - 1.0).abs() < 2.0e-3);
+    }
+
+    #[test]
+    fn validate_rejects_nan_positions() {
+        let mut splats = SplatGeo::with_len(1);
+        splats.positions[0][1] = f32::NAN;
+        assert!(splats.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_nan_sh_coeffs() {
+        let mut splats = SplatGeo::with_len_and_sh(1, 3);
+        splats.sh_rest[1] = [f32::NAN, 0.0, 0.0];
+        assert!(splats.validate().is_err());
     }
 }

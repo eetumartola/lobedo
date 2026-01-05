@@ -366,6 +366,17 @@ impl Graph {
         }
         changed
     }
+
+    pub fn rename_nodes(&mut self, from: &str, to: &str) -> usize {
+        let mut renamed = 0;
+        for node in self.nodes.values_mut() {
+            if node.name == from {
+                node.name = to.to_string();
+                renamed += 1;
+            }
+        }
+        renamed
+    }
 }
 
 fn pin_types_compatible(from: PinType, to: PinType) -> bool {

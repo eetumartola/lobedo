@@ -30,12 +30,12 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
         },
         MenuItem {
             kind: BuiltinNodeKind::ReadSplats,
-            name: "Read Splats",
+            name: "Splat Read",
             category: "Sources",
         },
         MenuItem {
             kind: BuiltinNodeKind::WriteSplats,
-            name: "Write Splats",
+            name: "Splat Write",
             category: "Outputs",
         },
         MenuItem {
@@ -46,6 +46,16 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
         MenuItem {
             kind: BuiltinNodeKind::Delete,
             name: "Delete",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::Prune,
+            name: "Splat Prune",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::Regularize,
+            name: "Splat Regularize",
             category: "Operators",
         },
         MenuItem {

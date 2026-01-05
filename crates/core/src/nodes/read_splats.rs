@@ -4,7 +4,8 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::geometry_out;
 use crate::splat::{load_splat_ply, SplatGeo};
 
-pub const NAME: &str = "Read Splats";
+pub const NAME: &str = "Splat Read";
+pub const LEGACY_NAME: &str = "Read Splats";
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -27,7 +28,7 @@ pub fn default_params() -> NodeParams {
 pub fn compute(params: &NodeParams) -> Result<SplatGeo, String> {
     let path = params.get_string("path", "");
     if path.trim().is_empty() {
-        return Err("Read Splats requires a path".to_string());
+        return Err("Splat Read requires a path".to_string());
     }
     load_splat_ply(path)
 }

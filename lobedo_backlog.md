@@ -12,19 +12,19 @@ Status: done | in progress | not started
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
 - **S3**: Expand `SceneSnapshot` to multiple drawables (done)
-- **S4**: Add validation + unit tests (sizes, NaN checks) (in progress: validation + tests; NaN checks pending)
+- **S4**: Add validation + unit tests (sizes, NaN checks) (done)
 
 ## Epic R - Splat rendering
 - **R1**: Baseline splat rasterization (SH0) (done)
-- **R2**: Sorting strategy v1 (CPU) + web fallback (in progress)
+- **R2**: Sorting strategy v1 (CPU) + web fallback (done)
 - **R3**: Debug modes (opacity/scale/depth/overdraw) (not started)
 - **R4**: SH evaluation degree 2/3 (not started)
 - **R5**: Sorting strategy v2 (GPU/tile binning) (not started)
 
 ## Epic N - Nodes
-- **N1**: Read/Write Splats (PLY) (done)
+- **N1**: Splat Read/Splat Write (PLY) (done)
 - **N2**: Transform (splat-aware) (done)
-- **N3**: Delete / Prune / Regularize (in progress: Delete done, Prune/Regularize pending)
+- **N3**: Delete / Splat Prune / Splat Regularize (done)
 - **N6**: Group node (box/sphere/plane; group by existing group) (done)
 - **N7**: Group selection parameter on applicable nodes (Auto/Point/Vertex/Primitive) (done)
 - **N4**: LOD/Decimate (voxel clustering) (not started)
@@ -40,7 +40,7 @@ Status: done | in progress | not started
 - **Q1**: Golden test assets + screenshot tests (native) (not started)
 - **Q2**: Project format migration + versioning (done)
 - **Q3**: Performance profiling harness (splat count scaling) (not started)
-- **Q4**: Spreadsheet splat mode (show first 100 splats by default) (not started)
+- **Q4**: Spreadsheet splat mode (show first 100 splats by default) (done)
 
 ## Epic P - Polish
 - **P1**: Transient node info panel on middle mouse (not started)
@@ -48,5 +48,5 @@ Status: done | in progress | not started
 - **P3**: Pin hot area 2x radius of visual pin circle (not started)
 - **P4**: Viewport top-left icons for normals + stats toggles (not started)
 - **P5**: Parameter sliders are 2x wider (not started)
-- **P6**: Show splat info text in Read Splats parameter pane (not started)
-- **P7**: File requester buttons for Read/Write OBJ + Read/Write Splats (not started)
+- **P6**: Show splat info text in Splat Read parameter pane (not started)
+- **P7**: File requester buttons for Read/Write OBJ + Splat Read/Splat Write (not started)

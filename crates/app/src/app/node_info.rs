@@ -77,7 +77,8 @@ impl LobedoApp {
                 ui.end_row();
             });
 
-        if node.name == "Read Splats" && !geometry.splats.is_empty() {
+        if (node.name == "Splat Read" || node.name == "Read Splats") && !geometry.splats.is_empty()
+        {
             ui.separator();
             ui.heading("Splats");
             let splat_geo = &geometry.splats[0];
