@@ -591,6 +591,7 @@ fn float_slider_range(
         "strength" => 0.0..=1.0,
         "value_f" => -10.0..=10.0,
         "max_distance" => 0.0..=1000.0,
+        "voxel_size" => 0.0..=10.0,
         _ => -1000.0..=1000.0,
     }
 }
@@ -608,6 +609,7 @@ fn int_slider_range(
         "seed" => 0..=100,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,
+        "target_count" => 0..=1_000_000,
         _ => -1000..=1000,
     }
 }

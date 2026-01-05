@@ -17,6 +17,7 @@ pub enum BuiltinNodeKind {
     Delete,
     Prune,
     Regularize,
+    SplatLod,
     Group,
     Transform,
     CopyTransform,
@@ -151,6 +152,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::regularize::definition,
         default_params: nodes::regularize::default_params,
         compute_mesh: nodes::regularize::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatLod,
+        name: nodes::splat_lod::NAME,
+        aliases: &[],
+        definition: nodes::splat_lod::definition,
+        default_params: nodes::splat_lod::default_params,
+        compute_mesh: nodes::splat_lod::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -390,6 +400,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Delete => apply_delete(params, inputs),
         BuiltinNodeKind::Prune => apply_prune(params, inputs),
         BuiltinNodeKind::Regularize => apply_regularize(params, inputs),
+        BuiltinNodeKind::SplatLod => apply_splat_lod(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
@@ -516,6 +527,20 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(nodes::regularize::apply_to_splats(params, splat));
+    }
+
+    Ok(Geometry { meshes, splats })
+}
+
+fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let meshes = input.meshes.clone();
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::splat_lod::apply_to_splats(params, splat));
     }
 
     Ok(Geometry { meshes, splats })

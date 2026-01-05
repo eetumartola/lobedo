@@ -41,7 +41,7 @@ Status: done | in progress | not started
 - **N11**: Attribute Transfer (space-delimited attribute names; domain selector; splats as source at minimum) (done)
 - **N12**: Smooth (space-delimited attribute names, default P; support splats where applicable) (done)
 - **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (done)
-- **N4**: LOD/Decimate (voxel clustering) (not started)
+- **N4**: LOD/Decimate (voxel clustering) (done)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 
 ## Epic M - ML jobs

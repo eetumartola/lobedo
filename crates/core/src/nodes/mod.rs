@@ -19,6 +19,7 @@ pub mod prune;
 pub mod ray;
 pub mod read_splats;
 pub mod regularize;
+pub mod splat_lod;
 pub mod write_splats;
 pub mod delete;
 pub mod scatter;
