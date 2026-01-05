@@ -394,7 +394,7 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         for submenu in layout.submenus {
             submenu_menu_button(ui, submenu.name, |ui| {
                 for item in &submenu.items {
-                    if ui.button(item.name).clicked() {
+                    if ui.button(item.name.as_str()).clicked() {
                         self.add_node(snarl, item.kind, pos);
                         ui.close();
                     }
@@ -402,7 +402,7 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             });
         }
         for item in layout.items {
-            if ui.button(item.name).clicked() {
+            if ui.button(item.name.as_str()).clicked() {
                 self.add_node(snarl, item.kind, pos);
                 ui.close();
             }

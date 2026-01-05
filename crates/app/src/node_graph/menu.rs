@@ -1,10 +1,10 @@
-use lobedo_core::BuiltinNodeKind;
+use lobedo_core::{node_definition, node_specs, BuiltinNodeKind};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct MenuItem {
     pub(super) kind: BuiltinNodeKind,
-    pub(super) name: &'static str,
-    pub(super) category: &'static str,
+    pub(super) name: String,
+    pub(super) category: String,
     pub(super) submenu: Option<&'static str>,
 }
 
@@ -19,176 +19,18 @@ pub(super) struct MenuSubgroup {
 }
 
 pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
-    vec![
-        MenuItem {
-            kind: BuiltinNodeKind::Box,
-            name: "Box",
-            category: "Sources",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Grid,
-            name: "Grid",
-            category: "Sources",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Sphere,
-            name: "Sphere",
-            category: "Sources",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Tube,
-            name: "Tube",
-            category: "Sources",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::File,
-            name: "File",
-            category: "Sources",
-            submenu: Some("IO"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::ReadSplats,
-            name: "Splat Read",
-            category: "Sources",
-            submenu: Some("IO"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::WriteSplats,
-            name: "Splat Write",
-            category: "Outputs",
-            submenu: Some("IO"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Scatter,
-            name: "Scatter",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Delete,
-            name: "Delete",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Prune,
-            name: "Splat Prune",
-            category: "Operators",
-            submenu: Some("Splat"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Regularize,
-            name: "Splat Regularize",
-            category: "Operators",
-            submenu: Some("Splat"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Group,
-            name: "Group",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Transform,
-            name: "Transform",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::CopyTransform,
-            name: "Copy/Transform",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Merge,
-            name: "Merge",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::CopyToPoints,
-            name: "Copy to Points",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Normal,
-            name: "Normal",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Color,
-            name: "Color",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Noise,
-            name: "Noise/Mountain",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Smooth,
-            name: "Smooth",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Ray,
-            name: "Ray",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::AttributeNoise,
-            name: "Attribute Noise",
-            category: "Operators",
-            submenu: Some("Attribute"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::AttributeFromFeature,
-            name: "Attribute from Feature",
-            category: "Operators",
-            submenu: Some("Attribute"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::AttributeTransfer,
-            name: "Attribute Transfer",
-            category: "Operators",
-            submenu: Some("Attribute"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::AttributeMath,
-            name: "Attribute Math",
-            category: "Operators",
-            submenu: Some("Attribute"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Wrangle,
-            name: "Wrangle",
-            category: "Operators",
-            submenu: None,
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::ObjOutput,
-            name: "OBJ Output",
-            category: "Outputs",
-            submenu: Some("IO"),
-        },
-        MenuItem {
-            kind: BuiltinNodeKind::Output,
-            name: "Output",
-            category: "Outputs",
-            submenu: None,
-        },
-    ]
+    node_specs()
+        .iter()
+        .map(|spec| {
+            let definition = node_definition(spec.kind);
+            MenuItem {
+                kind: spec.kind,
+                name: definition.name,
+                category: definition.category,
+                submenu: submenu_for_kind(spec.kind),
+            }
+        })
+        .collect()
 }
 
 pub(super) fn menu_layout(items: &[MenuItem]) -> MenuLayout {
@@ -208,10 +50,25 @@ pub(super) fn menu_layout(items: &[MenuItem]) -> MenuLayout {
                     layout.submenus.last_mut().unwrap()
                 }
             };
-            sub_group.items.push(*item);
+            sub_group.items.push(item.clone());
         } else {
-            layout.items.push(*item);
+            layout.items.push(item.clone());
         }
     }
     layout
+}
+
+fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
+    match kind {
+        BuiltinNodeKind::File
+        | BuiltinNodeKind::ReadSplats
+        | BuiltinNodeKind::WriteSplats
+        | BuiltinNodeKind::ObjOutput => Some("IO"),
+        BuiltinNodeKind::Prune | BuiltinNodeKind::Regularize => Some("Splat"),
+        BuiltinNodeKind::AttributeNoise
+        | BuiltinNodeKind::AttributeFromFeature
+        | BuiltinNodeKind::AttributeTransfer
+        | BuiltinNodeKind::AttributeMath => Some("Attribute"),
+        _ => None,
+    }
 }

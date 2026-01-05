@@ -36,7 +36,7 @@ pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};
 pub use geometry_eval::{evaluate_geometry_graph, GeometryEvalResult, GeometryEvalState};
 pub use nodes_builtin::{
     builtin_definitions, builtin_kind_from_name, compute_geometry_node, compute_mesh_node,
-    compute_splat_node, default_params, node_definition, BuiltinNodeKind,
+    compute_splat_node, default_params, node_definition, node_specs, BuiltinNodeKind, NodeSpec,
 };
 pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,

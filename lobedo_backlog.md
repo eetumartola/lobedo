@@ -15,7 +15,7 @@ Status: done | in progress | not started
 - **C2**: Drive geometry eval inputs from the node input policy (done)
 - **C3**: Mesh eval wraps geometry eval and derives mesh outputs (done)
 - **C4**: Splat eval wraps geometry eval and derives splat outputs (done)
-- **C5**: Reduce duplicate node lists in the UI menu/state helpers (not started)
+- **C5**: Reduce duplicate node lists in the UI menu/state helpers (done)
 
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)

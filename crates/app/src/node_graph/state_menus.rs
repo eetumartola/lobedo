@@ -159,7 +159,7 @@ impl NodeGraphState {
                     for submenu in layout.submenus {
                         submenu_menu_button(ui, submenu.name, |ui| {
                             for item in &submenu.items {
-                                if ui.button(item.name).clicked() {
+                                if ui.button(item.name.as_str()).clicked() {
                                     if let Some(core_id) = self.try_add_node(
                                         graph,
                                         item.kind,
@@ -179,7 +179,7 @@ impl NodeGraphState {
                         });
                     }
                     for item in layout.items {
-                        if ui.button(item.name).clicked() {
+                        if ui.button(item.name.as_str()).clicked() {
                             if let Some(core_id) =
                                 self.try_add_node(graph, item.kind, self.add_menu_graph_pos)
                             {
