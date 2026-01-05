@@ -27,14 +27,14 @@ pub struct ViewportRenderer {
     scene: Arc<Mutex<ViewportSceneState>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ViewportShadingMode {
     Lit,
     Normals,
     Depth,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewportDebug {
     pub show_grid: bool,
     pub show_axes: bool,
@@ -48,6 +48,7 @@ pub struct ViewportDebug {
     pub show_splats: bool,
     pub point_size: f32,
     pub key_shadows: bool,
+    pub pause_render: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,7 +85,7 @@ pub(super) struct ViewportStatsState {
 
 pub(super) struct ViewportSceneState {
     version: u64,
-    scene: Option<RenderScene>,
+    scene: Option<Arc<RenderScene>>,
 }
 
 impl ViewportRenderer {
@@ -131,7 +132,7 @@ impl ViewportRenderer {
     pub fn set_scene(&self, scene: RenderScene) {
         if let Ok(mut state) = self.scene.lock() {
             state.version = state.version.wrapping_add(1);
-            state.scene = Some(scene);
+            state.scene = Some(Arc::new(scene));
         }
     }
 

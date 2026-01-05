@@ -65,40 +65,45 @@ impl CallbackTrait for ViewportCallback {
             let height = (self.rect.height() * screen_descriptor.pixels_per_point)
                 .round()
                 .max(1.0) as u32;
+            let viewport_changed = pipeline.offscreen_size != [width, height];
             ensure_offscreen_targets(device, pipeline, self.target_format, width, height);
 
-            if let Ok(scene_state) = self.scene.lock() {
-                match scene_state.scene.clone() {
+            let (scene_version, scene) = if let Ok(scene_state) = self.scene.lock() {
+                (scene_state.version, scene_state.scene.clone())
+            } else {
+                (pipeline.scene_version, None)
+            };
+            let scene_changed = scene_version != pipeline.scene_version;
+            if scene_changed {
+                match scene.as_deref() {
                     Some(scene) => {
-                        if scene_state.version != pipeline.scene_version {
-                            apply_scene_to_pipeline(device, pipeline, &scene);
-                            pipeline.scene_version = scene_state.version;
-                            pipeline.base_color = scene.base_color;
-                        }
+                        apply_scene_to_pipeline(device, pipeline, scene);
+                        pipeline.base_color = scene.base_color;
                     }
                     None => {
-                        if scene_state.version != pipeline.scene_version {
-                            pipeline.mesh_vertices.clear();
-                            pipeline.index_count = 0;
-                            pipeline.mesh_bounds = ([0.0; 3], [0.0; 3]);
-                            pipeline.base_color = [0.7, 0.72, 0.75];
-                            pipeline.template_count = 0;
-                            pipeline.selection_count = 0;
-                            pipeline.splat_positions.clear();
-                            pipeline.splat_colors.clear();
-                            pipeline.splat_opacity.clear();
-                            pipeline.splat_scales.clear();
-                            pipeline.splat_rotations.clear();
-                            pipeline.splat_count = 0;
-                            pipeline.splat_point_size = -1.0;
-                            pipeline.splat_last_right = [0.0, 0.0, 0.0];
-                            pipeline.splat_last_up = [0.0, 0.0, 0.0];
-                            pipeline.splat_last_camera_pos = [0.0, 0.0, 0.0];
-                            pipeline.splat_last_viewport = [0, 0];
-                            pipeline.scene_version = scene_state.version;
-                        }
+                        pipeline.mesh_vertices.clear();
+                        pipeline.index_count = 0;
+                        pipeline.mesh_bounds = ([0.0; 3], [0.0; 3]);
+                        pipeline.base_color = [0.7, 0.72, 0.75];
+                        pipeline.template_count = 0;
+                        pipeline.selection_count = 0;
+                        pipeline.splat_positions.clear();
+                        pipeline.splat_colors.clear();
+                        pipeline.splat_opacity.clear();
+                        pipeline.splat_scales.clear();
+                        pipeline.splat_rotations.clear();
+                        pipeline.splat_count = 0;
+                        pipeline.splat_point_size = -1.0;
+                        pipeline.splat_last_right = [0.0, 0.0, 0.0];
+                        pipeline.splat_last_up = [0.0, 0.0, 0.0];
+                        pipeline.splat_last_camera_pos = [0.0, 0.0, 0.0];
+                        pipeline.splat_last_viewport = [0, 0];
                     }
                 }
+                pipeline.scene_version = scene_version;
+            }
+            if self.debug.pause_render && !scene_changed && !viewport_changed {
+                return Vec::new();
             }
 
             let light_view_proj = light_view_projection(pipeline.mesh_bounds, key_dir);
@@ -289,6 +294,7 @@ impl CallbackTrait for ViewportCallback {
             }
 
             if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
+                const SPLAT_REBUILD_MAX_FPS: f32 = 30.0;
                 let right_delta = right - Vec3::from(pipeline.splat_last_right);
                 let up_delta = up - Vec3::from(pipeline.splat_last_up);
                 let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
@@ -298,7 +304,14 @@ impl CallbackTrait for ViewportCallback {
                     || up_delta.length_squared() > 1.0e-6
                     || camera_delta.length_squared() > 1.0e-6
                     || viewport_changed;
-                if needs_rebuild {
+                let now = Instant::now();
+                let elapsed = pipeline
+                    .last_splat_rebuild
+                    .map(|last| (now - last).as_secs_f32())
+                    .unwrap_or(f32::INFINITY);
+                let interval = 1.0 / SPLAT_REBUILD_MAX_FPS.max(1.0);
+                let allow_rebuild = scene_changed || viewport_changed || elapsed >= interval;
+                if needs_rebuild && allow_rebuild {
                     let sorted = sort_splats_by_depth(
                         &pipeline.splat_positions,
                         &pipeline.splat_colors,
@@ -345,6 +358,7 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.splat_last_up = up.to_array();
                     pipeline.splat_last_camera_pos = camera_pos.to_array();
                     pipeline.splat_last_viewport = [width, height];
+                    pipeline.last_splat_rebuild = Some(now);
                 }
                 if pipeline.splat_count > 0 {
                     render_pass.set_pipeline(&pipeline.splat_pipeline);

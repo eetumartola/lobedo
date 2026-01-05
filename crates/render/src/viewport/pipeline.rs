@@ -1,5 +1,10 @@
 use egui_wgpu::wgpu::util::DeviceExt as _;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+
 use crate::mesh_cache::GpuMeshCache;
 
 use super::mesh::{
@@ -91,6 +96,7 @@ pub(super) struct PipelineState {
     pub(super) template_count: u32,
     pub(super) selection_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) selection_count: u32,
+    pub(super) last_splat_rebuild: Option<Instant>,
 }
 
 impl PipelineState {
@@ -613,6 +619,7 @@ impl PipelineState {
             template_count: 0,
             selection_buffer,
             selection_count: 0,
+            last_splat_rebuild: None,
         }
     }
 }

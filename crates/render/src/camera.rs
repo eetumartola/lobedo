@@ -2,7 +2,7 @@ use egui::epaint::Rect;
 use egui_wgpu::ScreenDescriptor;
 use glam::{Mat4, Vec3};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraState {
     pub target: [f32; 3],
     pub distance: f32,

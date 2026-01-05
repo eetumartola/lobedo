@@ -228,7 +228,7 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         if drag_response.dragged_by(egui::PointerButton::Primary) && self.graph_transform.valid {
             if let Some(node_info) = snarl.get_node_info_mut(node) {
                 let scale = self.graph_transform.to_global.scaling.max(0.0001);
-                let delta = drag_response.drag_delta() / scale;
+                let delta = drag_response.drag_motion() / scale;
                 node_info.pos += delta;
                 self.changed = true;
             }

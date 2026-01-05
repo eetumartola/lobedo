@@ -170,6 +170,7 @@ impl LobedoApp {
             show_splats: self.project.settings.render_debug.show_splats,
             point_size: self.project.settings.render_debug.point_size,
             key_shadows: self.project.settings.render_debug.key_shadows,
+            pause_render: self.pause_viewport,
         }
     }
 }

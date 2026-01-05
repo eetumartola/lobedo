@@ -182,8 +182,10 @@ impl NodeGraphState {
         }
 
         if viewer_changed {
-            *eval_dirty = true;
-            self.needs_wire_sync = true;
+            if !self.layout_changed {
+                *eval_dirty = true;
+                self.needs_wire_sync = true;
+            }
         }
 
         if self.add_menu_open && self.show_add_menu(ui, graph) {
