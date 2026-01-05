@@ -121,6 +121,66 @@ pub(super) fn edit_param(
                         });
                     changed
                 })
+            } else if label == "data_type" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Float"), (1, "Vec2"), (2, "Vec3")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Vec3");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
+            } else if label == "noise_type" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Value"), (1, "Perlin")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Value");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
+            } else if label == "feature" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Area"), (1, "Gradient")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Area");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
             } else if label == "op" {
                 param_row(ui, label, |ui| {
                     let mut changed = false;

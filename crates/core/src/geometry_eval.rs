@@ -63,6 +63,7 @@ pub fn evaluate_geometry_graph(
             input_geometries.push(geometry);
         }
 
+        // Reminder: register new unary geometry nodes here so they receive their input geometry.
         let inputs = match kind {
             BuiltinNodeKind::Transform
             | BuiltinNodeKind::CopyTransform
@@ -74,6 +75,8 @@ pub fn evaluate_geometry_graph(
             | BuiltinNodeKind::Scatter
             | BuiltinNodeKind::Color
             | BuiltinNodeKind::Noise
+            | BuiltinNodeKind::AttributeNoise
+            | BuiltinNodeKind::AttributeFromFeature
             | BuiltinNodeKind::AttributeMath
             | BuiltinNodeKind::Wrangle
             | BuiltinNodeKind::ObjOutput

@@ -7,7 +7,7 @@ use crate::attributes::{
     MeshAttributes,
 };
 
-pub use crate::mesh_primitives::{make_box, make_grid, make_uv_sphere};
+pub use crate::mesh_primitives::{make_box, make_grid, make_tube, make_uv_sphere};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {

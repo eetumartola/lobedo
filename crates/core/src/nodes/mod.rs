@@ -1,4 +1,6 @@
 pub mod attribute_math;
+pub mod attribute_from_feature;
+pub mod attribute_noise;
 pub mod box_node;
 pub mod color;
 pub mod copy_to_points;
@@ -20,6 +22,7 @@ pub mod delete;
 pub mod scatter;
 pub mod sphere;
 pub mod transform;
+pub mod tube;
 pub mod wrangle;
 
 use crate::graph::{PinDefinition, PinType};

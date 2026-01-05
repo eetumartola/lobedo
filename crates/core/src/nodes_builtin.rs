@@ -10,6 +10,7 @@ pub enum BuiltinNodeKind {
     Box,
     Grid,
     Sphere,
+    Tube,
     File,
     ReadSplats,
     WriteSplats,
@@ -25,6 +26,8 @@ pub enum BuiltinNodeKind {
     Normal,
     Color,
     Noise,
+    AttributeNoise,
+    AttributeFromFeature,
     AttributeMath,
     Wrangle,
     ObjOutput,
@@ -37,6 +40,7 @@ impl BuiltinNodeKind {
             BuiltinNodeKind::Box => nodes::box_node::NAME,
             BuiltinNodeKind::Grid => nodes::grid::NAME,
             BuiltinNodeKind::Sphere => nodes::sphere::NAME,
+            BuiltinNodeKind::Tube => nodes::tube::NAME,
             BuiltinNodeKind::File => nodes::file::NAME,
             BuiltinNodeKind::ReadSplats => nodes::read_splats::NAME,
             BuiltinNodeKind::WriteSplats => nodes::write_splats::NAME,
@@ -52,6 +56,8 @@ impl BuiltinNodeKind {
             BuiltinNodeKind::Normal => nodes::normal::NAME,
             BuiltinNodeKind::Color => nodes::color::NAME,
             BuiltinNodeKind::Noise => nodes::noise::NAME,
+            BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::NAME,
+            BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::NAME,
             BuiltinNodeKind::AttributeMath => nodes::attribute_math::NAME,
             BuiltinNodeKind::Wrangle => nodes::wrangle::NAME,
             BuiltinNodeKind::ObjOutput => nodes::obj_output::NAME,
@@ -65,6 +71,7 @@ pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
         nodes::box_node::NAME => Some(BuiltinNodeKind::Box),
         nodes::grid::NAME => Some(BuiltinNodeKind::Grid),
         nodes::sphere::NAME => Some(BuiltinNodeKind::Sphere),
+        nodes::tube::NAME => Some(BuiltinNodeKind::Tube),
         nodes::file::NAME => Some(BuiltinNodeKind::File),
         nodes::read_splats::NAME | nodes::read_splats::LEGACY_NAME => {
             Some(BuiltinNodeKind::ReadSplats)
@@ -86,6 +93,8 @@ pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
         nodes::normal::NAME => Some(BuiltinNodeKind::Normal),
         nodes::color::NAME => Some(BuiltinNodeKind::Color),
         nodes::noise::NAME => Some(BuiltinNodeKind::Noise),
+        nodes::attribute_noise::NAME => Some(BuiltinNodeKind::AttributeNoise),
+        nodes::attribute_from_feature::NAME => Some(BuiltinNodeKind::AttributeFromFeature),
         nodes::attribute_math::NAME => Some(BuiltinNodeKind::AttributeMath),
         nodes::wrangle::NAME => Some(BuiltinNodeKind::Wrangle),
         nodes::obj_output::NAME => Some(BuiltinNodeKind::ObjOutput),
@@ -99,6 +108,7 @@ pub fn builtin_definitions() -> Vec<NodeDefinition> {
         node_definition(BuiltinNodeKind::Box),
         node_definition(BuiltinNodeKind::Grid),
         node_definition(BuiltinNodeKind::Sphere),
+        node_definition(BuiltinNodeKind::Tube),
         node_definition(BuiltinNodeKind::File),
         node_definition(BuiltinNodeKind::ReadSplats),
         node_definition(BuiltinNodeKind::WriteSplats),
@@ -114,6 +124,8 @@ pub fn builtin_definitions() -> Vec<NodeDefinition> {
         node_definition(BuiltinNodeKind::Normal),
         node_definition(BuiltinNodeKind::Color),
         node_definition(BuiltinNodeKind::Noise),
+        node_definition(BuiltinNodeKind::AttributeNoise),
+        node_definition(BuiltinNodeKind::AttributeFromFeature),
         node_definition(BuiltinNodeKind::AttributeMath),
         node_definition(BuiltinNodeKind::Wrangle),
         node_definition(BuiltinNodeKind::ObjOutput),
@@ -126,6 +138,7 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
         BuiltinNodeKind::Box => nodes::box_node::definition(),
         BuiltinNodeKind::Grid => nodes::grid::definition(),
         BuiltinNodeKind::Sphere => nodes::sphere::definition(),
+        BuiltinNodeKind::Tube => nodes::tube::definition(),
         BuiltinNodeKind::File => nodes::file::definition(),
         BuiltinNodeKind::ReadSplats => nodes::read_splats::definition(),
         BuiltinNodeKind::WriteSplats => nodes::write_splats::definition(),
@@ -141,6 +154,8 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
         BuiltinNodeKind::Normal => nodes::normal::definition(),
         BuiltinNodeKind::Color => nodes::color::definition(),
         BuiltinNodeKind::Noise => nodes::noise::definition(),
+        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::definition(),
+        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::definition(),
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::definition(),
         BuiltinNodeKind::Wrangle => nodes::wrangle::definition(),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::definition(),
@@ -153,6 +168,7 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
         BuiltinNodeKind::Box => nodes::box_node::default_params(),
         BuiltinNodeKind::Grid => nodes::grid::default_params(),
         BuiltinNodeKind::Sphere => nodes::sphere::default_params(),
+        BuiltinNodeKind::Tube => nodes::tube::default_params(),
         BuiltinNodeKind::File => nodes::file::default_params(),
         BuiltinNodeKind::ReadSplats => nodes::read_splats::default_params(),
         BuiltinNodeKind::WriteSplats => nodes::write_splats::default_params(),
@@ -168,6 +184,8 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
         BuiltinNodeKind::Normal => nodes::normal::default_params(),
         BuiltinNodeKind::Color => nodes::color::default_params(),
         BuiltinNodeKind::Noise => nodes::noise::default_params(),
+        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::default_params(),
+        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::default_params(),
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::default_params(),
         BuiltinNodeKind::Wrangle => nodes::wrangle::default_params(),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::default_params(),
@@ -184,6 +202,7 @@ pub fn compute_mesh_node(
         BuiltinNodeKind::Box => nodes::box_node::compute(params, inputs),
         BuiltinNodeKind::Grid => nodes::grid::compute(params, inputs),
         BuiltinNodeKind::Sphere => nodes::sphere::compute(params, inputs),
+        BuiltinNodeKind::Tube => nodes::tube::compute(params, inputs),
         BuiltinNodeKind::File => nodes::file::compute(params, inputs),
         BuiltinNodeKind::ReadSplats => {
             Err("Splat Read outputs splat geometry, not meshes".to_string())
@@ -203,6 +222,10 @@ pub fn compute_mesh_node(
         BuiltinNodeKind::Normal => nodes::normal::compute(params, inputs),
         BuiltinNodeKind::Color => nodes::color::compute(params, inputs),
         BuiltinNodeKind::Noise => nodes::noise::compute(params, inputs),
+        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::compute(params, inputs),
+        BuiltinNodeKind::AttributeFromFeature => {
+            nodes::attribute_from_feature::compute(params, inputs)
+        }
         BuiltinNodeKind::AttributeMath => nodes::attribute_math::compute(params, inputs),
         BuiltinNodeKind::Wrangle => nodes::wrangle::compute(params, inputs),
         BuiltinNodeKind::ObjOutput => nodes::obj_output::compute(params, inputs),
@@ -219,6 +242,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Box => Ok(Geometry::with_mesh(nodes::box_node::compute(params, &[])?)),
         BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
         BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
+        BuiltinNodeKind::Tube => Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?)),
         BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
@@ -234,6 +258,8 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
+        | BuiltinNodeKind::AttributeNoise
+        | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeMath
         | BuiltinNodeKind::Wrangle => apply_mesh_unary(kind, params, inputs),
         BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
@@ -276,6 +302,12 @@ fn apply_mesh_unary(
             }
             BuiltinNodeKind::Noise => {
                 nodes::noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::AttributeNoise => {
+                nodes::attribute_noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::AttributeFromFeature => {
+                nodes::attribute_from_feature::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::AttributeMath => {
                 nodes::attribute_math::apply_to_splats(params, &mut splat)?;

@@ -24,6 +24,11 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
             category: "Sources",
         },
         MenuItem {
+            kind: BuiltinNodeKind::Tube,
+            name: "Tube",
+            category: "Sources",
+        },
+        MenuItem {
             kind: BuiltinNodeKind::File,
             name: "File",
             category: "Sources",
@@ -96,6 +101,16 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
         MenuItem {
             kind: BuiltinNodeKind::Noise,
             name: "Noise/Mountain",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::AttributeNoise,
+            name: "Attribute Noise",
+            category: "Operators",
+        },
+        MenuItem {
+            kind: BuiltinNodeKind::AttributeFromFeature,
+            name: "Attribute from Feature",
             category: "Operators",
         },
         MenuItem {

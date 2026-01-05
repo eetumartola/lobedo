@@ -122,6 +122,63 @@ pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
     mesh
 }
 
+pub fn make_tube(radius: f32, height: f32, rows: u32, cols: u32, capped: bool) -> Mesh {
+    let rows = rows.max(1);
+    let cols = cols.max(3);
+    let height = height.max(0.0);
+    let radius = radius.max(0.0);
+
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+
+    let half = height * 0.5;
+    let stride = cols + 1;
+    for r in 0..=rows {
+        let t = r as f32 / rows as f32;
+        let y = -half + t * height;
+        for c in 0..=cols {
+            let u = c as f32 / cols as f32;
+            let angle = u * std::f32::consts::TAU;
+            let x = angle.cos() * radius;
+            let z = angle.sin() * radius;
+            positions.push([x, y, z]);
+        }
+    }
+
+    for r in 0..rows {
+        for c in 0..cols {
+            let i0 = r * stride + c;
+            let i1 = i0 + 1;
+            let i2 = i0 + stride;
+            let i3 = i2 + 1;
+            indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+        }
+    }
+
+    if capped && radius > 0.0 {
+        let top_center = positions.len() as u32;
+        positions.push([0.0, half, 0.0]);
+        let bottom_center = positions.len() as u32;
+        positions.push([0.0, -half, 0.0]);
+
+        let top_ring_start = rows * stride;
+        for c in 0..cols {
+            let i0 = top_ring_start + c;
+            let i1 = top_ring_start + c + 1;
+            indices.extend_from_slice(&[top_center, i0, i1]);
+        }
+
+        let bottom_ring_start = 0;
+        for c in 0..cols {
+            let i0 = bottom_ring_start + c;
+            let i1 = bottom_ring_start + c + 1;
+            indices.extend_from_slice(&[bottom_center, i1, i0]);
+        }
+    }
+
+    Mesh::with_positions_indices(positions, indices)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +202,12 @@ mod tests {
         let mesh = make_uv_sphere(1.0, 4, 8);
         assert_eq!(mesh.positions.len(), (4 + 1) * (8 + 1));
         assert_eq!(mesh.indices.len(), 4 * 8 * 6);
+    }
+
+    #[test]
+    fn tube_has_expected_counts() {
+        let mesh = make_tube(1.0, 2.0, 2, 8, true);
+        assert_eq!(mesh.positions.len(), (2 + 1) * (8 + 1) + 2);
+        assert_eq!(mesh.indices.len(), 2 * 8 * 6 + 2 * 8 * 3);
     }
 }

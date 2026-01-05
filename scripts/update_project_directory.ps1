@@ -76,8 +76,11 @@ foreach ($root in $Roots) {
         $_.Extension -eq '.rs' -and $_.FullName -notmatch '\\\\target\\\\'
     }
     foreach ($item in $items) {
-        if ($SourceGlob -and ($item.FullName -notmatch [Regex]::Escape($SourceGlob))) {
-            continue
+        if ($SourceGlob) {
+            $normalized = $item.FullName.Replace('\', '/')
+            if ($normalized -notmatch [Regex]::Escape($SourceGlob)) {
+                continue
+            }
         }
         $files.Add($item)
     }
