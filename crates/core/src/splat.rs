@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use glam::{Mat3, Mat4, Quat, Vec3};
 
-pub use crate::splat_ply::{load_splat_ply, save_splat_ply};
+pub use crate::splat_ply::{load_splat_ply_with_mode, save_splat_ply, SplatLoadMode};
 
 #[derive(Debug, Clone, Default)]
 pub struct SplatGeo {

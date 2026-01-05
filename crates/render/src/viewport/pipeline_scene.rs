@@ -19,6 +19,7 @@ pub(super) fn apply_scene_to_pipeline(
             device,
             pipeline.mesh_id,
             bytemuck::cast_slice(&vertices),
+            std::mem::size_of::<super::mesh::Vertex>(),
             &indices,
         );
 
@@ -54,7 +55,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_scales = splats.scales.clone();
         pipeline.splat_rotations = splats.rotations.clone();
         pipeline.splat_point_size = -1.0;
-        pipeline.splat_count = 0;
+        pipeline.splat_buffers.clear();
+        pipeline.splat_counts.clear();
         if pipeline.mesh_vertices.is_empty() {
             pipeline.mesh_bounds = bounds_from_positions(&pipeline.splat_positions);
         }
@@ -64,7 +66,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_opacity.clear();
         pipeline.splat_scales.clear();
         pipeline.splat_rotations.clear();
-        pipeline.splat_count = 0;
+        pipeline.splat_buffers.clear();
+        pipeline.splat_counts.clear();
         pipeline.splat_point_size = -1.0;
     }
 

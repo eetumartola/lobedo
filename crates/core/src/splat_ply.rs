@@ -1,4 +1,11 @@
 use crate::splat::SplatGeo;
+use crate::assets;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplatLoadMode {
+    Full,
+    ColorOnly,
+}
 
 #[derive(Debug, Clone, Copy)]
 enum PlyFormat {
@@ -43,16 +50,26 @@ struct PlyHeader {
     vertex_properties: Vec<PlyProperty>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
 pub fn load_splat_ply(path: &str) -> Result<SplatGeo, String> {
-    let data = std::fs::read(path).map_err(|err| err.to_string())?;
-    parse_splat_ply_bytes(&data)
+    load_splat_ply_with_mode(path, SplatLoadMode::Full)
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn load_splat_ply(_path: &str) -> Result<SplatGeo, String> {
-    Err("Splat Read is not supported in web builds".to_string())
+pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<SplatGeo, String> {
+    if let Some(data) = assets::load_bytes(path) {
+        return parse_splat_ply_bytes_with_mode(&data, mode);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let data = std::fs::read(path).map_err(|err| err.to_string())?;
+        return parse_splat_ply_bytes_with_mode(&data, mode);
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        Err("Splat Read is not supported in web builds without a picked file".to_string())
+    }
 }
+
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
@@ -126,9 +143,14 @@ pub fn save_splat_ply(_path: &str, _splats: &SplatGeo) -> Result<(), String> {
     Err("Splat Write is not supported in web builds".to_string())
 }
 
+#[cfg(test)]
 fn parse_splat_ply_bytes(data: &[u8]) -> Result<SplatGeo, String> {
+    parse_splat_ply_bytes_with_mode(data, SplatLoadMode::Full)
+}
+
+fn parse_splat_ply_bytes_with_mode(data: &[u8], mode: SplatLoadMode) -> Result<SplatGeo, String> {
     let (header, data_start) = parse_header_bytes(data)?;
-    let indices = SplatPropertyIndices::from_properties(&header.vertex_properties);
+    let indices = SplatPropertyIndices::from_properties(&header.vertex_properties, mode);
     if indices.x.is_none() || indices.y.is_none() || indices.z.is_none() {
         return Err("PLY is missing position properties (x, y, z)".to_string());
     }
@@ -479,9 +501,10 @@ struct SplatPropertyIndices {
 }
 
 impl SplatPropertyIndices {
-    fn from_properties(properties: &[PlyProperty]) -> Self {
+    fn from_properties(properties: &[PlyProperty], mode: SplatLoadMode) -> Self {
         let mut indices = SplatPropertyIndices::default();
         let mut rest = Vec::new();
+        let include_sh_rest = matches!(mode, SplatLoadMode::Full);
         for (idx, prop) in properties.iter().enumerate() {
             match prop.name.as_str() {
                 "x" => indices.x = Some(idx),
@@ -502,13 +525,15 @@ impl SplatPropertyIndices {
                 "green" | "g" => indices.color[1] = Some(idx),
                 "blue" | "b" => indices.color[2] = Some(idx),
                 _ => {
-                    if let Some(rest_idx) = parse_sh_rest_index(&prop.name) {
-                        rest.push((rest_idx, idx));
+                    if include_sh_rest {
+                        if let Some(rest_idx) = parse_sh_rest_index(&prop.name) {
+                            rest.push((rest_idx, idx));
+                        }
                     }
                 }
             }
         }
-        if !rest.is_empty() {
+        if include_sh_rest && !rest.is_empty() {
             let max = rest.iter().map(|(i, _)| *i).max().unwrap_or(0);
             indices.sh_rest = vec![None; max + 1];
             for (rest_idx, prop_idx) in rest {

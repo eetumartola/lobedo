@@ -12,10 +12,12 @@ use egui_wgpu::{CallbackResources, CallbackTrait};
 use super::callback_helpers::{light_view_projection, sort_splats_by_depth};
 use super::mesh::{
     normals_vertices, point_cross_vertices, splat_billboard_vertices, SplatBillboardInputs,
+    SplatVertex,
 };
 use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
 use super::{ViewportDebug, ViewportSceneState, ViewportShadingMode, ViewportStatsState};
 use crate::camera::{camera_position, camera_view_proj, CameraState};
+use crate::mesh_cache::GpuMeshData;
 use glam::{Mat3, Mat4, Vec3};
 
 pub(super) struct ViewportCallback {
@@ -92,7 +94,8 @@ impl CallbackTrait for ViewportCallback {
                         pipeline.splat_opacity.clear();
                         pipeline.splat_scales.clear();
                         pipeline.splat_rotations.clear();
-                        pipeline.splat_count = 0;
+                        pipeline.splat_buffers.clear();
+                        pipeline.splat_counts.clear();
                         pipeline.splat_point_size = -1.0;
                         pipeline.splat_last_right = [0.0, 0.0, 0.0];
                         pipeline.splat_last_up = [0.0, 0.0, 0.0];
@@ -213,12 +216,41 @@ impl CallbackTrait for ViewportCallback {
                         });
                     shadow_pass.set_pipeline(&pipeline.shadow_pipeline);
                     shadow_pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
-                    shadow_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                    shadow_pass.set_index_buffer(
-                        mesh.index_buffer.slice(..),
-                        egui_wgpu::wgpu::IndexFormat::Uint32,
-                    );
-                    shadow_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    match &mesh.data {
+                        GpuMeshData::Indexed {
+                            vertex_buffer,
+                            index_buffers,
+                            index_counts,
+                        } => {
+                            shadow_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                            for (buffer, count) in
+                                index_buffers.iter().zip(index_counts.iter())
+                            {
+                                if *count == 0 {
+                                    continue;
+                                }
+                                shadow_pass.set_index_buffer(
+                                    buffer.slice(..),
+                                    egui_wgpu::wgpu::IndexFormat::Uint32,
+                                );
+                                shadow_pass.draw_indexed(0..*count, 0, 0..1);
+                            }
+                        }
+                        GpuMeshData::NonIndexed {
+                            vertex_buffers,
+                            vertex_counts,
+                        } => {
+                            for (buffer, count) in
+                                vertex_buffers.iter().zip(vertex_counts.iter())
+                            {
+                                if *count == 0 {
+                                    continue;
+                                }
+                                shadow_pass.set_vertex_buffer(0, buffer.slice(..));
+                                shadow_pass.draw(0..*count, 0..1);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -258,12 +290,41 @@ impl CallbackTrait for ViewportCallback {
                 if !self.debug.show_points && pipeline.index_count > 0 {
                     render_pass.set_pipeline(&pipeline.mesh_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                    render_pass.set_index_buffer(
-                        mesh.index_buffer.slice(..),
-                        egui_wgpu::wgpu::IndexFormat::Uint32,
-                    );
-                    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    match &mesh.data {
+                        GpuMeshData::Indexed {
+                            vertex_buffer,
+                            index_buffers,
+                            index_counts,
+                        } => {
+                            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                            for (buffer, count) in
+                                index_buffers.iter().zip(index_counts.iter())
+                            {
+                                if *count == 0 {
+                                    continue;
+                                }
+                                render_pass.set_index_buffer(
+                                    buffer.slice(..),
+                                    egui_wgpu::wgpu::IndexFormat::Uint32,
+                                );
+                                render_pass.draw_indexed(0..*count, 0, 0..1);
+                            }
+                        }
+                        GpuMeshData::NonIndexed {
+                            vertex_buffers,
+                            vertex_counts,
+                        } => {
+                            for (buffer, count) in
+                                vertex_buffers.iter().zip(vertex_counts.iter())
+                            {
+                                if *count == 0 {
+                                    continue;
+                                }
+                                render_pass.set_vertex_buffer(0, buffer.slice(..));
+                                render_pass.draw(0..*count, 0..1);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -295,6 +356,7 @@ impl CallbackTrait for ViewportCallback {
 
             if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
                 const SPLAT_REBUILD_MAX_FPS: f32 = 30.0;
+                const SPLAT_BUFFER_SOFT_LIMIT: u64 = 64 * 1024 * 1024;
                 let right_delta = right - Vec3::from(pipeline.splat_last_right);
                 let up_delta = up - Vec3::from(pipeline.splat_last_up);
                 let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
@@ -312,6 +374,8 @@ impl CallbackTrait for ViewportCallback {
                 let interval = 1.0 / SPLAT_REBUILD_MAX_FPS.max(1.0);
                 let allow_rebuild = scene_changed || viewport_changed || elapsed >= interval;
                 if needs_rebuild && allow_rebuild {
+                    let world_transform =
+                        Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0));
                     let sorted = sort_splats_by_depth(
                         &pipeline.splat_positions,
                         &pipeline.splat_colors,
@@ -320,6 +384,7 @@ impl CallbackTrait for ViewportCallback {
                         &pipeline.splat_rotations,
                         camera_pos,
                         forward,
+                        world_transform,
                     );
                     let mut positions = Vec::with_capacity(sorted.len());
                     let mut colors = Vec::with_capacity(sorted.len());
@@ -333,26 +398,55 @@ impl CallbackTrait for ViewportCallback {
                         scales.push(entry.scale);
                         rotations.push(entry.rotation);
                     }
-                    let splat_vertices = splat_billboard_vertices(
-                        SplatBillboardInputs {
-                            positions: &positions,
-                            colors: &colors,
-                            opacities: &opacity,
-                            scales: &scales,
-                            rotations: &rotations,
-                            view: Mat4::look_at_rh(camera_pos, target, Vec3::Y),
+                    let vertex_bytes = std::mem::size_of::<SplatVertex>() as u64;
+                    let max_buffer_size =
+                        device.limits().max_buffer_size.min(SPLAT_BUFFER_SOFT_LIMIT);
+                    let splat_bytes = vertex_bytes.saturating_mul(6);
+                    let max_splats = (max_buffer_size / splat_bytes)
+                        .min(u32::MAX as u64)
+                        .max(1) as usize;
+                    let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
+                    let mut buffers = Vec::new();
+                    let mut counts = Vec::new();
+                    for (chunk_index, chunk_range) in
+                        (0..positions.len()).step_by(max_splats).enumerate()
+                    {
+                        let end = (chunk_range + max_splats).min(positions.len());
+                        let splat_vertices = splat_billboard_vertices(SplatBillboardInputs {
+                            positions: &positions[chunk_range..end],
+                            colors: &colors[chunk_range..end],
+                            opacities: &opacity[chunk_range..end],
+                            scales: &scales[chunk_range..end],
+                            rotations: &rotations[chunk_range..end],
+                            view,
                             viewport: [width as f32, height as f32],
                             fov_y: 45_f32.to_radians(),
-                            world_transform: Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0)),
-                        },
-                    );
-                    pipeline.splat_buffer =
-                        device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
-                            label: Some("lobedo_splat_vertices"),
-                            contents: bytemuck::cast_slice(&splat_vertices),
-                            usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
+                            world_transform,
                         });
-                    pipeline.splat_count = splat_vertices.len() as u32;
+                        let count = splat_vertices.len() as u32;
+                        if count == 0 {
+                            continue;
+                        }
+                        let bytes = bytemuck::cast_slice(&splat_vertices);
+                        let buffer = match pipeline.splat_buffers.get(chunk_index) {
+                            Some(existing) if existing.size() >= bytes.len() as u64 => {
+                                queue.write_buffer(existing, 0, bytes);
+                                existing.clone()
+                            }
+                            _ => device.create_buffer_init(
+                                &egui_wgpu::wgpu::util::BufferInitDescriptor {
+                                    label: Some("lobedo_splat_vertices"),
+                                    contents: bytes,
+                                    usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                                        | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+                                },
+                            ),
+                        };
+                        buffers.push(buffer);
+                        counts.push(count);
+                    }
+                    pipeline.splat_buffers = buffers;
+                    pipeline.splat_counts = counts;
                     pipeline.splat_point_size = 0.0;
                     pipeline.splat_last_right = right.to_array();
                     pipeline.splat_last_up = up.to_array();
@@ -360,11 +454,20 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.splat_last_viewport = [width, height];
                     pipeline.last_splat_rebuild = Some(now);
                 }
-                if pipeline.splat_count > 0 {
+                if !pipeline.splat_buffers.is_empty() {
                     render_pass.set_pipeline(&pipeline.splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, pipeline.splat_buffer.slice(..));
-                    render_pass.draw(0..pipeline.splat_count, 0..1);
+                    for (buffer, count) in pipeline
+                        .splat_buffers
+                        .iter()
+                        .zip(pipeline.splat_counts.iter())
+                    {
+                        if *count == 0 {
+                            continue;
+                        }
+                        render_pass.set_vertex_buffer(0, buffer.slice(..));
+                        render_pass.draw(0..*count, 0..1);
+                    }
                 }
             }
 

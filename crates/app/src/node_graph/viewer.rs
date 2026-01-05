@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use egui::{Align2, Color32, FontId, Pos2, Rect, TextStyle, Ui};
+use egui::{vec2, Align2, Color32, FontId, Pos2, Rect, TextStyle, Ui};
 use egui_snarl::ui::{AnyPins, PinInfo, SnarlPin, SnarlViewer};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
@@ -21,6 +21,7 @@ pub(super) struct NodeGraphViewer<'a> {
     pub(super) node_rects: &'a mut HashMap<egui_snarl::NodeId, Rect>,
     pub(super) header_button_rects: &'a mut HashMap<egui_snarl::NodeId, HeaderButtonRects>,
     pub(super) graph_transform: &'a mut GraphTransformState,
+    pub(super) pending_transform: &'a mut Option<egui::emath::TSTransform>,
     pub(super) input_pin_positions: Rc<RefCell<HashMap<InPinId, Pos2>>>,
     pub(super) output_pin_positions: Rc<RefCell<HashMap<OutPinId, Pos2>>>,
     pub(super) add_menu_open: &'a mut bool,
@@ -36,6 +37,8 @@ pub(super) struct NodeGraphViewer<'a> {
     pub(super) changed: bool,
 }
 
+const PIN_HOT_SCALE: f32 = 2.6;
+
 struct RecordedPin {
     pin: PinInfo,
     record: PinRecord,
@@ -50,7 +53,8 @@ enum PinRecord {
 impl SnarlPin for RecordedPin {
     fn pin_rect(&self, x: f32, y0: f32, y1: f32, size: f32) -> egui::Rect {
         let y = (y0 + y1) * 0.5;
-        let rect = egui::Rect::from_center_size(egui::pos2(x, y), egui::vec2(size, size));
+        let hot_size = size * PIN_HOT_SCALE;
+        let rect = egui::Rect::from_center_size(egui::pos2(x, y), egui::vec2(hot_size, hot_size));
         let screen_pos = self.graph_to_screen * rect.center();
         match &self.record {
             PinRecord::In(id, store) => {
@@ -70,7 +74,9 @@ impl SnarlPin for RecordedPin {
         rect: egui::Rect,
         painter: &egui::Painter,
     ) -> egui_snarl::ui::PinWireInfo {
-        self.pin.draw(snarl_style, style, rect, painter)
+        let visual_size = (rect.width().min(rect.height()) / PIN_HOT_SCALE).max(1.0);
+        let visual_rect = egui::Rect::from_center_size(rect.center(), vec2(visual_size, visual_size));
+        self.pin.draw(snarl_style, style, visual_rect, painter)
     }
 }
 
@@ -555,6 +561,9 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         to_global: &mut egui::emath::TSTransform,
         _snarl: &mut Snarl<SnarlNode>,
     ) {
+        if let Some(transform) = self.pending_transform.take() {
+            *to_global = transform;
+        }
         if to_global.is_valid() {
             self.graph_transform.to_global = *to_global;
             self.graph_transform.valid = true;

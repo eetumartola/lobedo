@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::attributes::{AttributeDomain, AttributeStorage};
+use crate::assets;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::geometry_out;
@@ -35,13 +36,16 @@ pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     load_obj_mesh(path)
 }
 
-#[cfg(target_arch = "wasm32")]
-fn load_obj_mesh(_path: &str) -> Result<Mesh, String> {
-    Err("File node is not supported in web builds".to_string())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
+    if let Some(data) = assets::load_bytes(path) {
+        return load_obj_mesh_bytes(&data);
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        return Err("File node is not supported in web builds without a picked file".to_string());
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
     let path = Path::new(path);
     if !path.exists() {
         return Err(format!("File not found: {}", path.display()));
@@ -56,6 +60,27 @@ fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
         tobj::load_obj(path, &options).map_err(|err| format!("OBJ load failed: {err}"))?
     };
 
+    return build_mesh_from_models(models);
+    }
+}
+
+fn load_obj_mesh_bytes(data: &[u8]) -> Result<Mesh, String> {
+    use std::io::{BufReader, Cursor};
+
+    let options = tobj::LoadOptions {
+        triangulate: true,
+        single_index: true,
+        ..Default::default()
+    };
+    let mut reader = BufReader::new(Cursor::new(data));
+    let (models, _) = tobj::load_obj_buf(&mut reader, &options, |_path| {
+        Ok((Vec::new(), Default::default()))
+    })
+    .map_err(|err| format!("OBJ load failed: {err}"))?;
+    build_mesh_from_models(models)
+}
+
+fn build_mesh_from_models(models: Vec<tobj::Model>) -> Result<Mesh, String> {
     if models.is_empty() {
         return Err("OBJ has no geometry".to_string());
     }

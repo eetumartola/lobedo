@@ -1,5 +1,16 @@
 use egui::Ui;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
+#[cfg(target_arch = "wasm32")]
+use rfd::AsyncFileDialog;
+#[cfg(target_arch = "wasm32")]
+use std::sync::{Mutex, OnceLock};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::spawn_local;
+
 use lobedo_core::ParamValue;
 
 pub(super) fn edit_param(
@@ -13,8 +24,11 @@ pub(super) fn edit_param(
             let changed = param_row(ui, label, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
-                let value_width = 72.0;
                 let height = ui.spacing().interact_size.y;
+                let controls_width = ui.max_rect().width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                 if ui
                     .add_sized(
                         [value_width, height],
@@ -24,9 +38,9 @@ pub(super) fn edit_param(
                 {
                     changed = true;
                 }
-                let range = float_slider_range(node_name, label, v);
                 ui.add_space(spacing);
-                let slider_width = ui.available_width().max(120.0);
+                let range = float_slider_range(node_name, label, v);
+                let slider_width = (controls_width - value_width - spacing).max(120.0);
                 if ui
                     .add_sized(
                         [slider_width, height],
@@ -36,6 +50,7 @@ pub(super) fn edit_param(
                 {
                     changed = true;
                 }
+                ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
             (ParamValue::Float(v), changed)
@@ -86,6 +101,26 @@ pub(super) fn edit_param(
                         });
                     changed
                 })
+            } else if label == "read_mode" {
+                param_row(ui, label, |ui| {
+                    let mut changed = false;
+                    let options = [(0, "Full (SH)"), (1, "Base Color")];
+                    let selected = options
+                        .iter()
+                        .find(|(value, _)| *value == v)
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Full (SH)");
+                    egui::ComboBox::from_id_salt(label)
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (value, name) in options {
+                                if ui.selectable_value(&mut v, value, name).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                    changed
+                })
             } else if label == "op" {
                 param_row(ui, label, |ui| {
                     let mut changed = false;
@@ -110,8 +145,11 @@ pub(super) fn edit_param(
                 param_row(ui, label, |ui| {
                     let mut changed = false;
                     let spacing = 8.0;
-                    let value_width = 64.0;
                     let height = ui.spacing().interact_size.y;
+                    let controls_width = ui.max_rect().width();
+                    let prev_spacing = ui.spacing().item_spacing;
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                    let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                     if ui
                         .add_sized(
                             [value_width, height],
@@ -121,9 +159,9 @@ pub(super) fn edit_param(
                     {
                         changed = true;
                     }
-                    let range = int_slider_range(node_name, label, v);
                     ui.add_space(spacing);
-                    let slider_width = ui.available_width().max(120.0);
+                    let range = int_slider_range(node_name, label, v);
+                    let slider_width = (controls_width - value_width - spacing).max(120.0);
                     if ui
                         .add_sized(
                             [slider_width, height],
@@ -133,6 +171,7 @@ pub(super) fn edit_param(
                     {
                         changed = true;
                     }
+                    ui.spacing_mut().item_spacing = prev_spacing;
                     changed
                 })
             };
@@ -150,6 +189,8 @@ pub(super) fn edit_param(
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                 let value_width = ((available - spacing) / 2.0).clamp(56.0, 120.0);
                 let height = ui.spacing().interact_size.y;
                 let len = v.len();
@@ -164,6 +205,7 @@ pub(super) fn edit_param(
                         ui.add_space(spacing);
                     }
                 }
+                ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
             (ParamValue::Vec2(v), changed)
@@ -173,6 +215,8 @@ pub(super) fn edit_param(
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                 let value_width = ((available - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                 let height = ui.spacing().interact_size.y;
                 let len = v.len();
@@ -187,6 +231,7 @@ pub(super) fn edit_param(
                         ui.add_space(spacing);
                     }
                 }
+                ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
             (ParamValue::Vec3(v), changed)
@@ -223,18 +268,190 @@ pub(super) fn edit_param(
                     .changed()
                 })
             } else {
-                param_row(ui, label, |ui| {
-                    let height = ui.spacing().interact_size.y;
-                    ui.add_sized(
-                        [ui.available_width().max(160.0), height],
-                        egui::TextEdit::singleline(&mut v),
-                    )
-                    .changed()
-                })
+                let use_picker = label == "path" && path_picker_kind(node_name).is_some();
+                if use_picker {
+                    param_row(ui, label, |ui| edit_path_field(ui, node_name, &mut v))
+                } else {
+                    param_row(ui, label, |ui| {
+                        let height = ui.spacing().interact_size.y;
+                        ui.add_sized(
+                            [ui.available_width().max(160.0), height],
+                            egui::TextEdit::singleline(&mut v),
+                        )
+                        .changed()
+                    })
+                }
             };
             (ParamValue::String(v), changed)
         }
     }
+}
+
+fn edit_path_field(ui: &mut Ui, node_name: &str, value: &mut String) -> bool {
+    let height = ui.spacing().interact_size.y;
+    let spacing = 6.0;
+    let button_width = height;
+    let total_width = ui.available_width();
+    let text_width = (total_width - button_width - spacing)
+        .max(80.0)
+        .min(total_width);
+    let mut changed = false;
+    #[cfg(target_arch = "wasm32")]
+    if let Some(kind) = path_picker_kind(node_name) {
+        if let Some(result) = take_file_pick(kind) {
+            let key = lobedo_core::store_bytes(result.name, result.bytes);
+            *value = key;
+            changed = true;
+        }
+    }
+    if ui
+        .add_sized([text_width, height], egui::TextEdit::singleline(value))
+        .changed()
+    {
+        changed = true;
+    }
+    ui.add_space(spacing);
+    if let Some(kind) = path_picker_kind(node_name) {
+        if open_path_picker_button(ui, kind, value, button_width, height) {
+            changed = true;
+        }
+    }
+    changed
+}
+
+#[derive(Clone, Copy)]
+enum PathPickerKind {
+    ReadObj,
+    WriteObj,
+    ReadSplat,
+    WriteSplat,
+}
+
+#[cfg(target_arch = "wasm32")]
+struct FilePickResult {
+    kind: PathPickerKind,
+    name: String,
+    bytes: Vec<u8>,
+}
+
+#[cfg(target_arch = "wasm32")]
+static FILE_PICK_RESULT: OnceLock<Mutex<Option<FilePickResult>>> = OnceLock::new();
+
+#[cfg(target_arch = "wasm32")]
+fn file_pick_result() -> &'static Mutex<Option<FilePickResult>> {
+    FILE_PICK_RESULT.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn queue_file_pick(kind: PathPickerKind, name: String, bytes: Vec<u8>) {
+    let store = file_pick_result();
+    *store.lock().expect("file pick lock") = Some(FilePickResult { kind, name, bytes });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn take_file_pick(kind: PathPickerKind) -> Option<FilePickResult> {
+    let store = file_pick_result();
+    let mut guard = store.lock().expect("file pick lock");
+    match guard.as_ref().map(|res| res.kind) {
+        Some(found) if found == kind => guard.take(),
+        _ => None,
+    }
+}
+
+fn path_picker_kind(node_name: &str) -> Option<PathPickerKind> {
+    match node_name {
+        "File" => Some(PathPickerKind::ReadObj),
+        "OBJ Output" => Some(PathPickerKind::WriteObj),
+        "Splat Read" | "Read Splats" => Some(PathPickerKind::ReadSplat),
+        "Splat Write" => Some(PathPickerKind::WriteSplat),
+        _ => None,
+    }
+}
+
+fn open_path_picker_button(
+    ui: &mut Ui,
+    kind: PathPickerKind,
+    value: &mut String,
+    button_width: f32,
+    height: f32,
+) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if matches!(kind, PathPickerKind::WriteObj | PathPickerKind::WriteSplat) {
+            ui.add_enabled(false, egui::Button::new("..."))
+                .on_hover_text("Save dialogs are not available in web builds yet");
+            let _ = (value, button_width, height);
+            return false;
+        }
+        let clicked = ui
+            .add_sized([button_width, height], egui::Button::new("..."))
+            .on_hover_text("Browse")
+            .clicked();
+        if clicked {
+            let kind_copy = kind;
+            spawn_local(async move {
+                let (label, extensions) = match kind_copy {
+                    PathPickerKind::ReadObj | PathPickerKind::WriteObj => ("OBJ", &["obj"][..]),
+                    PathPickerKind::ReadSplat | PathPickerKind::WriteSplat => ("PLY", &["ply"][..]),
+                };
+                let dialog = AsyncFileDialog::new().add_filter(label, extensions);
+                if let Some(file) = dialog.pick_file().await {
+                    let name = file.file_name();
+                    let bytes = file.read().await;
+                    queue_file_pick(kind_copy, name, bytes);
+                }
+            });
+        }
+        let _ = value;
+        return false;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let clicked = ui
+        .add_sized([button_width, height], egui::Button::new("..."))
+        .on_hover_text("Browse")
+        .clicked();
+    if clicked {
+        if let Some(path) = open_path_picker(kind, value) {
+            *value = path;
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
+    let (label, extensions, is_save, default_name) = match kind {
+        PathPickerKind::ReadObj => ("OBJ", &["obj"][..], false, "model.obj"),
+        PathPickerKind::WriteObj => ("OBJ", &["obj"][..], true, "output.obj"),
+        PathPickerKind::ReadSplat => ("PLY", &["ply"][..], false, "splats.ply"),
+        PathPickerKind::WriteSplat => ("PLY", &["ply"][..], true, "output.ply"),
+    };
+    let mut dialog = FileDialog::new().add_filter(label, extensions);
+    if !current.trim().is_empty() {
+        let path = Path::new(current);
+        if let Some(parent) = path.parent() {
+            dialog = dialog.set_directory(parent);
+        }
+        if is_save {
+            if let Some(name) = path.file_name() {
+                dialog = dialog.set_file_name(name.to_string_lossy().into_owned());
+            }
+        }
+    } else if is_save {
+        dialog = dialog.set_file_name(default_name);
+    }
+    let picked = if is_save {
+        dialog.save_file()
+    } else {
+        dialog.pick_file()
+    };
+    picked.map(|path| path.display().to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn open_path_picker(_kind: PathPickerKind, _current: &str) -> Option<String> {
+    None
 }
 
 fn param_row(ui: &mut Ui, label: &str, add_controls: impl FnOnce(&mut Ui) -> bool) -> bool {
@@ -251,28 +468,33 @@ fn param_row_with_height(
     let label_width = (total_width * 0.2).clamp(80.0, 160.0);
     let controls_width = (total_width - label_width).max(120.0);
     let mut changed = false;
-    ui.allocate_ui_with_layout(
+    let (row_rect, _) = ui.allocate_exact_size(
         egui::vec2(total_width, row_height),
-        egui::Layout::left_to_right(egui::Align::Min),
+        egui::Sense::hover(),
+    );
+    let label_rect = egui::Rect::from_min_size(row_rect.min, egui::vec2(label_width, row_height));
+    let controls_rect = egui::Rect::from_min_size(
+        egui::pos2(row_rect.min.x + label_width, row_rect.min.y),
+        egui::vec2(controls_width, row_height),
+    );
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(label_rect)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
         |ui| {
-            ui.allocate_ui_with_layout(
-                egui::vec2(label_width, row_height),
-                egui::Layout::right_to_left(egui::Align::Center),
-                |ui| {
-                    ui.set_min_height(row_height);
-                    ui.label(label);
-                },
-            );
-            ui.allocate_ui_with_layout(
-                egui::vec2(controls_width, row_height),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| {
-                    ui.set_min_height(row_height);
-                    if add_controls(ui) {
-                        changed = true;
-                    }
-                },
-            );
+            ui.set_min_height(row_height);
+            ui.label(label);
+        },
+    );
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(controls_rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        |ui| {
+            ui.set_min_height(row_height);
+            if add_controls(ui) {
+                changed = true;
+            }
         },
     );
     changed

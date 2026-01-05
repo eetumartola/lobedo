@@ -20,6 +20,7 @@ pub use attributes::{
     AttributeDomain, AttributeError, AttributeInfo, AttributeRef, AttributeStorage, AttributeType,
     MeshAttributes,
 };
+pub use assets::{load_bytes, store_bytes};
 pub use eval::{
     evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
     EvalNodeReport, EvalReport, EvalState,
@@ -43,3 +44,4 @@ pub use project::{
 pub use scene::{SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
 pub use splat::SplatGeo;
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};
+mod assets;

@@ -22,17 +22,6 @@ impl LobedoApp {
                     egui::CollapsingHeader::new("Debug")
                         .default_open(true)
                         .show(ui, |ui| {
-                            let ratio_range = 0.2..=0.8;
-                            ui.add(
-                                egui::Slider::new(
-                                    &mut self.project.settings.viewport_split,
-                                    ratio_range,
-                                )
-                                .text("Viewport split")
-                                .custom_formatter(|value, _| format!("{:.0}%", value * 100.0)),
-                            );
-
-                            ui.separator();
                             ui.label("Viewport overlays");
                             ui.checkbox(
                                 &mut self.project.settings.render_debug.show_grid,

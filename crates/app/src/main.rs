@@ -23,14 +23,25 @@ fn main() -> eframe::Result<()> {
     }
 
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_decorations(true)
+            .with_maximized(true),
         renderer: eframe::Renderer::Wgpu,
+        persist_window: false,
         ..Default::default()
     };
     eframe::run_native(
         "Lobedo",
         native_options,
-        Box::new(|_cc| {
+        Box::new(|cc| {
+            let mut style = (*cc.egui_ctx.style()).clone();
+            let stroke_width = 0.25;
+            style.visuals.window_stroke.width = stroke_width;
+            style.visuals.widgets.inactive.bg_stroke.width = stroke_width;
+            style.visuals.widgets.hovered.bg_stroke.width = stroke_width;
+            style.visuals.widgets.active.bg_stroke.width = stroke_width;
+            cc.egui_ctx.set_style(style);
+
             let mut app = app::LobedoApp::new(console, log_level_state);
             app.try_load_default_graph();
             Ok(Box::new(app))

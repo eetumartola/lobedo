@@ -56,4 +56,60 @@ impl LobedoApp {
             pitch: self.project.settings.camera.pitch,
         }
     }
+
+    pub(super) fn fit_viewport_to_scene(&mut self) {
+        let Some(scene) = &self.last_scene else {
+            return;
+        };
+        let mut min = [f32::INFINITY; 3];
+        let mut max = [f32::NEG_INFINITY; 3];
+        let mut found = false;
+
+        for drawable in &scene.drawables {
+            match drawable {
+                render::RenderDrawable::Mesh(mesh) => {
+                    for pos in &mesh.positions {
+                        for i in 0..3 {
+                            min[i] = min[i].min(pos[i]);
+                            max[i] = max[i].max(pos[i]);
+                        }
+                        found = true;
+                    }
+                }
+                render::RenderDrawable::Splats(splats) => {
+                    for pos in &splats.positions {
+                        for i in 0..3 {
+                            min[i] = min[i].min(pos[i]);
+                            max[i] = max[i].max(pos[i]);
+                        }
+                        found = true;
+                    }
+                }
+            }
+        }
+
+        if !found {
+            return;
+        }
+
+        let center = [
+            (min[0] + max[0]) * 0.5,
+            (min[1] + max[1]) * 0.5,
+            (min[2] + max[2]) * 0.5,
+        ];
+        let extent = [
+            (max[0] - min[0]) * 0.5,
+            (max[1] - min[1]) * 0.5,
+            (max[2] - min[2]) * 0.5,
+        ];
+        let radius = (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2])
+            .sqrt()
+            .max(0.001);
+        let fov_y = 45_f32.to_radians();
+        let distance = (radius / (fov_y * 0.5).tan()).max(0.1) * 1.2;
+
+        let camera = &mut self.project.settings.camera;
+        camera.target = center;
+        camera.distance = distance;
+    }
 }

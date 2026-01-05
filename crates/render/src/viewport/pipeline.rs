@@ -74,9 +74,9 @@ pub(super) struct PipelineState {
     pub(super) splat_opacity: Vec<f32>,
     pub(super) splat_scales: Vec<[f32; 3]>,
     pub(super) splat_rotations: Vec<[f32; 4]>,
-    pub(super) splat_count: u32,
     pub(super) splat_point_size: f32,
-    pub(super) splat_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) splat_buffers: Vec<egui_wgpu::wgpu::Buffer>,
+    pub(super) splat_counts: Vec<u32>,
     pub(super) splat_last_right: [f32; 3],
     pub(super) splat_last_up: [f32; 3],
     pub(super) splat_last_camera_pos: [f32; 3],
@@ -488,6 +488,7 @@ impl PipelineState {
             device,
             mesh_id,
             bytemuck::cast_slice(&mesh.vertices),
+            std::mem::size_of::<Vertex>(),
             &mesh.indices,
         );
         let index_count = mesh.indices.len() as u32;
@@ -539,18 +540,6 @@ impl PipelineState {
                 usage: egui_wgpu::wgpu::BufferUsages::VERTEX
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             });
-        let splat_buffer =
-            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
-                label: Some("lobedo_splat_vertices"),
-                contents: bytemuck::cast_slice(&[SplatVertex {
-                    center: [0.0, 0.0, 0.0],
-                    offset: [0.0, 0.0],
-                    uv: [0.0, 0.0],
-                    color: [0.0, 0.0, 0.0, 0.0],
-                }]),
-                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
-                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-            });
         let grid_buffer = device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
             label: Some("lobedo_grid_vertices"),
             contents: bytemuck::cast_slice(&grid_vertices),
@@ -597,9 +586,9 @@ impl PipelineState {
             splat_opacity: Vec::new(),
             splat_scales: Vec::new(),
             splat_rotations: Vec::new(),
-            splat_count: 0,
             splat_point_size: -1.0,
-            splat_buffer,
+            splat_buffers: Vec::new(),
+            splat_counts: Vec::new(),
             splat_last_right: [0.0, 0.0, 0.0],
             splat_last_up: [0.0, 0.0, 0.0],
             splat_last_camera_pos: [0.0, 0.0, 0.0],

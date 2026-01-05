@@ -30,6 +30,7 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Pin hit area 2x radius of visual pin circle
 - Viewport top-left icons for normals + stats overlay toggles
 - Parameter sliders are 2x wider
+- Viewport/node editor split is draggable
 
 ---
 

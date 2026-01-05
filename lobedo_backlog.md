@@ -43,10 +43,11 @@ Status: done | in progress | not started
 - **Q4**: Spreadsheet splat mode (show first 100 splats by default) (done)
 
 ## Epic P - Polish
-- **P1**: Transient node info panel on middle mouse (not started)
-- **P2**: Open app fullscreen by default (not started)
-- **P3**: Pin hot area 2x radius of visual pin circle (not started)
-- **P4**: Viewport top-left icons for normals + stats toggles (not started)
-- **P5**: Parameter sliders are 2x wider (not started)
-- **P6**: Show splat info text in Splat Read parameter pane (not started)
-- **P7**: File requester buttons for Read/Write OBJ + Splat Read/Splat Write (not started)
+- **P1**: Transient node info panel on middle mouse (done)
+- **P2**: Open app fullscreen by default (done)
+- **P3**: Pin hot area 2x radius of visual pin circle (done)
+- **P4**: Viewport top-left icons for normals + stats toggles (done)
+- **P5**: Parameter sliders are 2x wider (done)
+- **P6**: Show splat info text in Splat Read parameter pane (done)
+- **P7**: File requester buttons for Read/Write OBJ + Splat Read/Splat Write (done)
+- **P8**: Viewport/node editor split is draggable (done)

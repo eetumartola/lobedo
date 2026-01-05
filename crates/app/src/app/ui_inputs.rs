@@ -14,10 +14,32 @@ impl LobedoApp {
             (i.key_pressed(egui::Key::Z) && i.modifiers.command && i.modifiers.shift)
                 || (i.key_pressed(egui::Key::Y) && i.modifiers.command)
         });
+        let fit_pressed = ctx.input(|i| i.key_pressed(egui::Key::A));
         if undo_pressed {
             self.try_undo();
         } else if redo_pressed {
             self.try_redo();
+        } else if fit_pressed {
+            if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
+                if let Some(rect) = self.last_viewport_rect {
+                    if rect.contains(pos) {
+                        ctx.input_mut(|i| {
+                            i.consume_key(egui::Modifiers::NONE, egui::Key::A);
+                        });
+                        self.fit_viewport_to_scene();
+                        return;
+                    }
+                }
+                if let Some(rect) = self.last_node_graph_rect {
+                    if rect.contains(pos) {
+                        ctx.input_mut(|i| {
+                            i.consume_key(egui::Modifiers::NONE, egui::Key::A);
+                        });
+                        self.node_graph.fit_to_rect(rect);
+                        return;
+                    }
+                }
+            }
         }
     }
 

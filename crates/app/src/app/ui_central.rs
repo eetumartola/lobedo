@@ -11,20 +11,51 @@ impl LobedoApp {
         undo_pushed: &mut bool,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let (left_rect, right_rect) = self.split_central_rect(ui);
+            let (left_rect, right_rect, separator_rect) = self.split_central_rect(ui);
             self.show_left_panel(ui, left_rect);
             self.show_right_panel(ui, right_rect, pointer_down, undo_pushed);
-            self.last_node_graph_rect = Some(right_rect);
+
+            let stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 55));
+            ui.painter().line_segment(
+                [
+                    egui::pos2(separator_rect.center().x, separator_rect.top()),
+                    egui::pos2(separator_rect.center().x, separator_rect.bottom()),
+                ],
+                stroke,
+            );
         });
     }
 
-    fn split_central_rect(&self, ui: &egui::Ui) -> (egui::Rect, egui::Rect) {
+    fn split_central_rect(&mut self, ui: &egui::Ui) -> (egui::Rect, egui::Rect, egui::Rect) {
         let full = ui.available_rect_before_wrap();
         let ratio = self.project.settings.viewport_split.clamp(0.2, 0.8);
-        let left_width = full.width() * ratio;
-        let left = egui::Rect::from_min_size(full.min, egui::vec2(left_width, full.height()));
-        let right = egui::Rect::from_min_max(egui::pos2(left.max.x, full.min.y), full.max);
-        (left, right)
+        let separator_width = 3.0;
+        let separator_x = full.min.x + full.width() * ratio;
+        let separator_rect = egui::Rect::from_min_size(
+            egui::pos2(separator_x - separator_width * 0.5, full.min.y),
+            egui::vec2(separator_width, full.height()),
+        );
+        let response = ui.interact(
+            separator_rect,
+            ui.make_persistent_id("viewport_split_drag"),
+            egui::Sense::drag(),
+        );
+        if response.dragged() {
+            if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                let next = ((pos.x - full.min.x) / full.width()).clamp(0.2, 0.8);
+                self.project.settings.viewport_split = next;
+            }
+        }
+
+        let left = egui::Rect::from_min_max(
+            full.min,
+            egui::pos2(separator_rect.min.x, full.max.y),
+        );
+        let right = egui::Rect::from_min_max(
+            egui::pos2(separator_rect.max.x, full.min.y),
+            full.max,
+        );
+        (left, right, separator_rect)
     }
 
     fn show_left_panel(&mut self, ui: &mut egui::Ui, left_rect: egui::Rect) {
@@ -92,6 +123,7 @@ impl LobedoApp {
 
     fn show_viewport_panel(&mut self, ui: &mut egui::Ui, viewport_rect: egui::Rect) {
         ui.scope_builder(egui::UiBuilder::new().max_rect(viewport_rect), |ui| {
+            self.last_viewport_rect = Some(viewport_rect);
             let available = ui.available_size();
             let (rect, response) =
                 ui.allocate_exact_size(available, egui::Sense::click_and_drag());
@@ -151,7 +183,7 @@ impl LobedoApp {
     fn show_viewport_toolbar(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
         let toolbar_rect = egui::Rect::from_min_size(
             egui::pos2(rect.max.x - 36.0, rect.min.y + 8.0),
-            egui::vec2(28.0, 160.0),
+            egui::vec2(28.0, 220.0),
         );
         ui.scope_builder(egui::UiBuilder::new().max_rect(toolbar_rect), |ui| {
             ui.set_min_width(toolbar_rect.width());
@@ -161,6 +193,20 @@ impl LobedoApp {
             ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
 
             let debug = &mut self.project.settings.render_debug;
+            if ui
+                .add(egui::Button::new("N").selected(debug.show_normals))
+                .on_hover_text("Normals")
+                .clicked()
+            {
+                debug.show_normals = !debug.show_normals;
+            }
+            if ui
+                .add(egui::Button::new("ST").selected(debug.show_stats))
+                .on_hover_text("Stats overlay")
+                .clicked()
+            {
+                debug.show_stats = !debug.show_stats;
+            }
             if ui
                 .add(egui::Button::new("G").selected(debug.show_grid))
                 .on_hover_text("Grid")
@@ -213,6 +259,11 @@ impl LobedoApp {
                 let style = ui.style_mut();
                 style.visuals = egui::Visuals::dark();
                 style.visuals.override_text_color = Some(egui::Color32::from_rgb(220, 220, 220));
+                let stroke_width = 0.25;
+                style.visuals.window_stroke.width = stroke_width;
+                style.visuals.widgets.inactive.bg_stroke.width = stroke_width;
+                style.visuals.widgets.hovered.bg_stroke.width = stroke_width;
+                style.visuals.widgets.active.bg_stroke.width = stroke_width;
                 style.spacing.item_spacing = egui::vec2(10.0, 6.0);
                 let selected = self.node_graph.selected_node_id();
                 let geometry = selected.and_then(|id| self.eval_state.geometry_for_node(id));
@@ -349,6 +400,11 @@ impl LobedoApp {
                     egui::Color32::from_rgb(105, 105, 105);
                 style.visuals.widgets.active.bg_stroke.color =
                     egui::Color32::from_rgb(125, 125, 125);
+                let stroke_width = 0.25;
+                style.visuals.window_stroke.width = stroke_width;
+                style.visuals.widgets.inactive.bg_stroke.width = stroke_width;
+                style.visuals.widgets.hovered.bg_stroke.width = stroke_width;
+                style.visuals.widgets.active.bg_stroke.width = stroke_width;
                 style.visuals.extreme_bg_color = egui::Color32::from_rgb(45, 45, 45);
                 style.visuals.faint_bg_color = egui::Color32::from_rgb(55, 55, 55);
                 style.text_styles.insert(
@@ -376,6 +432,7 @@ impl LobedoApp {
                             *undo_pushed = true;
                         }
                     }
+                    self.show_splat_read_params(ui);
                 });
             });
         });
@@ -389,6 +446,16 @@ impl LobedoApp {
         undo_pushed: &mut bool,
     ) {
         ui.scope_builder(egui::UiBuilder::new().max_rect(graph_rect), |ui| {
+            self.last_node_graph_rect = Some(graph_rect);
+            let hover_pos = ui.input(|i| i.pointer.hover_pos());
+            let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+            if scroll_delta.abs() > 0.0 {
+                if let Some(pos) = hover_pos {
+                    if graph_rect.contains(pos) {
+                        self.node_graph.zoom_at(pos, scroll_delta);
+                    }
+                }
+            }
             let snapshot = self.snapshot_undo();
             self.node_graph
                 .show(ui, &mut self.project.graph, &mut self.eval_dirty);
@@ -398,5 +465,48 @@ impl LobedoApp {
                 *undo_pushed = true;
             }
         });
+    }
+
+    fn show_splat_read_params(&self, ui: &mut egui::Ui) {
+        let Some(node_id) = self.node_graph.selected_node_id() else {
+            return;
+        };
+        let Some(node) = self.project.graph.node(node_id) else {
+            return;
+        };
+        if !matches!(node.name.as_str(), "Splat Read" | "Read Splats") {
+            return;
+        }
+
+        ui.separator();
+        ui.label("Splat info");
+        let Some(geometry) = self.eval_state.geometry_for_node(node_id) else {
+            ui.label("No splat data available yet.");
+            return;
+        };
+        if geometry.splats.is_empty() {
+            ui.label("No splats loaded.");
+            return;
+        }
+
+        let splat_geo = &geometry.splats[0];
+        if geometry.splats.len() > 1 {
+            ui.label("Multiple splat primitives; showing the first.");
+        }
+        ui.label(format!("Path: {}", node.params.get_string("path", "<unset>")));
+        ui.label(format!("Splats: {}", splat_geo.len()));
+        ui.label(format!("SH coeffs/channel: {}", splat_geo.sh_coeffs));
+        ui.label(format!("SH order: {}", sh_order_label(splat_geo.sh_coeffs)));
+    }
+}
+
+fn sh_order_label(sh_coeffs: usize) -> String {
+    let total = 1 + sh_coeffs;
+    let order = (total as f32).sqrt().round() as usize;
+    if order * order == total && order > 0 {
+        let max_l = order - 1;
+        format!("L{} ({} bands)", max_l, max_l + 1)
+    } else {
+        format!("Partial ({} coeffs)", total)
     }
 }

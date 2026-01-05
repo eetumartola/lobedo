@@ -35,6 +35,7 @@ pub struct NodeGraphState {
     pub(super) info_request: Option<NodeInfoRequest>,
     pub(super) wrangle_help_request: Option<Pos2>,
     pub(super) graph_transform: GraphTransformState,
+    pub(super) pending_transform: Option<egui::emath::TSTransform>,
     pub(super) input_pin_positions: Rc<RefCell<HashMap<InPinId, Pos2>>>,
     pub(super) output_pin_positions: Rc<RefCell<HashMap<OutPinId, Pos2>>>,
     pub(super) error_nodes: HashSet<NodeId>,
@@ -84,6 +85,7 @@ impl Default for NodeGraphState {
                 to_global: egui::emath::TSTransform::IDENTITY,
                 valid: false,
             },
+            pending_transform: None,
             input_pin_positions: Rc::new(RefCell::new(HashMap::new())),
             output_pin_positions: Rc::new(RefCell::new(HashMap::new())),
             error_nodes: HashSet::new(),
@@ -145,6 +147,7 @@ impl NodeGraphState {
             node_rects: &mut self.node_ui_rects,
             header_button_rects: &mut self.header_button_rects,
             graph_transform: &mut self.graph_transform,
+            pending_transform: &mut self.pending_transform,
             input_pin_positions: Rc::clone(&self.input_pin_positions),
             output_pin_positions: Rc::clone(&self.output_pin_positions),
             add_menu_open: &mut self.add_menu_open,
@@ -236,6 +239,11 @@ impl NodeGraphState {
     }
 
     pub fn node_at_screen_pos(&self, pos: Pos2) -> Option<NodeId> {
+        let pos = if self.graph_transform.valid {
+            self.graph_transform.to_global.inverse() * pos
+        } else {
+            pos
+        };
         let snarl_node = self.node_at_pos(pos)?;
         self.snarl_to_core.get(&snarl_node).copied()
     }
@@ -246,6 +254,58 @@ impl NodeGraphState {
 
     pub fn take_wrangle_help_request(&mut self) -> Option<Pos2> {
         self.wrangle_help_request.take()
+    }
+
+    pub fn zoom_at(&mut self, screen_pos: Pos2, scroll_delta: f32) {
+        if scroll_delta.abs() <= 0.0 {
+            return;
+        }
+        let base = if self.graph_transform.valid {
+            self.graph_transform.to_global
+        } else {
+            egui::emath::TSTransform::IDENTITY
+        };
+        let zoom = 1.0 - (scroll_delta * 0.1 / 100.0);
+        let next_scale = (base.scaling * zoom).clamp(0.1, 4.0);
+        let graph_pos = base.inverse() * screen_pos;
+        let translation = screen_pos.to_vec2() - graph_pos.to_vec2() * next_scale;
+        self.pending_transform = Some(egui::emath::TSTransform::new(translation, next_scale));
+    }
+
+    pub fn fit_to_rect(&mut self, panel_rect: Rect) {
+        if self.node_ui_rects.is_empty() {
+            return;
+        }
+        let base = if self.graph_transform.valid {
+            self.graph_transform.to_global
+        } else {
+            egui::emath::TSTransform::IDENTITY
+        };
+        let inv = base.inverse();
+        let mut min = Pos2::new(f32::INFINITY, f32::INFINITY);
+        let mut max = Pos2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for rect in self.node_ui_rects.values() {
+            let graph_min = inv * rect.min;
+            let graph_max = inv * rect.max;
+            min.x = min.x.min(graph_min.x);
+            min.y = min.y.min(graph_min.y);
+            max.x = max.x.max(graph_max.x);
+            max.y = max.y.max(graph_max.y);
+        }
+        if !min.is_finite() || !max.is_finite() {
+            return;
+        }
+        let bounds = Rect::from_min_max(min, max);
+        let size = bounds.size().max(vec2(1.0, 1.0));
+        let padded = panel_rect.shrink(32.0);
+        if !padded.is_positive() {
+            return;
+        }
+        let scale_x = padded.width() / size.x;
+        let scale_y = padded.height() / size.y;
+        let scale = scale_x.min(scale_y).clamp(0.1, 4.0);
+        let translation = padded.center().to_vec2() - bounds.center().to_vec2() * scale;
+        self.pending_transform = Some(egui::emath::TSTransform::new(translation, scale));
     }
 }
 

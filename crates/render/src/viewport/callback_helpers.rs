@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3};
+use glam::{Mat3, Mat4, Vec3};
 
 #[derive(Clone, Copy)]
 pub(super) struct SortedSplat {
@@ -18,11 +18,13 @@ pub(super) fn sort_splats_by_depth(
     rotations: &[[f32; 4]],
     camera_pos: Vec3,
     forward: Vec3,
+    depth_transform: Mat3,
 ) -> Vec<SortedSplat> {
     let mut entries = Vec::with_capacity(positions.len());
     for (idx, position) in positions.iter().enumerate() {
         let pos = Vec3::from(*position);
-        let depth = (pos - camera_pos).dot(forward);
+        let pos_depth = depth_transform * pos;
+        let depth = (pos_depth - camera_pos).dot(forward);
         entries.push(SortedSplat {
             depth,
             position: *position,
