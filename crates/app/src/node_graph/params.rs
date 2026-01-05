@@ -319,7 +319,7 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, value: &mut String) -> bool {
     changed
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PathPickerKind {
     ReadObj,
     WriteObj,
@@ -406,17 +406,19 @@ fn open_path_picker_button(
         return false;
     }
     #[cfg(not(target_arch = "wasm32"))]
-    let clicked = ui
-        .add_sized([button_width, height], egui::Button::new("..."))
-        .on_hover_text("Browse")
-        .clicked();
-    if clicked {
-        if let Some(path) = open_path_picker(kind, value) {
-            *value = path;
-            return true;
+    {
+        let clicked = ui
+            .add_sized([button_width, height], egui::Button::new("..."))
+            .on_hover_text("Browse")
+            .clicked();
+        if clicked {
+            if let Some(path) = open_path_picker(kind, value) {
+                *value = path;
+                return true;
+            }
         }
+        false
     }
-    false
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -447,11 +449,6 @@ fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
         dialog.pick_file()
     };
     picked.map(|path| path.display().to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-fn open_path_picker(_kind: PathPickerKind, _current: &str) -> Option<String> {
-    None
 }
 
 fn param_row(ui: &mut Ui, label: &str, add_controls: impl FnOnce(&mut Ui) -> bool) -> bool {

@@ -27,6 +27,12 @@ Status: done | in progress | not started
 - **N3**: Delete / Splat Prune / Splat Regularize (done)
 - **N6**: Group node (box/sphere/plane; group by existing group) (done)
 - **N7**: Group selection parameter on applicable nodes (Auto/Point/Vertex/Primitive) (done)
+- **N8**: Tube (support splats where applicable) (not started)
+- **N9**: Attribute Noise (support splats where applicable) (not started)
+- **N10**: Attribute from Feature (Measure SOP + Heightfield Mask by Feature hybrid; support splats where applicable) (not started)
+- **N11**: Attribute Transfer (support splats at least as source) (not started)
+- **N12**: Smooth (support splats where applicable) (not started)
+- **N13**: Ray (support splats where applicable) (not started)
 - **N4**: LOD/Decimate (voxel clustering) (not started)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 

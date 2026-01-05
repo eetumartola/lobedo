@@ -78,7 +78,7 @@ impl GpuMeshCache {
             let max_buffer_size = device.limits().max_buffer_size as usize;
             let vertex_stride = vertex_stride.max(1);
             let vertex_buffer_size = vertices.len();
-            let index_buffer_size = indices.len() * std::mem::size_of::<u32>();
+            let index_buffer_size = std::mem::size_of_val(indices);
             let data = if vertex_buffer_size <= max_buffer_size
                 && index_buffer_size <= max_buffer_size
             {

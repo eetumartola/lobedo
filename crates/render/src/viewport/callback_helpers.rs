@@ -1,5 +1,6 @@
 use glam::{Mat3, Mat4, Vec3};
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 #[derive(Clone, Copy)]
 pub(super) struct SortedSplat {
     pub(super) depth: f32,
@@ -10,6 +11,7 @@ pub(super) struct SortedSplat {
     pub(super) rotation: [f32; 4],
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn sort_splats_by_depth(
     positions: &[[f32; 3]],
     colors: &[[f32; 3]],

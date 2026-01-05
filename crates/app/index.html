@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lobedo</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background: #1c1c1c;
+      }
+      #lobedo-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: sans-serif;
+        color: #d0d0d0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading">Loading Lobedo…</div>
+    <canvas id="lobedo-canvas"></canvas>
+    <script type="module">
+      import init, { start } from "./lobedo.js";
+      async function boot() {
+        await init();
+        await start("lobedo-canvas");
+        const loading = document.getElementById("loading");
+        if (loading) {
+          loading.remove();
+        }
+      }
+      boot();
+    </script>
+  </body>
+</html>

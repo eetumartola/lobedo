@@ -29,7 +29,6 @@ mod undo;
 mod viewport;
 mod wrangle_help;
 
-pub(crate) use logging::setup_tracing;
 pub(crate) use logging::ConsoleBuffer;
 
 use logging::level_filter_to_u8;
@@ -72,6 +71,10 @@ pub(crate) struct LobedoApp {
 enum DisplayState {
     Ok,
     Missing,
+}
+
+pub(crate) fn setup_tracing() -> (ConsoleBuffer, Arc<AtomicU8>) {
+    logging::setup_tracing()
 }
 
 impl LobedoApp {

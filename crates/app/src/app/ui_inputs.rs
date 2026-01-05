@@ -36,7 +36,6 @@ impl LobedoApp {
                             i.consume_key(egui::Modifiers::NONE, egui::Key::A);
                         });
                         self.node_graph.fit_to_rect(rect);
-                        return;
                     }
                 }
             }

@@ -60,7 +60,7 @@ fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
         tobj::load_obj(path, &options).map_err(|err| format!("OBJ load failed: {err}"))?
     };
 
-    return build_mesh_from_models(models);
+    build_mesh_from_models(models)
     }
 }
 

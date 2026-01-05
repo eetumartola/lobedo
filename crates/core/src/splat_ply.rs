@@ -62,7 +62,7 @@ pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<Splat
     #[cfg(not(target_arch = "wasm32"))]
     {
         let data = std::fs::read(path).map_err(|err| err.to_string())?;
-        return parse_splat_ply_bytes_with_mode(&data, mode);
+        parse_splat_ply_bytes_with_mode(&data, mode)
     }
     #[cfg(target_arch = "wasm32")]
     {

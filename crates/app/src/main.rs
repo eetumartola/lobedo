@@ -1,9 +1,14 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::process;
 
+#[cfg(not(target_arch = "wasm32"))]
 use eframe::egui;
 
+#[cfg(not(target_arch = "wasm32"))]
 mod app;
+#[cfg(not(target_arch = "wasm32"))]
 mod headless;
+#[cfg(not(target_arch = "wasm32"))]
 mod node_graph;
 
 #[cfg(not(target_arch = "wasm32"))]
