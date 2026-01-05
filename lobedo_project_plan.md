@@ -32,6 +32,12 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Parameter sliders are 2x wider
 - Viewport/node editor split is draggable
 
+## Epic C - Architecture cleanup
+- Centralize built-in node registry metadata (definitions/defaults/compute/input policy)
+- Drive geometry eval inputs from the node input policy
+- Wrap mesh/splat eval around geometry eval to remove duplicate input logic
+- Reduce duplicate node lists in UI menu/state helpers
+
 ---
 
 ## Core Data Model

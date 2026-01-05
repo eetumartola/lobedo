@@ -10,6 +10,13 @@ Status: done | in progress | not started
 - **G6**: Add group system (named point/vertex/primitive groups; splats in primitive groups) (done)
 - **G7**: Treat splat centers as points (point ops apply), add point vs primitive groups, map splat attributes to Houdini names (done)
 
+## Epic C - Architecture cleanup
+- **C1**: Centralize built-in node registry metadata (definitions/defaults/compute/input policy) (done)
+- **C2**: Drive geometry eval inputs from the node input policy (done)
+- **C3**: Mesh eval wraps geometry eval and derives mesh outputs (done)
+- **C4**: Splat eval wraps geometry eval and derives splat outputs (done)
+- **C5**: Reduce duplicate node lists in the UI menu/state helpers (not started)
+
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
 - **S3**: Expand `SceneSnapshot` to multiple drawables (done)

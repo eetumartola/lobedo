@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::eval::{evaluate_from_with, EvalReport, EvalState};
 use crate::geometry::Geometry;
 use crate::graph::{Graph, GraphError, NodeId};
-use crate::nodes_builtin::{builtin_kind_from_name, compute_geometry_node, BuiltinNodeKind};
+use crate::nodes_builtin::{builtin_kind_from_name, compute_geometry_node, input_policy, InputPolicy};
 
 #[derive(Debug, Default)]
 pub struct GeometryEvalState {
@@ -63,99 +63,36 @@ pub fn evaluate_geometry_graph(
             input_geometries.push(geometry);
         }
 
-        // Reminder: register new unary geometry nodes here so they receive their input geometry.
-        let inputs = match kind {
-            BuiltinNodeKind::Transform
-            | BuiltinNodeKind::CopyTransform
-            | BuiltinNodeKind::Delete
-            | BuiltinNodeKind::Prune
-            | BuiltinNodeKind::Regularize
-            | BuiltinNodeKind::Group
-            | BuiltinNodeKind::Normal
-            | BuiltinNodeKind::Scatter
-            | BuiltinNodeKind::Color
-            | BuiltinNodeKind::Noise
-            | BuiltinNodeKind::Smooth
-            | BuiltinNodeKind::AttributeNoise
-            | BuiltinNodeKind::AttributeFromFeature
-            | BuiltinNodeKind::AttributeMath
-            | BuiltinNodeKind::Wrangle
-            | BuiltinNodeKind::ObjOutput
-            | BuiltinNodeKind::Output => {
-                if let Some(geometry) = input_geometries.first().and_then(|geo| geo.clone()) {
-                    vec![geometry]
-                } else {
-                    let name = input_names
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "in".to_string());
-                    return Err(format!("missing input '{}'", name));
+        let inputs = match input_policy(kind) {
+            InputPolicy::None => Vec::new(),
+            InputPolicy::RequireAll => {
+                let mut inputs = Vec::with_capacity(input_geometries.len());
+                for (idx, geometry) in input_geometries.into_iter().enumerate() {
+                    let Some(geometry) = geometry else {
+                        let name = input_names
+                            .get(idx)
+                            .cloned()
+                            .unwrap_or_else(|| "in".to_string());
+                        return Err(format!("missing input '{}'", name));
+                    };
+                    inputs.push(geometry);
                 }
+                inputs
             }
-            BuiltinNodeKind::CopyToPoints => {
-                let source = input_geometries.first().and_then(|geo| geo.clone());
-                let template = input_geometries.get(1).and_then(|geo| geo.clone());
-                if source.is_none() {
-                    let name = input_names
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "source".to_string());
-                    return Err(format!("missing input '{}'", name));
+            InputPolicy::RequireAtLeast(min) => {
+                let inputs: Vec<Geometry> = input_geometries.into_iter().flatten().collect();
+                if inputs.len() < min {
+                    let suffix = if min == 1 { "" } else { "s" };
+                    return Err(format!(
+                        "{} requires at least {} input{}",
+                        kind.name(),
+                        min,
+                        suffix
+                    ));
                 }
-                if template.is_none() {
-                    let name = input_names
-                        .get(1)
-                        .cloned()
-                        .unwrap_or_else(|| "template".to_string());
-                    return Err(format!("missing input '{}'", name));
-                }
-                vec![source.unwrap(), template.unwrap()]
+                inputs
             }
-            BuiltinNodeKind::AttributeTransfer => {
-                let target = input_geometries.first().and_then(|geo| geo.clone());
-                let source = input_geometries.get(1).and_then(|geo| geo.clone());
-                if target.is_none() {
-                    let name = input_names
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "target".to_string());
-                    return Err(format!("missing input '{}'", name));
-                }
-                if source.is_none() {
-                    let name = input_names
-                        .get(1)
-                        .cloned()
-                        .unwrap_or_else(|| "source".to_string());
-                    return Err(format!("missing input '{}'", name));
-                }
-                vec![target.unwrap(), source.unwrap()]
-            }
-            BuiltinNodeKind::Ray => {
-                let source = input_geometries.first().and_then(|geo| geo.clone());
-                let target = input_geometries.get(1).and_then(|geo| geo.clone());
-                if source.is_none() {
-                    let name = input_names
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| "in".to_string());
-                    return Err(format!("missing input '{}'", name));
-                }
-                if target.is_none() {
-                    let name = input_names
-                        .get(1)
-                        .cloned()
-                        .unwrap_or_else(|| "target".to_string());
-                    return Err(format!("missing input '{}'", name));
-                }
-                vec![source.unwrap(), target.unwrap()]
-            }
-            BuiltinNodeKind::Merge => input_geometries.into_iter().flatten().collect(),
-            _ => Vec::new(),
         };
-
-        if matches!(kind, BuiltinNodeKind::Merge) && inputs.is_empty() {
-            return Err("Merge requires at least one geometry input".to_string());
-        }
 
         let geometry = compute_geometry_node(kind, params, &inputs)?;
         outputs.insert(node_id, geometry);

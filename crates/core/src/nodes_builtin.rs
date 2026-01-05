@@ -37,178 +37,331 @@ pub enum BuiltinNodeKind {
     Output,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputPolicy {
+    None,
+    RequireAll,
+    RequireAtLeast(usize),
+}
+
+pub struct NodeSpec {
+    pub kind: BuiltinNodeKind,
+    pub name: &'static str,
+    pub aliases: &'static [&'static str],
+    pub definition: fn() -> NodeDefinition,
+    pub default_params: fn() -> NodeParams,
+    pub compute_mesh: fn(&NodeParams, &[Mesh]) -> Result<Mesh, String>,
+    pub input_policy: InputPolicy,
+}
+
+fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Splat Read outputs splat geometry, not meshes".to_string())
+}
+
+fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Splat Write expects splat geometry, not meshes".to_string())
+}
+
+static NODE_SPECS: &[NodeSpec] = &[
+    NodeSpec {
+        kind: BuiltinNodeKind::Box,
+        name: nodes::box_node::NAME,
+        aliases: &[],
+        definition: nodes::box_node::definition,
+        default_params: nodes::box_node::default_params,
+        compute_mesh: nodes::box_node::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Grid,
+        name: nodes::grid::NAME,
+        aliases: &[],
+        definition: nodes::grid::definition,
+        default_params: nodes::grid::default_params,
+        compute_mesh: nodes::grid::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Sphere,
+        name: nodes::sphere::NAME,
+        aliases: &[],
+        definition: nodes::sphere::definition,
+        default_params: nodes::sphere::default_params,
+        compute_mesh: nodes::sphere::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Tube,
+        name: nodes::tube::NAME,
+        aliases: &[],
+        definition: nodes::tube::definition,
+        default_params: nodes::tube::default_params,
+        compute_mesh: nodes::tube::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::File,
+        name: nodes::file::NAME,
+        aliases: &[],
+        definition: nodes::file::definition,
+        default_params: nodes::file::default_params,
+        compute_mesh: nodes::file::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::ReadSplats,
+        name: nodes::read_splats::NAME,
+        aliases: &[nodes::read_splats::LEGACY_NAME],
+        definition: nodes::read_splats::definition,
+        default_params: nodes::read_splats::default_params,
+        compute_mesh: mesh_error_read_splats,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::WriteSplats,
+        name: nodes::write_splats::NAME,
+        aliases: &[nodes::write_splats::LEGACY_NAME],
+        definition: nodes::write_splats::definition,
+        default_params: nodes::write_splats::default_params,
+        compute_mesh: mesh_error_write_splats,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Delete,
+        name: nodes::delete::NAME,
+        aliases: &[],
+        definition: nodes::delete::definition,
+        default_params: nodes::delete::default_params,
+        compute_mesh: nodes::delete::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Prune,
+        name: nodes::prune::NAME,
+        aliases: &[nodes::prune::LEGACY_NAME],
+        definition: nodes::prune::definition,
+        default_params: nodes::prune::default_params,
+        compute_mesh: nodes::prune::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Regularize,
+        name: nodes::regularize::NAME,
+        aliases: &[nodes::regularize::LEGACY_NAME],
+        definition: nodes::regularize::definition,
+        default_params: nodes::regularize::default_params,
+        compute_mesh: nodes::regularize::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Group,
+        name: nodes::group::NAME,
+        aliases: &[],
+        definition: nodes::group::definition,
+        default_params: nodes::group::default_params,
+        compute_mesh: nodes::group::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Transform,
+        name: nodes::transform::NAME,
+        aliases: &[],
+        definition: nodes::transform::definition,
+        default_params: nodes::transform::default_params,
+        compute_mesh: nodes::transform::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::CopyTransform,
+        name: nodes::copy_transform::NAME,
+        aliases: &[],
+        definition: nodes::copy_transform::definition,
+        default_params: nodes::copy_transform::default_params,
+        compute_mesh: nodes::copy_transform::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Merge,
+        name: nodes::merge::NAME,
+        aliases: &[],
+        definition: nodes::merge::definition,
+        default_params: nodes::merge::default_params,
+        compute_mesh: nodes::merge::compute,
+        input_policy: InputPolicy::RequireAtLeast(1),
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::CopyToPoints,
+        name: nodes::copy_to_points::NAME,
+        aliases: &[],
+        definition: nodes::copy_to_points::definition,
+        default_params: nodes::copy_to_points::default_params,
+        compute_mesh: nodes::copy_to_points::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Scatter,
+        name: nodes::scatter::NAME,
+        aliases: &[],
+        definition: nodes::scatter::definition,
+        default_params: nodes::scatter::default_params,
+        compute_mesh: nodes::scatter::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Normal,
+        name: nodes::normal::NAME,
+        aliases: &[],
+        definition: nodes::normal::definition,
+        default_params: nodes::normal::default_params,
+        compute_mesh: nodes::normal::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Color,
+        name: nodes::color::NAME,
+        aliases: &[],
+        definition: nodes::color::definition,
+        default_params: nodes::color::default_params,
+        compute_mesh: nodes::color::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Noise,
+        name: nodes::noise::NAME,
+        aliases: &[],
+        definition: nodes::noise::definition,
+        default_params: nodes::noise::default_params,
+        compute_mesh: nodes::noise::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Smooth,
+        name: nodes::smooth::NAME,
+        aliases: &[],
+        definition: nodes::smooth::definition,
+        default_params: nodes::smooth::default_params,
+        compute_mesh: nodes::smooth::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Ray,
+        name: nodes::ray::NAME,
+        aliases: &[],
+        definition: nodes::ray::definition,
+        default_params: nodes::ray::default_params,
+        compute_mesh: nodes::ray::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::AttributeNoise,
+        name: nodes::attribute_noise::NAME,
+        aliases: &[],
+        definition: nodes::attribute_noise::definition,
+        default_params: nodes::attribute_noise::default_params,
+        compute_mesh: nodes::attribute_noise::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::AttributeFromFeature,
+        name: nodes::attribute_from_feature::NAME,
+        aliases: &[],
+        definition: nodes::attribute_from_feature::definition,
+        default_params: nodes::attribute_from_feature::default_params,
+        compute_mesh: nodes::attribute_from_feature::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::AttributeTransfer,
+        name: nodes::attribute_transfer::NAME,
+        aliases: &[],
+        definition: nodes::attribute_transfer::definition,
+        default_params: nodes::attribute_transfer::default_params,
+        compute_mesh: nodes::attribute_transfer::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::AttributeMath,
+        name: nodes::attribute_math::NAME,
+        aliases: &[],
+        definition: nodes::attribute_math::definition,
+        default_params: nodes::attribute_math::default_params,
+        compute_mesh: nodes::attribute_math::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Wrangle,
+        name: nodes::wrangle::NAME,
+        aliases: &[],
+        definition: nodes::wrangle::definition,
+        default_params: nodes::wrangle::default_params,
+        compute_mesh: nodes::wrangle::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::ObjOutput,
+        name: nodes::obj_output::NAME,
+        aliases: &[],
+        definition: nodes::obj_output::definition,
+        default_params: nodes::obj_output::default_params,
+        compute_mesh: nodes::obj_output::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Output,
+        name: nodes::output::NAME,
+        aliases: &[],
+        definition: nodes::output::definition,
+        default_params: nodes::output::default_params,
+        compute_mesh: nodes::output::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+];
+
+pub fn node_specs() -> &'static [NodeSpec] {
+    NODE_SPECS
+}
+
+fn node_spec(kind: BuiltinNodeKind) -> &'static NodeSpec {
+    NODE_SPECS
+        .iter()
+        .find(|spec| spec.kind == kind)
+        .unwrap_or_else(|| panic!("missing node spec for {:?}", kind))
+}
+
+pub fn input_policy(kind: BuiltinNodeKind) -> InputPolicy {
+    node_spec(kind).input_policy
+}
+
 impl BuiltinNodeKind {
     pub fn name(self) -> &'static str {
-        match self {
-            BuiltinNodeKind::Box => nodes::box_node::NAME,
-            BuiltinNodeKind::Grid => nodes::grid::NAME,
-            BuiltinNodeKind::Sphere => nodes::sphere::NAME,
-            BuiltinNodeKind::Tube => nodes::tube::NAME,
-            BuiltinNodeKind::File => nodes::file::NAME,
-            BuiltinNodeKind::ReadSplats => nodes::read_splats::NAME,
-            BuiltinNodeKind::WriteSplats => nodes::write_splats::NAME,
-            BuiltinNodeKind::Delete => nodes::delete::NAME,
-            BuiltinNodeKind::Prune => nodes::prune::NAME,
-            BuiltinNodeKind::Regularize => nodes::regularize::NAME,
-            BuiltinNodeKind::Group => nodes::group::NAME,
-            BuiltinNodeKind::Transform => nodes::transform::NAME,
-            BuiltinNodeKind::CopyTransform => nodes::copy_transform::NAME,
-            BuiltinNodeKind::Merge => nodes::merge::NAME,
-            BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::NAME,
-            BuiltinNodeKind::Scatter => nodes::scatter::NAME,
-            BuiltinNodeKind::Normal => nodes::normal::NAME,
-            BuiltinNodeKind::Color => nodes::color::NAME,
-            BuiltinNodeKind::Noise => nodes::noise::NAME,
-            BuiltinNodeKind::Smooth => nodes::smooth::NAME,
-            BuiltinNodeKind::Ray => nodes::ray::NAME,
-            BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::NAME,
-            BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::NAME,
-            BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::NAME,
-            BuiltinNodeKind::AttributeMath => nodes::attribute_math::NAME,
-            BuiltinNodeKind::Wrangle => nodes::wrangle::NAME,
-            BuiltinNodeKind::ObjOutput => nodes::obj_output::NAME,
-            BuiltinNodeKind::Output => nodes::output::NAME,
-        }
+        node_spec(self).name
     }
 }
 
+#[allow(clippy::manual_contains)]
 pub fn builtin_kind_from_name(name: &str) -> Option<BuiltinNodeKind> {
-    match name {
-        nodes::box_node::NAME => Some(BuiltinNodeKind::Box),
-        nodes::grid::NAME => Some(BuiltinNodeKind::Grid),
-        nodes::sphere::NAME => Some(BuiltinNodeKind::Sphere),
-        nodes::tube::NAME => Some(BuiltinNodeKind::Tube),
-        nodes::file::NAME => Some(BuiltinNodeKind::File),
-        nodes::read_splats::NAME | nodes::read_splats::LEGACY_NAME => {
-            Some(BuiltinNodeKind::ReadSplats)
+    node_specs().iter().find_map(|spec| {
+        if spec.name == name || spec.aliases.iter().any(|alias| *alias == name) {
+            Some(spec.kind)
+        } else {
+            None
         }
-        nodes::write_splats::NAME | nodes::write_splats::LEGACY_NAME => {
-            Some(BuiltinNodeKind::WriteSplats)
-        }
-        nodes::delete::NAME => Some(BuiltinNodeKind::Delete),
-        nodes::prune::NAME | nodes::prune::LEGACY_NAME => Some(BuiltinNodeKind::Prune),
-        nodes::regularize::NAME | nodes::regularize::LEGACY_NAME => {
-            Some(BuiltinNodeKind::Regularize)
-        }
-        nodes::group::NAME => Some(BuiltinNodeKind::Group),
-        nodes::transform::NAME => Some(BuiltinNodeKind::Transform),
-        nodes::copy_transform::NAME => Some(BuiltinNodeKind::CopyTransform),
-        nodes::merge::NAME => Some(BuiltinNodeKind::Merge),
-        nodes::copy_to_points::NAME => Some(BuiltinNodeKind::CopyToPoints),
-        nodes::scatter::NAME => Some(BuiltinNodeKind::Scatter),
-        nodes::normal::NAME => Some(BuiltinNodeKind::Normal),
-        nodes::color::NAME => Some(BuiltinNodeKind::Color),
-        nodes::noise::NAME => Some(BuiltinNodeKind::Noise),
-        nodes::smooth::NAME => Some(BuiltinNodeKind::Smooth),
-        nodes::ray::NAME => Some(BuiltinNodeKind::Ray),
-        nodes::attribute_noise::NAME => Some(BuiltinNodeKind::AttributeNoise),
-        nodes::attribute_from_feature::NAME => Some(BuiltinNodeKind::AttributeFromFeature),
-        nodes::attribute_transfer::NAME => Some(BuiltinNodeKind::AttributeTransfer),
-        nodes::attribute_math::NAME => Some(BuiltinNodeKind::AttributeMath),
-        nodes::wrangle::NAME => Some(BuiltinNodeKind::Wrangle),
-        nodes::obj_output::NAME => Some(BuiltinNodeKind::ObjOutput),
-        nodes::output::NAME => Some(BuiltinNodeKind::Output),
-        _ => None,
-    }
+    })
 }
 
 pub fn builtin_definitions() -> Vec<NodeDefinition> {
-    vec![
-        node_definition(BuiltinNodeKind::Box),
-        node_definition(BuiltinNodeKind::Grid),
-        node_definition(BuiltinNodeKind::Sphere),
-        node_definition(BuiltinNodeKind::Tube),
-        node_definition(BuiltinNodeKind::File),
-        node_definition(BuiltinNodeKind::ReadSplats),
-        node_definition(BuiltinNodeKind::WriteSplats),
-        node_definition(BuiltinNodeKind::Delete),
-        node_definition(BuiltinNodeKind::Prune),
-        node_definition(BuiltinNodeKind::Regularize),
-        node_definition(BuiltinNodeKind::Group),
-        node_definition(BuiltinNodeKind::Transform),
-        node_definition(BuiltinNodeKind::CopyTransform),
-        node_definition(BuiltinNodeKind::Merge),
-        node_definition(BuiltinNodeKind::CopyToPoints),
-        node_definition(BuiltinNodeKind::Scatter),
-        node_definition(BuiltinNodeKind::Normal),
-        node_definition(BuiltinNodeKind::Color),
-        node_definition(BuiltinNodeKind::Noise),
-        node_definition(BuiltinNodeKind::Smooth),
-        node_definition(BuiltinNodeKind::Ray),
-        node_definition(BuiltinNodeKind::AttributeNoise),
-        node_definition(BuiltinNodeKind::AttributeFromFeature),
-        node_definition(BuiltinNodeKind::AttributeTransfer),
-        node_definition(BuiltinNodeKind::AttributeMath),
-        node_definition(BuiltinNodeKind::Wrangle),
-        node_definition(BuiltinNodeKind::ObjOutput),
-        node_definition(BuiltinNodeKind::Output),
-    ]
+    node_specs()
+        .iter()
+        .map(|spec| (spec.definition)())
+        .collect()
 }
 
 pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
-    match kind {
-        BuiltinNodeKind::Box => nodes::box_node::definition(),
-        BuiltinNodeKind::Grid => nodes::grid::definition(),
-        BuiltinNodeKind::Sphere => nodes::sphere::definition(),
-        BuiltinNodeKind::Tube => nodes::tube::definition(),
-        BuiltinNodeKind::File => nodes::file::definition(),
-        BuiltinNodeKind::ReadSplats => nodes::read_splats::definition(),
-        BuiltinNodeKind::WriteSplats => nodes::write_splats::definition(),
-        BuiltinNodeKind::Delete => nodes::delete::definition(),
-        BuiltinNodeKind::Prune => nodes::prune::definition(),
-        BuiltinNodeKind::Regularize => nodes::regularize::definition(),
-        BuiltinNodeKind::Group => nodes::group::definition(),
-        BuiltinNodeKind::Transform => nodes::transform::definition(),
-        BuiltinNodeKind::CopyTransform => nodes::copy_transform::definition(),
-        BuiltinNodeKind::Merge => nodes::merge::definition(),
-        BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::definition(),
-        BuiltinNodeKind::Scatter => nodes::scatter::definition(),
-        BuiltinNodeKind::Normal => nodes::normal::definition(),
-        BuiltinNodeKind::Color => nodes::color::definition(),
-        BuiltinNodeKind::Noise => nodes::noise::definition(),
-        BuiltinNodeKind::Smooth => nodes::smooth::definition(),
-        BuiltinNodeKind::Ray => nodes::ray::definition(),
-        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::definition(),
-        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::definition(),
-        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::definition(),
-        BuiltinNodeKind::AttributeMath => nodes::attribute_math::definition(),
-        BuiltinNodeKind::Wrangle => nodes::wrangle::definition(),
-        BuiltinNodeKind::ObjOutput => nodes::obj_output::definition(),
-        BuiltinNodeKind::Output => nodes::output::definition(),
-    }
+    (node_spec(kind).definition)()
 }
 
 pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
-    match kind {
-        BuiltinNodeKind::Box => nodes::box_node::default_params(),
-        BuiltinNodeKind::Grid => nodes::grid::default_params(),
-        BuiltinNodeKind::Sphere => nodes::sphere::default_params(),
-        BuiltinNodeKind::Tube => nodes::tube::default_params(),
-        BuiltinNodeKind::File => nodes::file::default_params(),
-        BuiltinNodeKind::ReadSplats => nodes::read_splats::default_params(),
-        BuiltinNodeKind::WriteSplats => nodes::write_splats::default_params(),
-        BuiltinNodeKind::Delete => nodes::delete::default_params(),
-        BuiltinNodeKind::Prune => nodes::prune::default_params(),
-        BuiltinNodeKind::Regularize => nodes::regularize::default_params(),
-        BuiltinNodeKind::Group => nodes::group::default_params(),
-        BuiltinNodeKind::Transform => nodes::transform::default_params(),
-        BuiltinNodeKind::CopyTransform => nodes::copy_transform::default_params(),
-        BuiltinNodeKind::Merge => nodes::merge::default_params(),
-        BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::default_params(),
-        BuiltinNodeKind::Scatter => nodes::scatter::default_params(),
-        BuiltinNodeKind::Normal => nodes::normal::default_params(),
-        BuiltinNodeKind::Color => nodes::color::default_params(),
-        BuiltinNodeKind::Noise => nodes::noise::default_params(),
-        BuiltinNodeKind::Smooth => nodes::smooth::default_params(),
-        BuiltinNodeKind::Ray => nodes::ray::default_params(),
-        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::default_params(),
-        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::default_params(),
-        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::default_params(),
-        BuiltinNodeKind::AttributeMath => nodes::attribute_math::default_params(),
-        BuiltinNodeKind::Wrangle => nodes::wrangle::default_params(),
-        BuiltinNodeKind::ObjOutput => nodes::obj_output::default_params(),
-        BuiltinNodeKind::Output => nodes::output::default_params(),
-    }
+    (node_spec(kind).default_params)()
 }
 
 pub fn compute_mesh_node(
@@ -216,42 +369,7 @@ pub fn compute_mesh_node(
     params: &NodeParams,
     inputs: &[Mesh],
 ) -> Result<Mesh, String> {
-    match kind {
-        BuiltinNodeKind::Box => nodes::box_node::compute(params, inputs),
-        BuiltinNodeKind::Grid => nodes::grid::compute(params, inputs),
-        BuiltinNodeKind::Sphere => nodes::sphere::compute(params, inputs),
-        BuiltinNodeKind::Tube => nodes::tube::compute(params, inputs),
-        BuiltinNodeKind::File => nodes::file::compute(params, inputs),
-        BuiltinNodeKind::ReadSplats => {
-            Err("Splat Read outputs splat geometry, not meshes".to_string())
-        }
-        BuiltinNodeKind::WriteSplats => {
-            Err("Splat Write expects splat geometry, not meshes".to_string())
-        }
-        BuiltinNodeKind::Delete => nodes::delete::compute(params, inputs),
-        BuiltinNodeKind::Prune => nodes::prune::compute(params, inputs),
-        BuiltinNodeKind::Regularize => nodes::regularize::compute(params, inputs),
-        BuiltinNodeKind::Group => nodes::group::compute(params, inputs),
-        BuiltinNodeKind::Transform => nodes::transform::compute(params, inputs),
-        BuiltinNodeKind::CopyTransform => nodes::copy_transform::compute(params, inputs),
-        BuiltinNodeKind::Merge => nodes::merge::compute(params, inputs),
-        BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::compute(params, inputs),
-        BuiltinNodeKind::Scatter => nodes::scatter::compute(params, inputs),
-        BuiltinNodeKind::Normal => nodes::normal::compute(params, inputs),
-        BuiltinNodeKind::Color => nodes::color::compute(params, inputs),
-        BuiltinNodeKind::Noise => nodes::noise::compute(params, inputs),
-        BuiltinNodeKind::Smooth => nodes::smooth::compute(params, inputs),
-        BuiltinNodeKind::Ray => nodes::ray::compute(params, inputs),
-        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::compute(params, inputs),
-        BuiltinNodeKind::AttributeFromFeature => {
-            nodes::attribute_from_feature::compute(params, inputs)
-        }
-        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::compute(params, inputs),
-        BuiltinNodeKind::AttributeMath => nodes::attribute_math::compute(params, inputs),
-        BuiltinNodeKind::Wrangle => nodes::wrangle::compute(params, inputs),
-        BuiltinNodeKind::ObjOutput => nodes::obj_output::compute(params, inputs),
-        BuiltinNodeKind::Output => nodes::output::compute(params, inputs),
-    }
+    (node_spec(kind).compute_mesh)(params, inputs)
 }
 
 pub fn compute_geometry_node(
