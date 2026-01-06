@@ -34,13 +34,26 @@ impl LobedoApp {
             ui.monospace("@Cd = vec3(1.0, 0.0, 0.0);");
             ui.monospace("@P = @P + vec3(0.0, 1.0, 0.0);");
             ui.separator();
+            ui.label("Implicit attributes:");
+            ui.monospace("@ptnum @vtxnum @primnum @numpt @numvtx @numprim");
+            ui.separator();
             ui.label("Swizzles:");
             ui.monospace("@P.x");
             ui.monospace("@N.xy");
             ui.monospace("@Cd.rgb");
             ui.separator();
             ui.label("Functions:");
-            ui.monospace("sin cos tan abs floor ceil pow min max clamp lerp len dot normalize");
+            ui.monospace(
+                "sin cos tan abs floor ceil pow min max clamp lerp len dot normalize",
+            );
+            ui.monospace("point vertex prim splat");
+            ui.monospace("point(0, P, @ptnum)");
+            ui.monospace("splat(1, P, @ptnum)");
+            ui.separator();
+            ui.label("Inputs:");
+            ui.label("point/vertex/prim/splat take (input_index, attr_name, element_index).");
+            ui.label("Input 0 is the main input; input 1 is the secondary input.");
+            ui.label("splat() always queries splat centers.");
             ui.separator();
             ui.label("Constructors:");
             ui.monospace("vec2(x, y) vec3(x, y, z) vec4(x, y, z, w)");

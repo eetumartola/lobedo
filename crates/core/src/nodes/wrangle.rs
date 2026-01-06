@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::attributes::AttributeDomain;
+use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
@@ -18,7 +19,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("in")],
+        inputs: vec![geometry_in("in"), geometry_in("input1")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -39,6 +40,7 @@ pub fn default_params() -> NodeParams {
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let mut input = require_mesh_input(inputs, 0, "Wrangle requires a mesh input")?;
+    let secondary = inputs.get(1);
     let code = params.get_string("code", "");
     let domain = match params.get_int("mode", 0).clamp(0, 3) {
         0 => AttributeDomain::Point,
@@ -48,7 +50,15 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     };
     if !code.trim().is_empty() {
         let mask = mesh_group_mask(&input, params, domain);
-        apply_wrangle(&mut input, domain, code, mask.as_deref())?;
+        apply_wrangle(
+            &mut input,
+            domain,
+            code,
+            mask.as_deref(),
+            secondary,
+            None,
+            None,
+        )?;
     }
     Ok(input)
 }
@@ -56,6 +66,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 pub(crate) fn apply_to_splats(
     params: &NodeParams,
     splats: &mut SplatGeo,
+    secondary: Option<&SplatGeo>,
 ) -> Result<(), String> {
     let code = params.get_string("code", "");
     let domain = match params.get_int("mode", 0).clamp(0, 3) {
@@ -66,8 +77,61 @@ pub(crate) fn apply_to_splats(
     };
     if !code.trim().is_empty() {
         let mask = splat_group_mask(splats, params, domain);
-        apply_wrangle_splats(splats, domain, code, mask.as_deref())?;
+        apply_wrangle_splats(splats, domain, code, mask.as_deref(), secondary)?;
     }
     Ok(())
+}
+
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let secondary = inputs.get(1);
+    let secondary_mesh = secondary.and_then(|geo| geo.merged_mesh());
+    let secondary_splats = secondary.and_then(|geo| geo.merged_splats());
+    let primary_splats = input.merged_splats();
+    let code = params.get_string("code", "");
+    if code.trim().is_empty() {
+        return Ok(input.clone());
+    }
+
+    let domain = match params.get_int("mode", 0).clamp(0, 3) {
+        0 => AttributeDomain::Point,
+        1 => AttributeDomain::Vertex,
+        2 => AttributeDomain::Primitive,
+        _ => AttributeDomain::Detail,
+    };
+
+    let mut meshes = Vec::with_capacity(input.meshes.len());
+    for mesh in &input.meshes {
+        let mut mesh = mesh.clone();
+        let mask = mesh_group_mask(&mesh, params, domain);
+        apply_wrangle(
+            &mut mesh,
+            domain,
+            code,
+            mask.as_deref(),
+            secondary_mesh.as_ref(),
+            primary_splats.as_ref(),
+            secondary_splats.as_ref(),
+        )?;
+        meshes.push(mesh);
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        let mut splat = splat.clone();
+        let mask = splat_group_mask(&splat, params, domain);
+        apply_wrangle_splats(
+            &mut splat,
+            domain,
+            code,
+            mask.as_deref(),
+            secondary_splats.as_ref(),
+        )?;
+        splats.push(splat);
+    }
+
+    Ok(Geometry { meshes, splats })
 }
 

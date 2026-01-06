@@ -144,6 +144,7 @@ SH evaluation:
 11. `Attribute Transfer` (space-delimited attribute names; domain selector; splats as source at minimum)
 12. `Smooth` (space-delimited attribute names, default P; splat-aware where possible)
 13. `Ray` (normal/direction/closest; max distance; hit group + attribute import; optional no-transform)
+14. `Wrangle` (implicit @ptnum/@vtxnum/@primnum; point/vertex/prim/splat attribute queries across inputs 0/1)
 
 ### Splat-native ops
 14. `Crop` (box/sphere/plane)

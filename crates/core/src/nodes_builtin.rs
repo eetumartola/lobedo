@@ -305,7 +305,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::wrangle::definition,
         default_params: nodes::wrangle::default_params,
         compute_mesh: nodes::wrangle::compute,
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::ObjOutput,
@@ -412,8 +412,8 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::Smooth
         | BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::AttributeFromFeature
-        | BuiltinNodeKind::AttributeMath
-        | BuiltinNodeKind::Wrangle => apply_mesh_unary(kind, params, inputs),
+        | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
+        BuiltinNodeKind::Wrangle => nodes::wrangle::apply_to_geometry(params, inputs),
         BuiltinNodeKind::AttributeTransfer => apply_attribute_transfer(params, inputs),
         BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
         BuiltinNodeKind::Merge => merge_geometry(inputs),
@@ -469,7 +469,7 @@ fn apply_mesh_unary(
                 nodes::attribute_math::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::Wrangle => {
-                nodes::wrangle::apply_to_splats(params, &mut splat)?;
+                nodes::wrangle::apply_to_splats(params, &mut splat, None)?;
             }
             _ => {}
         }

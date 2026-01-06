@@ -43,6 +43,7 @@ Status: done | in progress | not started
 - **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (done)
 - **N4**: LOD/Decimate (voxel clustering) (done)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
+- **N14**: Wrangle: @ptnum/@vtxnum/@primnum + point/vertex/prim/splat queries (inputs 0/1) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)
