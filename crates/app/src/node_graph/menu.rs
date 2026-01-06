@@ -93,9 +93,10 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         | BuiltinNodeKind::ReadSplats
         | BuiltinNodeKind::WriteSplats
         | BuiltinNodeKind::ObjOutput => Some("IO"),
-        BuiltinNodeKind::Prune | BuiltinNodeKind::Regularize | BuiltinNodeKind::SplatLod => {
-            Some("Splat")
-        }
+        BuiltinNodeKind::Prune
+        | BuiltinNodeKind::Regularize
+        | BuiltinNodeKind::SplatLod
+        | BuiltinNodeKind::SplatDeform => Some("Splat"),
         BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeTransfer

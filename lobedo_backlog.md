@@ -17,6 +17,15 @@ Status: done | in progress | not started
 - **C4**: Splat eval wraps geometry eval and derives splat outputs (done)
 - **C5**: Reduce duplicate node lists in the UI menu/state helpers (done)
 
+## Epic T - Parallelism (future)
+- **T1**: Add optional CPU parallelism (rayon) with single-thread fallback for web/wasm (not started)
+- **T2**: Parallelize attribute-heavy nodes (Wrangle, Attribute Noise/From Feature/Transfer/Math, Smooth) (not started)
+- **T3**: Parallelize splat ops (Prune, Regularize, LOD/Decimate) (not started)
+- **T4**: Parallelize mesh ops (Delete/Group, Copy to Points/Transform, Ray) (not started)
+- **T5**: Parallelize per-primitive evaluation inside Geometry nodes (mesh/splat lists) (not started)
+- **T6**: Explore parallel node evaluation for independent subgraphs (scheduler) (not started)
+- **T7**: Add profiling + size thresholds to guard parallel overhead (not started)
+
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
 - **S3**: Expand `SceneSnapshot` to multiple drawables (done)
@@ -44,6 +53,7 @@ Status: done | in progress | not started
 - **N4**: LOD/Decimate (voxel clustering) (done)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
 - **N14**: Wrangle: @ptnum/@vtxnum/@primnum + point/vertex/prim/splat queries (inputs 0/1) (done)
+- **N15**: Splat Deform (deform source splats from edited point cloud; optional new splats) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

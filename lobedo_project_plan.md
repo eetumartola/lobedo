@@ -38,6 +38,14 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Wrap mesh/splat eval around geometry eval to remove duplicate input logic
 - Reduce duplicate node lists in UI menu/state helpers
 
+## Epic T - Parallelism (future)
+- Add optional CPU parallelism (rayon) for heavy geometry loops with a single-thread fallback for web
+- Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering)
+- Target high-cost loops (Attribute Transfer, Smooth, Ray, Copy to Points) + CPU splat depth sorting
+- Parallelize per-primitive evaluation inside a node (mesh list, splat list, point list)
+- Explore parallel node evaluation for independent subgraphs (graph scheduling)
+- Add profiling-driven thresholds (only parallelize above a size/complexity cutoff)
+
 ---
 
 ## Core Data Model

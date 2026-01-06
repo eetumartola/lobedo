@@ -697,6 +697,78 @@ impl SplatGeo {
         }
     }
 
+    pub fn apply_linear_deform(&mut self, idx: usize, linear: Mat3) {
+        if idx >= self.positions.len() {
+            return;
+        }
+        if !mat3_is_finite(linear) {
+            return;
+        }
+
+        let sh_mats = if self.sh_coeffs >= 3 {
+            Some(build_sh_rotation_matrices(
+                rotation_from_linear(linear),
+                self.sh_coeffs,
+            ))
+        } else {
+            None
+        };
+        let min_scale = SPLAT_LOG_SCALE_MIN.exp();
+
+        let mut log_scale = Vec3::from(self.scales[idx]);
+        log_scale = Vec3::new(
+            log_scale.x.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+            log_scale.y.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+            log_scale.z.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+        );
+        let mut scale = Vec3::new(log_scale.x.exp(), log_scale.y.exp(), log_scale.z.exp());
+        scale = Vec3::new(
+            scale.x.max(min_scale),
+            scale.y.max(min_scale),
+            scale.z.max(min_scale),
+        );
+
+        let rotation = self.rotations[idx];
+        let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+        if quat.length_squared() > 0.0 {
+            quat = quat.normalize();
+        } else {
+            quat = Quat::IDENTITY;
+        }
+
+        let rot_mat = Mat3::from_quat(quat);
+        let cov_local = Mat3::from_diagonal(scale * scale);
+        let cov_world = linear * (rot_mat * cov_local * rot_mat.transpose()) * linear.transpose();
+
+        let (eigenvalues, mut eigenvectors) = eigen_decomposition_symmetric(cov_world);
+        if eigenvectors.determinant() < 0.0 {
+            eigenvectors = Mat3::from_cols(
+                eigenvectors.x_axis,
+                eigenvectors.y_axis,
+                -eigenvectors.z_axis,
+            );
+        }
+
+        let mut sigma = Vec3::new(
+            eigenvalues.x.max(0.0).sqrt(),
+            eigenvalues.y.max(0.0).sqrt(),
+            eigenvalues.z.max(0.0).sqrt(),
+        );
+        sigma = Vec3::new(
+            sigma.x.max(min_scale),
+            sigma.y.max(min_scale),
+            sigma.z.max(min_scale),
+        );
+
+        let quat = Quat::from_mat3(&eigenvectors).normalize();
+        self.rotations[idx] = [quat.w, quat.x, quat.y, quat.z];
+        self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
+
+        if let Some(mats) = &sh_mats {
+            rotate_sh_bands(self, idx, mats);
+        }
+    }
+
     pub fn filter_by_indices(&self, kept: &[usize]) -> SplatGeo {
         let mut output = SplatGeo::with_len_and_sh(kept.len(), self.sh_coeffs);
         for (out_idx, src_idx) in kept.iter().copied().enumerate() {
@@ -873,7 +945,10 @@ fn sh_max_band(sh_coeffs: usize) -> usize {
 }
 
 fn rotation_from_matrix(matrix: Mat4) -> Mat3 {
-    let linear = Mat3::from_mat4(matrix);
+    rotation_from_linear(Mat3::from_mat4(matrix))
+}
+
+fn rotation_from_linear(linear: Mat3) -> Mat3 {
     if !mat3_is_finite(linear) {
         return Mat3::IDENTITY;
     }
