@@ -6,6 +6,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
+    attribute_utils::{domain_from_params, existing_float_attr_mesh, existing_float_attr_splats},
     geometry_in,
     geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
@@ -45,12 +46,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 
 pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
     let feature = params.get_int("feature", 0).clamp(0, 1);
-    let domain = match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    };
+    let domain = domain_from_params(params);
     let attr_name = target_attr_name(params, feature);
     let count = splats.attribute_domain_len(domain);
     if count == 0 && domain != AttributeDomain::Detail {
@@ -72,12 +68,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
 
 fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     let feature = params.get_int("feature", 0).clamp(0, 1);
-    let domain = match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    };
+    let domain = domain_from_params(params);
     let attr_name = target_attr_name(params, feature);
     let count = mesh.attribute_domain_len(domain);
     if count == 0 && domain != AttributeDomain::Detail {
@@ -501,32 +492,4 @@ where
     } else {
         sum / count as f32
     }
-}
-
-fn existing_float_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<f32> {
-    if let Some(crate::attributes::AttributeRef::Float(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
-}
-
-fn existing_float_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<f32> {
-    if let Some(crate::attributes::AttributeRef::Float(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
 }

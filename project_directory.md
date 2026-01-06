@@ -172,6 +172,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\attribute_utils.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\box_node.rs
 Description: TODO: add description.
 Functions: None
@@ -261,6 +265,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\splat_lod.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\splat_utils.rs
 Description: TODO: add description.
 Functions: None
 

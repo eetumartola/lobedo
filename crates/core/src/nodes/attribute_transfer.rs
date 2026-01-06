@@ -7,6 +7,13 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
+    attribute_utils::{
+        domain_from_params, existing_float_attr_mesh, existing_float_attr_splats,
+        existing_int_attr_mesh, existing_int_attr_splats, existing_vec2_attr_mesh,
+        existing_vec2_attr_splats, existing_vec3_attr_mesh, existing_vec3_attr_splats,
+        existing_vec4_attr_mesh, existing_vec4_attr_splats, mesh_positions_for_domain,
+        parse_attribute_list, splat_positions_for_domain,
+    },
     geometry_in,
     geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
@@ -89,23 +96,6 @@ pub fn apply_to_geometry(
     }
 
     Ok(Geometry { meshes, splats })
-}
-
-fn domain_from_params(params: &NodeParams) -> AttributeDomain {
-    match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    }
-}
-
-fn parse_attribute_list(value: &str) -> Vec<String> {
-    value
-        .split_whitespace()
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string())
-        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -574,209 +564,4 @@ fn find_nearest_index(position: Vec3, samples: &[Vec3]) -> usize {
         }
     }
     best
-}
-
-fn mesh_positions_for_domain(mesh: &Mesh, domain: AttributeDomain) -> Vec<Vec3> {
-    match domain {
-        AttributeDomain::Point => mesh.positions.iter().copied().map(Vec3::from).collect(),
-        AttributeDomain::Vertex => mesh
-            .indices
-            .iter()
-            .filter_map(|idx| mesh.positions.get(*idx as usize))
-            .copied()
-            .map(Vec3::from)
-            .collect(),
-        AttributeDomain::Primitive => {
-            let mut positions = Vec::with_capacity(mesh.indices.len() / 3);
-            for tri in mesh.indices.chunks_exact(3) {
-                let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0; 3]);
-                let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0; 3]);
-                let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0; 3]);
-                let center = (Vec3::from(p0) + Vec3::from(p1) + Vec3::from(p2)) / 3.0;
-                positions.push(center);
-            }
-            positions
-        }
-        AttributeDomain::Detail => mesh
-            .bounds()
-            .map(|bounds| {
-                Vec3::new(
-                    (bounds.min[0] + bounds.max[0]) * 0.5,
-                    (bounds.min[1] + bounds.max[1]) * 0.5,
-                    (bounds.min[2] + bounds.max[2]) * 0.5,
-                )
-            })
-            .into_iter()
-            .collect(),
-    }
-}
-
-fn splat_positions_for_domain(splats: &SplatGeo, domain: AttributeDomain) -> Vec<Vec3> {
-    match domain {
-        AttributeDomain::Point | AttributeDomain::Primitive => {
-            splats.positions.iter().copied().map(Vec3::from).collect()
-        }
-        AttributeDomain::Detail => {
-            let mut iter = splats.positions.iter();
-            let Some(first) = iter.next().copied() else {
-                return Vec::new();
-            };
-            let mut min = first;
-            let mut max = first;
-            for p in iter {
-                min[0] = min[0].min(p[0]);
-                min[1] = min[1].min(p[1]);
-                min[2] = min[2].min(p[2]);
-                max[0] = max[0].max(p[0]);
-                max[1] = max[1].max(p[1]);
-                max[2] = max[2].max(p[2]);
-            }
-            vec![Vec3::new(
-                (min[0] + max[0]) * 0.5,
-                (min[1] + max[1]) * 0.5,
-                (min[2] + max[2]) * 0.5,
-            )]
-        }
-        AttributeDomain::Vertex => Vec::new(),
-    }
-}
-
-fn existing_float_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<f32> {
-    if let Some(AttributeRef::Float(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
-}
-
-fn existing_int_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<i32> {
-    if let Some(AttributeRef::Int(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0; count.max(1)]
-}
-
-fn existing_vec2_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 2]> {
-    if let Some(AttributeRef::Vec2(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec3_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 3]> {
-    if let Some(AttributeRef::Vec3(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec4_attr_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 4]> {
-    if let Some(AttributeRef::Vec4(values)) = mesh.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_float_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<f32> {
-    if let Some(AttributeRef::Float(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
-}
-
-fn existing_int_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<i32> {
-    if let Some(AttributeRef::Int(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0; count.max(1)]
-}
-
-fn existing_vec2_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 2]> {
-    if let Some(AttributeRef::Vec2(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec3_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 3]> {
-    if let Some(AttributeRef::Vec3(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec4_attr_splats(
-    splats: &SplatGeo,
-    domain: AttributeDomain,
-    name: &str,
-    count: usize,
-) -> Vec<[f32; 4]> {
-    if let Some(AttributeRef::Vec4(values)) = splats.attribute(domain, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0, 0.0]; count.max(1)]
 }

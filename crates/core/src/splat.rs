@@ -297,6 +297,51 @@ impl SplatGeo {
         }
     }
 
+    pub fn is_finite_at(&self, idx: usize) -> bool {
+        let Some(position) = self.positions.get(idx) else {
+            return false;
+        };
+        if position.iter().any(|value| !value.is_finite()) {
+            return false;
+        }
+        let Some(rotation) = self.rotations.get(idx) else {
+            return false;
+        };
+        if rotation.iter().any(|value| !value.is_finite()) {
+            return false;
+        }
+        let Some(scale) = self.scales.get(idx) else {
+            return false;
+        };
+        if scale.iter().any(|value| !value.is_finite()) {
+            return false;
+        }
+        let Some(opacity) = self.opacity.get(idx) else {
+            return false;
+        };
+        if !opacity.is_finite() {
+            return false;
+        }
+        let Some(sh0) = self.sh0.get(idx) else {
+            return false;
+        };
+        if sh0.iter().any(|value| !value.is_finite()) {
+            return false;
+        }
+        if self.sh_coeffs > 0 {
+            let base = idx * self.sh_coeffs;
+            for coeff in 0..self.sh_coeffs {
+                let Some(values) = self.sh_rest.get(base + coeff) else {
+                    return false;
+                };
+                if values.iter().any(|value| !value.is_finite()) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         let count = self.positions.len();
         if self.rotations.len() != count

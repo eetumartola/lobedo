@@ -6,11 +6,11 @@ use egui::{vec2, Align2, Color32, FontId, Pos2, Rect, TextStyle, Ui};
 use egui_snarl::ui::{AnyPins, PinInfo, SnarlPin, SnarlViewer};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
-use lobedo_core::{default_params, node_definition, BuiltinNodeKind, Graph, NodeId, PinId};
+use lobedo_core::{BuiltinNodeKind, Graph, NodeId, PinId};
 
-use super::menu::{builtin_menu_items, menu_layout};
+use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
 use super::state::{GraphTransformState, HeaderButtonRects, PendingWire, SnarlNode};
-use super::utils::{pin_color, submenu_menu_button};
+use super::utils::{add_builtin_node_checked, core_input_pin, core_output_pin, pin_color};
 
 pub(super) struct NodeGraphViewer<'a> {
     pub(super) graph: &'a mut Graph,
@@ -91,35 +91,27 @@ impl<'a> NodeGraphViewer<'a> {
 
     fn core_pin_for_input(&self, snarl: &Snarl<SnarlNode>, pin: InPinId) -> Option<PinId> {
         let core_node = self.core_node_id(snarl, pin.node)?;
-        let node = self.graph.node(core_node)?;
-        node.inputs.get(pin.input).copied()
+        core_input_pin(self.graph, core_node, pin.input)
     }
 
     fn core_pin_for_output(&self, snarl: &Snarl<SnarlNode>, pin: OutPinId) -> Option<PinId> {
         let core_node = self.core_node_id(snarl, pin.node)?;
-        let node = self.graph.node(core_node)?;
-        node.outputs.get(pin.output).copied()
+        core_output_pin(self.graph, core_node, pin.output)
     }
 
     fn add_node(&mut self, snarl: &mut Snarl<SnarlNode>, kind: BuiltinNodeKind, pos: Pos2) {
-        if kind == BuiltinNodeKind::Output && self.graph.nodes().any(|node| node.name == "Output") {
-            tracing::warn!("Only one Output node is supported right now.");
+        if add_builtin_node_checked(
+            self.graph,
+            snarl,
+            self.core_to_snarl,
+            self.snarl_to_core,
+            kind,
+            pos,
+        )
+        .is_none()
+        {
             return;
         }
-
-        let was_empty = self.graph.nodes().next().is_none();
-        let core_id = self.graph.add_node(node_definition(kind));
-        let params = default_params(kind);
-        for (key, value) in params.values {
-            let _ = self.graph.set_param(core_id, key, value);
-        }
-        if was_empty {
-            let _ = self.graph.set_display_node(Some(core_id));
-        }
-
-        let snarl_id = snarl.insert_node(pos, SnarlNode { core_id });
-        self.core_to_snarl.insert(core_id, snarl_id);
-        self.snarl_to_core.insert(snarl_id, core_id);
         *self.next_pos = Pos2::new(pos.x + 240.0, pos.y);
         self.changed = true;
     }
@@ -391,21 +383,9 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         ui.label("Add node");
         let items = builtin_menu_items();
         let layout = menu_layout(&items);
-        for submenu in layout.submenus {
-            submenu_menu_button(ui, submenu.name, |ui| {
-                for item in &submenu.items {
-                    if ui.button(item.name.as_str()).clicked() {
-                        self.add_node(snarl, item.kind, pos);
-                        ui.close();
-                    }
-                }
-            });
-        }
-        for item in layout.items {
-            if ui.button(item.name.as_str()).clicked() {
-                self.add_node(snarl, item.kind, pos);
-                ui.close();
-            }
+        if let Some(kind) = render_menu_layout(ui, layout) {
+            self.add_node(snarl, kind, pos);
+            ui.close();
         }
     }
 

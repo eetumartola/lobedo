@@ -2,9 +2,9 @@ use egui::{Frame, Pos2, Ui};
 
 use lobedo_core::{BuiltinNodeKind, Graph, NodeId};
 
-use super::menu::{builtin_menu_items, menu_layout};
+use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
 use super::state::{NodeGraphState, NodeInfoRequest};
-use super::utils::{add_builtin_node, submenu_menu_button};
+use super::utils::{add_builtin_node, add_builtin_node_checked};
 
 impl NodeGraphState {
     pub(super) fn show_node_menu(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
@@ -92,7 +92,7 @@ impl NodeGraphState {
             BuiltinNodeKind::Transform,
             Pos2::new(origin.x + 240.0, origin.y),
         );
-        let output_id = add_builtin_node(
+        let output_id = add_builtin_node_checked(
             graph,
             &mut self.snarl,
             &mut self.core_to_snarl,
@@ -110,8 +110,8 @@ impl NodeGraphState {
         let transform_out = graph
             .node(transform_id)
             .and_then(|node| node.outputs.first().copied());
-        let output_in = graph
-            .node(output_id)
+        let output_in = output_id
+            .and_then(|id| graph.node(id))
             .and_then(|node| node.inputs.first().copied());
 
         if let (Some(box_out), Some(transform_in), Some(transform_out), Some(output_in)) =
@@ -152,48 +152,22 @@ impl NodeGraphState {
                     ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
                 }
 
-                let items = builtin_menu_items();
-                let filter = self.add_menu_filter.to_lowercase();
-                if filter.is_empty() {
-                    let layout = menu_layout(&items);
-                    for submenu in layout.submenus {
-                        submenu_menu_button(ui, submenu.name, |ui| {
-                            for item in &submenu.items {
-                                if ui.button(item.name.as_str()).clicked() {
-                                    if let Some(core_id) = self.try_add_node(
-                                        graph,
-                                        item.kind,
-                                        self.add_menu_graph_pos,
-                                    ) {
-                                        changed = true;
-                                        if let Some(pending) = self.pending_wire.take() {
-                                            if self.connect_pending_wire(graph, core_id, pending) {
-                                                changed = true;
-                                            }
-                                        }
-                                    }
-                                    close_menu = true;
-                                    ui.close();
-                                }
-                            }
-                        });
-                    }
-                    for item in layout.items {
-                        if ui.button(item.name.as_str()).clicked() {
-                            if let Some(core_id) =
-                                self.try_add_node(graph, item.kind, self.add_menu_graph_pos)
-                            {
-                                changed = true;
-                                if let Some(pending) = self.pending_wire.take() {
-                                    if self.connect_pending_wire(graph, core_id, pending) {
-                                        changed = true;
-                                    }
-                                }
-                            }
-                            close_menu = true;
+        let items = builtin_menu_items();
+        let filter = self.add_menu_filter.to_lowercase();
+        if filter.is_empty() {
+            let layout = menu_layout(&items);
+            if let Some(kind) = render_menu_layout(ui, layout) {
+                if let Some(core_id) = self.try_add_node(graph, kind, self.add_menu_graph_pos) {
+                    changed = true;
+                    if let Some(pending) = self.pending_wire.take() {
+                        if self.connect_pending_wire(graph, core_id, pending) {
+                            changed = true;
                         }
                     }
-                } else {
+                }
+                close_menu = true;
+            }
+        } else {
                     let mut matched = false;
                     let mut first_match: Option<BuiltinNodeKind> = None;
                     for item in items {
@@ -276,19 +250,14 @@ impl NodeGraphState {
         kind: BuiltinNodeKind,
         pos: Pos2,
     ) -> Option<NodeId> {
-        if kind == BuiltinNodeKind::Output && graph.nodes().any(|node| node.name == "Output") {
-            tracing::warn!("Only one Output node is supported right now.");
-            return None;
-        }
-
-        let core_id = add_builtin_node(
+        let core_id = add_builtin_node_checked(
             graph,
             &mut self.snarl,
             &mut self.core_to_snarl,
             &mut self.snarl_to_core,
             kind,
             pos,
-        );
+        )?;
         self.needs_wire_sync = true;
         Some(core_id)
     }

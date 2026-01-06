@@ -57,170 +57,62 @@ pub(super) fn edit_param(
         }
         ParamValue::Int(mut v) => {
             let changed = if label == "domain" || label == "mode" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Point");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")],
+                    "Point",
+                )
             } else if label == "group_type" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[
                         (0, "Auto"),
                         (1, "Vertex"),
                         (2, "Point"),
                         (3, "Primitive"),
-                    ];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Auto");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                    ],
+                    "Auto",
+                )
             } else if label == "read_mode" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Full (SH)"), (1, "Base Color")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Full (SH)");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[(0, "Full (SH)"), (1, "Base Color")],
+                    "Full (SH)",
+                )
             } else if label == "data_type" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Float"), (1, "Vec2"), (2, "Vec3")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Vec3");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[(0, "Float"), (1, "Vec2"), (2, "Vec3")],
+                    "Vec3",
+                )
             } else if label == "noise_type" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Value"), (1, "Perlin")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Value");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(ui, label, &mut v, &[(0, "Value"), (1, "Perlin")], "Value")
             } else if label == "feature" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Area"), (1, "Gradient")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Area");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(ui, label, &mut v, &[(0, "Area"), (1, "Gradient")], "Area")
             } else if label == "method" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Normal"), (1, "Direction"), (2, "Closest")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Normal");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[(0, "Normal"), (1, "Direction"), (2, "Closest")],
+                    "Normal",
+                )
             } else if label == "op" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Add");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value, name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_i32(
+                    ui,
+                    label,
+                    &mut v,
+                    &[(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")],
+                    "Add",
+                )
             } else {
                 param_row(ui, label, |ui| {
                     let mut changed = false;
@@ -318,25 +210,13 @@ pub(super) fn edit_param(
         }
         ParamValue::String(mut v) => {
             let changed = if label == "shape" {
-                param_row(ui, label, |ui| {
-                    let mut changed = false;
-                    let options = [("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")];
-                    let selected = options
-                        .iter()
-                        .find(|(value, _)| *value == v)
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Box");
-                    egui::ComboBox::from_id_salt(label)
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for (value, name) in options {
-                                if ui.selectable_value(&mut v, value.to_string(), name).changed() {
-                                    changed = true;
-                                }
-                            }
-                        });
-                    changed
-                })
+                combo_row_string(
+                    ui,
+                    label,
+                    &mut v,
+                    &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")],
+                    "Box",
+                )
             } else if label == "code" {
                 param_row_with_height(ui, label, 120.0, |ui| {
                     ui.add_sized(
@@ -575,6 +455,63 @@ fn param_row_with_height(
         },
     );
     changed
+}
+
+fn combo_row_i32(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut i32,
+    options: &[(i32, &str)],
+    fallback: &str,
+) -> bool {
+    param_row(ui, label, |ui| {
+        let mut changed = false;
+        let selected = options
+            .iter()
+            .find(|(opt_value, _)| *opt_value == *value)
+            .map(|(_, name)| *name)
+            .unwrap_or(fallback);
+        egui::ComboBox::from_id_salt(label)
+            .selected_text(selected)
+            .show_ui(ui, |ui| {
+                for (opt_value, name) in options.iter().copied() {
+                    if ui.selectable_value(value, opt_value, name).changed() {
+                        changed = true;
+                    }
+                }
+            });
+        changed
+    })
+}
+
+fn combo_row_string(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut String,
+    options: &[(&str, &str)],
+    fallback: &str,
+) -> bool {
+    param_row(ui, label, |ui| {
+        let mut changed = false;
+        let selected = options
+            .iter()
+            .find(|(opt_value, _)| *opt_value == value.as_str())
+            .map(|(_, name)| *name)
+            .unwrap_or(fallback);
+        egui::ComboBox::from_id_salt(label)
+            .selected_text(selected)
+            .show_ui(ui, |ui| {
+                for (opt_value, name) in options.iter().copied() {
+                    if ui
+                        .selectable_value(value, opt_value.to_string(), name)
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                }
+            });
+        changed
+    })
 }
 
 fn float_slider_range(

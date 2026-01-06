@@ -7,6 +7,12 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
+    attribute_utils::{
+        existing_float_attr_mesh, existing_float_attr_splats, existing_int_attr_mesh,
+        existing_int_attr_splats, existing_vec2_attr_mesh, existing_vec2_attr_splats,
+        existing_vec3_attr_mesh, existing_vec3_attr_splats, existing_vec4_attr_mesh,
+        existing_vec4_attr_splats, parse_attribute_list,
+    },
     geometry_in,
     geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
@@ -305,7 +311,8 @@ fn apply_hit_attributes_mesh(
         };
         match attr_type {
             AttributeType::Float => {
-                let mut out = existing_float_attr_mesh(mesh, &name, count);
+                let mut out =
+                    existing_float_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Float(value)) =
@@ -320,7 +327,7 @@ fn apply_hit_attributes_mesh(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Int => {
-                let mut out = existing_int_attr_mesh(mesh, &name, count);
+                let mut out = existing_int_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Int(value)) =
@@ -335,7 +342,7 @@ fn apply_hit_attributes_mesh(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec2 => {
-                let mut out = existing_vec2_attr_mesh(mesh, &name, count);
+                let mut out = existing_vec2_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec2(value)) =
@@ -350,7 +357,7 @@ fn apply_hit_attributes_mesh(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec3 => {
-                let mut out = existing_vec3_attr_mesh(mesh, &name, count);
+                let mut out = existing_vec3_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec3(value)) =
@@ -365,7 +372,7 @@ fn apply_hit_attributes_mesh(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec4 => {
-                let mut out = existing_vec4_attr_mesh(mesh, &name, count);
+                let mut out = existing_vec4_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec4(value)) =
@@ -405,7 +412,8 @@ fn apply_hit_attributes_splats(
         };
         match attr_type {
             AttributeType::Float => {
-                let mut out = existing_float_attr_splats(splats, &name, count);
+                let mut out =
+                    existing_float_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Float(value)) =
@@ -421,7 +429,8 @@ fn apply_hit_attributes_splats(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Int => {
-                let mut out = existing_int_attr_splats(splats, &name, count);
+                let mut out =
+                    existing_int_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Int(value)) =
@@ -437,7 +446,8 @@ fn apply_hit_attributes_splats(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec2 => {
-                let mut out = existing_vec2_attr_splats(splats, &name, count);
+                let mut out =
+                    existing_vec2_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec2(value)) =
@@ -453,7 +463,8 @@ fn apply_hit_attributes_splats(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec3 => {
-                let mut out = existing_vec3_attr_splats(splats, &name, count);
+                let mut out =
+                    existing_vec3_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec3(value)) =
@@ -469,7 +480,8 @@ fn apply_hit_attributes_splats(
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
             AttributeType::Vec4 => {
-                let mut out = existing_vec4_attr_splats(splats, &name, count);
+                let mut out =
+                    existing_vec4_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
                     let Some(hit) = hit else { continue; };
                     if let Some(AttributeValue::Vec4(value)) =
@@ -487,14 +499,6 @@ fn apply_hit_attributes_splats(
         }
     }
     Ok(())
-}
-
-fn parse_attribute_list(value: &str) -> Vec<String> {
-    value
-        .split_whitespace()
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string())
-        .collect()
 }
 
 fn target_attribute_type(
@@ -1164,94 +1168,4 @@ fn lerp_vec4(
         a[2] * barycentric[0] + b[2] * barycentric[1] + c[2] * barycentric[2],
         a[3] * barycentric[0] + b[3] * barycentric[1] + c[3] * barycentric[2],
     ])
-}
-
-fn existing_float_attr_mesh(mesh: &Mesh, name: &str, count: usize) -> Vec<f32> {
-    if let Some(AttributeRef::Float(values)) = mesh.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
-}
-
-fn existing_int_attr_mesh(mesh: &Mesh, name: &str, count: usize) -> Vec<i32> {
-    if let Some(AttributeRef::Int(values)) = mesh.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0; count.max(1)]
-}
-
-fn existing_vec2_attr_mesh(mesh: &Mesh, name: &str, count: usize) -> Vec<[f32; 2]> {
-    if let Some(AttributeRef::Vec2(values)) = mesh.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec3_attr_mesh(mesh: &Mesh, name: &str, count: usize) -> Vec<[f32; 3]> {
-    if let Some(AttributeRef::Vec3(values)) = mesh.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec4_attr_mesh(mesh: &Mesh, name: &str, count: usize) -> Vec<[f32; 4]> {
-    if let Some(AttributeRef::Vec4(values)) = mesh.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_float_attr_splats(splats: &SplatGeo, name: &str, count: usize) -> Vec<f32> {
-    if let Some(AttributeRef::Float(values)) = splats.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0.0; count.max(1)]
-}
-
-fn existing_int_attr_splats(splats: &SplatGeo, name: &str, count: usize) -> Vec<i32> {
-    if let Some(AttributeRef::Int(values)) = splats.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![0; count.max(1)]
-}
-
-fn existing_vec2_attr_splats(splats: &SplatGeo, name: &str, count: usize) -> Vec<[f32; 2]> {
-    if let Some(AttributeRef::Vec2(values)) = splats.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec3_attr_splats(splats: &SplatGeo, name: &str, count: usize) -> Vec<[f32; 3]> {
-    if let Some(AttributeRef::Vec3(values)) = splats.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0]; count.max(1)]
-}
-
-fn existing_vec4_attr_splats(splats: &SplatGeo, name: &str, count: usize) -> Vec<[f32; 4]> {
-    if let Some(AttributeRef::Vec4(values)) = splats.attribute(AttributeDomain::Point, name) {
-        if values.len() == count {
-            return values.to_vec();
-        }
-    }
-    vec![[0.0, 0.0, 0.0, 0.0]; count.max(1)]
 }

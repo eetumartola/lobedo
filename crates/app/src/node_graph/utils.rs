@@ -45,6 +45,44 @@ pub(super) fn add_builtin_node(
     core_id
 }
 
+pub(super) fn add_builtin_node_checked(
+    graph: &mut Graph,
+    snarl: &mut Snarl<SnarlNode>,
+    core_to_snarl: &mut HashMap<NodeId, egui_snarl::NodeId>,
+    snarl_to_core: &mut HashMap<egui_snarl::NodeId, NodeId>,
+    kind: BuiltinNodeKind,
+    pos: Pos2,
+) -> Option<NodeId> {
+    if kind == BuiltinNodeKind::Output && graph.nodes().any(|node| node.name == "Output") {
+        tracing::warn!("Only one Output node is supported right now.");
+        return None;
+    }
+    Some(add_builtin_node(
+        graph,
+        snarl,
+        core_to_snarl,
+        snarl_to_core,
+        kind,
+        pos,
+    ))
+}
+
+pub(super) fn core_input_pin(
+    graph: &Graph,
+    node_id: NodeId,
+    input_index: usize,
+) -> Option<PinId> {
+    graph.node(node_id)?.inputs.get(input_index).copied()
+}
+
+pub(super) fn core_output_pin(
+    graph: &Graph,
+    node_id: NodeId,
+    output_index: usize,
+) -> Option<PinId> {
+    graph.node(node_id)?.outputs.get(output_index).copied()
+}
+
 pub(super) fn find_input_of_type(
     graph: &Graph,
     node: &lobedo_core::Node,

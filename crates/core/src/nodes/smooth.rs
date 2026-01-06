@@ -6,11 +6,13 @@ use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
+    attribute_utils::{domain_from_params, parse_attribute_list},
     geometry_in,
     geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::nodes::splat_utils::{splat_bounds, splat_cell_key};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Smooth";
@@ -179,23 +181,6 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     Ok(())
 }
 
-fn domain_from_params(params: &NodeParams) -> AttributeDomain {
-    match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    }
-}
-
-fn parse_attribute_list(value: &str) -> Vec<String> {
-    value
-        .split_whitespace()
-        .filter(|name| !name.is_empty())
-        .map(|name| name.to_string())
-        .collect()
-}
-
 fn mesh_neighbors(mesh: &Mesh, domain: AttributeDomain) -> Vec<Vec<usize>> {
     match domain {
         AttributeDomain::Point => point_neighbors(mesh),
@@ -297,14 +282,14 @@ fn splat_neighbors(splats: &SplatGeo) -> Vec<Vec<usize>> {
     let mut grid: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
     for (idx, position) in splats.positions.iter().enumerate() {
         let pos = Vec3::from(*position);
-        let key = cell_key(pos, min, inv_cell);
+        let key = splat_cell_key(pos, min, inv_cell);
         grid.entry(key).or_default().push(idx);
     }
 
     let mut neighbors = vec![Vec::new(); count];
     for (idx, position) in splats.positions.iter().enumerate() {
         let pos = Vec3::from(*position);
-        let base = cell_key(pos, min, inv_cell);
+        let base = splat_cell_key(pos, min, inv_cell);
         for dz in -1..=1 {
             for dy in -1..=1 {
                 for dx in -1..=1 {
@@ -326,30 +311,6 @@ fn splat_neighbors(splats: &SplatGeo) -> Vec<Vec<usize>> {
     neighbors
 }
 
-fn splat_bounds(splats: &SplatGeo) -> (Vec3, Vec3) {
-    let mut iter = splats.positions.iter();
-    let first = iter
-        .next()
-        .copied()
-        .unwrap_or([0.0, 0.0, 0.0]);
-    let mut min = Vec3::from(first);
-    let mut max = Vec3::from(first);
-    for p in iter {
-        let v = Vec3::from(*p);
-        min = min.min(v);
-        max = max.max(v);
-    }
-    (min, max)
-}
-
-fn cell_key(position: Vec3, min: Vec3, inv_cell: f32) -> (i32, i32, i32) {
-    let shifted = (position - min) * inv_cell;
-    (
-        shifted.x.floor() as i32,
-        shifted.y.floor() as i32,
-        shifted.z.floor() as i32,
-    )
-}
 
 fn smooth_scalar(
     values: &[f32],

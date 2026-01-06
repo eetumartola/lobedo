@@ -80,7 +80,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             }
         }
 
-        if remove_invalid && !splat_is_finite(splats, idx) {
+        if remove_invalid && !splats.is_finite_at(idx) {
             continue;
         }
 
@@ -117,53 +117,6 @@ fn scale_extents(scale: [f32; 3], use_log_scale: bool) -> (f32, f32) {
     let min_component = values.x.min(values.y).min(values.z);
     let max_component = values.x.max(values.y).max(values.z);
     (min_component, max_component)
-}
-
-fn splat_is_finite(splats: &SplatGeo, idx: usize) -> bool {
-    let Some(position) = splats.positions.get(idx) else {
-        return false;
-    };
-    if position.iter().any(|value| !value.is_finite()) {
-        return false;
-    }
-    let Some(rotation) = splats.rotations.get(idx) else {
-        return false;
-    };
-    if rotation.iter().any(|value| !value.is_finite()) {
-        return false;
-    }
-    let Some(scale) = splats.scales.get(idx) else {
-        return false;
-    };
-    if scale.iter().any(|value| !value.is_finite()) {
-        return false;
-    }
-    let Some(opacity) = splats.opacity.get(idx) else {
-        return false;
-    };
-    if !opacity.is_finite() {
-        return false;
-    }
-    let Some(sh0) = splats.sh0.get(idx) else {
-        return false;
-    };
-    if sh0.iter().any(|value| !value.is_finite()) {
-        return false;
-    }
-
-    if splats.sh_coeffs > 0 {
-        let base = idx * splats.sh_coeffs;
-        for coeff in 0..splats.sh_coeffs {
-            let Some(values) = splats.sh_rest.get(base + coeff) else {
-                return false;
-            };
-            if values.iter().any(|value| !value.is_finite()) {
-                return false;
-            }
-        }
-    }
-
-    true
 }
 
 #[cfg(test)]

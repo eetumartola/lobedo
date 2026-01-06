@@ -1,4 +1,8 @@
+use egui::Ui;
+
 use lobedo_core::{node_definition, node_specs, BuiltinNodeKind};
+
+use super::utils::submenu_menu_button;
 
 #[derive(Clone)]
 pub(super) struct MenuItem {
@@ -56,6 +60,31 @@ pub(super) fn menu_layout(items: &[MenuItem]) -> MenuLayout {
         }
     }
     layout
+}
+
+pub(super) fn render_menu_layout(ui: &mut Ui, layout: MenuLayout) -> Option<BuiltinNodeKind> {
+    for submenu in layout.submenus {
+        let mut picked = None;
+        submenu_menu_button(ui, submenu.name, |ui| {
+            for item in &submenu.items {
+                if ui.button(item.name.as_str()).clicked() {
+                    picked = Some(item.kind);
+                    ui.close();
+                }
+            }
+        });
+        if picked.is_some() {
+            return picked;
+        }
+    }
+
+    for item in layout.items {
+        if ui.button(item.name.as_str()).clicked() {
+            return Some(item.kind);
+        }
+    }
+
+    None
 }
 
 fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {

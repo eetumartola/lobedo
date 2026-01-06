@@ -5,7 +5,13 @@ use glam::{Quat, Vec3, Vec4};
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
-use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
+use crate::nodes::{
+    geometry_in,
+    geometry_out,
+    group_utils::splat_group_mask,
+    require_mesh_input,
+    splat_utils::{splat_bounds_indices, splat_cell_key},
+};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat LOD";
@@ -233,24 +239,6 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     }
 }
 
-fn splat_bounds_indices(splats: &SplatGeo, indices: &[usize]) -> (Vec3, Vec3) {
-    let mut iter = indices.iter().copied();
-    let first = iter
-        .next()
-        .and_then(|idx| splats.positions.get(idx).copied())
-        .unwrap_or([0.0, 0.0, 0.0]);
-    let mut min = Vec3::from(first);
-    let mut max = Vec3::from(first);
-    for idx in iter {
-        if let Some(position) = splats.positions.get(idx) {
-            let pos = Vec3::from(*position);
-            min = min.min(pos);
-            max = max.max(pos);
-        }
-    }
-    (min, max)
-}
-
 fn build_clusters(
     positions: &[[f32; 3]],
     indices: &[usize],
@@ -262,19 +250,10 @@ fn build_clusters(
         let Some(position) = positions.get(idx) else {
             continue;
         };
-        let key = cell_key(Vec3::from(*position), min, inv_cell);
+        let key = splat_cell_key(Vec3::from(*position), min, inv_cell);
         clusters.entry(key).or_insert_with(Vec::new).push(idx);
     }
     clusters
-}
-
-fn cell_key(position: Vec3, min: Vec3, inv_cell: f32) -> (i32, i32, i32) {
-    let shifted = (position - min) * inv_cell;
-    (
-        shifted.x.floor() as i32,
-        shifted.y.floor() as i32,
-        shifted.z.floor() as i32,
-    )
 }
 
 fn quat_from_rotation(rotation: [f32; 4]) -> Quat {

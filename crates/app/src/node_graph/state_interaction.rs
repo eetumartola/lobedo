@@ -4,7 +4,10 @@ use egui_snarl::{InPinId, OutPinId};
 use lobedo_core::{Graph, NodeId, PinId};
 
 use super::state::{NodeGraphState, PendingWire};
-use super::utils::{find_input_of_type, find_output_of_type, point_snarl_wire_distance};
+use super::utils::{
+    core_input_pin, core_output_pin, find_input_of_type, find_output_of_type,
+    point_snarl_wire_distance,
+};
 
 impl NodeGraphState {
     pub(super) fn update_drag_state(&mut self, ui: &Ui) {
@@ -286,13 +289,11 @@ impl NodeGraphState {
 
     fn core_pin_for_input(&self, graph: &Graph, pin: InPinId) -> Option<PinId> {
         let core_node = self.snarl_to_core.get(&pin.node).copied()?;
-        let node = graph.node(core_node)?;
-        node.inputs.get(pin.input).copied()
+        core_input_pin(graph, core_node, pin.input)
     }
 
     fn core_pin_for_output(&self, graph: &Graph, pin: OutPinId) -> Option<PinId> {
         let core_node = self.snarl_to_core.get(&pin.node).copied()?;
-        let node = graph.node(core_node)?;
-        node.outputs.get(pin.output).copied()
+        core_output_pin(graph, core_node, pin.output)
     }
 }
