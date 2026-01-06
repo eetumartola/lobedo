@@ -93,15 +93,6 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         return splats.clone();
     }
 
-    let use_log_scale = splats
-        .scales
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
-    let use_log_opacity = splats
-        .opacity
-        .iter()
-        .any(|value| *value < 0.0 || *value > 1.0);
-
     let cluster_sets: Vec<Vec<usize>> = clusters.values().cloned().collect();
     let output_len = unselected.len() + cluster_sets.len();
 
@@ -144,17 +135,15 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             pos_sum += Vec3::from(splats.positions[idx]);
             sh0_sum += Vec3::from(splats.sh0[idx]);
 
-            let linear_opacity = if use_log_opacity {
-                sigmoid(splats.opacity[idx])
-            } else {
-                splats.opacity[idx]
-            };
+            let linear_opacity = sigmoid(splats.opacity[idx]);
             opacity_sum += linear_opacity;
 
-            let mut scale = Vec3::from(splats.scales[idx]);
-            if use_log_scale {
-                scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
-            }
+            let scale = Vec3::from(splats.scales[idx]);
+            let scale = Vec3::new(
+                scale.x.clamp(-10.0, 10.0).exp(),
+                scale.y.clamp(-10.0, 10.0).exp(),
+                scale.z.clamp(-10.0, 10.0).exp(),
+            );
             scale_sum += scale;
 
             let mut quat = quat_from_rotation(splats.rotations[idx]);
@@ -183,11 +172,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         if !linear_opacity.is_finite() {
             linear_opacity = 0.0;
         }
-        let output_opacity = if use_log_opacity {
-            logit(linear_opacity)
-        } else {
-            linear_opacity
-        };
+        let output_opacity = logit(linear_opacity);
         opacity.push(output_opacity);
 
         let mut scale = scale_sum * inv_count;
@@ -199,11 +184,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             scale.y.max(1.0e-6),
             scale.z.max(1.0e-6),
         );
-        let scale_out = if use_log_scale {
-            [scale.x.ln(), scale.y.ln(), scale.z.ln()]
-        } else {
-            scale.to_array()
-        };
+        let scale_out = [scale.x.ln(), scale.y.ln(), scale.z.ln()];
         scales.push(scale_out);
 
         let mut quat = Quat::from_xyzw(quat_sum.x, quat_sum.y, quat_sum.z, quat_sum.w);

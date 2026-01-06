@@ -23,8 +23,8 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("min_scale".to_string(), ParamValue::Float(1.0e-4)),
-            ("max_scale".to_string(), ParamValue::Float(1000.0)),
+            ("min_scale".to_string(), ParamValue::Float(-10.0)),
+            ("max_scale".to_string(), ParamValue::Float(10.0)),
             ("normalize_opacity".to_string(), ParamValue::Bool(true)),
             ("normalize_rotation".to_string(), ParamValue::Bool(true)),
             ("remove_invalid".to_string(), ParamValue::Bool(true)),
@@ -41,27 +41,18 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 
 pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     let group_mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    let mut min_scale = params.get_float("min_scale", 1.0e-4);
+    let mut min_scale = params.get_float("min_scale", -10.0);
     if !min_scale.is_finite() {
-        min_scale = 1.0e-4;
+        min_scale = -10.0;
     }
-    let mut max_scale = params.get_float("max_scale", 1000.0);
+    let mut max_scale = params.get_float("max_scale", 10.0);
     if !max_scale.is_finite() {
-        max_scale = 1000.0;
+        max_scale = 10.0;
     }
-    min_scale = min_scale.max(1.0e-6);
     max_scale = max_scale.max(min_scale);
     let normalize_opacity = params.get_bool("normalize_opacity", true);
     let normalize_rotation = params.get_bool("normalize_rotation", true);
     let remove_invalid = params.get_bool("remove_invalid", true);
-    let use_log_opacity = splats
-        .opacity
-        .iter()
-        .any(|value| *value < 0.0 || *value > 1.0);
-    let use_log_scale = splats
-        .scales
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
 
     let mut kept = Vec::with_capacity(splats.len());
     for idx in 0..splats.len() {
@@ -90,11 +81,10 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         if normalize_opacity {
             let mut opacity = output.opacity[out_idx];
             if !opacity.is_finite() {
-                opacity = 1.0;
-            } else if use_log_opacity {
-                opacity = 1.0 / (1.0 + (-opacity).exp());
+                opacity = 0.0;
             }
-            output.opacity[out_idx] = opacity.clamp(0.0, 1.0);
+            let linear = sigmoid(opacity).clamp(1.0e-4, 1.0 - 1.0e-4);
+            output.opacity[out_idx] = logit(linear);
         }
 
         if normalize_rotation {
@@ -109,9 +99,6 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         }
 
         let mut scale = Vec3::from(output.scales[out_idx]);
-        if use_log_scale {
-            scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
-        }
         if !scale.x.is_finite() || !scale.y.is_finite() || !scale.z.is_finite() {
             scale = Vec3::splat(min_scale);
         }
@@ -120,14 +107,19 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             scale.y.clamp(min_scale, max_scale),
             scale.z.clamp(min_scale, max_scale),
         );
-        output.scales[out_idx] = if use_log_scale {
-            [scale.x.ln(), scale.y.ln(), scale.z.ln()]
-        } else {
-            scale.to_array()
-        };
+        output.scales[out_idx] = scale.to_array();
     }
 
     output
+}
+
+fn sigmoid(value: f32) -> f32 {
+    1.0 / (1.0 + (-value).exp())
+}
+
+fn logit(value: f32) -> f32 {
+    let clamped = value.clamp(1.0e-4, 1.0 - 1.0e-4);
+    (clamped / (1.0 - clamped)).ln()
 }
 
 #[cfg(test)]
@@ -143,7 +135,7 @@ mod tests {
     fn regularize_clamps_log_scale() {
         let mut splats = SplatGeo::with_len(1);
         splats.rotations[0] = [1.0, 0.0, 0.0, 0.0];
-        splats.scales[0] = [0.1_f32.ln(); 3];
+        splats.scales[0] = [-2.0; 3];
         splats.opacity[0] = 0.5;
 
         let params = NodeParams {
@@ -157,8 +149,7 @@ mod tests {
         };
 
         let regularized = apply_to_splats(&params, &splats);
-        let expected = 0.5_f32.ln();
-        assert!((regularized.scales[0][0] - expected).abs() < 1.0e-5);
+        assert!((regularized.scales[0][0] - 0.5).abs() < 1.0e-5);
     }
 
     #[test]
@@ -177,7 +168,7 @@ mod tests {
         };
 
         let regularized = apply_to_splats(&params, &splats);
-        let expected = 1.0 / (1.0 + (-2.0f32).exp());
+        let expected = super::logit(1.0 / (1.0 + (-2.0f32).exp()));
         assert!((regularized.opacity[0] - expected).abs() < 1.0e-5);
     }
 }

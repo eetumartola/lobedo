@@ -7,6 +7,11 @@ use crate::attributes::{
 use crate::mesh::MeshGroups;
 pub use crate::splat_ply::{load_splat_ply_with_mode, save_splat_ply, SplatLoadMode};
 
+const SPLAT_LOG_SCALE_MIN: f32 = -10.0;
+const SPLAT_LOG_SCALE_MAX: f32 = 10.0;
+const SPLAT_ALPHA_MIN: f32 = 1.0e-4;
+const SPLAT_ALPHA_MAX: f32 = 1.0 - 1.0e-4;
+
 #[derive(Debug, Clone, Default)]
 pub struct SplatGeo {
     pub positions: Vec<[f32; 3]>,
@@ -25,7 +30,7 @@ impl SplatGeo {
         Self {
             positions: vec![[0.0, 0.0, 0.0]; count],
             rotations: vec![[0.0, 0.0, 0.0, 1.0]; count],
-            scales: vec![[1.0, 1.0, 1.0]; count],
+            scales: vec![[0.0, 0.0, 0.0]; count],
             opacity: vec![1.0; count],
             sh0: vec![[1.0, 1.0, 1.0]; count],
             sh_coeffs: 0,
@@ -50,6 +55,54 @@ impl SplatGeo {
 
     pub fn is_empty(&self) -> bool {
         self.positions.is_empty()
+    }
+
+    pub fn normalize_on_load(&mut self) {
+        self.normalize_rotations();
+        self.normalize_log_scales();
+        self.normalize_logit_opacity();
+    }
+
+    pub fn normalized_for_save(&self) -> SplatGeo {
+        let mut out = self.clone();
+        out.normalize_rotations();
+        out.normalize_log_scales();
+        out.normalize_logit_opacity();
+        out
+    }
+
+    fn normalize_rotations(&mut self) {
+        for rot in &mut self.rotations {
+            let mut quat = Quat::from_xyzw(rot[1], rot[2], rot[3], rot[0]);
+            if quat.length_squared() > 0.0 {
+                quat = quat.normalize();
+            } else {
+                quat = Quat::IDENTITY;
+            }
+            *rot = [quat.w, quat.x, quat.y, quat.z];
+        }
+    }
+
+    fn normalize_log_scales(&mut self) {
+        for scale in &mut self.scales {
+            for component in scale.iter_mut() {
+                if !component.is_finite() {
+                    *component = 0.0;
+                }
+                *component = component.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX);
+            }
+        }
+    }
+
+    fn normalize_logit_opacity(&mut self) {
+        let min_logit = logit(SPLAT_ALPHA_MIN);
+        let max_logit = logit(SPLAT_ALPHA_MAX);
+        for value in &mut self.opacity {
+            if !value.is_finite() {
+                *value = 0.0;
+            }
+            *value = value.clamp(min_logit, max_logit);
+        }
     }
 
     pub fn attribute_domain_len(&self, domain: AttributeDomain) -> usize {
@@ -310,16 +363,25 @@ impl SplatGeo {
         if rotation.iter().any(|value| !value.is_finite()) {
             return false;
         }
+        if !rotation_is_normalized(*rotation) {
+            return false;
+        }
         let Some(scale) = self.scales.get(idx) else {
             return false;
         };
         if scale.iter().any(|value| !value.is_finite()) {
             return false;
         }
+        if !log_scale_in_range(*scale) {
+            return false;
+        }
         let Some(opacity) = self.opacity.get(idx) else {
             return false;
         };
         if !opacity.is_finite() {
+            return false;
+        }
+        if !logit_in_range(*opacity) {
             return false;
         }
         let Some(sh0) = self.sh0.get(idx) else {
@@ -366,14 +428,31 @@ impl SplatGeo {
             return Err("SplatGeo rotations contain non-finite values".to_string());
         }
         if self
+            .rotations
+            .iter()
+            .any(|r| !rotation_is_normalized(*r))
+        {
+            return Err("SplatGeo rotations are not normalized".to_string());
+        }
+        if self
             .scales
             .iter()
             .any(|s| s.iter().any(|value| !value.is_finite()))
         {
             return Err("SplatGeo scales contain non-finite values".to_string());
         }
+        if self
+            .scales
+            .iter()
+            .any(|s| !log_scale_in_range(*s))
+        {
+            return Err("SplatGeo scales out of range".to_string());
+        }
         if self.opacity.iter().any(|value| !value.is_finite()) {
             return Err("SplatGeo opacity contains non-finite values".to_string());
+        }
+        if self.opacity.iter().any(|value| !logit_in_range(*value)) {
+            return Err("SplatGeo opacity out of range".to_string());
         }
         if self
             .sh0
@@ -434,20 +513,20 @@ impl SplatGeo {
         } else {
             None
         };
-        let use_log_scale = self.scales.iter().any(|value| {
-            value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0
-        });
         let linear = Mat3::from_mat4(matrix);
-        let min_scale = 1.0e-6;
+        let min_scale = SPLAT_LOG_SCALE_MIN.exp();
 
         for idx in 0..self.positions.len() {
             let position = matrix.transform_point3(Vec3::from(self.positions[idx]));
             self.positions[idx] = position.to_array();
 
-            let mut scale = Vec3::from(self.scales[idx]);
-            if use_log_scale {
-                scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
-            }
+            let mut log_scale = Vec3::from(self.scales[idx]);
+            log_scale = Vec3::new(
+                log_scale.x.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+                log_scale.y.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+                log_scale.z.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+            );
+            let mut scale = Vec3::new(log_scale.x.exp(), log_scale.y.exp(), log_scale.z.exp());
             scale = Vec3::new(
                 scale.x.max(min_scale),
                 scale.y.max(min_scale),
@@ -489,11 +568,7 @@ impl SplatGeo {
             let quat = Quat::from_mat3(&eigenvectors).normalize();
             self.rotations[idx] = [quat.w, quat.x, quat.y, quat.z];
 
-            if use_log_scale {
-                self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
-            } else {
-                self.scales[idx] = sigma.to_array();
-            }
+            self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
 
             if let Some(mats) = &sh_mats {
                 rotate_sh_bands(self, idx, mats);
@@ -535,11 +610,8 @@ impl SplatGeo {
         } else {
             None
         };
-        let use_log_scale = self.scales.iter().any(|value| {
-            value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0
-        });
         let linear = Mat3::from_mat4(matrix);
-        let min_scale = 1.0e-6;
+        let min_scale = SPLAT_LOG_SCALE_MIN.exp();
 
         for (idx, selected) in mask.iter().enumerate() {
             if !*selected {
@@ -549,10 +621,13 @@ impl SplatGeo {
             let position = matrix.transform_point3(Vec3::from(self.positions[idx]));
             self.positions[idx] = position.to_array();
 
-            let mut scale = Vec3::from(self.scales[idx]);
-            if use_log_scale {
-                scale = Vec3::new(scale.x.exp(), scale.y.exp(), scale.z.exp());
-            }
+            let mut log_scale = Vec3::from(self.scales[idx]);
+            log_scale = Vec3::new(
+                log_scale.x.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+                log_scale.y.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+                log_scale.z.clamp(SPLAT_LOG_SCALE_MIN, SPLAT_LOG_SCALE_MAX),
+            );
+            let mut scale = Vec3::new(log_scale.x.exp(), log_scale.y.exp(), log_scale.z.exp());
             scale = Vec3::new(
                 scale.x.max(min_scale),
                 scale.y.max(min_scale),
@@ -594,11 +669,7 @@ impl SplatGeo {
             let quat = Quat::from_mat3(&eigenvectors).normalize();
             self.rotations[idx] = [quat.w, quat.x, quat.y, quat.z];
 
-            if use_log_scale {
-                self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
-            } else {
-                self.scales[idx] = sigma.to_array();
-            }
+            self.scales[idx] = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
 
             if let Some(mats) = &sh_mats {
                 rotate_sh_bands(self, idx, mats);
@@ -673,6 +744,43 @@ impl SplatGeo {
 
         output
     }
+}
+
+fn rotation_is_normalized(rotation: [f32; 4]) -> bool {
+    let len_sq = rotation[0] * rotation[0]
+        + rotation[1] * rotation[1]
+        + rotation[2] * rotation[2]
+        + rotation[3] * rotation[3];
+    if !len_sq.is_finite() || len_sq < 1.0e-6 {
+        return false;
+    }
+    (len_sq - 1.0).abs() <= 1.0e-3
+}
+
+fn log_scale_in_range(scale: [f32; 3]) -> bool {
+    let min = SPLAT_LOG_SCALE_MIN;
+    let max = SPLAT_LOG_SCALE_MAX;
+    scale[0] >= min
+        && scale[0] <= max
+        && scale[1] >= min
+        && scale[1] <= max
+        && scale[2] >= min
+        && scale[2] <= max
+}
+
+fn logit_in_range(value: f32) -> bool {
+    let min = logit(SPLAT_ALPHA_MIN);
+    let max = logit(SPLAT_ALPHA_MAX);
+    value >= min && value <= max
+}
+
+fn logit(value: f32) -> f32 {
+    let clamped = value.clamp(SPLAT_ALPHA_MIN, SPLAT_ALPHA_MAX);
+    (clamped / (1.0 - clamped)).ln()
+}
+
+fn mat3_is_finite(mat: Mat3) -> bool {
+    mat.to_cols_array().iter().all(|value| value.is_finite())
 }
 
 fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> AttributeStorage {
@@ -766,6 +874,9 @@ fn sh_max_band(sh_coeffs: usize) -> usize {
 
 fn rotation_from_matrix(matrix: Mat4) -> Mat3 {
     let linear = Mat3::from_mat4(matrix);
+    if !mat3_is_finite(linear) {
+        return Mat3::IDENTITY;
+    }
     let mut x = linear.x_axis;
     let mut y = linear.y_axis;
 
@@ -789,6 +900,9 @@ fn rotation_from_matrix(matrix: Mat4) -> Mat3 {
     if rot.determinant() < 0.0 {
         rot = Mat3::from_cols(x, y, -z);
     }
+    if !mat3_is_finite(rot) || rot.determinant().abs() < 1.0e-6 {
+        return Mat3::IDENTITY;
+    }
     rot
 }
 
@@ -798,6 +912,9 @@ fn rotate_sh_bands(splats: &mut SplatGeo, index: usize, mats: &ShRotationMatrice
     }
 
     let base = index * splats.sh_coeffs;
+    if base + splats.sh_coeffs > splats.sh_rest.len() {
+        return;
+    }
 
     if let Some(l1) = &mats.l1 {
         if splats.sh_coeffs >= 3 {
@@ -920,6 +1037,13 @@ fn compute_sh_rotation_matrix<const N: usize>(
             }
             mat[r][c] = sum;
         }
+    }
+    if mat
+        .iter()
+        .flatten()
+        .any(|value| !value.is_finite())
+    {
+        return identity_matrix();
     }
     mat
 }
@@ -1213,7 +1337,7 @@ mod tests {
     fn transform_updates_positions_and_scales() {
         let mut splats = SplatGeo::with_len(1);
         splats.positions[0] = [1.0, 2.0, 3.0];
-        splats.scales[0] = [1.0, 1.0, 1.0];
+        splats.scales[0] = [0.0, 0.0, 0.0];
         splats.rotations[0] = [1.0, 0.0, 0.0, 0.0];
 
         let matrix = Mat4::from_scale_rotation_translation(
@@ -1229,9 +1353,9 @@ mod tests {
         assert!((pos[2] - 12.0).abs() < 1.0e-4);
 
         let scale = splats.scales[0];
-        assert!((scale[0] - 2.0).abs() < 1.0e-4);
-        assert!((scale[1] - 3.0).abs() < 1.0e-4);
-        assert!((scale[2] - 4.0).abs() < 1.0e-4);
+        assert!((scale[0] - 2.0_f32.ln()).abs() < 1.0e-4);
+        assert!((scale[1] - 3.0_f32.ln()).abs() < 1.0e-4);
+        assert!((scale[2] - 4.0_f32.ln()).abs() < 1.0e-4);
     }
 
     #[test]

@@ -225,20 +225,16 @@ fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
     let mut opacity = splats.opacity.clone();
     let mut scales = splats.scales.clone();
 
-    let use_log_opacity = opacity.iter().any(|value| *value < 0.0 || *value > 1.0);
-    if use_log_opacity {
-        for value in &mut opacity {
-            *value = 1.0 / (1.0 + (-*value).exp());
-        }
+    for value in &mut opacity {
+        let logit = value.clamp(-9.21034, 9.21034);
+        *value = 1.0 / (1.0 + (-logit).exp());
     }
 
-    let use_log_scale = scales
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
-    if use_log_scale {
-        for value in &mut scales {
-            *value = [value[0].exp(), value[1].exp(), value[2].exp()];
-        }
+    for value in &mut scales {
+        let sx = value[0].clamp(-10.0, 10.0).exp();
+        let sy = value[1].clamp(-10.0, 10.0).exp();
+        let sz = value[2].clamp(-10.0, 10.0).exp();
+        *value = [sx, sy, sz];
     }
 
     let use_sh0_colors = colors

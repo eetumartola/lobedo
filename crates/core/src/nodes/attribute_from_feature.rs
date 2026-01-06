@@ -293,16 +293,14 @@ fn apply_area_splats(
     let count = splats.attribute_domain_len(domain);
     let mut values = existing_float_attr_splats(splats, domain, attr, count);
 
-    let use_log_scale = splats
-        .scales
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
     let mut areas = Vec::with_capacity(splats.len());
     for scale in &splats.scales {
-        let mut v = Vec3::from(*scale);
-        if use_log_scale {
-            v = Vec3::new(v.x.exp(), v.y.exp(), v.z.exp());
-        }
+        let v = Vec3::from(*scale);
+        let mut v = Vec3::new(
+            v.x.clamp(-10.0, 10.0).exp(),
+            v.y.clamp(-10.0, 10.0).exp(),
+            v.z.clamp(-10.0, 10.0).exp(),
+        );
         v = v.abs();
         let area = std::f32::consts::PI * v.x * v.y;
         areas.push(area);

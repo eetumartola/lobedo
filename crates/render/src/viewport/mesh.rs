@@ -288,16 +288,11 @@ pub(crate) fn splat_billboard_vertices(
         if pos_cam.z <= 1.0e-6 || !pos_cam.z.is_finite() {
             continue;
         }
-        let raw_scale = inputs
+        let scale = inputs
             .scales
             .get(idx)
             .copied()
             .unwrap_or([1.0, 1.0, 1.0]);
-        let scale = if raw_scale[0] < 0.0 || raw_scale[1] < 0.0 || raw_scale[2] < 0.0 {
-            [raw_scale[0].exp(), raw_scale[1].exp(), raw_scale[2].exp()]
-        } else {
-            raw_scale
-        };
         if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite() {
             continue;
         }

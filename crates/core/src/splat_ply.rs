@@ -75,12 +75,13 @@ pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<Splat
 pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
     use std::io::Write;
 
-    splats.validate()?;
+    let normalized = splats.normalized_for_save();
+    normalized.validate()?;
     let mut file = std::fs::File::create(path).map_err(|err| err.to_string())?;
 
     writeln!(file, "ply").map_err(|err| err.to_string())?;
     writeln!(file, "format ascii 1.0").map_err(|err| err.to_string())?;
-    writeln!(file, "element vertex {}", splats.len()).map_err(|err| err.to_string())?;
+    writeln!(file, "element vertex {}", normalized.len()).map_err(|err| err.to_string())?;
     writeln!(file, "property float x").map_err(|err| err.to_string())?;
     writeln!(file, "property float y").map_err(|err| err.to_string())?;
     writeln!(file, "property float z").map_err(|err| err.to_string())?;
@@ -96,38 +97,38 @@ pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
     writeln!(file, "property float f_dc_1").map_err(|err| err.to_string())?;
     writeln!(file, "property float f_dc_2").map_err(|err| err.to_string())?;
 
-    if splats.sh_coeffs > 0 {
-        for i in 0..(splats.sh_coeffs * 3) {
+    if normalized.sh_coeffs > 0 {
+        for i in 0..(normalized.sh_coeffs * 3) {
             writeln!(file, "property float f_rest_{}", i).map_err(|err| err.to_string())?;
         }
     }
 
     writeln!(file, "end_header").map_err(|err| err.to_string())?;
 
-    for idx in 0..splats.len() {
-        let [x, y, z] = splats.positions[idx];
-        let [sx, sy, sz] = splats.scales[idx];
-        let [r0, r1, r2, r3] = splats.rotations[idx];
-        let opacity = splats.opacity[idx];
-        let [c0, c1, c2] = splats.sh0[idx];
+    for idx in 0..normalized.len() {
+        let [x, y, z] = normalized.positions[idx];
+        let [sx, sy, sz] = normalized.scales[idx];
+        let [r0, r1, r2, r3] = normalized.rotations[idx];
+        let opacity = normalized.opacity[idx];
+        let [c0, c1, c2] = normalized.sh0[idx];
         write!(
             file,
             "{x} {y} {z} {opacity} {sx} {sy} {sz} {r0} {r1} {r2} {r3} {c0} {c1} {c2}"
         )
         .map_err(|err| err.to_string())?;
 
-        if splats.sh_coeffs > 0 {
-            let base = idx * splats.sh_coeffs;
-            for coeff in 0..splats.sh_coeffs {
-                let value = splats.sh_rest[base + coeff][0];
+        if normalized.sh_coeffs > 0 {
+            let base = idx * normalized.sh_coeffs;
+            for coeff in 0..normalized.sh_coeffs {
+                let value = normalized.sh_rest[base + coeff][0];
                 write!(file, " {value}").map_err(|err| err.to_string())?;
             }
-            for coeff in 0..splats.sh_coeffs {
-                let value = splats.sh_rest[base + coeff][1];
+            for coeff in 0..normalized.sh_coeffs {
+                let value = normalized.sh_rest[base + coeff][1];
                 write!(file, " {value}").map_err(|err| err.to_string())?;
             }
-            for coeff in 0..splats.sh_coeffs {
-                let value = splats.sh_rest[base + coeff][2];
+            for coeff in 0..normalized.sh_coeffs {
+                let value = normalized.sh_rest[base + coeff][2];
                 write!(file, " {value}").map_err(|err| err.to_string())?;
             }
         }
@@ -316,6 +317,7 @@ fn parse_ascii_vertices(
         return Err("Unexpected end of PLY vertex data".to_string());
     }
 
+    splats.normalize_on_load();
     splats.validate()?;
     Ok(splats)
 }
@@ -343,6 +345,7 @@ fn parse_binary_vertices(
         fill_splat_from_values(&mut splats, read, &values, indices);
     }
 
+    splats.normalize_on_load();
     splats.validate()?;
     Ok(splats)
 }

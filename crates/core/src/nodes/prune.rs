@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use glam::Vec3;
-
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
@@ -23,10 +21,10 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("min_opacity".to_string(), ParamValue::Float(0.0)),
-            ("max_opacity".to_string(), ParamValue::Float(1.0)),
-            ("min_scale".to_string(), ParamValue::Float(0.0)),
-            ("max_scale".to_string(), ParamValue::Float(1000.0)),
+            ("min_opacity".to_string(), ParamValue::Float(-9.21034)),
+            ("max_opacity".to_string(), ParamValue::Float(9.21034)),
+            ("min_scale".to_string(), ParamValue::Float(-10.0)),
+            ("max_scale".to_string(), ParamValue::Float(10.0)),
             ("remove_invalid".to_string(), ParamValue::Bool(true)),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
@@ -41,35 +39,25 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 
 pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     let group_mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    let mut min_opacity = params.get_float("min_opacity", 0.0);
+    let mut min_opacity = params.get_float("min_opacity", -9.21034);
     if !min_opacity.is_finite() {
-        min_opacity = 0.0;
+        min_opacity = -9.21034;
     }
-    let mut max_opacity = params.get_float("max_opacity", 1.0);
+    let mut max_opacity = params.get_float("max_opacity", 9.21034);
     if !max_opacity.is_finite() {
-        max_opacity = 1.0;
+        max_opacity = 9.21034;
     }
-    min_opacity = min_opacity.max(0.0);
     max_opacity = max_opacity.max(min_opacity);
-    let mut min_scale = params.get_float("min_scale", 0.0);
+    let mut min_scale = params.get_float("min_scale", -10.0);
     if !min_scale.is_finite() {
-        min_scale = 0.0;
+        min_scale = -10.0;
     }
-    let mut max_scale = params.get_float("max_scale", 1000.0);
+    let mut max_scale = params.get_float("max_scale", 10.0);
     if !max_scale.is_finite() {
-        max_scale = 1000.0;
+        max_scale = 10.0;
     }
-    min_scale = min_scale.max(0.0);
     max_scale = max_scale.max(min_scale);
     let remove_invalid = params.get_bool("remove_invalid", true);
-    let use_log_opacity = splats
-        .opacity
-        .iter()
-        .any(|value| *value < 0.0 || *value > 1.0);
-    let use_log_scale = splats
-        .scales
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
 
     let mut kept = Vec::with_capacity(splats.len());
     for idx in 0..splats.len() {
@@ -84,13 +72,14 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             continue;
         }
 
-        let opacity = splat_opacity(splats.opacity[idx], use_log_opacity);
+        let opacity = splats.opacity[idx];
         if opacity < min_opacity || opacity > max_opacity {
             continue;
         }
 
-        let (min_component, max_component) =
-            scale_extents(splats.scales[idx], use_log_scale);
+        let scale = splats.scales[idx];
+        let min_component = scale[0].min(scale[1]).min(scale[2]);
+        let max_component = scale[0].max(scale[1]).max(scale[2]);
         if min_component < min_scale || max_component > max_scale {
             continue;
         }
@@ -99,24 +88,6 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     }
 
     splats.filter_by_indices(&kept)
-}
-
-fn splat_opacity(value: f32, use_log_opacity: bool) -> f32 {
-    if !use_log_opacity {
-        return value;
-    }
-    1.0 / (1.0 + (-value).exp())
-}
-
-fn scale_extents(scale: [f32; 3], use_log_scale: bool) -> (f32, f32) {
-    let mut values = Vec3::from(scale);
-    if use_log_scale {
-        values = Vec3::new(values.x.exp(), values.y.exp(), values.z.exp());
-    }
-    values = values.abs();
-    let min_component = values.x.min(values.y).min(values.z);
-    let max_component = values.x.max(values.y).max(values.z);
-    (min_component, max_component)
 }
 
 #[cfg(test)]
@@ -139,10 +110,10 @@ mod tests {
 
         let params = NodeParams {
             values: BTreeMap::from([
-                ("min_scale".to_string(), ParamValue::Float(0.2)),
-                ("max_scale".to_string(), ParamValue::Float(0.6)),
-                ("min_opacity".to_string(), ParamValue::Float(0.0)),
-                ("max_opacity".to_string(), ParamValue::Float(1.0)),
+                ("min_scale".to_string(), ParamValue::Float(0.2_f32.ln())),
+                ("max_scale".to_string(), ParamValue::Float(0.6_f32.ln())),
+                ("min_opacity".to_string(), ParamValue::Float(-9.21034)),
+                ("max_opacity".to_string(), ParamValue::Float(9.21034)),
                 ("remove_invalid".to_string(), ParamValue::Bool(true)),
             ]),
         };
@@ -156,15 +127,15 @@ mod tests {
     fn prune_filters_logit_opacity() {
         let mut splats = SplatGeo::with_len(3);
         splats.rotations.fill([1.0, 0.0, 0.0, 0.0]);
-        splats.scales.fill([0.1, 0.1, 0.1]);
+        splats.scales.fill([0.1_f32.ln(), 0.1_f32.ln(), 0.1_f32.ln()]);
         splats.opacity[0] = -2.0;
         splats.opacity[1] = 0.0;
         splats.opacity[2] = 2.0;
 
         let params = NodeParams {
             values: BTreeMap::from([
-                ("min_opacity".to_string(), ParamValue::Float(0.7)),
-                ("max_opacity".to_string(), ParamValue::Float(1.0)),
+                ("min_opacity".to_string(), ParamValue::Float(1.0)),
+                ("max_opacity".to_string(), ParamValue::Float(9.21034)),
                 ("remove_invalid".to_string(), ParamValue::Bool(true)),
             ]),
         };
