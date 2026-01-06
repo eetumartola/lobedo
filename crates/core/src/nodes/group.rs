@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
-
 use glam::Vec3;
 
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::groups::build_group_mask;
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input, selection_shape_params};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Group";
@@ -21,26 +19,14 @@ pub fn definition() -> NodeDefinition {
 }
 
 pub fn default_params() -> NodeParams {
-    NodeParams {
-        values: BTreeMap::from([
-            ("group".to_string(), ParamValue::String("group1".to_string())),
-            ("domain".to_string(), ParamValue::Int(2)),
-            ("shape".to_string(), ParamValue::String("box".to_string())),
-            ("invert".to_string(), ParamValue::Bool(false)),
-            ("base_group".to_string(), ParamValue::String(String::new())),
-            ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
-            ("size".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
-            ("radius".to_string(), ParamValue::Float(1.0)),
-            (
-                "plane_origin".to_string(),
-                ParamValue::Vec3([0.0, 0.0, 0.0]),
-            ),
-            (
-                "plane_normal".to_string(),
-                ParamValue::Vec3([0.0, 1.0, 0.0]),
-            ),
-        ]),
-    }
+    let mut values = selection_shape_params();
+    values.insert(
+        "group".to_string(),
+        ParamValue::String("group1".to_string()),
+    );
+    values.insert("domain".to_string(), ParamValue::Int(2));
+    values.insert("base_group".to_string(), ParamValue::String(String::new()));
+    NodeParams { values }
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -197,6 +183,7 @@ fn element_inside_mesh(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
     use crate::mesh::make_box;
 
     #[test]

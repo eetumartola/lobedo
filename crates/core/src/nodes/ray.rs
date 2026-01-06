@@ -15,7 +15,7 @@ use crate::nodes::{
     },
     geometry_in,
     geometry_out,
-    group_utils::{mesh_group_mask, splat_group_mask},
+    group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -124,10 +124,8 @@ fn apply_to_mesh_with_targets(
         return Ok(());
     }
     let mask = mesh_group_mask(mesh, params, AttributeDomain::Point);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     let method = method_from_params(params);
@@ -202,10 +200,8 @@ fn apply_to_splats_with_targets(
         return Ok(());
     }
     let mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     let method = method_from_params(params);

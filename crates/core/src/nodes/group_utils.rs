@@ -24,6 +24,13 @@ pub fn group_type_from_params(params: &NodeParams) -> GroupType {
     }
 }
 
+pub fn mask_has_any(mask: Option<&[bool]>) -> bool {
+    match mask {
+        Some(mask) => mask.iter().any(|value| *value),
+        None => true,
+    }
+}
+
 pub fn mesh_group_mask(
     mesh: &Mesh,
     params: &NodeParams,

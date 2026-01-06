@@ -16,7 +16,7 @@ use crate::nodes::{
     },
     geometry_in,
     geometry_out,
-    group_utils::{mesh_group_mask, splat_group_mask},
+    group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -307,10 +307,8 @@ fn apply_transfer_to_mesh(
     }
 
     let mask = mesh_group_mask(mesh, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     for (name, samples) in samples {
@@ -423,10 +421,8 @@ fn apply_transfer_to_splats(
     }
 
     let mask = splat_group_mask(splats, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     for (name, samples) in samples {

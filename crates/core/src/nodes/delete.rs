@@ -1,11 +1,15 @@
-use std::collections::BTreeMap;
-
 use glam::Vec3;
 
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
-use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::nodes::{
+    geometry_in,
+    geometry_out,
+    group_utils::mesh_group_mask,
+    require_mesh_input,
+    selection_shape_params,
+};
 
 pub const NAME: &str = "Delete";
 
@@ -19,25 +23,10 @@ pub fn definition() -> NodeDefinition {
 }
 
 pub fn default_params() -> NodeParams {
-    NodeParams {
-        values: BTreeMap::from([
-            ("shape".to_string(), ParamValue::String("box".to_string())),
-            ("invert".to_string(), ParamValue::Bool(false)),
-            ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
-            ("size".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
-            ("radius".to_string(), ParamValue::Float(1.0)),
-            (
-                "plane_origin".to_string(),
-                ParamValue::Vec3([0.0, 0.0, 0.0]),
-            ),
-            (
-                "plane_normal".to_string(),
-                ParamValue::Vec3([0.0, 1.0, 0.0]),
-            ),
-            ("group".to_string(), ParamValue::String(String::new())),
-            ("group_type".to_string(), ParamValue::Int(0)),
-        ]),
-    }
+    let mut values = selection_shape_params();
+    values.insert("group".to_string(), ParamValue::String(String::new()));
+    values.insert("group_type".to_string(), ParamValue::Int(0));
+    NodeParams { values }
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

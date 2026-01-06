@@ -9,7 +9,7 @@ use crate::nodes::{
     attribute_utils::{domain_from_params, existing_float_attr_mesh, existing_float_attr_splats},
     geometry_in,
     geometry_out,
-    group_utils::{mesh_group_mask, splat_group_mask},
+    group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -53,10 +53,8 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         return Ok(());
     }
     let mask = splat_group_mask(splats, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     match feature {
@@ -76,10 +74,8 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     }
 
     let mask = mesh_group_mask(mesh, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     match feature {

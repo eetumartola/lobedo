@@ -8,7 +8,7 @@ use crate::mesh::Mesh;
 use crate::nodes::{
     geometry_in,
     geometry_out,
-    group_utils::{mesh_group_mask, splat_group_mask},
+    group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
@@ -45,10 +45,8 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let seed = params.get_int("seed", 1) as u32;
     let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
     let mask = mesh_group_mask(&input, params, AttributeDomain::Point);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(input);
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(input);
     }
 
     if input.normals.is_none() {
@@ -85,10 +83,8 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     let seed = params.get_int("seed", 1) as u32;
     let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
     let mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
     let normals = splats

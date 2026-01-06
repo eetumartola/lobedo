@@ -4,7 +4,11 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in, geometry_out, group_utils::{mesh_group_mask, splat_group_mask}, require_mesh_input,
+    attribute_utils::{domain_from_params, existing_vec3_attr_mesh, existing_vec3_attr_splats},
+    geometry_in,
+    geometry_out,
+    group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    require_mesh_input,
 };
 use crate::splat::SplatGeo;
 
@@ -33,42 +37,17 @@ pub fn default_params() -> NodeParams {
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let mut input = require_mesh_input(inputs, 0, "Color requires a mesh input")?;
     let color = params.get_vec3("color", [1.0, 1.0, 1.0]);
-    let domain = match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    };
+    let domain = domain_from_params(params);
     let count = input.attribute_domain_len(domain);
+    if count == 0 && domain != AttributeDomain::Detail {
+        return Ok(input);
+    }
     let mask = mesh_group_mask(&input, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(input);
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(input);
     }
-    let mut values = if let Some(existing) = input
-        .attribute(domain, "Cd")
-        .and_then(|attr| match attr {
-            crate::attributes::AttributeRef::Vec3(values) if values.len() == count => {
-                Some(values.to_vec())
-            }
-            _ => None,
-        })
-    {
-        existing
-    } else {
-        vec![[0.0, 0.0, 0.0]; count]
-    };
-
-    if let Some(mask) = mask {
-        for (idx, value) in values.iter_mut().enumerate() {
-            if mask.get(idx).copied().unwrap_or(false) {
-                *value = color;
-            }
-        }
-    } else {
-        values.iter_mut().for_each(|value| *value = color);
-    }
+    let mut values = existing_vec3_attr_mesh(&input, domain, "Cd", count);
+    apply_color_to_values(&mut values, color, mask.as_deref());
     input
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
         .map_err(|err| format!("Color attribute error: {:?}", err))?;
@@ -77,37 +56,31 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 
 pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
     let color = params.get_vec3("color", [1.0, 1.0, 1.0]);
-    let domain = match params.get_int("domain", 0).clamp(0, 3) {
-        0 => AttributeDomain::Point,
-        1 => AttributeDomain::Vertex,
-        2 => AttributeDomain::Primitive,
-        _ => AttributeDomain::Detail,
-    };
+    let domain = domain_from_params(params);
     let count = splats.attribute_domain_len(domain);
     if count == 0 {
         return Ok(());
     }
 
     let mask = splat_group_mask(splats, params, domain);
-    if let Some(mask) = &mask {
-        if !mask.iter().any(|value| *value) {
-            return Ok(());
-        }
+    if !mask_has_any(mask.as_deref()) {
+        return Ok(());
     }
 
-    let mut values = if let Some(existing) = splats
-        .attribute(domain, "Cd")
-        .and_then(|attr| match attr {
-            crate::attributes::AttributeRef::Vec3(values) if values.len() == count => {
-                Some(values.to_vec())
-            }
-            _ => None,
-        }) {
-        existing
-    } else {
-        vec![[0.0, 0.0, 0.0]; count]
-    };
+    let mut values = existing_vec3_attr_splats(splats, domain, "Cd", count);
+    apply_color_to_values(&mut values, color, mask.as_deref());
 
+    splats
+        .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
+        .map_err(|err| format!("Color attribute error: {:?}", err))?;
+    Ok(())
+}
+
+fn apply_color_to_values(
+    values: &mut [[f32; 3]],
+    color: [f32; 3],
+    mask: Option<&[bool]>,
+) {
     if let Some(mask) = mask {
         for (idx, value) in values.iter_mut().enumerate() {
             if mask.get(idx).copied().unwrap_or(false) {
@@ -117,10 +90,5 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     } else {
         values.iter_mut().for_each(|value| *value = color);
     }
-
-    splats
-        .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
-        .map_err(|err| format!("Color attribute error: {:?}", err))?;
-    Ok(())
 }
 

@@ -8,7 +8,7 @@ use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{
     geometry_in,
     geometry_out,
-    group_utils::splat_group_mask,
+    group_utils::{mask_has_any, splat_group_mask},
     require_mesh_input,
     splat_utils::{splat_bounds_indices, splat_cell_key},
 };
@@ -47,10 +47,8 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     }
 
     let group_mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if let Some(mask) = &group_mask {
-        if !mask.iter().any(|value| *value) {
-            return splats.clone();
-        }
+    if !mask_has_any(group_mask.as_deref()) {
+        return splats.clone();
     }
 
     let mut selected = Vec::new();

@@ -31,7 +31,9 @@ pub mod transform;
 pub mod tube;
 pub mod wrangle;
 
-use crate::graph::{PinDefinition, PinType};
+use std::collections::BTreeMap;
+
+use crate::graph::{ParamValue, PinDefinition, PinType};
 use crate::mesh::Mesh;
 
 pub fn geometry_in(name: &str) -> PinDefinition {
@@ -57,4 +59,22 @@ pub fn require_mesh_input(
         .get(index)
         .cloned()
         .ok_or_else(|| message.to_string())
+}
+
+pub fn selection_shape_params() -> BTreeMap<String, ParamValue> {
+    BTreeMap::from([
+        ("shape".to_string(), ParamValue::String("box".to_string())),
+        ("invert".to_string(), ParamValue::Bool(false)),
+        ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
+        ("size".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
+        ("radius".to_string(), ParamValue::Float(1.0)),
+        (
+            "plane_origin".to_string(),
+            ParamValue::Vec3([0.0, 0.0, 0.0]),
+        ),
+        (
+            "plane_normal".to_string(),
+            ParamValue::Vec3([0.0, 1.0, 0.0]),
+        ),
+    ])
 }
