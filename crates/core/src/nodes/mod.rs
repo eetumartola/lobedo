@@ -20,6 +20,7 @@ pub mod prune;
 pub mod ray;
 pub mod read_splats;
 pub mod regularize;
+pub mod splat_to_mesh;
 pub mod splat_deform;
 pub mod splat_lod;
 pub mod splat_utils;

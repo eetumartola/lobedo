@@ -272,6 +272,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\splat_to_mesh.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\splat_utils.rs
 Description: TODO: add description.
 Functions: None
@@ -308,7 +312,31 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
-## .\crates\core\src\splat.rs
+## .\crates\core\src\splat\attributes.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\math.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\mod.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\sh.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\tests.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\transform.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\splat\validate.rs
 Description: TODO: add description.
 Functions: None
 

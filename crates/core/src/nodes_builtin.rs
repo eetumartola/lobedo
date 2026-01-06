@@ -18,6 +18,7 @@ pub enum BuiltinNodeKind {
     Prune,
     Regularize,
     SplatLod,
+    SplatToMesh,
     SplatDeform,
     Group,
     Transform,
@@ -62,6 +63,10 @@ fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh
 
 fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Splat Write expects splat geometry, not meshes".to_string())
+}
+
+fn mesh_error_splat_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Splat to Mesh expects splat geometry, not meshes".to_string())
 }
 
 static NODE_SPECS: &[NodeSpec] = &[
@@ -162,6 +167,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_lod::definition,
         default_params: nodes::splat_lod::default_params,
         compute_mesh: nodes::splat_lod::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatToMesh,
+        name: nodes::splat_to_mesh::NAME,
+        aliases: &[],
+        definition: nodes::splat_to_mesh::definition,
+        default_params: nodes::splat_to_mesh::default_params,
+        compute_mesh: mesh_error_splat_to_mesh,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -411,6 +425,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Prune => apply_prune(params, inputs),
         BuiltinNodeKind::Regularize => apply_regularize(params, inputs),
         BuiltinNodeKind::SplatLod => apply_splat_lod(params, inputs),
+        BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),

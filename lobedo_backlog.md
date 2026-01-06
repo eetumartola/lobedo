@@ -52,6 +52,8 @@ Status: done | in progress | not started
 - **N13**: Ray (normal/direction/closest; max distance; hit group; import hit attributes; optional no-transform) (done)
 - **N4**: LOD/Decimate (voxel clustering) (done)
 - **N5**: Conversions (splats->points, mesh->splats) (not started)
+- **N5a**: Splat to Mesh (density/ellipsoid implicit) (done)
+- **N5b**: Splat to Mesh transfer color to mesh Cd attribute (done)
 - **N14**: Wrangle: @ptnum/@vtxnum/@primnum + point/vertex/prim/splat queries (inputs 0/1) (done)
 - **N15**: Splat Deform (deform source splats from edited point cloud; optional new splats) (done)
 

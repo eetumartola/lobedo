@@ -36,6 +36,11 @@ impl NodeGraphState {
                 ParamValue::String(value) => Some(value.to_lowercase()),
                 _ => None,
             });
+        let splat_to_mesh_method = if node_name == "Splat to Mesh" {
+            Some(node.params.get_int("algorithm", 0).clamp(0, 1))
+        } else {
+            None
+        };
 
         if params.is_empty() {
             ui.label("No parameters.");
@@ -51,6 +56,15 @@ impl NodeGraphState {
                         "radius" => continue,
                         "center" if shape == "plane" || shape == "group" => continue,
                         "plane_origin" | "plane_normal" if shape != "plane" => continue,
+                        _ => {}
+                    }
+                }
+            }
+            if node_name == "Splat to Mesh" {
+                if let Some(method) = splat_to_mesh_method {
+                    match (method, key.as_str()) {
+                        (0, "surface_iso") | (0, "smooth_k") | (0, "shell_radius") => continue,
+                        (1, "density_iso") | (1, "blur_iters") => continue,
                         _ => {}
                     }
                 }

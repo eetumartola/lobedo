@@ -1,0 +1,836 @@
+use std::collections::BTreeMap;
+
+use glam::{Mat3, Quat, Vec3};
+use lin_alg::f32::Vec3 as McVec3;
+use mcubes::{MarchingCubes, MeshSide};
+
+use crate::attributes::{AttributeDomain, AttributeStorage};
+use crate::geometry::Geometry;
+use crate::graph::{NodeDefinition, NodeParams, ParamValue};
+use crate::mesh::Mesh;
+use crate::nodes::{geometry_in, geometry_out};
+use crate::splat::SplatGeo;
+
+pub const NAME: &str = "Splat to Mesh";
+
+const DEFAULT_VOXEL_SIZE: f32 = 0.1;
+const DEFAULT_N_SIGMA: f32 = 3.0;
+const DEFAULT_DENSITY_ISO: f32 = 0.5;
+const DEFAULT_SURFACE_ISO: f32 = 0.0;
+const DEFAULT_BOUNDS_PADDING: f32 = 3.0;
+const DEFAULT_MAX_M2: f32 = 3.0;
+const DEFAULT_SMOOTH_K: f32 = 0.1;
+const DEFAULT_SHELL_RADIUS: f32 = 1.0;
+const DEFAULT_BLUR_ITERS: i32 = 1;
+const DEFAULT_MAX_VOXEL_DIM: i32 = 256;
+const DEFAULT_TRANSFER_COLOR: bool = true;
+const MAX_GRID_POINTS: u64 = 32_000_000;
+
+pub fn definition() -> NodeDefinition {
+    NodeDefinition {
+        name: NAME.to_string(),
+        category: "Operators".to_string(),
+        inputs: vec![geometry_in("splats")],
+        outputs: vec![geometry_out("out")],
+    }
+}
+
+pub fn default_params() -> NodeParams {
+    NodeParams {
+        values: BTreeMap::from([
+            ("algorithm".to_string(), ParamValue::Int(0)),
+            ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
+            (
+                "voxel_size_max".to_string(),
+                ParamValue::Int(DEFAULT_MAX_VOXEL_DIM),
+            ),
+            ("n_sigma".to_string(), ParamValue::Float(DEFAULT_N_SIGMA)),
+            ("density_iso".to_string(), ParamValue::Float(DEFAULT_DENSITY_ISO)),
+            ("surface_iso".to_string(), ParamValue::Float(DEFAULT_SURFACE_ISO)),
+            (
+                "bounds_padding".to_string(),
+                ParamValue::Float(DEFAULT_BOUNDS_PADDING),
+            ),
+            (
+                "transfer_color".to_string(),
+                ParamValue::Bool(DEFAULT_TRANSFER_COLOR),
+            ),
+            ("max_m2".to_string(), ParamValue::Float(DEFAULT_MAX_M2)),
+            ("smooth_k".to_string(), ParamValue::Float(DEFAULT_SMOOTH_K)),
+            (
+                "shell_radius".to_string(),
+                ParamValue::Float(DEFAULT_SHELL_RADIUS),
+            ),
+            ("blur_iters".to_string(), ParamValue::Int(DEFAULT_BLUR_ITERS)),
+        ]),
+    }
+}
+
+pub fn apply_to_geometry(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let Some(splats) = input.merged_splats() else {
+        return Err("Splat to Mesh requires splat geometry on input 0".to_string());
+    };
+
+    let mesh = splats_to_mesh(params, &splats)?;
+    let mut meshes = input.meshes.clone();
+    meshes.push(mesh);
+
+    Ok(Geometry {
+        meshes,
+        splats: Vec::new(),
+    })
+}
+
+#[derive(Clone)]
+struct SplatSample {
+    mu: Vec3,
+    rt: Mat3,
+    sigma: Vec3,
+    alpha: f32,
+    max_sigma: f32,
+    color: [f32; 3],
+}
+
+impl SplatSample {
+    fn m2(&self, position: Vec3) -> f32 {
+        let dx = position - self.mu;
+        let u = self.rt * dx;
+        let sx = u.x / self.sigma.x;
+        let sy = u.y / self.sigma.y;
+        let sz = u.z / self.sigma.z;
+        sx * sx + sy * sy + sz * sz
+    }
+}
+
+fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String> {
+    if splats.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let algorithm = params.get_int("algorithm", 0).clamp(0, 1);
+    let voxel_size = params
+        .get_float("voxel_size", DEFAULT_VOXEL_SIZE)
+        .max(1.0e-4);
+    let max_voxel_dim = params
+        .get_int("voxel_size_max", DEFAULT_MAX_VOXEL_DIM)
+        .max(1) as usize;
+    let n_sigma = params.get_float("n_sigma", DEFAULT_N_SIGMA).max(0.1);
+    let density_iso = params.get_float("density_iso", DEFAULT_DENSITY_ISO);
+    let surface_iso = params.get_float("surface_iso", DEFAULT_SURFACE_ISO);
+    let bounds_padding = params
+        .get_float("bounds_padding", DEFAULT_BOUNDS_PADDING)
+        .max(0.0);
+    let transfer_color = params.get_bool("transfer_color", DEFAULT_TRANSFER_COLOR);
+    let max_m2 = params
+        .get_float("max_m2", DEFAULT_MAX_M2)
+        .clamp(0.0, 10.0);
+    let smooth_k = params.get_float("smooth_k", DEFAULT_SMOOTH_K).max(0.0);
+    let shell_radius = params
+        .get_float("shell_radius", DEFAULT_SHELL_RADIUS)
+        .max(0.01);
+    let blur_iters = params.get_int("blur_iters", DEFAULT_BLUR_ITERS).max(0) as usize;
+
+    let inside_is_greater = algorithm == 0;
+    let samples = build_samples(splats);
+    if samples.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let (mut grid, mut color_grid, spec, iso) = match algorithm {
+        1 => {
+            let spec = build_grid_spec(&samples, voxel_size, bounds_padding, max_voxel_dim)?;
+            let mut color_grid = transfer_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
+            let grid = rasterize_smoothmin(
+                &samples,
+                &spec,
+                n_sigma,
+                max_m2,
+                smooth_k,
+                shell_radius,
+                color_grid.as_mut(),
+            );
+            (grid, color_grid, spec, surface_iso)
+        }
+        _ => {
+            let spec = build_grid_spec(&samples, voxel_size, bounds_padding, max_voxel_dim)?;
+            let mut color_grid = transfer_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
+            let grid = rasterize_density(&samples, &spec, n_sigma, max_m2, color_grid.as_mut());
+            (grid, color_grid, spec, density_iso)
+        }
+    };
+
+    sanitize_grid(&mut grid, iso, inside_is_greater);
+    if algorithm == 0 && blur_iters > 0 {
+        blur_grid(&mut grid, &spec, blur_iters);
+        if let Some(color_grid) = color_grid.as_mut() {
+            blur_color_grid(color_grid, &spec, blur_iters);
+        }
+    }
+    let mut mesh = marching_cubes(&grid, &spec, iso, inside_is_greater)?;
+    if let Some(color_grid) = color_grid {
+        if !mesh.positions.is_empty() {
+            let mut colors = Vec::with_capacity(mesh.positions.len());
+            for position in &mesh.positions {
+                let color = sample_color_grid(&color_grid, &spec, Vec3::from(*position));
+                colors.push(color);
+            }
+            mesh.set_attribute(
+                AttributeDomain::Point,
+                "Cd",
+                AttributeStorage::Vec3(colors),
+            )
+            .map_err(|err| format!("Failed to set Cd attribute: {err:?}"))?;
+        }
+    }
+    let _ = mesh.compute_normals();
+    Ok(mesh)
+}
+
+struct GridSpec {
+    min: Vec3,
+    dx: f32,
+    nx: usize,
+    ny: usize,
+    nz: usize,
+}
+
+struct ColorGrid {
+    sum: Vec<[f32; 3]>,
+    weight: Vec<f32>,
+}
+
+impl ColorGrid {
+    fn new(len: usize) -> Self {
+        Self {
+            sum: vec![[0.0, 0.0, 0.0]; len],
+            weight: vec![0.0; len],
+        }
+    }
+
+    fn add(&mut self, idx: usize, weight: f32, color: [f32; 3]) {
+        let sum = &mut self.sum[idx];
+        sum[0] += color[0] * weight;
+        sum[1] += color[1] * weight;
+        sum[2] += color[2] * weight;
+        self.weight[idx] += weight;
+    }
+}
+
+fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
+    // Keep splat extraction aligned with the viewport's splat flip.
+    let world_transform = Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0));
+    let use_sh0_colors = splats.sh0.iter().any(|value| {
+        value
+            .iter()
+            .any(|channel| channel.is_finite() && *channel < 0.0)
+    });
+    let mut samples = Vec::with_capacity(splats.len());
+    for idx in 0..splats.len() {
+        let position = world_transform * Vec3::from(splats.positions[idx]);
+        let rotation = splats.rotations[idx];
+        let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+        if quat.length_squared() > 0.0 {
+            quat = quat.normalize();
+        } else {
+            quat = Quat::IDENTITY;
+        }
+        let rot = Mat3::from_quat(quat);
+        let rt = rot.transpose() * world_transform;
+        let log_scale = splats.scales[idx];
+        let mut sigma = Vec3::new(log_scale[0].exp(), log_scale[1].exp(), log_scale[2].exp());
+        sigma = sigma.max(Vec3::splat(1.0e-5));
+        let max_sigma = sigma.x.max(sigma.y).max(sigma.z);
+
+        let mut opacity = splats.opacity[idx];
+        if !opacity.is_finite() {
+            opacity = 0.0;
+        }
+        let opacity = opacity.clamp(-20.0, 20.0);
+        let alpha = 1.0 / (1.0 + (-opacity).exp());
+
+        let mut color = splats.sh0[idx];
+        if color.iter().any(|value| !value.is_finite()) {
+            color = [1.0, 1.0, 1.0];
+        }
+        if use_sh0_colors {
+            const SH_C0: f32 = 0.2820948;
+            color = [
+                color[0] * SH_C0 + 0.5,
+                color[1] * SH_C0 + 0.5,
+                color[2] * SH_C0 + 0.5,
+            ];
+        }
+
+        samples.push(SplatSample {
+            mu: position,
+            rt,
+            sigma,
+            alpha,
+            max_sigma,
+            color,
+        });
+    }
+    samples
+}
+
+fn build_grid_spec(
+    samples: &[SplatSample],
+    voxel_size: f32,
+    bounds_padding: f32,
+    max_voxel_dim: usize,
+) -> Result<GridSpec, String> {
+    let mut min = samples[0].mu;
+    let mut max = samples[0].mu;
+    let mut max_sigma = samples[0].max_sigma;
+    for sample in samples.iter().skip(1) {
+        min = min.min(sample.mu);
+        max = max.max(sample.mu);
+        max_sigma = max_sigma.max(sample.max_sigma);
+    }
+    let pad = bounds_padding * max_sigma;
+    min -= Vec3::splat(pad);
+    max += Vec3::splat(pad);
+
+    let extent = max - min;
+    let max_dim = max_voxel_dim.max(1) as f32;
+    let mut dx = voxel_size;
+    if extent.x > 0.0 {
+        dx = dx.max(extent.x / max_dim);
+    }
+    if extent.y > 0.0 {
+        dx = dx.max(extent.y / max_dim);
+    }
+    if extent.z > 0.0 {
+        dx = dx.max(extent.z / max_dim);
+    }
+    dx = dx.max(1.0e-4);
+
+    let cells_x = ((extent.x / dx).ceil() as isize).max(1) as usize;
+    let cells_y = ((extent.y / dx).ceil() as isize).max(1) as usize;
+    let cells_z = ((extent.z / dx).ceil() as isize).max(1) as usize;
+    let nx = cells_x + 1;
+    let ny = cells_y + 1;
+    let nz = cells_z + 1;
+    let total = nx as u64 * ny as u64 * nz as u64;
+    if total > MAX_GRID_POINTS {
+        return Err(format!(
+            "Splat to Mesh grid too large ({} points). Increase voxel size.",
+            total
+        ));
+    }
+
+    Ok(GridSpec {
+        min,
+        dx,
+        nx,
+        ny,
+        nz,
+    })
+}
+
+fn rasterize_density(
+    samples: &[SplatSample],
+    spec: &GridSpec,
+    n_sigma: f32,
+    max_m2: f32,
+    mut color_grid: Option<&mut ColorGrid>,
+) -> Vec<f32> {
+    let mut grid = vec![0.0f32; spec.nx * spec.ny * spec.nz];
+    let cutoff_m2 = n_sigma * n_sigma;
+    for sample in samples {
+        let r = n_sigma * sample.max_sigma;
+        let min = sample.mu - Vec3::splat(r);
+        let max = sample.mu + Vec3::splat(r);
+        let ix0 = ((min.x - spec.min.x) / spec.dx).floor() as isize;
+        let iy0 = ((min.y - spec.min.y) / spec.dx).floor() as isize;
+        let iz0 = ((min.z - spec.min.z) / spec.dx).floor() as isize;
+        let ix1 = ((max.x - spec.min.x) / spec.dx).ceil() as isize;
+        let iy1 = ((max.y - spec.min.y) / spec.dx).ceil() as isize;
+        let iz1 = ((max.z - spec.min.z) / spec.dx).ceil() as isize;
+        let ix0 = ix0.clamp(0, spec.nx as isize - 1) as usize;
+        let iy0 = iy0.clamp(0, spec.ny as isize - 1) as usize;
+        let iz0 = iz0.clamp(0, spec.nz as isize - 1) as usize;
+        let ix1 = ix1.clamp(0, spec.nx as isize - 1) as usize;
+        let iy1 = iy1.clamp(0, spec.ny as isize - 1) as usize;
+        let iz1 = iz1.clamp(0, spec.nz as isize - 1) as usize;
+
+        for iz in iz0..=iz1 {
+            let z = spec.min.z + iz as f32 * spec.dx;
+            for iy in iy0..=iy1 {
+                let y = spec.min.y + iy as f32 * spec.dx;
+                for ix in ix0..=ix1 {
+                    let x = spec.min.x + ix as f32 * spec.dx;
+                    let pos = Vec3::new(x, y, z);
+                    let mut m2 = sample.m2(pos);
+                    if !m2.is_finite() {
+                        continue;
+                    }
+                    if m2 > cutoff_m2 {
+                        continue;
+                    }
+                    m2 = m2.min(max_m2);
+                    let w = (-0.5 * m2).exp();
+                    let idx = grid_index(spec, ix, iy, iz);
+                    let weight = sample.alpha * w;
+                    grid[idx] += weight;
+                    if let Some(color_grid) = color_grid.as_deref_mut() {
+                        color_grid.add(idx, weight, sample.color);
+                    }
+                }
+            }
+        }
+    }
+    grid
+}
+
+fn rasterize_smoothmin(
+    samples: &[SplatSample],
+    spec: &GridSpec,
+    n_sigma: f32,
+    max_m2: f32,
+    smooth_k: f32,
+    shell_radius: f32,
+    mut color_grid: Option<&mut ColorGrid>,
+) -> Vec<f32> {
+    let mut grid = if smooth_k > 0.0 {
+        vec![0.0f32; spec.nx * spec.ny * spec.nz]
+    } else {
+        vec![f32::INFINITY; spec.nx * spec.ny * spec.nz]
+    };
+    let cutoff_m2 = n_sigma * n_sigma;
+
+    for sample in samples {
+        let r = n_sigma * sample.max_sigma;
+        let min = sample.mu - Vec3::splat(r);
+        let max = sample.mu + Vec3::splat(r);
+        let ix0 = ((min.x - spec.min.x) / spec.dx).floor() as isize;
+        let iy0 = ((min.y - spec.min.y) / spec.dx).floor() as isize;
+        let iz0 = ((min.z - spec.min.z) / spec.dx).floor() as isize;
+        let ix1 = ((max.x - spec.min.x) / spec.dx).ceil() as isize;
+        let iy1 = ((max.y - spec.min.y) / spec.dx).ceil() as isize;
+        let iz1 = ((max.z - spec.min.z) / spec.dx).ceil() as isize;
+        let ix0 = ix0.clamp(0, spec.nx as isize - 1) as usize;
+        let iy0 = iy0.clamp(0, spec.ny as isize - 1) as usize;
+        let iz0 = iz0.clamp(0, spec.nz as isize - 1) as usize;
+        let ix1 = ix1.clamp(0, spec.nx as isize - 1) as usize;
+        let iy1 = iy1.clamp(0, spec.ny as isize - 1) as usize;
+        let iz1 = iz1.clamp(0, spec.nz as isize - 1) as usize;
+
+        for iz in iz0..=iz1 {
+            let z = spec.min.z + iz as f32 * spec.dx;
+            for iy in iy0..=iy1 {
+                let y = spec.min.y + iy as f32 * spec.dx;
+                for ix in ix0..=ix1 {
+                    let x = spec.min.x + ix as f32 * spec.dx;
+                    let pos = Vec3::new(x, y, z);
+                    let mut m2 = sample.m2(pos);
+                    if !m2.is_finite() {
+                        continue;
+                    }
+                    if m2 > cutoff_m2 {
+                        continue;
+                    }
+                    m2 = m2.min(max_m2);
+                    let weight = sample.alpha * (-0.5 * m2).exp();
+                    let d = m2.sqrt() - shell_radius;
+                    let idx = grid_index(spec, ix, iy, iz);
+                    if smooth_k > 0.0 {
+                        let exp_arg = (-(d / smooth_k)).clamp(-50.0, 50.0);
+                        let smooth_weight = exp_arg.exp();
+                        grid[idx] += sample.alpha * smooth_weight;
+                    } else if d < grid[idx] {
+                        grid[idx] = d;
+                    }
+                    if let Some(color_grid) = color_grid.as_deref_mut() {
+                        color_grid.add(idx, weight, sample.color);
+                    }
+                }
+            }
+        }
+    }
+
+    if smooth_k > 0.0 {
+        for value in &mut grid {
+            if *value > 0.0 {
+                *value = -smooth_k * value.ln();
+            } else {
+                *value = f32::INFINITY;
+            }
+        }
+    }
+    grid
+}
+
+fn grid_index(spec: &GridSpec, ix: usize, iy: usize, iz: usize) -> usize {
+    ix + spec.nx * (iy + spec.ny * iz)
+}
+
+fn marching_cubes(
+    grid: &[f32],
+    spec: &GridSpec,
+    iso: f32,
+    inside_is_greater: bool,
+) -> Result<Mesh, String> {
+    if spec.nx < 2 || spec.ny < 2 || spec.nz < 2 {
+        return Ok(Mesh::default());
+    }
+    if grid.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let (values, iso_level) = if inside_is_greater {
+        (grid.iter().map(|v| -*v).collect::<Vec<_>>(), -iso)
+    } else {
+        (grid.to_vec(), iso)
+    };
+
+    let extent = Vec3::new(
+        (spec.nx - 1) as f32 * spec.dx,
+        (spec.ny - 1) as f32 * spec.dx,
+        (spec.nz - 1) as f32 * spec.dx,
+    );
+    let sx = (spec.nx.saturating_sub(1)).max(1) as f32;
+    let sy = (spec.ny.saturating_sub(1)).max(1) as f32;
+    let sz = (spec.nz.saturating_sub(1)).max(1) as f32;
+    let offset = McVec3::new(spec.min.x, spec.min.y, spec.min.z);
+    let mc = MarchingCubes::new(
+        (spec.nx, spec.ny, spec.nz),
+        (extent.x, extent.y, extent.z),
+        (sx, sy, sz),
+        offset,
+        values,
+        iso_level,
+    )
+    .map_err(|err| err.to_string())?;
+    let output = mc.generate(MeshSide::Both);
+
+    let mut positions = Vec::with_capacity(output.vertices.len());
+    for vertex in output.vertices {
+        positions.push([vertex.posit.x, vertex.posit.y, vertex.posit.z]);
+    }
+    let indices = output.indices.into_iter().map(|idx| idx as u32).collect();
+    Ok(Mesh::with_positions_indices(positions, indices))
+}
+
+fn sanitize_grid(grid: &mut [f32], iso: f32, inside_is_greater: bool) {
+    let outside = if inside_is_greater { iso - 1.0 } else { iso + 1.0 };
+    for value in grid {
+        if !value.is_finite() {
+            *value = outside;
+        }
+    }
+}
+
+fn blur_grid(grid: &mut [f32], spec: &GridSpec, iterations: usize) {
+    if iterations == 0 || grid.is_empty() {
+        return;
+    }
+    let mut max_before = 0.0f32;
+    for value in grid.iter().copied() {
+        if value.is_finite() && value > max_before {
+            max_before = value;
+        }
+    }
+    blur_grid_raw(grid, spec, iterations);
+    if max_before > 0.0 {
+        let mut max_after = 0.0f32;
+        for value in grid.iter().copied() {
+            if value.is_finite() && value > max_after {
+                max_after = value;
+            }
+        }
+        if max_after > 0.0 {
+            let scale = max_before / max_after;
+            for value in grid {
+                *value *= scale;
+            }
+        }
+    }
+}
+
+fn blur_grid_raw(grid: &mut [f32], spec: &GridSpec, iterations: usize) {
+    if iterations == 0 || grid.is_empty() {
+        return;
+    }
+    let mut temp = vec![0.0f32; grid.len()];
+    for _ in 0..iterations {
+        blur_axis_x(grid, &mut temp, spec);
+        blur_axis_y(&temp, grid, spec);
+        blur_axis_z(grid, &mut temp, spec);
+        grid.copy_from_slice(&temp);
+    }
+}
+
+fn blur_color_grid(color: &mut ColorGrid, spec: &GridSpec, iterations: usize) {
+    if iterations == 0 || color.sum.is_empty() {
+        return;
+    }
+    let mut temp = vec![[0.0f32; 3]; color.sum.len()];
+    for _ in 0..iterations {
+        blur_color_axis_x(&color.sum, &mut temp, spec);
+        blur_color_axis_y(&temp, &mut color.sum, spec);
+        blur_color_axis_z(&color.sum, &mut temp, spec);
+        color.sum.copy_from_slice(&temp);
+    }
+    blur_grid_raw(&mut color.weight, spec, iterations);
+}
+
+fn blur_axis_x(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            let base = nx * (iy + ny * iz);
+            for ix in 0..nx {
+                let idx = base + ix;
+                let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
+                let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
+                dst[idx] = (prev + src[idx] + next) * one_third;
+            }
+        }
+    }
+}
+
+fn blur_color_axis_x(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            let base = nx * (iy + ny * iz);
+            for ix in 0..nx {
+                let idx = base + ix;
+                let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
+                let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
+                let current = src[idx];
+                dst[idx] = [
+                    (prev[0] + current[0] + next[0]) * one_third,
+                    (prev[1] + current[1] + next[1]) * one_third,
+                    (prev[2] + current[2] + next[2]) * one_third,
+                ];
+            }
+        }
+    }
+}
+
+fn blur_axis_y(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            for ix in 0..nx {
+                let idx = ix + nx * (iy + ny * iz);
+                let prev = if iy == 0 {
+                    src[idx]
+                } else {
+                    src[idx - nx]
+                };
+                let next = if iy + 1 == ny {
+                    src[idx]
+                } else {
+                    src[idx + nx]
+                };
+                dst[idx] = (prev + src[idx] + next) * one_third;
+            }
+        }
+    }
+}
+
+fn blur_color_axis_y(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            for ix in 0..nx {
+                let idx = ix + nx * (iy + ny * iz);
+                let prev = if iy == 0 {
+                    src[idx]
+                } else {
+                    src[idx - nx]
+                };
+                let next = if iy + 1 == ny {
+                    src[idx]
+                } else {
+                    src[idx + nx]
+                };
+                let current = src[idx];
+                dst[idx] = [
+                    (prev[0] + current[0] + next[0]) * one_third,
+                    (prev[1] + current[1] + next[1]) * one_third,
+                    (prev[2] + current[2] + next[2]) * one_third,
+                ];
+            }
+        }
+    }
+}
+
+fn blur_axis_z(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let slice = nx * ny;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            for ix in 0..nx {
+                let idx = ix + nx * (iy + ny * iz);
+                let prev = if iz == 0 {
+                    src[idx]
+                } else {
+                    src[idx - slice]
+                };
+                let next = if iz + 1 == nz {
+                    src[idx]
+                } else {
+                    src[idx + slice]
+                };
+                dst[idx] = (prev + src[idx] + next) * one_third;
+            }
+        }
+    }
+}
+
+fn blur_color_axis_z(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let nz = spec.nz;
+    let slice = nx * ny;
+    let one_third = 1.0 / 3.0;
+    for iz in 0..nz {
+        for iy in 0..ny {
+            for ix in 0..nx {
+                let idx = ix + nx * (iy + ny * iz);
+                let prev = if iz == 0 {
+                    src[idx]
+                } else {
+                    src[idx - slice]
+                };
+                let next = if iz + 1 == nz {
+                    src[idx]
+                } else {
+                    src[idx + slice]
+                };
+                let current = src[idx];
+                dst[idx] = [
+                    (prev[0] + current[0] + next[0]) * one_third,
+                    (prev[1] + current[1] + next[1]) * one_third,
+                    (prev[2] + current[2] + next[2]) * one_third,
+                ];
+            }
+        }
+    }
+}
+
+fn sample_color_grid(color: &ColorGrid, spec: &GridSpec, position: Vec3) -> [f32; 3] {
+    let max_x = (spec.nx.saturating_sub(1)) as f32;
+    let max_y = (spec.ny.saturating_sub(1)) as f32;
+    let max_z = (spec.nz.saturating_sub(1)) as f32;
+    let fx = ((position.x - spec.min.x) / spec.dx).clamp(0.0, max_x);
+    let fy = ((position.y - spec.min.y) / spec.dx).clamp(0.0, max_y);
+    let fz = ((position.z - spec.min.z) / spec.dx).clamp(0.0, max_z);
+
+    let ix0 = fx.floor() as usize;
+    let iy0 = fy.floor() as usize;
+    let iz0 = fz.floor() as usize;
+    let ix1 = (ix0 + 1).min(spec.nx - 1);
+    let iy1 = (iy0 + 1).min(spec.ny - 1);
+    let iz1 = (iz0 + 1).min(spec.nz - 1);
+    let tx = fx - ix0 as f32;
+    let ty = fy - iy0 as f32;
+    let tz = fz - iz0 as f32;
+
+    let idx000 = grid_index(spec, ix0, iy0, iz0);
+    let idx100 = grid_index(spec, ix1, iy0, iz0);
+    let idx010 = grid_index(spec, ix0, iy1, iz0);
+    let idx110 = grid_index(spec, ix1, iy1, iz0);
+    let idx001 = grid_index(spec, ix0, iy0, iz1);
+    let idx101 = grid_index(spec, ix1, iy0, iz1);
+    let idx011 = grid_index(spec, ix0, iy1, iz1);
+    let idx111 = grid_index(spec, ix1, iy1, iz1);
+
+    let c000 = Vec3::from(color.sum[idx000]);
+    let c100 = Vec3::from(color.sum[idx100]);
+    let c010 = Vec3::from(color.sum[idx010]);
+    let c110 = Vec3::from(color.sum[idx110]);
+    let c001 = Vec3::from(color.sum[idx001]);
+    let c101 = Vec3::from(color.sum[idx101]);
+    let c011 = Vec3::from(color.sum[idx011]);
+    let c111 = Vec3::from(color.sum[idx111]);
+
+    let c00 = c000.lerp(c100, tx);
+    let c10 = c010.lerp(c110, tx);
+    let c01 = c001.lerp(c101, tx);
+    let c11 = c011.lerp(c111, tx);
+    let c0 = c00.lerp(c10, ty);
+    let c1 = c01.lerp(c11, ty);
+    let sum = c0.lerp(c1, tz);
+
+    let w000 = color.weight[idx000];
+    let w100 = color.weight[idx100];
+    let w010 = color.weight[idx010];
+    let w110 = color.weight[idx110];
+    let w001 = color.weight[idx001];
+    let w101 = color.weight[idx101];
+    let w011 = color.weight[idx011];
+    let w111 = color.weight[idx111];
+    let w00 = w000 + (w100 - w000) * tx;
+    let w10 = w010 + (w110 - w010) * tx;
+    let w01 = w001 + (w101 - w001) * tx;
+    let w11 = w011 + (w111 - w011) * tx;
+    let w0 = w00 + (w10 - w00) * ty;
+    let w1 = w01 + (w11 - w01) * ty;
+    let weight = w0 + (w1 - w0) * tz;
+
+    if weight > 1.0e-6 {
+        (sum / weight).to_array()
+    } else {
+        [1.0, 1.0, 1.0]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn marching_cubes_extracts_surface() {
+        let spec = GridSpec {
+            min: Vec3::new(-1.0, -1.0, -1.0),
+            dx: 1.0,
+            nx: 3,
+            ny: 3,
+            nz: 3,
+        };
+        let mut grid = vec![0.0f32; spec.nx * spec.ny * spec.nz];
+        for iz in 0..spec.nz {
+            for iy in 0..spec.ny {
+                for ix in 0..spec.nx {
+                    let pos = Vec3::new(
+                        spec.min.x + ix as f32 * spec.dx,
+                        spec.min.y + iy as f32 * spec.dx,
+                        spec.min.z + iz as f32 * spec.dx,
+                    );
+                    let d = pos.length() - 1.0;
+                    grid[grid_index(&spec, ix, iy, iz)] = d;
+                }
+            }
+        }
+
+        let mesh = marching_cubes(&grid, &spec, 0.0, false).expect("mesh");
+        assert!(!mesh.indices.is_empty());
+        assert!(!mesh.positions.is_empty());
+    }
+}

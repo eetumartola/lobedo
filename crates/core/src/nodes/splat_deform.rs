@@ -147,8 +147,8 @@ fn deform_splats(source: &SplatGeo, target_positions: &[[f32; 3]], allow_new: bo
             mapping.push(idx);
         }
         if target_len > source_len {
-            for idx in source_len..target_len {
-                let nearest = find_nearest_index(target_positions[idx], &source.positions);
+            for pos in target_positions.iter().skip(source_len) {
+                let nearest = find_nearest_index(*pos, &source.positions);
                 mapping.push(nearest);
             }
         }
@@ -163,9 +163,7 @@ fn deform_splats(source: &SplatGeo, target_positions: &[[f32; 3]], allow_new: bo
 
     let mut out = source.clone();
     let min_len = source.len().min(target_positions.len());
-    for idx in 0..min_len {
-        out.positions[idx] = target_positions[idx];
-    }
+    out.positions[..min_len].copy_from_slice(&target_positions[..min_len]);
     out
 }
 

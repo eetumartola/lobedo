@@ -165,8 +165,9 @@ SH evaluation:
 
 ### Conversion
 19. `Splats -> Points`
-20. `Points -> Splats (Fit)`
-21. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
+20. `Splats -> Mesh (Density / Ellipsoid implicit)`
+21. `Points -> Splats (Fit)`
+22. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
 
 ### ML (MVP)
 22. `Depth Estimation (Job)`

@@ -19,9 +19,10 @@ pub(super) fn edit_param(
     label: &str,
     value: ParamValue,
 ) -> (ParamValue, bool) {
+    let display_label = display_label(node_name, label);
     match value {
         ParamValue::Float(mut v) => {
-            let changed = param_row(ui, label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let height = ui.spacing().interact_size.y;
@@ -60,6 +61,7 @@ pub(super) fn edit_param(
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")],
                     "Point",
@@ -68,6 +70,7 @@ pub(super) fn edit_param(
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[
                         (0, "Auto"),
@@ -81,6 +84,7 @@ pub(super) fn edit_param(
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[(0, "Full (SH)"), (1, "Base Color")],
                     "Full (SH)",
@@ -89,18 +93,34 @@ pub(super) fn edit_param(
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[(0, "Float"), (1, "Vec2"), (2, "Vec3")],
                     "Vec3",
                 )
             } else if label == "noise_type" {
-                combo_row_i32(ui, label, &mut v, &[(0, "Value"), (1, "Perlin")], "Value")
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    &mut v,
+                    &[(0, "Value"), (1, "Perlin")],
+                    "Value",
+                )
             } else if label == "feature" {
-                combo_row_i32(ui, label, &mut v, &[(0, "Area"), (1, "Gradient")], "Area")
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    &mut v,
+                    &[(0, "Area"), (1, "Gradient")],
+                    "Area",
+                )
             } else if label == "method" {
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[(0, "Normal"), (1, "Direction"), (2, "Closest")],
                     "Normal",
@@ -109,12 +129,22 @@ pub(super) fn edit_param(
                 combo_row_i32(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")],
                     "Add",
                 )
+            } else if label == "algorithm" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    &mut v,
+                    &[(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
+                    "Density (Iso)",
+                )
             } else {
-                param_row(ui, label, |ui| {
+                param_row_with_label(ui, label, &display_label, |ui| {
                     let mut changed = false;
                     let spacing = 8.0;
                     let height = ui.spacing().interact_size.y;
@@ -150,14 +180,14 @@ pub(super) fn edit_param(
             (ParamValue::Int(v), changed)
         }
         ParamValue::Bool(mut v) => {
-            let changed = param_row(ui, label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, |ui| {
                 let checkbox = egui::Checkbox::without_text(&mut v);
                 ui.add(checkbox).changed()
             });
             (ParamValue::Bool(v), changed)
         }
         ParamValue::Vec2(mut v) => {
-            let changed = param_row(ui, label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
@@ -183,7 +213,7 @@ pub(super) fn edit_param(
             (ParamValue::Vec2(v), changed)
         }
         ParamValue::Vec3(mut v) => {
-            let changed = param_row(ui, label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
@@ -213,12 +243,13 @@ pub(super) fn edit_param(
                 combo_row_string(
                     ui,
                     label,
+                    &display_label,
                     &mut v,
                     &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")],
                     "Box",
                 )
             } else if label == "code" {
-                param_row_with_height(ui, label, 120.0, |ui| {
+                param_row_with_height_label(ui, label, &display_label, 120.0, |ui| {
                     ui.add_sized(
                         [ui.available_width().max(160.0), 100.0],
                         egui::TextEdit::multiline(&mut v)
@@ -230,9 +261,11 @@ pub(super) fn edit_param(
             } else {
                 let use_picker = label == "path" && path_picker_kind(node_name).is_some();
                 if use_picker {
-                    param_row(ui, label, |ui| edit_path_field(ui, node_name, &mut v))
+                    param_row_with_label(ui, label, &display_label, |ui| {
+                        edit_path_field(ui, node_name, &mut v)
+                    })
                 } else {
-                    param_row(ui, label, |ui| {
+                    param_row_with_label(ui, label, &display_label, |ui| {
                         let height = ui.spacing().interact_size.y;
                         ui.add_sized(
                             [ui.available_width().max(160.0), height],
@@ -411,12 +444,18 @@ fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
     picked.map(|path| path.display().to_string())
 }
 
-fn param_row(ui: &mut Ui, label: &str, add_controls: impl FnOnce(&mut Ui) -> bool) -> bool {
-    param_row_with_height(ui, label, 36.0, add_controls)
+fn param_row_with_label(
+    ui: &mut Ui,
+    id: &str,
+    label: &str,
+    add_controls: impl FnOnce(&mut Ui) -> bool,
+) -> bool {
+    param_row_with_height_label(ui, id, label, 36.0, add_controls)
 }
 
-fn param_row_with_height(
+fn param_row_with_height_label(
     ui: &mut Ui,
+    _id: &str,
     label: &str,
     row_height: f32,
     add_controls: impl FnOnce(&mut Ui) -> bool,
@@ -459,19 +498,20 @@ fn param_row_with_height(
 
 fn combo_row_i32(
     ui: &mut Ui,
+    id: &str,
     label: &str,
     value: &mut i32,
     options: &[(i32, &str)],
     fallback: &str,
 ) -> bool {
-    param_row(ui, label, |ui| {
+    param_row_with_label(ui, id, label, |ui| {
         let mut changed = false;
         let selected = options
             .iter()
             .find(|(opt_value, _)| *opt_value == *value)
             .map(|(_, name)| *name)
             .unwrap_or(fallback);
-        egui::ComboBox::from_id_salt(label)
+        egui::ComboBox::from_id_salt(id)
             .selected_text(selected)
             .show_ui(ui, |ui| {
                 for (opt_value, name) in options.iter().copied() {
@@ -486,19 +526,20 @@ fn combo_row_i32(
 
 fn combo_row_string(
     ui: &mut Ui,
+    id: &str,
     label: &str,
     value: &mut String,
     options: &[(&str, &str)],
     fallback: &str,
 ) -> bool {
-    param_row(ui, label, |ui| {
+    param_row_with_label(ui, id, label, |ui| {
         let mut changed = false;
         let selected = options
             .iter()
             .find(|(opt_value, _)| *opt_value == value.as_str())
             .map(|(_, name)| *name)
             .unwrap_or(fallback);
-        egui::ComboBox::from_id_salt(label)
+        egui::ComboBox::from_id_salt(id)
             .selected_text(selected)
             .show_ui(ui, |ui| {
                 for (opt_value, name) in options.iter().copied() {
@@ -512,6 +553,29 @@ fn combo_row_string(
             });
         changed
     })
+}
+
+fn display_label(node_name: &str, key: &str) -> String {
+    if node_name == "Splat to Mesh" {
+        match key {
+            "algorithm" => "Method",
+            "voxel_size" => "Voxel Size",
+            "n_sigma" => "Support Sigma",
+            "density_iso" => "Density Threshold",
+            "surface_iso" => "Surface Threshold",
+            "bounds_padding" => "Bounds Padding (sigma)",
+            "transfer_color" => "Transfer Color",
+            "max_m2" => "Exponent Clamp",
+            "smooth_k" => "Blend Sharpness",
+            "shell_radius" => "Shell Radius",
+            "blur_iters" => "Density Blur",
+            "voxel_size_max" => "Max Voxel Dimension",
+            _ => key,
+        }
+        .to_string()
+    } else {
+        key.to_string()
+    }
 }
 
 fn float_slider_range(
@@ -529,6 +593,13 @@ fn float_slider_range(
         "value_f" => -10.0..=10.0,
         "max_distance" => 0.0..=1000.0,
         "voxel_size" => 0.0..=10.0,
+        "n_sigma" => 0.0..=6.0,
+        "density_iso" => 0.0..=10.0,
+        "surface_iso" => -5.0..=5.0,
+        "bounds_padding" => 0.0..=10.0,
+        "max_m2" => 0.0..=10.0,
+        "smooth_k" => 0.001..=2.0,
+        "shell_radius" => 0.1..=4.0,
         _ => -1000.0..=1000.0,
     }
 }
@@ -544,6 +615,8 @@ fn int_slider_range(
         "rows" | "cols" => 2..=64,
         "iterations" => 0..=20,
         "seed" => 0..=100,
+        "blur_iters" => 0..=6,
+        "voxel_size_max" => 8..=2048,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,
         "target_count" => 0..=1_000_000,
