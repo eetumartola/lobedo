@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use glam::{Quat, Vec3, Vec4};
 
-use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
+use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{
@@ -356,6 +356,27 @@ fn aggregate_storage(
                 out.push(avg_vec4(values, cluster));
             }
             AttributeStorage::Vec4(out)
+        }
+        AttributeStorage::StringTable(values) => {
+            let mut out = Vec::with_capacity(unselected.len() + clusters.len());
+            for &idx in unselected {
+                out.push(values.indices.get(idx).copied().unwrap_or(0));
+            }
+            for cluster in clusters {
+                let mut selected = 0u32;
+                for &idx in cluster {
+                    if let Some(value) = values.indices.get(idx).copied() {
+                        selected = value;
+                        break;
+                    }
+                }
+                out.push(selected);
+            }
+            let mut table = values.values.clone();
+            if table.is_empty() && !out.is_empty() {
+                table.push(String::new());
+            }
+            AttributeStorage::StringTable(StringTableAttribute::new(table, out))
         }
     }
 }

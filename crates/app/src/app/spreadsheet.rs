@@ -243,6 +243,7 @@ fn attr_type_label(attr_type: AttributeType) -> &'static str {
         AttributeType::Vec2 => "v2",
         AttributeType::Vec3 => "v3",
         AttributeType::Vec4 => "v4",
+        AttributeType::String => "str",
     }
 }
 
@@ -256,6 +257,7 @@ struct Column {
 enum ColumnKind {
     Float(Vec<Option<f32>>),
     Int(Vec<Option<i32>>),
+    Text(Vec<Option<String>>),
 }
 
 impl Column {
@@ -300,6 +302,12 @@ impl Column {
                         Some(value) => format_int_cell(*value, max_int, has_negative),
                         None => "-".to_string(),
                     })
+                    .collect();
+            }
+            ColumnKind::Text(values) => {
+                self.formatted = values
+                    .iter()
+                    .map(|value| value.clone().unwrap_or_else(|| "-".to_string()))
                     .collect();
             }
         }
@@ -391,6 +399,18 @@ fn build_columns(
                         width_chars: 0,
                     });
                 }
+            }
+            AttributeRef::StringTable(data) => {
+                columns.push(Column {
+                    header: format!("{} {}", attr.name, attr_type_label(attr.data_type)),
+                    kind: ColumnKind::Text(
+                        (0..max_rows)
+                            .map(|row| data.value(row).map(|value| value.to_string()))
+                            .collect(),
+                    ),
+                    formatted: Vec::new(),
+                    width_chars: 0,
+                });
             }
         }
     }

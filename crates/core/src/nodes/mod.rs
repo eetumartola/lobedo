@@ -12,6 +12,7 @@ pub mod group;
 pub mod grid;
 pub mod group_utils;
 pub mod merge;
+pub mod material;
 pub mod noise;
 pub mod normal;
 pub mod obj_output;
@@ -31,6 +32,9 @@ pub mod sphere;
 pub mod smooth;
 pub mod transform;
 pub mod tube;
+pub mod uv_texture;
+pub mod uv_unwrap;
+pub mod uv_view;
 pub mod wrangle;
 
 use std::collections::BTreeMap;

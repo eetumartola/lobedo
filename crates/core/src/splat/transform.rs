@@ -1,6 +1,6 @@
 use glam::{Mat3, Mat4, Quat, Vec3};
 
-use crate::attributes::{AttributeDomain, AttributeStorage};
+use crate::attributes::{AttributeDomain, AttributeStorage, StringTableAttribute};
 
 use super::math::{eigen_decomposition_symmetric, mat3_is_finite, rotation_from_linear, rotation_from_matrix};
 use super::sh::{build_sh_rotation_matrices, rotate_sh_bands};
@@ -373,6 +373,15 @@ fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> At
                 }
             }
             AttributeStorage::Vec4(out)
+        }
+        AttributeStorage::StringTable(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.indices.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::StringTable(StringTableAttribute::new(values.values.clone(), out))
         }
     }
 }

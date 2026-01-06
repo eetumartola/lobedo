@@ -8,10 +8,12 @@ pub(crate) struct Vertex {
     pub(crate) position: [f32; 3],
     pub(crate) normal: [f32; 3],
     pub(crate) color: [f32; 3],
+    pub(crate) uv: [f32; 2],
+    pub(crate) material: u32,
 }
 
-pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3];
+pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32x2, 4 => Uint32];
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -85,6 +87,8 @@ pub(crate) fn cube_mesh() -> CubeMesh {
                 position: positions[idx],
                 normal,
                 color: [1.0, 1.0, 1.0],
+                uv: [0.0, 0.0],
+                material: 0,
             });
         }
         indices.extend_from_slice(&[
@@ -143,10 +147,26 @@ pub(crate) fn build_vertices(mesh: &RenderMesh) -> (Vec<Vertex>, Vec<u32>) {
         .corner_colors
         .as_ref()
         .filter(|colors| colors.len() == mesh.indices.len());
-    let use_corner_data = corner_normals.is_some() || corner_colors.is_some();
+    let corner_uvs = mesh
+        .corner_uvs
+        .as_ref()
+        .filter(|uvs| uvs.len() == mesh.indices.len());
+    let corner_materials = mesh
+        .corner_materials
+        .as_ref()
+        .filter(|materials| materials.len() == mesh.indices.len());
+    let use_corner_data = corner_normals.is_some()
+        || corner_colors.is_some()
+        || corner_uvs.is_some()
+        || corner_materials.is_some();
 
     let fallback_normal = [0.0, 1.0, 0.0];
     let fallback_color = [1.0, 1.0, 1.0];
+    let fallback_uv = [0.0, 0.0];
+    let uvs = mesh
+        .uvs
+        .as_ref()
+        .filter(|uvs| uvs.len() == mesh.positions.len());
 
     if use_corner_data && !mesh.indices.is_empty() {
         let mut vertices = Vec::with_capacity(mesh.indices.len());
@@ -169,10 +189,19 @@ pub(crate) fn build_vertices(mesh: &RenderMesh) -> (Vec<Vertex>, Vec<u32>) {
                         .and_then(|colors| colors.get(*corner as usize).copied())
                 })
                 .unwrap_or(fallback_color);
+            let uv = corner_uvs
+                .and_then(|uvs| uvs.get(idx).copied())
+                .or_else(|| uvs.and_then(|uvs| uvs.get(*corner as usize).copied()))
+                .unwrap_or(fallback_uv);
+            let material = corner_materials
+                .and_then(|materials| materials.get(idx).copied())
+                .unwrap_or(0);
             vertices.push(Vertex {
                 position,
                 normal,
                 color,
+                uv,
+                material,
             });
             indices.push(idx as u32);
         }
@@ -187,10 +216,15 @@ pub(crate) fn build_vertices(mesh: &RenderMesh) -> (Vec<Vertex>, Vec<u32>) {
             .as_ref()
             .and_then(|colors| colors.get(index).copied())
             .unwrap_or(fallback_color);
+        let uv = uvs
+            .and_then(|uvs| uvs.get(index).copied())
+            .unwrap_or(fallback_uv);
         vertices.push(Vertex {
             position: *position,
             normal,
             color,
+            uv,
+            material: 0,
         });
     }
     (vertices, mesh.indices.clone())

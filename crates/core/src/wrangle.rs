@@ -1607,6 +1607,9 @@ fn value_from_attr_ref(attr: AttributeRef<'_>, idx: usize) -> Result<Value, Stri
         AttributeRef::Vec2(values) => Ok(Value::Vec2(values.get(idx).copied().unwrap_or([0.0; 2]))),
         AttributeRef::Vec3(values) => Ok(Value::Vec3(values.get(idx).copied().unwrap_or([0.0; 3]))),
         AttributeRef::Vec4(values) => Ok(Value::Vec4(values.get(idx).copied().unwrap_or([0.0; 4]))),
+        AttributeRef::StringTable(_) => {
+            Err("Wrangle does not support string attributes".to_string())
+        }
     }
 }
 
@@ -1657,6 +1660,9 @@ fn value_from_storage(storage: &AttributeStorage, idx: usize) -> Result<Value, S
         }
         AttributeStorage::Vec4(values) => {
             Ok(Value::Vec4(values.get(idx).copied().unwrap_or([0.0; 4])))
+        }
+        AttributeStorage::StringTable(_) => {
+            Err("Wrangle does not support string attributes".to_string())
         }
     }
 }
@@ -1721,6 +1727,7 @@ fn build_storage(
             }
             Ok(AttributeStorage::Vec4(out))
         }
+        AttributeType::String => Err("Wrangle does not support string attributes".to_string()),
     }
 }
 
@@ -1731,6 +1738,7 @@ fn default_value_for_type(target_type: AttributeType) -> Value {
         AttributeType::Vec2 => Value::Vec2([0.0, 0.0]),
         AttributeType::Vec3 => Value::Vec3([0.0, 0.0, 0.0]),
         AttributeType::Vec4 => Value::Vec4([0.0, 0.0, 0.0, 0.0]),
+        AttributeType::String => Value::Float(0.0),
     }
 }
 

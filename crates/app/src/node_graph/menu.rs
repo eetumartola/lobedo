@@ -101,7 +101,11 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeTransfer
-        | BuiltinNodeKind::AttributeMath => Some("Attribute"),
+        | BuiltinNodeKind::AttributeMath
+        | BuiltinNodeKind::UvTexture
+        | BuiltinNodeKind::UvUnwrap
+        | BuiltinNodeKind::UvView => Some("Attribute"),
+        BuiltinNodeKind::Material => Some("Materials"),
         _ => None,
     }
 }

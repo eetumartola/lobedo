@@ -24,6 +24,32 @@ pub enum AttributeType {
     Vec2,
     Vec3,
     Vec4,
+    String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StringTableAttribute {
+    pub values: Vec<String>,
+    pub indices: Vec<u32>,
+}
+
+impl StringTableAttribute {
+    pub fn new(values: Vec<String>, indices: Vec<u32>) -> Self {
+        Self { values, indices }
+    }
+
+    pub fn len(&self) -> usize {
+        self.indices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.indices.is_empty()
+    }
+
+    pub fn value(&self, element: usize) -> Option<&str> {
+        let idx = *self.indices.get(element)? as usize;
+        self.values.get(idx).map(|value| value.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,6 +59,7 @@ pub enum AttributeStorage {
     Vec2(Vec<[f32; 2]>),
     Vec3(Vec<[f32; 3]>),
     Vec4(Vec<[f32; 4]>),
+    StringTable(StringTableAttribute),
 }
 
 impl AttributeStorage {
@@ -43,6 +70,7 @@ impl AttributeStorage {
             AttributeStorage::Vec2(values) => values.len(),
             AttributeStorage::Vec3(values) => values.len(),
             AttributeStorage::Vec4(values) => values.len(),
+            AttributeStorage::StringTable(values) => values.len(),
         }
     }
 
@@ -57,6 +85,7 @@ impl AttributeStorage {
             AttributeStorage::Vec2(_) => AttributeType::Vec2,
             AttributeStorage::Vec3(_) => AttributeType::Vec3,
             AttributeStorage::Vec4(_) => AttributeType::Vec4,
+            AttributeStorage::StringTable(_) => AttributeType::String,
         }
     }
 
@@ -67,6 +96,7 @@ impl AttributeStorage {
             AttributeStorage::Vec2(values) => AttributeRef::Vec2(values.as_slice()),
             AttributeStorage::Vec3(values) => AttributeRef::Vec3(values.as_slice()),
             AttributeStorage::Vec4(values) => AttributeRef::Vec4(values.as_slice()),
+            AttributeStorage::StringTable(values) => AttributeRef::StringTable(values),
         }
     }
 }
@@ -100,6 +130,7 @@ pub enum AttributeRef<'a> {
     Vec2(&'a [[f32; 2]]),
     Vec3(&'a [[f32; 3]]),
     Vec4(&'a [[f32; 4]]),
+    StringTable(&'a StringTableAttribute),
 }
 
 impl<'a> AttributeRef<'a> {
@@ -110,6 +141,7 @@ impl<'a> AttributeRef<'a> {
             AttributeRef::Vec2(values) => values.len(),
             AttributeRef::Vec3(values) => values.len(),
             AttributeRef::Vec4(values) => values.len(),
+            AttributeRef::StringTable(values) => values.len(),
         }
     }
 
@@ -124,6 +156,7 @@ impl<'a> AttributeRef<'a> {
             AttributeRef::Vec2(_) => AttributeType::Vec2,
             AttributeRef::Vec3(_) => AttributeType::Vec3,
             AttributeRef::Vec4(_) => AttributeType::Vec4,
+            AttributeRef::StringTable(_) => AttributeType::String,
         }
     }
 }

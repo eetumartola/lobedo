@@ -30,6 +30,10 @@ pub enum BuiltinNodeKind {
     Color,
     Noise,
     Smooth,
+    UvTexture,
+    UvUnwrap,
+    UvView,
+    Material,
     Ray,
     AttributeNoise,
     AttributeFromFeature,
@@ -278,6 +282,42 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::UvTexture,
+        name: nodes::uv_texture::NAME,
+        aliases: &[],
+        definition: nodes::uv_texture::definition,
+        default_params: nodes::uv_texture::default_params,
+        compute_mesh: nodes::uv_texture::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::UvUnwrap,
+        name: nodes::uv_unwrap::NAME,
+        aliases: &[],
+        definition: nodes::uv_unwrap::definition,
+        default_params: nodes::uv_unwrap::default_params,
+        compute_mesh: nodes::uv_unwrap::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::UvView,
+        name: nodes::uv_view::NAME,
+        aliases: &[],
+        definition: nodes::uv_view::definition,
+        default_params: nodes::uv_view::default_params,
+        compute_mesh: nodes::uv_view::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Material,
+        name: nodes::material::NAME,
+        aliases: &[],
+        definition: nodes::material::definition,
+        default_params: nodes::material::default_params,
+        compute_mesh: nodes::material::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::Ray,
         name: nodes::ray::NAME,
         aliases: &[],
@@ -431,11 +471,15 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
         BuiltinNodeKind::Ray => nodes::ray::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::Material => nodes::material::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Normal
         | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
         | BuiltinNodeKind::Smooth
+        | BuiltinNodeKind::UvTexture
+        | BuiltinNodeKind::UvUnwrap
+        | BuiltinNodeKind::UvView
         | BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
@@ -502,7 +546,11 @@ fn apply_mesh_unary(
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_attribute_transfer(
@@ -527,7 +575,11 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
         splats.push(filter_splats(params, splat));
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -541,7 +593,11 @@ fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         splats.push(nodes::prune::apply_to_splats(params, splat));
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -555,7 +611,11 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
         splats.push(nodes::regularize::apply_to_splats(params, splat));
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -569,7 +629,11 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         splats.push(nodes::splat_lod::apply_to_splats(params, splat));
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn filter_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
@@ -611,7 +675,11 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -641,7 +709,11 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -675,7 +747,11 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
         splats.push(merge_splats(&copies));
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

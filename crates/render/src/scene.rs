@@ -6,6 +6,9 @@ pub struct RenderMesh {
     pub corner_normals: Option<Vec<[f32; 3]>>,
     pub colors: Option<Vec<[f32; 3]>>,
     pub corner_colors: Option<Vec<[f32; 3]>>,
+    pub uvs: Option<Vec<[f32; 2]>>,
+    pub corner_uvs: Option<Vec<[f32; 2]>>,
+    pub corner_materials: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +24,21 @@ pub struct RenderSplats {
 pub enum RenderDrawable {
     Mesh(RenderMesh),
     Splats(RenderSplats),
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderMaterial {
+    pub base_color: [f32; 3],
+    pub metallic: f32,
+    pub roughness: f32,
+    pub base_color_texture: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderTexture {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +58,8 @@ pub struct RenderScene {
     pub base_color: [f32; 3],
     pub template_mesh: Option<RenderMesh>,
     pub selection_shape: Option<SelectionShape>,
+    pub materials: Vec<RenderMaterial>,
+    pub textures: Vec<RenderTexture>,
 }
 
 impl RenderScene {

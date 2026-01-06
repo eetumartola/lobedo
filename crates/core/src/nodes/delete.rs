@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
+use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{
@@ -301,6 +301,15 @@ fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> At
                 }
             }
             AttributeStorage::Vec4(out)
+        }
+        AttributeStorage::StringTable(values) => {
+            let mut out = Vec::with_capacity(indices.len());
+            for &idx in indices {
+                if let Some(value) = values.indices.get(idx) {
+                    out.push(*value);
+                }
+            }
+            AttributeStorage::StringTable(StringTableAttribute::new(values.values.clone(), out))
         }
     }
 }

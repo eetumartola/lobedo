@@ -7,6 +7,7 @@ mod graph;
 mod mesh;
 mod mesh_primitives;
 mod mesh_eval;
+mod material;
 mod noise;
 mod nodes;
 mod nodes_builtin;
@@ -32,6 +33,7 @@ pub use graph::{
     PinDefinition, PinId, PinKind, PinType,
 };
 pub use mesh::{make_box, make_grid, make_tube, Aabb, Mesh};
+pub use material::{Material, MaterialLibrary};
 pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};
 pub use geometry_eval::{evaluate_geometry_graph, GeometryEvalResult, GeometryEvalState};
 pub use nodes_builtin::{

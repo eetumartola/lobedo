@@ -109,6 +109,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                     .set_attribute(domain, attr, AttributeStorage::Vec4(smoothed))
                     .map_err(|err| format!("Smooth error: {:?}", err))?;
             }
+            AttributeRef::StringTable(_) => {}
         }
     }
 
@@ -171,6 +172,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 mesh.set_attribute(domain, attr, AttributeStorage::Vec4(smoothed))
                     .map_err(|err| format!("Smooth error: {:?}", err))?;
             }
+            AttributeRef::StringTable(_) => {}
         }
     }
 

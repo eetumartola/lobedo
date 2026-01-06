@@ -433,6 +433,7 @@ impl LobedoApp {
                         }
                     }
                     self.show_splat_read_params(ui);
+                    self.show_uv_view_params(ui);
                 });
             });
         });
@@ -498,6 +499,125 @@ impl LobedoApp {
         ui.label(format!("SH coeffs/channel: {}", splat_geo.sh_coeffs));
         ui.label(format!("SH order: {}", sh_order_label(splat_geo.sh_coeffs)));
     }
+
+    fn show_uv_view_params(&self, ui: &mut egui::Ui) {
+        let Some(node_id) = self.node_graph.selected_node_id() else {
+            return;
+        };
+        let Some(node) = self.project.graph.node(node_id) else {
+            return;
+        };
+        if node.name != "UV View" {
+            return;
+        }
+
+        ui.separator();
+        ui.label("UV View");
+        let Some(geometry) = self.eval_state.geometry_for_node(node_id) else {
+            ui.label("No geometry available for this node.");
+            return;
+        };
+        let Some(mesh) = geometry.merged_mesh() else {
+            ui.label("No mesh output available for this node.");
+            return;
+        };
+        let Some(corner_uvs) = mesh_corner_uvs(&mesh) else {
+            ui.label("No UVs found on this mesh.");
+            return;
+        };
+        if mesh.indices.len() < 3 {
+            ui.label("Mesh has no triangles.");
+            return;
+        }
+
+        ui.label(format!("Triangles: {}", mesh.indices.len() / 3));
+        ui.add_space(6.0);
+        let height = 240.0;
+        let width = ui.available_width().max(160.0);
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+        let painter = ui.painter();
+        painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(32, 32, 32));
+        painter.rect_stroke(
+            rect,
+            0.0,
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 60, 60)),
+            egui::StrokeKind::Outside,
+        );
+
+        let (min_uv, max_uv) = uv_bounds(&corner_uvs);
+        let span = (max_uv - min_uv).max(egui::vec2(1.0e-6, 1.0e-6));
+        let padding = 8.0;
+        let inner = rect.shrink(padding);
+        let scale = (inner.width() / span.x).min(inner.height() / span.y);
+        let uv_size = egui::vec2(span.x * scale, span.y * scale);
+        let offset = egui::vec2(
+            inner.min.x + (inner.width() - uv_size.x) * 0.5,
+            inner.min.y + (inner.height() - uv_size.y) * 0.5,
+        );
+
+        let to_screen = |uv: [f32; 2]| -> egui::Pos2 {
+            let x = offset.x + (uv[0] - min_uv.x) * scale;
+            let y = offset.y + (max_uv.y - uv[1]) * scale;
+            egui::pos2(x, y)
+        };
+
+        let stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 200, 255));
+        for tri in corner_uvs.chunks_exact(3) {
+            let a = to_screen(tri[0]);
+            let b = to_screen(tri[1]);
+            let c = to_screen(tri[2]);
+            painter.line_segment([a, b], stroke);
+            painter.line_segment([b, c], stroke);
+            painter.line_segment([c, a], stroke);
+        }
+    }
+}
+
+fn mesh_corner_uvs(mesh: &lobedo_core::Mesh) -> Option<Vec<[f32; 2]>> {
+    if mesh.indices.is_empty() {
+        return None;
+    }
+    if let Some(attr) = mesh.attribute(lobedo_core::AttributeDomain::Vertex, "uv") {
+        if let lobedo_core::AttributeRef::Vec2(values) = attr {
+            if values.len() == mesh.indices.len() {
+                return Some(values.to_vec());
+            }
+        }
+    }
+
+    let mut point_uvs = None;
+    if let Some(attr) = mesh.attribute(lobedo_core::AttributeDomain::Point, "uv") {
+        if let lobedo_core::AttributeRef::Vec2(values) = attr {
+            if values.len() == mesh.positions.len() {
+                point_uvs = Some(values.to_vec());
+            }
+        }
+    }
+    if point_uvs.is_none() {
+        if let Some(uvs) = mesh.uvs.as_ref() {
+            if uvs.len() == mesh.positions.len() {
+                point_uvs = Some(uvs.clone());
+            }
+        }
+    }
+    let uvs = point_uvs?;
+    let mut corner_uvs = Vec::with_capacity(mesh.indices.len());
+    for &idx in &mesh.indices {
+        corner_uvs.push(*uvs.get(idx as usize).unwrap_or(&[0.0, 0.0]));
+    }
+    Some(corner_uvs)
+}
+
+fn uv_bounds(uvs: &[[f32; 2]]) -> (egui::Vec2, egui::Vec2) {
+    let mut min = egui::Vec2::new(f32::INFINITY, f32::INFINITY);
+    let mut max = egui::Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for uv in uvs {
+        min.x = min.x.min(uv[0]);
+        min.y = min.y.min(uv[1]);
+        max.x = max.x.max(uv[0]);
+        max.y = max.y.max(uv[1]);
+    }
+    (min, max)
 }
 
 fn sh_order_label(sh_coeffs: usize) -> String {

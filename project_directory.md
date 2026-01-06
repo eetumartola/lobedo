@@ -144,6 +144,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\material.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\mesh.rs
 Description: TODO: add description.
 Functions: None
@@ -209,6 +213,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\group_utils.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\material.rs
 Description: TODO: add description.
 Functions: None
 
@@ -285,6 +293,18 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\tube.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\uv_texture.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\uv_unwrap.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\uv_view.rs
 Description: TODO: add description.
 Functions: None
 

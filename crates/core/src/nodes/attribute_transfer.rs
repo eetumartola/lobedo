@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use glam::Vec3;
 
-use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage};
+use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, StringTableAttribute};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
@@ -95,7 +95,11 @@ pub fn apply_to_geometry(
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: target.materials.clone(),
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -105,6 +109,7 @@ enum AttributeSamples {
     Vec2 { positions: Vec<Vec3>, values: Vec<[f32; 2]> },
     Vec3 { positions: Vec<Vec3>, values: Vec<[f32; 3]> },
     Vec4 { positions: Vec<Vec3>, values: Vec<[f32; 4]> },
+    StringTable { positions: Vec<Vec3>, values: StringTableAttribute },
 }
 
 impl AttributeSamples {
@@ -115,6 +120,7 @@ impl AttributeSamples {
             AttributeSamples::Vec2 { values, .. } => values.len(),
             AttributeSamples::Vec3 { values, .. } => values.len(),
             AttributeSamples::Vec4 { values, .. } => values.len(),
+            AttributeSamples::StringTable { values, .. } => values.len(),
         }
     }
 
@@ -289,6 +295,25 @@ fn append_samples(
             }
             _ => {}
         },
+        AttributeRef::StringTable(values) => match samples.get_mut(name) {
+            None => {
+                samples.insert(
+                    name.to_string(),
+                    AttributeSamples::StringTable {
+                        positions: positions.to_vec(),
+                        values: values.clone(),
+                    },
+                );
+            }
+            Some(AttributeSamples::StringTable {
+                positions: out_positions,
+                values: out_values,
+            }) => {
+                out_positions.extend_from_slice(positions);
+                append_string_table_values(out_values, values);
+            }
+            _ => {}
+        },
     }
 }
 
@@ -399,6 +424,53 @@ fn apply_transfer_to_mesh(
                 );
                 mesh.set_attribute(domain, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+            }
+            AttributeSamples::StringTable { positions: src_pos, values } => {
+                let existing = mesh.attribute(domain, name);
+                let existing_table = match existing {
+                    Some(AttributeRef::StringTable(table)) => Some(table),
+                    _ => None,
+                };
+                let (combined_values, map_existing, map_source) =
+                    merge_string_tables(existing_table, values);
+                let mut out = vec![0u32; count.max(1)];
+                if let Some(table) = existing_table {
+                    if table.indices.len() == count {
+                        for (idx, &old) in table.indices.iter().enumerate() {
+                            let mapped = map_existing.get(old as usize).copied().unwrap_or(0);
+                            if let Some(slot) = out.get_mut(idx) {
+                                *slot = mapped;
+                            }
+                        }
+                    }
+                }
+                let source_indices: Vec<u32> = values
+                    .indices
+                    .iter()
+                    .map(|idx| map_source.get(*idx as usize).copied().unwrap_or(0))
+                    .collect();
+                transfer_values(
+                    &positions,
+                    src_pos,
+                    &source_indices,
+                    mask.as_deref(),
+                    |idx, value| {
+                        if let Some(slot) = out.get_mut(idx) {
+                            *slot = value;
+                        }
+                    },
+                );
+                let mut table = combined_values;
+                if table.is_empty() && !out.is_empty() {
+                    table.push(String::new());
+                    out.fill(0);
+                }
+                mesh.set_attribute(
+                    domain,
+                    name,
+                    AttributeStorage::StringTable(StringTableAttribute::new(table, out)),
+                )
+                .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
         }
     }
@@ -519,6 +591,54 @@ fn apply_transfer_to_splats(
                     .set_attribute(domain, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
+            AttributeSamples::StringTable { positions: src_pos, values } => {
+                let existing = splats.attribute(domain, name);
+                let existing_table = match existing {
+                    Some(AttributeRef::StringTable(table)) => Some(table),
+                    _ => None,
+                };
+                let (combined_values, map_existing, map_source) =
+                    merge_string_tables(existing_table, values);
+                let mut out = vec![0u32; count.max(1)];
+                if let Some(table) = existing_table {
+                    if table.indices.len() == count {
+                        for (idx, &old) in table.indices.iter().enumerate() {
+                            let mapped = map_existing.get(old as usize).copied().unwrap_or(0);
+                            if let Some(slot) = out.get_mut(idx) {
+                                *slot = mapped;
+                            }
+                        }
+                    }
+                }
+                let source_indices: Vec<u32> = values
+                    .indices
+                    .iter()
+                    .map(|idx| map_source.get(*idx as usize).copied().unwrap_or(0))
+                    .collect();
+                transfer_values(
+                    &positions,
+                    src_pos,
+                    &source_indices,
+                    mask.as_deref(),
+                    |idx, value| {
+                        if let Some(slot) = out.get_mut(idx) {
+                            *slot = value;
+                        }
+                    },
+                );
+                let mut table = combined_values;
+                if table.is_empty() && !out.is_empty() {
+                    table.push(String::new());
+                    out.fill(0);
+                }
+                splats
+                    .set_attribute(
+                        domain,
+                        name,
+                        AttributeStorage::StringTable(StringTableAttribute::new(table, out)),
+                    )
+                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+            }
         }
     }
 
@@ -547,6 +667,63 @@ fn transfer_values<T: Copy>(
             set_value(idx, value);
         }
     }
+}
+
+fn append_string_table_values(
+    combined: &mut StringTableAttribute,
+    source: &StringTableAttribute,
+) {
+    if source.indices.is_empty() {
+        return;
+    }
+    let mut lookup: HashMap<String, u32> = HashMap::new();
+    for (idx, value) in combined.values.iter().enumerate() {
+        lookup.insert(value.clone(), idx as u32);
+    }
+    for &index in &source.indices {
+        let value = source.values.get(index as usize).cloned().unwrap_or_default();
+        let entry = if let Some(&existing) = lookup.get(&value) {
+            existing
+        } else {
+            let new_index = combined.values.len() as u32;
+            combined.values.push(value.clone());
+            lookup.insert(value, new_index);
+            new_index
+        };
+        combined.indices.push(entry);
+    }
+}
+
+fn merge_string_tables(
+    existing: Option<&StringTableAttribute>,
+    source: &StringTableAttribute,
+) -> (Vec<String>, Vec<u32>, Vec<u32>) {
+    let mut combined = Vec::new();
+    let mut lookup: HashMap<String, u32> = HashMap::new();
+    let mut existing_map = Vec::new();
+    if let Some(existing) = existing {
+        existing_map = Vec::with_capacity(existing.values.len());
+        for value in &existing.values {
+            let entry = lookup.get(value).copied().unwrap_or_else(|| {
+                let idx = combined.len() as u32;
+                combined.push(value.clone());
+                lookup.insert(value.clone(), idx);
+                idx
+            });
+            existing_map.push(entry);
+        }
+    }
+    let mut source_map = Vec::with_capacity(source.values.len());
+    for value in &source.values {
+        let entry = lookup.get(value).copied().unwrap_or_else(|| {
+            let idx = combined.len() as u32;
+            combined.push(value.clone());
+            lookup.insert(value.clone(), idx);
+            idx
+        });
+        source_map.push(entry);
+    }
+    (combined, existing_map, source_map)
 }
 
 fn find_nearest_index(position: Vec3, samples: &[Vec3]) -> usize {

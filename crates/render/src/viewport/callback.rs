@@ -39,7 +39,11 @@ impl CallbackTrait for ViewportCallback {
         callback_resources: &mut CallbackResources,
     ) -> Vec<egui_wgpu::wgpu::CommandBuffer> {
         if callback_resources.get::<PipelineState>().is_none() {
-            callback_resources.insert(PipelineState::new(device, self.target_format));
+            callback_resources.insert(PipelineState::new(
+                device,
+                queue,
+                self.target_format,
+            ));
         }
 
         let view_proj = camera_view_proj(self.camera, self.rect, screen_descriptor);
@@ -79,7 +83,7 @@ impl CallbackTrait for ViewportCallback {
             if scene_changed {
                 match scene.as_deref() {
                     Some(scene) => {
-                        apply_scene_to_pipeline(device, pipeline, scene);
+                        apply_scene_to_pipeline(device, queue, pipeline, scene);
                         pipeline.base_color = scene.base_color;
                     }
                     None => {
@@ -215,7 +219,8 @@ impl CallbackTrait for ViewportCallback {
                             timestamp_writes: None,
                         });
                     shadow_pass.set_pipeline(&pipeline.shadow_pipeline);
-                    shadow_pass.set_bind_group(0, &pipeline.shadow_bind_group, &[]);
+                    shadow_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                    shadow_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                     match &mesh.data {
                         GpuMeshData::Indexed {
                             vertex_buffer,
@@ -290,6 +295,7 @@ impl CallbackTrait for ViewportCallback {
                 if !self.debug.show_points && pipeline.index_count > 0 {
                     render_pass.set_pipeline(&pipeline.mesh_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                    render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                     match &mesh.data {
                         GpuMeshData::Indexed {
                             vertex_buffer,
@@ -330,6 +336,7 @@ impl CallbackTrait for ViewportCallback {
 
             render_pass.set_pipeline(&pipeline.line_pipeline);
             render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+            render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
 
             if self.debug.show_points || pipeline.index_count == 0 {
                 let camera_distance = (camera_pos - Vec3::from(self.camera.target)).length();
@@ -461,6 +468,7 @@ impl CallbackTrait for ViewportCallback {
                 if !pipeline.splat_buffers.is_empty() {
                     render_pass.set_pipeline(&pipeline.splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                    render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                     for (buffer, count) in pipeline
                         .splat_buffers
                         .iter()
@@ -477,6 +485,7 @@ impl CallbackTrait for ViewportCallback {
 
             render_pass.set_pipeline(&pipeline.line_pipeline);
             render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+            render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
 
             if pipeline.template_count > 0 {
                 render_pass.set_vertex_buffer(0, pipeline.template_buffer.slice(..));

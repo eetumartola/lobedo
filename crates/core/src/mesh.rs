@@ -4,7 +4,7 @@ use glam::{Mat4, Vec3};
 
 use crate::attributes::{
     AttributeDomain, AttributeError, AttributeInfo, AttributeRef, AttributeStorage, AttributeType,
-    MeshAttributes,
+    MeshAttributes, StringTableAttribute,
 };
 
 pub use crate::mesh_primitives::{make_box, make_grid, make_tube, make_uv_sphere};
@@ -523,6 +523,9 @@ fn merge_attributes(meshes: &[Mesh]) -> MeshAttributes {
                         AttributeStorage::Vec2(_) => AttributeStorage::Vec2(Vec::new()),
                         AttributeStorage::Vec3(_) => AttributeStorage::Vec3(Vec::new()),
                         AttributeStorage::Vec4(_) => AttributeStorage::Vec4(Vec::new()),
+                        AttributeStorage::StringTable(_) => {
+                            AttributeStorage::StringTable(StringTableAttribute::new(Vec::new(), Vec::new()))
+                        }
                     };
 
                     for mesh in meshes {
@@ -549,6 +552,15 @@ fn merge_attributes(meshes: &[Mesh]) -> MeshAttributes {
                             }
                             (AttributeStorage::Vec4(out), AttributeStorage::Vec4(values)) => {
                                 out.extend_from_slice(values);
+                            }
+                            (
+                                AttributeStorage::StringTable(out),
+                                AttributeStorage::StringTable(values),
+                            ) => {
+                                if !merge_string_table_attribute(out, values) {
+                                    compatible = false;
+                                    break;
+                                }
                             }
                             _ => {
                                 compatible = false;
@@ -602,6 +614,34 @@ fn merge_groups(meshes: &[Mesh]) -> MeshGroups {
     }
 
     merged
+}
+
+fn merge_string_table_attribute(
+    combined: &mut StringTableAttribute,
+    source: &StringTableAttribute,
+) -> bool {
+    if source.indices.is_empty() {
+        return true;
+    }
+
+    let mut lookup: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for (idx, value) in combined.values.iter().enumerate() {
+        lookup.insert(value.clone(), idx as u32);
+    }
+
+    for &index in &source.indices {
+        let value = source.values.get(index as usize).cloned().unwrap_or_default();
+        let entry = if let Some(&existing) = lookup.get(&value) {
+            existing
+        } else {
+            let new_index = combined.values.len() as u32;
+            combined.values.push(value.clone());
+            lookup.insert(value, new_index);
+            new_index
+        };
+        combined.indices.push(entry);
+    }
+    true
 }
 
 fn quantize_position(position: [f32; 3]) -> (i32, i32, i32) {

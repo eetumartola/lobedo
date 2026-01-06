@@ -132,6 +132,10 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: input.materials.clone(),
+    })
 }
 

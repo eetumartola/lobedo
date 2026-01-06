@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 #[cfg(not(target_arch = "wasm32"))]
+use std::fs;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
@@ -10,8 +12,8 @@ use lobedo_core::{
     evaluate_geometry_graph, Mesh, SceneDrawable, SceneSnapshot, SceneSplats, ShadingMode,
 };
 use render::{
-    RenderDrawable, RenderMesh, RenderScene, RenderSplats, SelectionShape, ViewportDebug,
-    ViewportShadingMode,
+    RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats, RenderTexture,
+    SelectionShape, ViewportDebug, ViewportShadingMode,
 };
 
 use super::{DisplayState, LobedoApp};
@@ -195,17 +197,21 @@ pub(super) fn scene_to_render_with_template(
         }
     }
 
-    let base_color = if mesh_has_colors {
+    let base_color = if mesh_has_colors || !scene.materials.is_empty() {
         [1.0, 1.0, 1.0]
     } else {
         scene.base_color
     };
+
+    let (materials, textures) = render_materials_from_scene(scene);
 
     RenderScene {
         drawables,
         base_color,
         template_mesh: template.map(render_mesh_from_mesh),
         selection_shape,
+        materials,
+        textures,
     }
 }
 
@@ -217,6 +223,9 @@ fn render_mesh_from_scene(mesh: &lobedo_core::SceneMesh) -> RenderMesh {
         corner_normals: mesh.corner_normals.clone(),
         colors: mesh.colors.clone(),
         corner_colors: mesh.corner_colors.clone(),
+        uvs: mesh.uvs.clone(),
+        corner_uvs: mesh.corner_uvs.clone(),
+        corner_materials: mesh.corner_materials.clone(),
     }
 }
 
@@ -266,6 +275,90 @@ fn render_mesh_from_mesh(mesh: &Mesh) -> RenderMesh {
         .mesh()
         .expect("mesh snapshot missing mesh");
     render_mesh_from_scene(mesh)
+}
+
+const MAX_MATERIAL_TEXTURES: usize = 1;
+
+fn render_materials_from_scene(
+    scene: &SceneSnapshot,
+) -> (Vec<RenderMaterial>, Vec<RenderTexture>) {
+    let mut materials = Vec::new();
+    let mut textures = Vec::new();
+    let mut texture_lookup: HashMap<String, usize> = HashMap::new();
+
+    for material in &scene.materials {
+        let mut base_color_texture = None;
+        if let Some(path) = material.base_color_texture.as_ref() {
+            if let Some(&index) = texture_lookup.get(path) {
+                base_color_texture = Some(index);
+            } else if textures.len() < MAX_MATERIAL_TEXTURES {
+                match load_render_texture(path) {
+                    Some(texture) => {
+                        let index = textures.len();
+                        textures.push(texture);
+                        texture_lookup.insert(path.clone(), index);
+                        base_color_texture = Some(index);
+                    }
+                    None => {
+                        tracing::warn!("failed to load texture: {path}");
+                    }
+                }
+            } else if !texture_lookup.contains_key(path) {
+                tracing::warn!("only one texture is supported right now; skipping {path}");
+            } else {
+                tracing::warn!("texture limit reached, skipping: {path}");
+            }
+        }
+
+        materials.push(RenderMaterial {
+            base_color: material.base_color,
+            metallic: material.metallic,
+            roughness: material.roughness,
+            base_color_texture,
+        });
+    }
+
+    if materials.is_empty() {
+        materials.push(RenderMaterial {
+            base_color: [1.0, 1.0, 1.0],
+            metallic: 0.0,
+            roughness: 0.5,
+            base_color_texture: None,
+        });
+    }
+
+    (materials, textures)
+}
+
+fn load_render_texture(path: &str) -> Option<RenderTexture> {
+    let bytes = load_texture_bytes(path)?;
+    let image = match image::load_from_memory(&bytes) {
+        Ok(image) => image,
+        Err(err) => {
+            tracing::warn!("texture decode failed for {path}: {err}");
+            return None;
+        }
+    };
+    let rgba = image.to_rgba8();
+    Some(RenderTexture {
+        width: rgba.width(),
+        height: rgba.height(),
+        pixels: rgba.into_raw(),
+    })
+}
+
+fn load_texture_bytes(path: &str) -> Option<Vec<u8>> {
+    if let Some(bytes) = lobedo_core::load_bytes(path) {
+        return Some(bytes);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        fs::read(path).ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        None
+    }
 }
 
 fn collect_template_meshes(

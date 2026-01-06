@@ -143,6 +143,29 @@ pub(super) fn edit_param(
                     &[(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
                     "Density (Iso)",
                 )
+            } else if label == "projection" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    &mut v,
+                    &[
+                        (0, "Planar"),
+                        (1, "Box"),
+                        (2, "Cylindrical"),
+                        (3, "Spherical"),
+                    ],
+                    "Planar",
+                )
+            } else if label == "axis" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    &mut v,
+                    &[(0, "X"), (1, "Y"), (2, "Z")],
+                    "Y",
+                )
             } else {
                 param_row_with_label(ui, label, &display_label, |ui| {
                     let mut changed = false;
@@ -259,10 +282,10 @@ pub(super) fn edit_param(
                     .changed()
                 })
             } else {
-                let use_picker = label == "path" && path_picker_kind(node_name).is_some();
+                let use_picker = path_picker_kind(node_name, label).is_some();
                 if use_picker {
                     param_row_with_label(ui, label, &display_label, |ui| {
-                        edit_path_field(ui, node_name, &mut v)
+                        edit_path_field(ui, node_name, label, &mut v)
                     })
                 } else {
                     param_row_with_label(ui, label, &display_label, |ui| {
@@ -280,7 +303,7 @@ pub(super) fn edit_param(
     }
 }
 
-fn edit_path_field(ui: &mut Ui, node_name: &str, value: &mut String) -> bool {
+fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
     let height = ui.spacing().interact_size.y;
     let spacing = 6.0;
     let button_width = height;
@@ -290,7 +313,7 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, value: &mut String) -> bool {
         .min(total_width);
     let mut changed = false;
     #[cfg(target_arch = "wasm32")]
-    if let Some(kind) = path_picker_kind(node_name) {
+    if let Some(kind) = path_picker_kind(node_name, label) {
         if let Some(result) = take_file_pick(kind) {
             let key = lobedo_core::store_bytes(result.name, result.bytes);
             *value = key;
@@ -304,7 +327,7 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, value: &mut String) -> bool {
         changed = true;
     }
     ui.add_space(spacing);
-    if let Some(kind) = path_picker_kind(node_name) {
+    if let Some(kind) = path_picker_kind(node_name, label) {
         if open_path_picker_button(ui, kind, value, button_width, height) {
             changed = true;
         }
@@ -318,6 +341,7 @@ enum PathPickerKind {
     WriteObj,
     ReadSplat,
     WriteSplat,
+    ReadTexture,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -351,12 +375,13 @@ fn take_file_pick(kind: PathPickerKind) -> Option<FilePickResult> {
     }
 }
 
-fn path_picker_kind(node_name: &str) -> Option<PathPickerKind> {
-    match node_name {
-        "File" => Some(PathPickerKind::ReadObj),
-        "OBJ Output" => Some(PathPickerKind::WriteObj),
-        "Splat Read" | "Read Splats" => Some(PathPickerKind::ReadSplat),
-        "Splat Write" => Some(PathPickerKind::WriteSplat),
+fn path_picker_kind(node_name: &str, label: &str) -> Option<PathPickerKind> {
+    match (node_name, label) {
+        ("File", "path") => Some(PathPickerKind::ReadObj),
+        ("OBJ Output", "path") => Some(PathPickerKind::WriteObj),
+        ("Splat Read", "path") | ("Read Splats", "path") => Some(PathPickerKind::ReadSplat),
+        ("Splat Write", "path") => Some(PathPickerKind::WriteSplat),
+        ("Material", "base_color_tex") => Some(PathPickerKind::ReadTexture),
         _ => None,
     }
 }
@@ -386,6 +411,7 @@ fn open_path_picker_button(
                 let (label, extensions) = match kind_copy {
                     PathPickerKind::ReadObj | PathPickerKind::WriteObj => ("OBJ", &["obj"][..]),
                     PathPickerKind::ReadSplat | PathPickerKind::WriteSplat => ("PLY", &["ply"][..]),
+                    PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..]),
                 };
                 let dialog = AsyncFileDialog::new().add_filter(label, extensions);
                 if let Some(file) = dialog.pick_file().await {
@@ -421,6 +447,7 @@ fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
         PathPickerKind::WriteObj => ("OBJ", &["obj"][..], true, "output.obj"),
         PathPickerKind::ReadSplat => ("PLY", &["ply"][..], false, "splats.ply"),
         PathPickerKind::WriteSplat => ("PLY", &["ply"][..], true, "output.ply"),
+        PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..], false, "texture.png"),
     };
     let mut dialog = FileDialog::new().add_filter(label, extensions);
     if !current.trim().is_empty() {
@@ -557,7 +584,7 @@ fn combo_row_string(
 
 fn display_label(node_name: &str, key: &str) -> String {
     if node_name == "Splat to Mesh" {
-        match key {
+        return match key {
             "algorithm" => "Method",
             "voxel_size" => "Voxel Size",
             "n_sigma" => "Support Sigma",
@@ -572,10 +599,38 @@ fn display_label(node_name: &str, key: &str) -> String {
             "voxel_size_max" => "Max Voxel Dimension",
             _ => key,
         }
-        .to_string()
-    } else {
-        key.to_string()
+        .to_string();
     }
+    if node_name == "UV Texture" {
+        return match key {
+            "projection" => "Projection",
+            "axis" => "Axis",
+            "scale" => "Scale",
+            "offset" => "Offset",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "UV Unwrap" {
+        return match key {
+            "padding" => "Padding",
+            "normal_threshold" => "Normal Threshold",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Material" {
+        return match key {
+            "name" => "Name",
+            "base_color" => "Base Color",
+            "base_color_tex" => "Base Color Texture",
+            "metallic" => "Metallic",
+            "roughness" => "Roughness",
+            _ => key,
+        }
+        .to_string();
+    }
+    key.to_string()
 }
 
 fn float_slider_range(
@@ -597,9 +652,11 @@ fn float_slider_range(
         "density_iso" => 0.0..=10.0,
         "surface_iso" => -5.0..=5.0,
         "bounds_padding" => 0.0..=10.0,
+        "normal_threshold" => 0.0..=180.0,
         "max_m2" => 0.0..=10.0,
         "smooth_k" => 0.001..=2.0,
         "shell_radius" => 0.1..=4.0,
+        "metallic" | "roughness" => 0.0..=1.0,
         _ => -1000.0..=1000.0,
     }
 }

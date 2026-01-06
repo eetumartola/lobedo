@@ -320,6 +320,7 @@ fn attribute_type_label(ty: AttributeType) -> &'static str {
         AttributeType::Vec2 => "2-Flt",
         AttributeType::Vec3 => "3-Flt",
         AttributeType::Vec4 => "4-Flt",
+        AttributeType::String => "Str",
     }
 }
 

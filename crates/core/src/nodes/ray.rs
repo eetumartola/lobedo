@@ -75,7 +75,11 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         splats.push(splat);
     }
 
-    Ok(Geometry { meshes, splats })
+    Ok(Geometry {
+        meshes,
+        splats,
+        materials: source.materials.clone(),
+    })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -382,6 +386,7 @@ fn apply_hit_attributes_mesh(
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
+            AttributeType::String => {}
         }
     }
     Ok(())
@@ -492,6 +497,7 @@ fn apply_hit_attributes_splats(
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Ray error: {:?}", err))?;
             }
+            AttributeType::String => {}
         }
     }
     Ok(())
@@ -1024,6 +1030,7 @@ fn sample_mesh_attribute(
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Vec4),
         },
+        AttributeRef::StringTable(_) => None,
     }
 }
 
@@ -1077,6 +1084,7 @@ fn sample_splat_attribute(
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Vec4),
             AttributeDomain::Vertex => None,
         },
+        AttributeRef::StringTable(_) => None,
     }
 }
 

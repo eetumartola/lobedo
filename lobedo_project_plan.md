@@ -46,6 +46,14 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Explore parallel node evaluation for independent subgraphs (graph scheduling)
 - Add profiling-driven thresholds (only parallelize above a size/complexity cutoff)
 
+## Epic U - Materials & Textures
+- Add string attributes with shared value tables (Houdini-style) for per-primitive material assignment
+- Ensure meshes carry UVs end-to-end (reader, nodes, renderer)
+- `UV Texture` node for basic projections (planar/box/cyl/sphere)
+- `UV Unwrap` node for basic unwrapping
+- `Material` node with named PBR parameters + diffuse texture path
+- Renderer support for UVs + diffuse texture sampling (MVP: diffuse only)
+
 ---
 
 ## Core Data Model
@@ -153,6 +161,11 @@ SH evaluation:
 12. `Smooth` (space-delimited attribute names, default P; splat-aware where possible)
 13. `Ray` (normal/direction/closest; max distance; hit group + attribute import; optional no-transform)
 14. `Wrangle` (implicit @ptnum/@vtxnum/@primnum; point/vertex/prim/splat attribute queries across inputs 0/1)
+
+### Materials & UV (MVP)
+15. `UV Texture` (basic projections; writes vertex `uv`)
+16. `UV Unwrap` (basic unwrap for meshes)
+17. `Material` (named PBR params + diffuse texture; assigns primitive material attribute)
 
 ### Splat-native ops
 14. `Crop` (box/sphere/plane)

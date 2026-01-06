@@ -1,5 +1,4 @@
 use egui_wgpu::wgpu::util::DeviceExt as _;
-
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -39,6 +38,13 @@ pub(super) struct Uniforms {
     pub(super) shadow_params: [f32; 4],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub(super) struct MaterialGpu {
+    pub(super) base_color: [f32; 4],
+    pub(super) params: [f32; 4],
+}
+
 pub(super) struct PipelineState {
     pub(super) mesh_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) shadow_pipeline: egui_wgpu::wgpu::RenderPipeline,
@@ -59,7 +65,12 @@ pub(super) struct PipelineState {
     pub(super) offscreen_size: [u32; 2],
     pub(super) uniform_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) uniform_bind_group: egui_wgpu::wgpu::BindGroup,
-    pub(super) shadow_bind_group: egui_wgpu::wgpu::BindGroup,
+    pub(super) material_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) material_bind_group: egui_wgpu::wgpu::BindGroup,
+    pub(super) material_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
+    pub(super) material_sampler: egui_wgpu::wgpu::Sampler,
+    pub(super) material_texture: egui_wgpu::wgpu::Texture,
+    pub(super) material_texture_view: egui_wgpu::wgpu::TextureView,
     pub(super) mesh_cache: GpuMeshCache,
     pub(super) mesh_id: u64,
     pub(super) mesh_vertices: Vec<Vertex>,
@@ -102,6 +113,7 @@ pub(super) struct PipelineState {
 impl PipelineState {
     pub(super) fn new(
         device: &egui_wgpu::wgpu::Device,
+        queue: &egui_wgpu::wgpu::Queue,
         target_format: egui_wgpu::wgpu::TextureFormat,
     ) -> Self {
         let shader = create_main_shader(device);
@@ -165,19 +177,42 @@ impl PipelineState {
                     },
                 ],
             });
-        let shadow_layout =
+        let material_bind_group_layout =
             device.create_bind_group_layout(&egui_wgpu::wgpu::BindGroupLayoutDescriptor {
-                label: Some("lobedo_viewport_shadow_layout"),
-                entries: &[egui_wgpu::wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: egui_wgpu::wgpu::ShaderStages::VERTEX,
-                    ty: egui_wgpu::wgpu::BindingType::Buffer {
-                        ty: egui_wgpu::wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                label: Some("lobedo_viewport_material_layout"),
+                entries: &[
+                    egui_wgpu::wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: egui_wgpu::wgpu::ShaderStages::VERTEX
+                            | egui_wgpu::wgpu::ShaderStages::FRAGMENT,
+                        ty: egui_wgpu::wgpu::BindingType::Buffer {
+                            ty: egui_wgpu::wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    egui_wgpu::wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: egui_wgpu::wgpu::ShaderStages::FRAGMENT,
+                        ty: egui_wgpu::wgpu::BindingType::Sampler(
+                            egui_wgpu::wgpu::SamplerBindingType::Filtering,
+                        ),
+                        count: None,
+                    },
+                    egui_wgpu::wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: egui_wgpu::wgpu::ShaderStages::FRAGMENT,
+                        ty: egui_wgpu::wgpu::BindingType::Texture {
+                            sample_type: egui_wgpu::wgpu::TextureSampleType::Float {
+                                filterable: true,
+                            },
+                            view_dimension: egui_wgpu::wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                ],
             });
 
         let shadow_size = 1024;
@@ -192,6 +227,45 @@ impl PipelineState {
             compare: Some(egui_wgpu::wgpu::CompareFunction::LessEqual),
             ..Default::default()
         });
+
+        let material_sampler = device.create_sampler(&egui_wgpu::wgpu::SamplerDescriptor {
+            label: Some("lobedo_material_sampler"),
+            mag_filter: egui_wgpu::wgpu::FilterMode::Linear,
+            min_filter: egui_wgpu::wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        let default_material = MaterialGpu {
+            base_color: [1.0, 1.0, 1.0, 0.0],
+            params: [0.5, -1.0, 0.0, 0.0],
+        };
+        let material_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_materials"),
+                contents: bytemuck::cast_slice(&[default_material]),
+                usage: egui_wgpu::wgpu::BufferUsages::STORAGE
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
+        let fallback_texture = device.create_texture_with_data(
+            queue,
+            &egui_wgpu::wgpu::TextureDescriptor {
+                label: Some("lobedo_material_fallback"),
+                size: egui_wgpu::wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: egui_wgpu::wgpu::TextureDimension::D2,
+                format: egui_wgpu::wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: egui_wgpu::wgpu::TextureUsages::TEXTURE_BINDING
+                    | egui_wgpu::wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
+            &[255, 255, 255, 255],
+        );
+        let material_texture_view = fallback_texture.create_view(&Default::default());
 
         let uniform_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
             label: Some("lobedo_viewport_uniform_bind_group"),
@@ -211,25 +285,39 @@ impl PipelineState {
                 },
             ],
         });
-        let shadow_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
-            label: Some("lobedo_viewport_shadow_bind_group"),
-            layout: &shadow_layout,
-            entries: &[egui_wgpu::wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
+        let material_bind_group = {
+            device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
+                label: Some("lobedo_viewport_material_bind_group"),
+                layout: &material_bind_group_layout,
+                entries: &[
+                    egui_wgpu::wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: material_buffer.as_entire_binding(),
+                    },
+                    egui_wgpu::wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: egui_wgpu::wgpu::BindingResource::Sampler(&material_sampler),
+                    },
+                    egui_wgpu::wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: egui_wgpu::wgpu::BindingResource::TextureView(
+                            &material_texture_view,
+                        ),
+                    },
+                ],
+            })
+        };
 
         let pipeline_layout =
             device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
                 label: Some("lobedo_viewport_layout"),
-                bind_group_layouts: &[&uniform_layout],
+                bind_group_layouts: &[&uniform_layout, &material_bind_group_layout],
                 push_constant_ranges: &[],
             });
         let shadow_pipeline_layout =
             device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
                 label: Some("lobedo_viewport_shadow_layout"),
-                bind_group_layouts: &[&shadow_layout],
+                bind_group_layouts: &[&uniform_layout, &material_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -571,7 +659,12 @@ impl PipelineState {
             offscreen_size: [1, 1],
             uniform_buffer,
             uniform_bind_group,
-            shadow_bind_group,
+            material_buffer,
+            material_bind_group,
+            material_bind_group_layout,
+            material_sampler,
+            material_texture: fallback_texture,
+            material_texture_view,
             mesh_cache,
             mesh_id,
             mesh_vertices: mesh.vertices,

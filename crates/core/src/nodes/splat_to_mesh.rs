@@ -84,6 +84,7 @@ pub fn apply_to_geometry(
     Ok(Geometry {
         meshes,
         splats: Vec::new(),
+        materials: input.materials.clone(),
     })
 }
 

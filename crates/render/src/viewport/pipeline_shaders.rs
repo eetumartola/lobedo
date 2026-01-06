@@ -30,10 +30,26 @@ var shadow_tex: texture_depth_2d;
 @group(0) @binding(2)
 var shadow_sampler: sampler_comparison;
 
+struct Material {
+    base_color: vec4<f32>,
+    params: vec4<f32>,
+};
+
+@group(1) @binding(0)
+var<storage, read> materials: array<Material>;
+
+@group(1) @binding(1)
+var material_sampler: sampler;
+
+@group(1) @binding(2)
+var material_texture: texture_2d<f32>;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) color: vec3<f32>,
+    @location(3) uv: vec2<f32>,
+    @location(4) material: u32,
 };
 
 struct VertexOutput {
@@ -41,6 +57,8 @@ struct VertexOutput {
     @location(0) normal: vec3<f32>,
     @location(1) world_pos: vec3<f32>,
     @location(2) color: vec3<f32>,
+    @location(3) uv: vec2<f32>,
+    @location(4) material: u32,
 };
 
 @vertex
@@ -49,6 +67,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     out.world_pos = input.position;
     out.normal = input.normal;
     out.color = input.color;
+    out.uv = input.uv;
+    out.material = input.material;
     out.position = uniforms.view_proj * vec4<f32>(input.position, 1.0);
     return out;
 }
@@ -83,7 +103,13 @@ fn shadow_factor(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     return 1.0 - enabled + enabled * lit;
 }
 
-fn shade_surface(normal: vec3<f32>, world_pos: vec3<f32>, color: vec3<f32>) -> vec3<f32> {
+fn shade_surface(
+    normal: vec3<f32>,
+    world_pos: vec3<f32>,
+    color: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+) -> vec3<f32> {
     let n = normalize(normal);
     let view_dir = normalize(uniforms.camera_pos - world_pos);
     let key_dir = normalize(uniforms.key_dir);
@@ -95,7 +121,8 @@ fn shade_surface(normal: vec3<f32>, world_pos: vec3<f32>, color: vec3<f32>) -> v
     let rim_ndotl = max(dot(n, rim_dir), 0.0);
 
     let half_dir = normalize(key_dir + view_dir);
-    let spec = pow(max(dot(n, half_dir), 0.0), 32.0);
+    let shininess = mix(64.0, 8.0, clamp(roughness, 0.0, 1.0));
+    let spec = pow(max(dot(n, half_dir), 0.0), shininess);
 
     let shadow = shadow_factor(world_pos, normal);
     let key = key_ndotl * uniforms.light_params.x * shadow;
@@ -104,12 +131,28 @@ fn shade_surface(normal: vec3<f32>, world_pos: vec3<f32>, color: vec3<f32>) -> v
     let ambient = uniforms.light_params.w;
 
     let base = color * uniforms.base_color;
-    return base * (ambient + key + fill + rim) + vec3<f32>(0.9) * spec * 0.2 * shadow;
+    let metallic_factor = clamp(metallic, 0.0, 1.0);
+    let diffuse = base * (1.0 - metallic_factor);
+    let specular_strength = mix(0.04, 1.0, metallic_factor);
+    return diffuse * (ambient + key + fill + rim) + vec3<f32>(0.9) * spec * specular_strength * shadow;
+}
+
+fn material_albedo(material_id: u32, uv: vec2<f32>, color: vec3<f32>) -> vec3<f32> {
+    let mat = materials[material_id];
+    var albedo = color * mat.base_color.xyz;
+    let tex_index = i32(mat.params.y);
+    if tex_index >= 0 {
+        let tex = textureSample(material_texture, material_sampler, uv).rgb;
+        albedo = albedo * tex;
+    }
+    return albedo;
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let color = shade_surface(input.normal, input.world_pos, input.color);
+    let mat = materials[input.material];
+    let albedo = material_albedo(input.material, input.uv, input.color);
+    let color = shade_surface(input.normal, input.world_pos, albedo, mat.base_color.w, mat.params.x);
     let mode = i32(uniforms.debug_params.x + 0.5);
     if mode == 1 {
         let normal = normalize(input.normal);

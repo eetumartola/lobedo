@@ -104,6 +104,7 @@ pub fn apply_to_geometry(
     Ok(Geometry {
         meshes: source.meshes.clone(),
         splats,
+        materials: source.materials.clone(),
     })
 }
 

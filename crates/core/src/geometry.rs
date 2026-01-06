@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
-use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes};
+use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
+use crate::material::MaterialLibrary;
 use crate::mesh::Mesh;
 use crate::splat::SplatGeo;
 
@@ -8,6 +9,7 @@ use crate::splat::SplatGeo;
 pub struct Geometry {
     pub meshes: Vec<Mesh>,
     pub splats: Vec<SplatGeo>,
+    pub materials: MaterialLibrary,
 }
 
 impl Geometry {
@@ -19,6 +21,7 @@ impl Geometry {
         Self {
             meshes: vec![mesh],
             splats: Vec::new(),
+            materials: MaterialLibrary::default(),
         }
     }
 
@@ -26,6 +29,7 @@ impl Geometry {
         Self {
             meshes: Vec::new(),
             splats: vec![splats],
+            materials: MaterialLibrary::default(),
         }
     }
 
@@ -36,6 +40,7 @@ impl Geometry {
     pub fn append(&mut self, mut other: Geometry) {
         self.meshes.append(&mut other.meshes);
         self.splats.append(&mut other.splats);
+        self.materials.merge(&other.materials);
     }
 
     pub fn merged_mesh(&self) -> Option<Mesh> {
@@ -154,6 +159,9 @@ fn merge_splat_attributes(splats: &[SplatGeo]) -> MeshAttributes {
                         AttributeStorage::Vec2(_) => AttributeStorage::Vec2(Vec::new()),
                         AttributeStorage::Vec3(_) => AttributeStorage::Vec3(Vec::new()),
                         AttributeStorage::Vec4(_) => AttributeStorage::Vec4(Vec::new()),
+                        AttributeStorage::StringTable(_) => {
+                            AttributeStorage::StringTable(StringTableAttribute::new(Vec::new(), Vec::new()))
+                        }
                     };
                     for splat in splats {
                         let expected = splat.attribute_domain_len(domain);
@@ -179,6 +187,15 @@ fn merge_splat_attributes(splats: &[SplatGeo]) -> MeshAttributes {
                             }
                             (AttributeStorage::Vec4(out), AttributeStorage::Vec4(values)) => {
                                 out.extend_from_slice(values);
+                            }
+                            (
+                                AttributeStorage::StringTable(out),
+                                AttributeStorage::StringTable(values),
+                            ) => {
+                                if !merge_string_table_attribute(out, values) {
+                                    compatible = false;
+                                    break;
+                                }
                             }
                             _ => {
                                 compatible = false;
@@ -228,6 +245,34 @@ fn merge_splat_groups(splats: &[SplatGeo]) -> crate::mesh::MeshGroups {
     }
 
     merged
+}
+
+fn merge_string_table_attribute(
+    combined: &mut StringTableAttribute,
+    source: &StringTableAttribute,
+) -> bool {
+    if source.indices.is_empty() {
+        return true;
+    }
+
+    let mut lookup: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for (idx, value) in combined.values.iter().enumerate() {
+        lookup.insert(value.clone(), idx as u32);
+    }
+
+    for &index in &source.indices {
+        let value = source.values.get(index as usize).cloned().unwrap_or_default();
+        let entry = if let Some(&existing) = lookup.get(&value) {
+            existing
+        } else {
+            let new_index = combined.values.len() as u32;
+            combined.values.push(value.clone());
+            lookup.insert(value, new_index);
+            new_index
+        };
+        combined.indices.push(entry);
+    }
+    true
 }
 
 #[cfg(test)]

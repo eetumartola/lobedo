@@ -250,6 +250,10 @@ fn build_attribute_math_storage(
             }
             AttributeStorage::Vec4(next)
         }
+        crate::attributes::AttributeRef::StringTable(values) => {
+            warn!("Attribute Math: string attributes are not supported; passing through");
+            AttributeStorage::StringTable(values.clone())
+        }
     }
 }
 
