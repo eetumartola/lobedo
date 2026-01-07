@@ -432,6 +432,9 @@ impl LobedoApp {
                             *undo_pushed = true;
                         }
                     }
+                    if let Some(request) = self.node_graph.take_write_request() {
+                        self.handle_write_request(request);
+                    }
                     self.show_splat_read_params(ui);
                     self.show_uv_view_params(ui);
                 });

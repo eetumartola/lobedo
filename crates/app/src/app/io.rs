@@ -5,8 +5,15 @@ use std::path::Path;
 use rfd::FileDialog;
 
 use lobedo_core::Project;
+#[cfg(not(target_arch = "wasm32"))]
+use lobedo_core::{
+    evaluate_geometry_graph, save_splat_ply_with_format, write_obj, SplatSaveFormat,
+};
 
 use super::LobedoApp;
+use crate::node_graph::WriteRequest;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::node_graph::WriteRequestKind;
 
 const DEFAULT_GRAPH_PATH: &str = "graphs/default.json";
 
@@ -82,6 +89,65 @@ impl LobedoApp {
             }
             Err(err) => {
                 tracing::error!("failed to load default graph: {}", err);
+            }
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn handle_write_request(&mut self, _request: WriteRequest) {
+        tracing::warn!("Writing is not available in web builds.");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn handle_write_request(&mut self, request: WriteRequest) {
+        let Some(node) = self.project.graph.node(request.node_id) else {
+            tracing::warn!("Write failed: missing node");
+            return;
+        };
+        let path = node.params.get_string("path", "");
+        if path.trim().is_empty() {
+            tracing::warn!("Write failed: output path is empty");
+            return;
+        }
+        let result =
+            evaluate_geometry_graph(&self.project.graph, request.node_id, &mut self.eval_state);
+        let geometry = match result {
+            Ok(result) => result.output,
+            Err(err) => {
+                tracing::warn!("Write failed: eval error {:?}", err);
+                return;
+            }
+        };
+        let Some(geometry) = geometry else {
+            tracing::warn!("Write failed: no output geometry");
+            return;
+        };
+        match request.kind {
+            WriteRequestKind::Obj => {
+                let Some(mesh) = geometry.merged_mesh() else {
+                    tracing::warn!("Write failed: no mesh output");
+                    return;
+                };
+                if let Err(err) = write_obj(path, &mesh) {
+                    tracing::warn!("OBJ write failed: {}", err);
+                } else {
+                    tracing::info!("OBJ written to {}", path);
+                }
+            }
+            WriteRequestKind::Splat => {
+                let Some(splats) = geometry.merged_splats() else {
+                    tracing::warn!("Write failed: no splat output");
+                    return;
+                };
+                let format = match node.params.get_int("format", 0) {
+                    1 => SplatSaveFormat::Ascii,
+                    _ => SplatSaveFormat::BinaryLittle,
+                };
+                if let Err(err) = save_splat_ply_with_format(path, &splats, format) {
+                    tracing::warn!("PLY write failed: {}", err);
+                } else {
+                    tracing::info!("PLY written to {}", path);
+                }
             }
         }
     }

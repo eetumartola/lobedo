@@ -7,6 +7,12 @@ pub enum SplatLoadMode {
     ColorOnly,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplatSaveFormat {
+    Ascii,
+    BinaryLittle,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum PlyFormat {
     Ascii,
@@ -72,15 +78,34 @@ pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<Splat
 
 
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
 pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
-    use std::io::Write;
+    save_splat_ply_with_format(path, splats, SplatSaveFormat::BinaryLittle)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_splat_ply_with_format(
+    path: &str,
+    splats: &SplatGeo,
+    format: SplatSaveFormat,
+) -> Result<(), String> {
+    use std::io::{BufWriter, Write};
 
     let normalized = splats.normalized_for_save();
     normalized.validate()?;
-    let mut file = std::fs::File::create(path).map_err(|err| err.to_string())?;
+    let file = std::fs::File::create(path).map_err(|err| err.to_string())?;
+    let mut file = BufWriter::new(file);
 
     writeln!(file, "ply").map_err(|err| err.to_string())?;
-    writeln!(file, "format ascii 1.0").map_err(|err| err.to_string())?;
+    match format {
+        SplatSaveFormat::Ascii => {
+            writeln!(file, "format ascii 1.0").map_err(|err| err.to_string())?
+        }
+        SplatSaveFormat::BinaryLittle => {
+            writeln!(file, "format binary_little_endian 1.0")
+                .map_err(|err| err.to_string())?
+        }
+    }
     writeln!(file, "element vertex {}", normalized.len()).map_err(|err| err.to_string())?;
     writeln!(file, "property float x").map_err(|err| err.to_string())?;
     writeln!(file, "property float y").map_err(|err| err.to_string())?;
@@ -105,42 +130,92 @@ pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
 
     writeln!(file, "end_header").map_err(|err| err.to_string())?;
 
-    for idx in 0..normalized.len() {
-        let [x, y, z] = normalized.positions[idx];
-        let [sx, sy, sz] = normalized.scales[idx];
-        let [r0, r1, r2, r3] = normalized.rotations[idx];
-        let opacity = normalized.opacity[idx];
-        let [c0, c1, c2] = normalized.sh0[idx];
-        write!(
-            file,
-            "{x} {y} {z} {opacity} {sx} {sy} {sz} {r0} {r1} {r2} {r3} {c0} {c1} {c2}"
-        )
-        .map_err(|err| err.to_string())?;
+    match format {
+        SplatSaveFormat::Ascii => {
+            for idx in 0..normalized.len() {
+                let [x, y, z] = normalized.positions[idx];
+                let [sx, sy, sz] = normalized.scales[idx];
+                let [r0, r1, r2, r3] = normalized.rotations[idx];
+                let opacity = normalized.opacity[idx];
+                let [c0, c1, c2] = normalized.sh0[idx];
+                write!(
+                    file,
+                    "{x} {y} {z} {opacity} {sx} {sy} {sz} {r0} {r1} {r2} {r3} {c0} {c1} {c2}"
+                )
+                .map_err(|err| err.to_string())?;
 
-        if normalized.sh_coeffs > 0 {
-            let base = idx * normalized.sh_coeffs;
-            for coeff in 0..normalized.sh_coeffs {
-                let value = normalized.sh_rest[base + coeff][0];
-                write!(file, " {value}").map_err(|err| err.to_string())?;
-            }
-            for coeff in 0..normalized.sh_coeffs {
-                let value = normalized.sh_rest[base + coeff][1];
-                write!(file, " {value}").map_err(|err| err.to_string())?;
-            }
-            for coeff in 0..normalized.sh_coeffs {
-                let value = normalized.sh_rest[base + coeff][2];
-                write!(file, " {value}").map_err(|err| err.to_string())?;
+                if normalized.sh_coeffs > 0 {
+                    let base = idx * normalized.sh_coeffs;
+                    for coeff in 0..normalized.sh_coeffs {
+                        let value = normalized.sh_rest[base + coeff][0];
+                        write!(file, " {value}").map_err(|err| err.to_string())?;
+                    }
+                    for coeff in 0..normalized.sh_coeffs {
+                        let value = normalized.sh_rest[base + coeff][1];
+                        write!(file, " {value}").map_err(|err| err.to_string())?;
+                    }
+                    for coeff in 0..normalized.sh_coeffs {
+                        let value = normalized.sh_rest[base + coeff][2];
+                        write!(file, " {value}").map_err(|err| err.to_string())?;
+                    }
+                }
+
+                writeln!(file).map_err(|err| err.to_string())?;
             }
         }
-
-        writeln!(file).map_err(|err| err.to_string())?;
+        SplatSaveFormat::BinaryLittle => {
+            let float_count = 3 + 1 + 3 + 4 + 3 + normalized.sh_coeffs * 3;
+            let mut buffer = Vec::with_capacity(float_count * 4);
+            for idx in 0..normalized.len() {
+                buffer.clear();
+                let [x, y, z] = normalized.positions[idx];
+                let [sx, sy, sz] = normalized.scales[idx];
+                let [r0, r1, r2, r3] = normalized.rotations[idx];
+                let opacity = normalized.opacity[idx];
+                let [c0, c1, c2] = normalized.sh0[idx];
+                for value in [
+                    x, y, z, opacity, sx, sy, sz, r0, r1, r2, r3, c0, c1, c2,
+                ] {
+                    buffer.extend_from_slice(&value.to_le_bytes());
+                }
+                if normalized.sh_coeffs > 0 {
+                    let base = idx * normalized.sh_coeffs;
+                    for coeff in 0..normalized.sh_coeffs {
+                        buffer.extend_from_slice(
+                            &normalized.sh_rest[base + coeff][0].to_le_bytes(),
+                        );
+                    }
+                    for coeff in 0..normalized.sh_coeffs {
+                        buffer.extend_from_slice(
+                            &normalized.sh_rest[base + coeff][1].to_le_bytes(),
+                        );
+                    }
+                    for coeff in 0..normalized.sh_coeffs {
+                        buffer.extend_from_slice(
+                            &normalized.sh_rest[base + coeff][2].to_le_bytes(),
+                        );
+                    }
+                }
+                file.write_all(&buffer).map_err(|err| err.to_string())?;
+            }
+        }
     }
 
     Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
 pub fn save_splat_ply(_path: &str, _splats: &SplatGeo) -> Result<(), String> {
+    Err("Splat Write is not supported in web builds".to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn save_splat_ply_with_format(
+    _path: &str,
+    _splats: &SplatGeo,
+    _format: SplatSaveFormat,
+) -> Result<(), String> {
     Err("Splat Write is not supported in web builds".to_string())
 }
 

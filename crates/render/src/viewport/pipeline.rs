@@ -212,7 +212,7 @@ impl PipelineState {
                             sample_type: egui_wgpu::wgpu::TextureSampleType::Float {
                                 filterable: true,
                             },
-                            view_dimension: egui_wgpu::wgpu::TextureViewDimension::D2,
+                            view_dimension: egui_wgpu::wgpu::TextureViewDimension::D2Array,
                             multisampled: false,
                         },
                         count: None,
@@ -241,7 +241,7 @@ impl PipelineState {
         });
         let default_material = MaterialGpu {
             base_color: [1.0, 1.0, 1.0, 0.0],
-            params: [0.5, -1.0, 0.0, 0.0],
+            params: [0.5, -1.0, 1.0, 1.0],
         };
         let material_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
@@ -270,7 +270,13 @@ impl PipelineState {
             egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
             &[255, 255, 255, 255],
         );
-        let material_texture_view = fallback_texture.create_view(&Default::default());
+        let material_texture_view = fallback_texture.create_view(
+            &egui_wgpu::wgpu::TextureViewDescriptor {
+                dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D2Array),
+                array_layer_count: Some(1),
+                ..Default::default()
+            },
+        );
 
         let uniform_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
             label: Some("lobedo_viewport_uniform_bind_group"),

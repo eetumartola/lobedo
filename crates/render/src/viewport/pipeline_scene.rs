@@ -139,17 +139,70 @@ fn apply_materials_to_pipeline(
     scene: &RenderScene,
 ) {
     let mut materials = Vec::new();
+    let max_layers = device.limits().max_texture_array_layers.max(1) as usize;
+    let available_layers = scene.textures.len().min(max_layers);
+    if scene.textures.len() > max_layers {
+        eprintln!(
+            "texture limit ({max_layers}) exceeded; skipping {} texture(s)",
+            scene.textures.len() - max_layers
+        );
+    }
+    let max_dim = device.limits().max_texture_dimension_2d.max(1);
+    let (mut texture_width, mut texture_height) = (1u32, 1u32);
+    let mut valid_textures = vec![false; available_layers.max(1)];
+    if available_layers > 0 {
+        for (idx, texture) in scene.textures.iter().take(available_layers).enumerate() {
+            let expected_len = texture
+                .width
+                .saturating_mul(texture.height)
+                .saturating_mul(4) as usize;
+            let valid = texture.width > 0
+                && texture.height > 0
+                && texture.width <= max_dim
+                && texture.height <= max_dim
+                && texture.pixels.len() == expected_len;
+            valid_textures[idx] = valid;
+            if !valid {
+                eprintln!(
+                    "texture {idx} invalid or too large ({}x{}, {} bytes)",
+                    texture.width,
+                    texture.height,
+                    texture.pixels.len()
+                );
+            }
+            if valid {
+                texture_width = texture_width.max(texture.width);
+                texture_height = texture_height.max(texture.height);
+            }
+        }
+    }
+    let mut uv_scales = vec![[1.0, 1.0]; available_layers.max(1)];
+    for (idx, texture) in scene.textures.iter().take(available_layers).enumerate() {
+        if valid_textures.get(idx).copied().unwrap_or(false) {
+            uv_scales[idx] = [
+                texture.width as f32 / texture_width as f32,
+                texture.height as f32 / texture_height as f32,
+            ];
+        }
+    }
     if scene.materials.is_empty() {
         materials.push(MaterialGpu {
             base_color: [1.0, 1.0, 1.0, 0.0],
-            params: [0.5, -1.0, 0.0, 0.0],
+            params: [0.5, -1.0, 1.0, 1.0],
         });
     } else {
         for material in &scene.materials {
             let tex_index = material
                 .base_color_texture
+                .filter(|idx| {
+                    *idx < available_layers && valid_textures.get(*idx).copied().unwrap_or(false)
+                })
                 .map(|idx| idx as f32)
                 .unwrap_or(-1.0);
+            let uv_scale = material
+                .base_color_texture
+                .and_then(|idx| uv_scales.get(idx).copied())
+                .unwrap_or([1.0, 1.0]);
             materials.push(MaterialGpu {
                 base_color: [
                     material.base_color[0],
@@ -157,7 +210,12 @@ fn apply_materials_to_pipeline(
                     material.base_color[2],
                     material.metallic,
                 ],
-                params: [material.roughness.clamp(0.0, 1.0), tex_index, 0.0, 0.0],
+                params: [
+                    material.roughness.clamp(0.0, 1.0),
+                    tex_index,
+                    uv_scale[0],
+                    uv_scale[1],
+                ],
             });
         }
     }
@@ -191,38 +249,56 @@ fn apply_materials_to_pipeline(
         &[255, 255, 255, 255],
     );
     let mut active_texture = fallback_texture;
-    if let Some(texture) = scene.textures.first() {
-        let expected_len = texture
-            .width
-            .saturating_mul(texture.height)
+    let mut active_layers = 1;
+    if available_layers > 0 {
+        let layer_count = available_layers.max(1);
+        let layer_stride = texture_width
+            .saturating_mul(texture_height)
             .saturating_mul(4) as usize;
-        if texture.width > 0
-            && texture.height > 0
-            && texture.pixels.len() == expected_len
-        {
-            active_texture = device.create_texture_with_data(
-                queue,
-                &egui_wgpu::wgpu::TextureDescriptor {
-                    label: Some("lobedo_material_texture"),
-                    size: egui_wgpu::wgpu::Extent3d {
-                        width: texture.width,
-                        height: texture.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: egui_wgpu::wgpu::TextureDimension::D2,
-                    format: egui_wgpu::wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: egui_wgpu::wgpu::TextureUsages::TEXTURE_BINDING
-                        | egui_wgpu::wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
-                },
-                egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
-                texture.pixels.as_slice(),
-            );
+        let mut pixels = vec![255u8; layer_stride.saturating_mul(layer_count)];
+        for (layer, texture) in scene.textures.iter().take(layer_count).enumerate() {
+            if !valid_textures.get(layer).copied().unwrap_or(false) {
+                continue;
+            }
+            let max_width = texture_width as usize;
+            let tex_width = texture.width as usize;
+            let tex_height = texture.height as usize;
+            let layer_offset = layer * layer_stride;
+            for y in 0..tex_height {
+                let src_offset = y * tex_width * 4;
+                let dst_offset = layer_offset + y * max_width * 4;
+                let row_len = tex_width * 4;
+                pixels[dst_offset..dst_offset + row_len]
+                    .copy_from_slice(&texture.pixels[src_offset..src_offset + row_len]);
+            }
         }
+        active_texture = device.create_texture_with_data(
+            queue,
+            &egui_wgpu::wgpu::TextureDescriptor {
+                label: Some("lobedo_material_texture_array"),
+                size: egui_wgpu::wgpu::Extent3d {
+                    width: texture_width.max(1),
+                    height: texture_height.max(1),
+                    depth_or_array_layers: layer_count as u32,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: egui_wgpu::wgpu::TextureDimension::D2,
+                format: egui_wgpu::wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: egui_wgpu::wgpu::TextureUsages::TEXTURE_BINDING
+                    | egui_wgpu::wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
+            pixels.as_slice(),
+        );
+        active_layers = layer_count as u32;
     }
-    let active_view = active_texture.create_view(&Default::default());
+    let active_view = active_texture.create_view(&egui_wgpu::wgpu::TextureViewDescriptor {
+        dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D2Array),
+        array_layer_count: Some(active_layers),
+        ..Default::default()
+    });
     pipeline.material_bind_group = device.create_bind_group(
         &egui_wgpu::wgpu::BindGroupDescriptor {
             label: Some("lobedo_viewport_material_bind_group"),

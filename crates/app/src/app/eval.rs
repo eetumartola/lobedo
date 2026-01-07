@@ -287,7 +287,7 @@ fn render_mesh_from_mesh(mesh: &Mesh) -> RenderMesh {
     render_mesh_from_scene(mesh)
 }
 
-const MAX_MATERIAL_TEXTURES: usize = 1;
+const MAX_MATERIAL_TEXTURES: usize = 64;
 
 fn render_materials_from_scene(
     scene: &SceneSnapshot,
@@ -314,9 +314,9 @@ fn render_materials_from_scene(
                     }
                 }
             } else if !texture_lookup.contains_key(path) {
-                tracing::warn!("only one texture is supported right now; skipping {path}");
-            } else {
-                tracing::warn!("texture limit reached, skipping: {path}");
+                tracing::warn!(
+                    "texture limit ({MAX_MATERIAL_TEXTURES}) reached; skipping {path}"
+                );
             }
         }
 

@@ -4,7 +4,7 @@ use lobedo_core::{Graph, ParamValue};
 
 use super::help::{node_help, show_help_tooltip};
 use super::params::edit_param;
-use super::state::NodeGraphState;
+use super::state::{NodeGraphState, WriteRequest, WriteRequestKind};
 
 impl NodeGraphState {
     pub fn show_inspector(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
@@ -79,6 +79,27 @@ impl NodeGraphState {
             let (next_value, did_change) = edit_param(ui, &node_name, &key, value);
             if did_change && graph.set_param(node_id, key, next_value).is_ok() {
                 changed = true;
+            }
+        }
+
+        if matches!(node_name.as_str(), "OBJ Output" | "Splat Write" | "Write Splats") {
+            ui.separator();
+            let label = if node_name == "OBJ Output" {
+                "Write OBJ"
+            } else {
+                "Write PLY"
+            };
+            let can_write = !cfg!(target_arch = "wasm32");
+            if ui.add_enabled(can_write, egui::Button::new(label)).clicked() {
+                let kind = if node_name == "OBJ Output" {
+                    WriteRequestKind::Obj
+                } else {
+                    WriteRequestKind::Splat
+                };
+                self.pending_write_request = Some(WriteRequest { node_id, kind });
+            }
+            if !can_write {
+                ui.label("Writing is not available in web builds.");
             }
         }
 

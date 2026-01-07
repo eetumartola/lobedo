@@ -26,26 +26,22 @@ pub fn default_params() -> NodeParams {
     }
 }
 
-pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
+pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let input = require_mesh_input(inputs, 0, "OBJ Output requires a mesh input")?;
-    let path = params.get_string("path", "output.obj");
-    if path.trim().is_empty() {
-        return Err("OBJ Output requires a path".to_string());
-    }
-    write_obj(path, &input)?;
     Ok(input)
 }
 
 #[cfg(target_arch = "wasm32")]
-fn write_obj(_path: &str, _mesh: &Mesh) -> Result<(), String> {
+pub fn write_obj(_path: &str, _mesh: &Mesh) -> Result<(), String> {
     Err("OBJ Output is not supported in web builds".to_string())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
-    use std::io::Write;
+pub fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
+    use std::io::{BufWriter, Write};
 
-    let mut file = std::fs::File::create(path).map_err(|err| err.to_string())?;
+    let file = std::fs::File::create(path).map_err(|err| err.to_string())?;
+    let mut file = BufWriter::new(file);
     for p in &mesh.positions {
         writeln!(file, "v {} {} {}", p[0], p[1], p[2]).map_err(|err| err.to_string())?;
     }

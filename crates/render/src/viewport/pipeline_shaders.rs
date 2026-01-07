@@ -42,7 +42,7 @@ var<storage, read> materials: array<Material>;
 var material_sampler: sampler;
 
 @group(1) @binding(2)
-var material_texture: texture_2d<f32>;
+var material_texture: texture_2d_array<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -142,7 +142,8 @@ fn material_albedo(material_id: u32, uv: vec2<f32>, color: vec3<f32>) -> vec3<f3
     var albedo = color * mat.base_color.xyz;
     let tex_index = i32(mat.params.y);
     if tex_index >= 0 {
-        let tex = textureSample(material_texture, material_sampler, uv).rgb;
+        let uv_scaled = uv * mat.params.zw;
+        let tex = textureSample(material_texture, material_sampler, uv_scaled, tex_index).rgb;
         albedo = albedo * tex;
     }
     return albedo;

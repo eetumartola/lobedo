@@ -42,11 +42,12 @@ pub use nodes_builtin::{
     builtin_definitions, builtin_kind_from_name, compute_geometry_node, compute_mesh_node,
     compute_splat_node, default_params, node_definition, node_specs, BuiltinNodeKind, NodeSpec,
 };
+pub use nodes::obj_output::write_obj;
 pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
     SplatShadingMode, PROJECT_VERSION,
 };
 pub use scene::{SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
-pub use splat::SplatGeo;
+pub use splat::{save_splat_ply_with_format, SplatGeo, SplatSaveFormat};
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};
 mod assets;

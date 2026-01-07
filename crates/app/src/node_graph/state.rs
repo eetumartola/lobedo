@@ -44,6 +44,7 @@ pub struct NodeGraphState {
     pub(super) node_menu_open: bool,
     pub(super) node_menu_screen_pos: Pos2,
     pub(super) node_menu_node: Option<NodeId>,
+    pub(super) pending_write_request: Option<WriteRequest>,
     pub(super) last_changed: bool,
     pub(super) layout_changed: bool,
 }
@@ -58,6 +59,19 @@ pub(super) struct GraphTransformState {
 pub struct NodeInfoRequest {
     pub node_id: NodeId,
     pub screen_pos: Pos2,
+}
+
+#[derive(Clone, Copy)]
+pub enum WriteRequestKind {
+    Obj,
+    Splat,
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub struct WriteRequest {
+    pub node_id: NodeId,
+    pub kind: WriteRequestKind,
 }
 
 impl Default for NodeGraphState {
@@ -94,6 +108,7 @@ impl Default for NodeGraphState {
             node_menu_open: false,
             node_menu_screen_pos: Pos2::new(0.0, 0.0),
             node_menu_node: None,
+            pending_write_request: None,
             last_changed: false,
             layout_changed: false,
         }
@@ -121,6 +136,10 @@ pub struct NodeGraphLayout {
 impl NodeGraphState {
     pub fn reset(&mut self) {
         *self = Self::default();
+    }
+
+    pub fn take_write_request(&mut self) -> Option<WriteRequest> {
+        self.pending_write_request.take()
     }
 
     pub fn show(&mut self, ui: &mut Ui, graph: &mut Graph, eval_dirty: &mut bool) {

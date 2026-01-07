@@ -18,17 +18,18 @@ pub fn definition() -> NodeDefinition {
 
 pub fn default_params() -> NodeParams {
     NodeParams {
-        values: BTreeMap::from([(
-            "path".to_string(),
-            ParamValue::String("output.ply".to_string()),
-        )]),
+        values: BTreeMap::from([
+            (
+                "path".to_string(),
+                ParamValue::String("output.ply".to_string()),
+            ),
+            ("format".to_string(), ParamValue::Int(0)),
+        ]),
     }
 }
 
 pub fn compute(params: &NodeParams, splats: &SplatGeo) -> Result<(), String> {
-    let path = params.get_string("path", "output.ply");
-    if path.trim().is_empty() {
-        return Err("Splat Write requires a path".to_string());
-    }
-    crate::splat::save_splat_ply(path, splats)
+    let _ = params;
+    let _ = splats;
+    Ok(())
 }

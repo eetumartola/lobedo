@@ -205,6 +205,16 @@ pub(super) fn edit_param(
                     &[(0, "World"), (1, "Surface")],
                     "World",
                 )
+            } else if label == "format" && node_name == "Splat Write" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Binary"), (1, "ASCII")],
+                    "Binary",
+                )
             } else {
                 param_row_with_label(ui, label, &display_label, help, |ui| {
                     let mut changed = false;
@@ -755,6 +765,14 @@ fn display_label(node_name: &str, key: &str) -> String {
             "base_color_tex" => "Base Color Texture",
             "metallic" => "Metallic",
             "roughness" => "Roughness",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Splat Write" {
+        return match key {
+            "path" => "Path",
+            "format" => "Format",
             _ => key,
         }
         .to_string();
