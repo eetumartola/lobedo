@@ -14,6 +14,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
@@ -267,5 +268,8 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         }
     }
 
+    if attr == "P" && domain == AttributeDomain::Point && data_type == 2 {
+        recompute_mesh_normals(mesh);
+    }
     Ok(())
 }

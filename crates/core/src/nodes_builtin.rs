@@ -29,6 +29,7 @@ pub enum BuiltinNodeKind {
     Normal,
     Color,
     Noise,
+    ErosionNoise,
     Smooth,
     UvTexture,
     UvUnwrap,
@@ -273,6 +274,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::ErosionNoise,
+        name: nodes::erosion_noise::NAME,
+        aliases: &[],
+        definition: nodes::erosion_noise::definition,
+        default_params: nodes::erosion_noise::default_params,
+        compute_mesh: nodes::erosion_noise::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::Smooth,
         name: nodes::smooth::NAME,
         aliases: &[],
@@ -476,6 +486,7 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
+        | BuiltinNodeKind::ErosionNoise
         | BuiltinNodeKind::Smooth
         | BuiltinNodeKind::UvTexture
         | BuiltinNodeKind::UvUnwrap
@@ -525,6 +536,9 @@ fn apply_mesh_unary(
             }
             BuiltinNodeKind::Noise => {
                 nodes::noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::ErosionNoise => {
+                nodes::erosion_noise::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::Smooth => {
                 nodes::smooth::apply_to_splats(params, &mut splat)?;

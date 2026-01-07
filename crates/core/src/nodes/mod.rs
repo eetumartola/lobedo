@@ -7,6 +7,7 @@ pub mod box_node;
 pub mod color;
 pub mod copy_to_points;
 pub mod copy_transform;
+pub mod erosion_noise;
 pub mod file;
 pub mod group;
 pub mod grid;
@@ -65,6 +66,29 @@ pub fn require_mesh_input(
         .get(index)
         .cloned()
         .ok_or_else(|| message.to_string())
+}
+
+pub fn recompute_mesh_normals(mesh: &mut Mesh) {
+    if !mesh.indices.len().is_multiple_of(3) || mesh.positions.is_empty() {
+        return;
+    }
+    let had_corner = mesh.corner_normals.is_some();
+    if !mesh.compute_normals() {
+        return;
+    }
+    if had_corner {
+        if let Some(normals) = &mesh.normals {
+            let mut corner = Vec::with_capacity(mesh.indices.len());
+            for idx in &mesh.indices {
+                let normal = normals
+                    .get(*idx as usize)
+                    .copied()
+                    .unwrap_or([0.0, 1.0, 0.0]);
+                corner.push(normal);
+            }
+            mesh.corner_normals = Some(corner);
+        }
+    }
 }
 
 pub fn selection_shape_params() -> BTreeMap<String, ParamValue> {

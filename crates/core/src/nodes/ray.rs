@@ -16,6 +16,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -181,6 +182,7 @@ fn apply_to_mesh_with_targets(
                 }
             }
         }
+        recompute_mesh_normals(mesh);
     }
 
     apply_hit_group(mesh.groups.map_mut(AttributeDomain::Point), params, &hits);

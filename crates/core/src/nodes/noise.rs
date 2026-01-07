@@ -9,6 +9,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
@@ -71,6 +72,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         *pos = next.to_array();
     }
 
+    recompute_mesh_normals(&mut input);
     Ok(input)
 }
 

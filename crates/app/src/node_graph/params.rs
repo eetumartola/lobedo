@@ -46,13 +46,17 @@ pub(super) fn edit_param(
                 ui.add_space(spacing);
                 let range = float_slider_range(node_name, label, v);
                 let slider_width = (controls_width - value_width - spacing).max(120.0);
+                let min = *range.start();
+                let max = *range.end();
+                let mut slider_value = v.clamp(min, max);
                 if ui
                     .add_sized(
                         [slider_width, height],
-                        egui::Slider::new(&mut v, range).show_value(false),
+                        egui::Slider::new(&mut slider_value, range).show_value(false),
                     )
                     .changed()
                 {
+                    v = slider_value;
                     changed = true;
                 }
                 ui.spacing_mut().item_spacing = prev_spacing;
@@ -222,13 +226,17 @@ pub(super) fn edit_param(
                     ui.add_space(spacing);
                     let range = int_slider_range(node_name, label, v);
                     let slider_width = (controls_width - value_width - spacing).max(120.0);
+                    let min = *range.start();
+                    let max = *range.end();
+                    let mut slider_value = v.clamp(min, max);
                     if ui
                         .add_sized(
                             [slider_width, height],
-                            egui::Slider::new(&mut v, range).show_value(false),
+                            egui::Slider::new(&mut slider_value, range).show_value(false),
                         )
                         .changed()
                     {
+                        v = slider_value;
                         changed = true;
                     }
                     ui.spacing_mut().item_spacing = prev_spacing;
@@ -690,6 +698,20 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Erosion Noise" {
+        return match key {
+            "erosion_strength" => "Erosion Strength",
+            "erosion_freq" => "Erosion Freq",
+            "erosion_octaves" => "Erosion Octaves",
+            "erosion_roughness" => "Erosion Roughness",
+            "erosion_lacunarity" => "Erosion Lacunarity",
+            "erosion_slope_strength" => "Erosion Slope Strength",
+            "erosion_branch_strength" => "Erosion Branch Strength",
+            "do_mask" => "Output Mask",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Splat to Mesh" {
         return match key {
             "algorithm" => "Method",
@@ -765,6 +787,12 @@ fn float_slider_range(
         "smooth_k" => 0.001..=2.0,
         "shell_radius" => 0.1..=4.0,
         "metallic" | "roughness" => 0.0..=1.0,
+        "erosion_strength" => 0.0..=1.0,
+        "erosion_freq" => 0.0..=30.0,
+        "erosion_roughness" => 0.0..=1.0,
+        "erosion_lacunarity" => 1.0..=4.0,
+        "erosion_slope_strength" => 0.0..=5.0,
+        "erosion_branch_strength" => 0.0..=5.0,
         _ => -1000.0..=1000.0,
     }
 }
@@ -782,6 +810,7 @@ fn int_slider_range(
         "seed" => 0..=100,
         "blur_iters" => 0..=6,
         "voxel_size_max" => 8..=2048,
+        "erosion_octaves" => 1..=8,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,
         "target_count" => 0..=1_000_000,

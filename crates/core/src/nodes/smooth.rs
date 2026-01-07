@@ -14,6 +14,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -144,6 +145,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         return Ok(());
     }
     let domain = domain_from_params(params);
+    let affects_positions = domain == AttributeDomain::Point && attrs.iter().any(|a| a == "P");
     let smooth_space = SmoothSpace::from_params(params);
     let radius = params.get_float("radius", 0.0).max(0.0);
     let iterations = params.get_int("iterations", 1).max(0) as usize;
@@ -200,6 +202,9 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         }
     }
 
+    if affects_positions {
+        recompute_mesh_normals(mesh);
+    }
     Ok(())
 }
 

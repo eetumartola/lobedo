@@ -10,6 +10,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -88,9 +89,13 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
             settings.value_v3,
         )
     };
+    let modifies_positions = settings.domain == AttributeDomain::Point && settings.result == "P";
     input
-        .set_attribute(settings.domain, settings.result, storage)
+        .set_attribute(settings.domain, settings.result.as_str(), storage)
         .map_err(|err| format!("Attribute Math error: {:?}", err))?;
+    if modifies_positions {
+        recompute_mesh_normals(&mut input);
+    }
     Ok(input)
 }
 

@@ -17,6 +17,7 @@ use crate::nodes::{
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
+    recompute_mesh_normals,
     require_mesh_input,
 };
 use crate::splat::SplatGeo;
@@ -475,6 +476,9 @@ fn apply_transfer_to_mesh(
         }
     }
 
+    if domain == AttributeDomain::Point && samples.contains_key("P") {
+        recompute_mesh_normals(mesh);
+    }
     Ok(())
 }
 

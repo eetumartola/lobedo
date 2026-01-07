@@ -66,6 +66,7 @@ Status: done | in progress | not started
 - **N5b**: Splat to Mesh transfer color to mesh Cd attribute (done)
 - **N14**: Wrangle: @ptnum/@vtxnum/@primnum + point/vertex/prim/splat queries (inputs 0/1) (done)
 - **N15**: Splat Deform (deform source splats from edited point cloud; optional new splats) (done)
+- **N16**: Erosion Noise (heightfield-style erosion noise on point height) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

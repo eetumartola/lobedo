@@ -4,6 +4,7 @@ use glam::Vec3;
 
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, AttributeType};
 use crate::mesh::Mesh;
+use crate::nodes::recompute_mesh_normals;
 use crate::splat::SplatGeo;
 
 #[derive(Debug, Clone)]
@@ -123,7 +124,11 @@ pub fn apply_wrangle(
         ctx.apply_statement(stmt)?;
     }
     let written = ctx.into_written();
+    let wrote_positions = written.contains_key("P") && domain == AttributeDomain::Point;
     apply_written(mesh, domain, written)?;
+    if wrote_positions {
+        recompute_mesh_normals(mesh);
+    }
     Ok(())
 }
 
