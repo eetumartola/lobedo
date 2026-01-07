@@ -1,6 +1,7 @@
 mod attributes;
 mod eval;
 mod gradient;
+mod curve;
 mod geometry;
 mod geometry_eval;
 mod groups;
@@ -29,6 +30,7 @@ pub use eval::{
     EvalNodeReport, EvalReport, EvalState,
 };
 pub use gradient::{parse_color_gradient, ColorGradient, ColorStop};
+pub use curve::{encode_curve_points, parse_curve_points, sample_catmull_rom, Curve};
 pub use geometry::{merge_splats, Geometry};
 pub use graph::{
     Graph, GraphError, Link, LinkId, Node, NodeDefinition, NodeId, NodeParams, ParamValue, Pin,
@@ -47,7 +49,7 @@ pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
     SplatShadingMode, PROJECT_VERSION,
 };
-pub use scene::{SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
+pub use scene::{SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
 pub use splat::{save_splat_ply_with_format, SplatGeo, SplatSaveFormat};
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};
 mod assets;

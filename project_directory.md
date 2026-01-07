@@ -60,6 +60,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\app\src\app\viewport_tools.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\app\src\app\wrangle_help.rs
 Description: TODO: add description.
 Functions: None
@@ -125,6 +129,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\attributes.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\curve.rs
 Description: TODO: add description.
 Functions: None
 
@@ -205,6 +213,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\copy_transform.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\curve.rs
 Description: TODO: add description.
 Functions: None
 

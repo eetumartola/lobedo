@@ -15,9 +15,46 @@ impl LobedoApp {
                 || (i.key_pressed(egui::Key::Y) && i.modifiers.command)
         });
         let fit_pressed = ctx.input(|i| i.key_pressed(egui::Key::A));
+        let translate_pressed = ctx.input(|i| i.key_pressed(egui::Key::W));
+        let rotate_pressed = ctx.input(|i| i.key_pressed(egui::Key::E));
+        let scale_pressed = ctx.input(|i| i.key_pressed(egui::Key::R));
         let delete_pressed = ctx.input(|i| {
             i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
         });
+        if translate_pressed || rotate_pressed || scale_pressed {
+            if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
+                if let Some(rect) = self.last_viewport_rect {
+                    if rect.contains(pos) {
+                        if let Some(node_id) = self.node_graph.selected_node_id() {
+                            if let Some(node) = self.project.graph.node(node_id) {
+                                if node.name == "Transform" {
+                                    if translate_pressed {
+                                        self.viewport_tools.transform_mode =
+                                            super::viewport_tools::TransformMode::Translate;
+                                        ctx.input_mut(|i| {
+                                            i.consume_key(egui::Modifiers::NONE, egui::Key::W);
+                                        });
+                                    } else if rotate_pressed {
+                                        self.viewport_tools.transform_mode =
+                                            super::viewport_tools::TransformMode::Rotate;
+                                        ctx.input_mut(|i| {
+                                            i.consume_key(egui::Modifiers::NONE, egui::Key::E);
+                                        });
+                                    } else if scale_pressed {
+                                        self.viewport_tools.transform_mode =
+                                            super::viewport_tools::TransformMode::Scale;
+                                        ctx.input_mut(|i| {
+                                            i.consume_key(egui::Modifiers::NONE, egui::Key::R);
+                                        });
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if undo_pressed {
             self.try_undo();
         } else if redo_pressed {

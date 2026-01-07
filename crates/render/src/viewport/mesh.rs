@@ -562,6 +562,35 @@ pub(crate) fn wireframe_vertices(positions: &[[f32; 3]], indices: &[u32]) -> Vec
     lines
 }
 
+pub(crate) fn curve_vertices(points: &[[f32; 3]], closed: bool) -> Vec<LineVertex> {
+    if points.len() < 2 {
+        return Vec::new();
+    }
+    let color = [0.35, 0.85, 0.95];
+    let mut lines = Vec::with_capacity(points.len().saturating_sub(1) * 2 + if closed { 2 } else { 0 });
+    for segment in points.windows(2) {
+        lines.push(LineVertex {
+            position: segment[0],
+            color,
+        });
+        lines.push(LineVertex {
+            position: segment[1],
+            color,
+        });
+    }
+    if closed {
+        lines.push(LineVertex {
+            position: *points.last().unwrap_or(&points[0]),
+            color,
+        });
+        lines.push(LineVertex {
+            position: points[0],
+            color,
+        });
+    }
+    lines
+}
+
 pub(crate) fn bounds_vertices(min: [f32; 3], max: [f32; 3]) -> Vec<LineVertex> {
     bounds_vertices_with_color(min, max, [0.85, 0.85, 0.9])
 }

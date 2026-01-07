@@ -94,3 +94,8 @@ Status: done | in progress | not started
 - **P11**: File menu About entry (done)
 - **P12**: Delete node reconnects upstream/downstream links (done)
 - **P13**: README refresh + GPL license switch (done)
+
+## Epic V - Viewport Editing
+- **V1**: Shared viewport tool framework (done)
+- **V2**: Transform gizmo (move/rotate/scale) for Transform node (done)
+- **V3**: Curve node with viewport draw tool (done)

@@ -1,4 +1,5 @@
 use crate::attributes::{AttributeDomain, AttributeRef};
+use crate::curve::Curve;
 use crate::geometry::Geometry;
 use crate::material::Material;
 use crate::mesh::Mesh;
@@ -29,9 +30,16 @@ pub struct SceneSplats {
 }
 
 #[derive(Debug, Clone)]
+pub struct SceneCurve {
+    pub points: Vec<[f32; 3]>,
+    pub closed: bool,
+}
+
+#[derive(Debug, Clone)]
 pub enum SceneDrawable {
     Mesh(SceneMesh),
     Splats(SceneSplats),
+    Curve(SceneCurve),
 }
 
 #[derive(Debug, Clone)]
@@ -151,6 +159,15 @@ impl SceneSplats {
     }
 }
 
+impl SceneCurve {
+    pub fn from_curve(curve: &Curve) -> Self {
+        Self {
+            points: curve.points.clone(),
+            closed: curve.closed,
+        }
+    }
+}
+
 impl SceneSnapshot {
     pub fn from_mesh(mesh: &Mesh, base_color: [f32; 3]) -> Self {
         Self {
@@ -184,6 +201,9 @@ impl SceneSnapshot {
         for splats in &geometry.splats {
             drawables.push(SceneDrawable::Splats(SceneSplats::from_splats(splats)));
         }
+        for curve in &geometry.curves {
+            drawables.push(SceneDrawable::Curve(SceneCurve::from_curve(curve)));
+        }
         Self {
             drawables,
             base_color,
@@ -203,6 +223,16 @@ impl SceneSnapshot {
             SceneDrawable::Splats(splats) => Some(splats),
             _ => None,
         })
+    }
+
+    pub fn curves(&self) -> Vec<&SceneCurve> {
+        self.drawables
+            .iter()
+            .filter_map(|drawable| match drawable {
+                SceneDrawable::Curve(curve) => Some(curve),
+                _ => None,
+            })
+            .collect()
     }
 }
 

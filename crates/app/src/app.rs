@@ -28,6 +28,7 @@ mod ui_preferences;
 mod ui;
 mod undo;
 mod viewport;
+mod viewport_tools;
 mod wrangle_help;
 
 pub(crate) use logging::ConsoleBuffer;
@@ -36,6 +37,7 @@ use logging::level_filter_to_u8;
 use node_info::NodeInfoPanel;
 use spreadsheet::SpreadsheetMode;
 use undo::{UndoSnapshot, UndoStack};
+use viewport_tools::ViewportToolState;
 use wrangle_help::WrangleHelpPanel;
 
 pub(crate) struct LobedoApp {
@@ -57,6 +59,7 @@ pub(crate) struct LobedoApp {
     last_node_graph_rect: Option<egui::Rect>,
     last_viewport_rect: Option<egui::Rect>,
     pause_viewport: bool,
+    viewport_tools: ViewportToolState,
     last_selected_node: Option<lobedo_core::NodeId>,
     last_selection_key: Option<(lobedo_core::NodeId, u64)>,
     show_preferences: bool,
@@ -100,6 +103,7 @@ impl LobedoApp {
             last_node_graph_rect: None,
             last_viewport_rect: None,
             pause_viewport: false,
+            viewport_tools: ViewportToolState::default(),
             last_selected_node: None,
             last_selection_key: None,
             show_preferences: false,

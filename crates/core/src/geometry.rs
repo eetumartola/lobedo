@@ -3,12 +3,14 @@ use std::collections::BTreeSet;
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
 use crate::material::MaterialLibrary;
 use crate::mesh::Mesh;
+use crate::curve::Curve;
 use crate::splat::SplatGeo;
 
 #[derive(Debug, Clone, Default)]
 pub struct Geometry {
     pub meshes: Vec<Mesh>,
     pub splats: Vec<SplatGeo>,
+    pub curves: Vec<Curve>,
     pub materials: MaterialLibrary,
 }
 
@@ -21,6 +23,7 @@ impl Geometry {
         Self {
             meshes: vec![mesh],
             splats: Vec::new(),
+            curves: Vec::new(),
             materials: MaterialLibrary::default(),
         }
     }
@@ -29,17 +32,28 @@ impl Geometry {
         Self {
             meshes: Vec::new(),
             splats: vec![splats],
+            curves: Vec::new(),
+            materials: MaterialLibrary::default(),
+        }
+    }
+
+    pub fn with_curve(curve: Curve) -> Self {
+        Self {
+            meshes: Vec::new(),
+            splats: Vec::new(),
+            curves: vec![curve],
             materials: MaterialLibrary::default(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.meshes.is_empty() && self.splats.is_empty()
+        self.meshes.is_empty() && self.splats.is_empty() && self.curves.is_empty()
     }
 
     pub fn append(&mut self, mut other: Geometry) {
         self.meshes.append(&mut other.meshes);
         self.splats.append(&mut other.splats);
+        self.curves.append(&mut other.curves);
         self.materials.merge(&other.materials);
     }
 

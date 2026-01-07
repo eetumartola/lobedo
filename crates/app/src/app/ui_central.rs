@@ -127,7 +127,7 @@ impl LobedoApp {
             let available = ui.available_size();
             let (rect, response) =
                 ui.allocate_exact_size(available, egui::Sense::click_and_drag());
-            self.handle_viewport_input(&response);
+            self.handle_viewport_input(&response, rect);
             ui.painter()
                 .rect_filled(rect, 0.0, egui::Color32::from_rgb(28, 28, 28));
             if let Some(renderer) = &self.viewport_renderer {
@@ -176,6 +176,8 @@ impl LobedoApp {
                 );
             }
 
+            self.draw_viewport_tools(ui, rect);
+            self.show_viewport_node_actions(ui, rect);
             self.show_viewport_toolbar(ui, rect);
         });
     }
@@ -243,6 +245,71 @@ impl LobedoApp {
                 debug.key_shadows = !debug.key_shadows;
             }
         });
+    }
+
+    fn show_viewport_node_actions(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let Some(node_id) = self.node_graph.selected_node_id() else {
+            return;
+        };
+        let Some(node) = self.project.graph.node(node_id) else {
+            return;
+        };
+        if node.name != "Curve" {
+            return;
+        }
+
+        let button_size = egui::vec2(120.0, 32.0);
+        let spacing = 10.0;
+        let action_count = 2.0;
+        let total_width = button_size.x * action_count + spacing * (action_count - 1.0);
+        let pos = egui::pos2(rect.center().x - total_width * 0.5, rect.min.y + 8.0);
+        let ctx = ui.ctx();
+        egui::Area::new(egui::Id::new("viewport_node_actions"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(pos)
+            .show(ctx, |ui| {
+                let frame = egui::Frame::NONE
+                    .fill(egui::Color32::from_black_alpha(160))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .inner_margin(egui::Margin::symmetric(8, 6));
+                frame.show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(spacing, 0.0);
+                    ui.style_mut().text_styles.insert(
+                        egui::TextStyle::Button,
+                        egui::FontId::proportional(16.0),
+                    );
+                    let add_active = self.curve_draw_active(node_id);
+                    let edit_active = self.curve_edit_active(node_id);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_sized(
+                                button_size,
+                                egui::Button::new("Add Curve").selected(add_active),
+                            )
+                            .clicked()
+                        {
+                            if add_active {
+                                self.deactivate_curve_draw();
+                            } else {
+                                self.activate_curve_draw(node_id);
+                            }
+                        }
+                        if ui
+                            .add_sized(
+                                button_size,
+                                egui::Button::new("Edit Curve").selected(edit_active),
+                            )
+                            .clicked()
+                        {
+                            if edit_active {
+                                self.deactivate_curve_edit();
+                            } else {
+                                self.activate_curve_edit(node_id);
+                            }
+                        }
+                    });
+                });
+            });
     }
 
     fn show_spreadsheet_panel(&mut self, ui: &mut egui::Ui, sheet_rect: egui::Rect) {

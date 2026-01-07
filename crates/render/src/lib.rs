@@ -5,8 +5,8 @@ mod viewport;
 
 pub use camera::{camera_view_proj, CameraState};
 pub use scene::{
-    RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats, RenderTexture,
-    SelectionShape,
+    RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
+    RenderTexture, SelectionShape,
 };
 pub use viewport::{
     ViewportDebug, ViewportRenderer, ViewportShadingMode, ViewportSplatShadingMode, ViewportStats,

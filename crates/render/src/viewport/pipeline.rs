@@ -108,6 +108,8 @@ pub(super) struct PipelineState {
     pub(super) normals_length: f32,
     pub(super) bounds_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) bounds_count: u32,
+    pub(super) curve_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) curve_count: u32,
     pub(super) template_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) template_count: u32,
     pub(super) selection_buffer: egui_wgpu::wgpu::Buffer,
@@ -660,6 +662,16 @@ impl PipelineState {
                 contents: bytemuck::cast_slice(&bounds_vertices),
                 usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
             });
+        let curve_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_curve_vertices"),
+                contents: bytemuck::cast_slice(&[LineVertex {
+                    position: [0.0, 0.0, 0.0],
+                    color: [0.0, 0.0, 0.0],
+                }]),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
         let template_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_template_vertices"),
@@ -766,6 +778,8 @@ impl PipelineState {
             normals_length,
             bounds_buffer,
             bounds_count: bounds_vertices.len() as u32,
+            curve_buffer,
+            curve_count: 0,
             template_buffer,
             template_count: 0,
             selection_buffer,

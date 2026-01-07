@@ -3,7 +3,7 @@ use egui_wgpu::wgpu::util::DeviceExt as _;
 use crate::scene::RenderScene;
 
 use super::mesh::{
-    bounds_from_positions, bounds_vertices, build_vertices, normals_vertices,
+    bounds_from_positions, bounds_vertices, build_vertices, curve_vertices, normals_vertices,
     selection_shape_vertices, wireframe_vertices,
 };
 use super::pipeline::{MaterialGpu, PipelineState};
@@ -49,6 +49,13 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.normals_count = 0;
     }
 
+    let mut curve_lines = Vec::new();
+    let mut curve_positions = Vec::new();
+    for curve in scene.curves() {
+        curve_lines.extend(curve_vertices(&curve.points, curve.closed));
+        curve_positions.extend(curve.points.iter().copied());
+    }
+
     if let Some(splats) = scene.splats() {
         pipeline.splat_positions = splats.positions.clone();
         pipeline.splat_sh0 = splats.sh0.clone();
@@ -81,7 +88,35 @@ pub(super) fn apply_scene_to_pipeline(
     }
 
     if pipeline.mesh_vertices.is_empty() && pipeline.splat_positions.is_empty() {
-        pipeline.mesh_bounds = ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]);
+        if curve_positions.is_empty() {
+            pipeline.mesh_bounds = ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]);
+        } else {
+            pipeline.mesh_bounds = bounds_from_positions(&curve_positions);
+            if pipeline.point_positions.is_empty() {
+                pipeline.point_positions = curve_positions.clone();
+                pipeline.point_count = pipeline.point_positions.len() as u32;
+                pipeline.point_size = -1.0;
+            }
+        }
+    } else if !curve_positions.is_empty() {
+        let (curve_min, curve_max) = bounds_from_positions(&curve_positions);
+        for i in 0..3 {
+            pipeline.mesh_bounds.0[i] = pipeline.mesh_bounds.0[i].min(curve_min[i]);
+            pipeline.mesh_bounds.1[i] = pipeline.mesh_bounds.1[i].max(curve_max[i]);
+        }
+    }
+
+    if curve_lines.is_empty() {
+        pipeline.curve_count = 0;
+    } else {
+        pipeline.curve_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_curve_vertices"),
+                contents: bytemuck::cast_slice(&curve_lines),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
+        pipeline.curve_count = curve_lines.len() as u32;
     }
 
     let bounds_vertices = bounds_vertices(pipeline.mesh_bounds.0, pipeline.mesh_bounds.1);

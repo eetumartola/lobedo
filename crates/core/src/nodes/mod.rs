@@ -7,6 +7,7 @@ pub mod box_node;
 pub mod color;
 pub mod copy_to_points;
 pub mod copy_transform;
+pub mod curve;
 pub mod erosion_noise;
 pub mod file;
 pub mod group;

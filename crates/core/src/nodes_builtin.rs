@@ -11,6 +11,7 @@ pub enum BuiltinNodeKind {
     Grid,
     Sphere,
     Tube,
+    Curve,
     File,
     ReadSplats,
     WriteSplats,
@@ -66,6 +67,10 @@ fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh
     Err("Splat Read outputs splat geometry, not meshes".to_string())
 }
 
+fn mesh_error_curve(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Curve outputs curve geometry, not meshes".to_string())
+}
+
 fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Splat Write expects splat geometry, not meshes".to_string())
 }
@@ -109,6 +114,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::tube::definition,
         default_params: nodes::tube::default_params,
         compute_mesh: nodes::tube::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Curve,
+        name: nodes::curve::NAME,
+        aliases: &[],
+        definition: nodes::curve::definition,
+        default_params: nodes::curve::default_params,
+        compute_mesh: mesh_error_curve,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
@@ -466,6 +480,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
         BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
         BuiltinNodeKind::Tube => Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?)),
+        BuiltinNodeKind::Curve => Ok(Geometry::with_curve(nodes::curve::compute(params)?)),
         BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
@@ -563,6 +578,7 @@ fn apply_mesh_unary(
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -592,6 +608,7 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -610,6 +627,7 @@ fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -628,6 +646,7 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -646,6 +665,7 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -692,6 +712,7 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
     Ok(Geometry {
         meshes,
         splats,
+        curves: input.curves.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -723,9 +744,17 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         splats.push(splat);
     }
 
+    let mut curves = Vec::with_capacity(input.curves.len());
+    for curve in &input.curves {
+        let mut curve = curve.clone();
+        curve.transform(matrix);
+        curves.push(curve);
+    }
+
     Ok(Geometry {
         meshes,
         splats,
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -761,9 +790,19 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
         splats.push(merge_splats(&copies));
     }
 
+    let mut curves = Vec::new();
+    for curve in &input.curves {
+        for matrix in &matrices {
+            let mut copy = curve.clone();
+            copy.transform(*matrix);
+            curves.push(copy);
+        }
+    }
+
     Ok(Geometry {
         meshes,
         splats,
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -772,6 +811,7 @@ fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
+        output.curves = input.curves.clone();
     }
 
     let source = inputs
@@ -793,6 +833,7 @@ fn apply_obj_output(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
+        output.curves = input.curves.clone();
         if let Some(mesh) = input.merged_mesh() {
             let mesh = nodes::obj_output::compute(params, &[mesh])?;
             output.meshes.push(mesh);

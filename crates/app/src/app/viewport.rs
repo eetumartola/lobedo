@@ -19,7 +19,10 @@ impl LobedoApp {
         }
     }
 
-    pub(super) fn handle_viewport_input(&mut self, response: &egui::Response) {
+    pub(super) fn handle_viewport_input(&mut self, response: &egui::Response, rect: egui::Rect) {
+        if self.handle_viewport_tools_input(response, rect) {
+            return;
+        }
         if !response.hovered() {
             return;
         }
@@ -97,6 +100,15 @@ impl LobedoApp {
                 }
                 render::RenderDrawable::Splats(splats) => {
                     for pos in &splats.positions {
+                        for i in 0..3 {
+                            min[i] = min[i].min(pos[i]);
+                            max[i] = max[i].max(pos[i]);
+                        }
+                        found = true;
+                    }
+                }
+                render::RenderDrawable::Curve(curve) => {
+                    for pos in &curve.points {
                         for i in 0..3 {
                             min[i] = min[i].min(pos[i]);
                             max[i] = max[i].max(pos[i]);

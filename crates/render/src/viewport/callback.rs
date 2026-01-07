@@ -108,6 +108,7 @@ impl CallbackTrait for ViewportCallback {
                         pipeline.mesh_bounds = ([0.0; 3], [0.0; 3]);
                         pipeline.base_color = [0.7, 0.72, 0.75];
                         pipeline.template_count = 0;
+                        pipeline.curve_count = 0;
                         pipeline.selection_count = 0;
                         pipeline.splat_positions.clear();
                         pipeline.splat_sh0.clear();
@@ -704,6 +705,11 @@ impl CallbackTrait for ViewportCallback {
             if pipeline.template_count > 0 {
                 render_pass.set_vertex_buffer(0, pipeline.template_buffer.slice(..));
                 render_pass.draw(0..pipeline.template_count, 0..1);
+            }
+
+            if pipeline.curve_count > 0 {
+                render_pass.set_vertex_buffer(0, pipeline.curve_buffer.slice(..));
+                render_pass.draw(0..pipeline.curve_count, 0..1);
             }
 
             if pipeline.selection_count > 0 {

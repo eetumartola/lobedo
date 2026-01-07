@@ -37,6 +37,11 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Delete node reconnects upstream/downstream links
 - README refresh + GPL license switch
 
+## Epic V - Viewport Editing
+- Shared viewport tool framework (gizmos + draw tools)
+- Transform gizmo (move/rotate/scale) for Transform node
+- Curve node with viewport draw tool (workplane y=0)
+
 ## Epic C - Architecture cleanup
 - Centralize built-in node registry metadata (definitions/defaults/compute/input policy)
 - Drive geometry eval inputs from the node input policy

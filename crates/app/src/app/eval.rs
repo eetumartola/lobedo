@@ -9,12 +9,12 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    evaluate_geometry_graph, Mesh, SceneDrawable, SceneSnapshot, SceneSplats, ShadingMode,
-    SplatShadingMode,
+    evaluate_geometry_graph, Mesh, SceneCurve, SceneDrawable, SceneSnapshot, SceneSplats,
+    ShadingMode, SplatShadingMode,
 };
 use render::{
-    RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats, RenderTexture,
-    SelectionShape, ViewportDebug, ViewportShadingMode, ViewportSplatShadingMode,
+    RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
+    RenderTexture, SelectionShape, ViewportDebug, ViewportShadingMode, ViewportSplatShadingMode,
 };
 
 use super::{DisplayState, LobedoApp};
@@ -30,10 +30,18 @@ impl LobedoApp {
             return;
         }
 
-        if let Some(last_change) = self.last_param_change {
-            let debounce = Duration::from_millis(150);
-            if last_change.elapsed() < debounce {
-                return;
+        let dragging = self.viewport_tools.is_dragging();
+        let fps = self.viewport_fps();
+        if dragging && fps < 1.0 {
+            return;
+        }
+        let realtime = dragging && fps >= 1.0;
+        if !realtime {
+            if let Some(last_change) = self.last_param_change {
+                let debounce = Duration::from_millis(150);
+                if last_change.elapsed() < debounce {
+                    return;
+                }
             }
         }
 
@@ -88,7 +96,7 @@ impl LobedoApp {
                         None
                     };
                     let selection_shape =
-                        selection_shape_for_group(&self.project.graph, self.node_graph.selected_node_id());
+                        selection_shape_for_node(&self.project.graph, self.node_graph.selected_node_id());
                     let scene = scene_to_render_with_template(
                         &snapshot,
                         template_mesh.as_ref(),
@@ -134,7 +142,7 @@ impl LobedoApp {
             self.last_selection_key = None;
             return;
         };
-        let selection = selection_shape_for_group(
+        let selection = selection_shape_for_node(
             &self.project.graph,
             self.node_graph.selected_node_id(),
         );
@@ -189,6 +197,19 @@ impl LobedoApp {
             pause_render: self.pause_viewport,
         }
     }
+
+    fn viewport_fps(&self) -> f32 {
+        let fps = self
+            .viewport_renderer
+            .as_ref()
+            .map(|renderer| renderer.stats_snapshot().fps)
+            .unwrap_or(60.0);
+        if fps <= 0.0 {
+            60.0
+        } else {
+            fps
+        }
+    }
 }
 
 pub(super) fn scene_to_render_with_template(
@@ -207,6 +228,9 @@ pub(super) fn scene_to_render_with_template(
             }
             SceneDrawable::Splats(splats) => {
                 drawables.push(RenderDrawable::Splats(render_splats_from_scene(splats)));
+            }
+            SceneDrawable::Curve(curve) => {
+                drawables.push(RenderDrawable::Curve(render_curve_from_scene(curve)));
             }
         }
     }
@@ -276,6 +300,13 @@ fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
         opacity,
         scales,
         rotations: splats.rotations.clone(),
+    }
+}
+
+fn render_curve_from_scene(curve: &SceneCurve) -> RenderCurve {
+    RenderCurve {
+        points: curve.points.clone(),
+        closed: curve.closed,
     }
 }
 
@@ -431,27 +462,36 @@ fn merge_error_state(
     }
 }
 
-fn selection_shape_for_group(
+fn selection_shape_for_node(
     graph: &lobedo_core::Graph,
     node_id: Option<lobedo_core::NodeId>,
 ) -> Option<SelectionShape> {
     let node_id = node_id?;
     let node = graph.node(node_id)?;
-    if node.name != "Group" {
-        return None;
-    }
-    let shape = node.params.get_string("shape", "box").to_lowercase();
-    match shape.as_str() {
-        "box" => {
+    match node.name.as_str() {
+        "Box" => {
             let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
             let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
             Some(SelectionShape::Box { center, size })
         }
+        "Group" | "Delete" => selection_shape_from_params(&node.params),
+        _ => None,
+    }
+}
+
+fn selection_shape_from_params(params: &lobedo_core::NodeParams) -> Option<SelectionShape> {
+    let shape = params.get_string("shape", "box").to_lowercase();
+    match shape.as_str() {
+        "box" => {
+            let center = params.get_vec3("center", [0.0, 0.0, 0.0]);
+            let size = params.get_vec3("size", [1.0, 1.0, 1.0]);
+            Some(SelectionShape::Box { center, size })
+        }
         "sphere" => {
-            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
-            let mut size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
+            let center = params.get_vec3("center", [0.0, 0.0, 0.0]);
+            let mut size = params.get_vec3("size", [1.0, 1.0, 1.0]);
             if size == [1.0, 1.0, 1.0] {
-                let radius = node.params.get_float("radius", 1.0);
+                let radius = params.get_float("radius", 1.0);
                 if (radius - 1.0).abs() > f32::EPSILON {
                     size = [radius * 2.0, radius * 2.0, radius * 2.0];
                 }
@@ -459,9 +499,9 @@ fn selection_shape_for_group(
             Some(SelectionShape::Sphere { center, size })
         }
         "plane" => {
-            let origin = node.params.get_vec3("plane_origin", [0.0, 0.0, 0.0]);
-            let normal = node.params.get_vec3("plane_normal", [0.0, 1.0, 0.0]);
-            let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
+            let origin = params.get_vec3("plane_origin", [0.0, 0.0, 0.0]);
+            let normal = params.get_vec3("plane_normal", [0.0, 1.0, 0.0]);
+            let size = params.get_vec3("size", [1.0, 1.0, 1.0]);
             Some(SelectionShape::Plane {
                 origin,
                 normal,

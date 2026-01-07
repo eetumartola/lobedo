@@ -700,6 +700,15 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Curve" {
+        return match key {
+            "points" => "Points",
+            "subdivs" => "Subdivs",
+            "closed" => "Closed",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Smooth" {
         return match key {
             "smooth_space" => "Space",
@@ -718,6 +727,20 @@ fn display_label(node_name: &str, key: &str) -> String {
             "erosion_slope_strength" => "Erosion Slope Strength",
             "erosion_branch_strength" => "Erosion Branch Strength",
             "do_mask" => "Output Mask",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Copy/Transform" {
+        return match key {
+            "translate" => "Translate",
+            "rotate_deg" => "Rotate",
+            "scale" => "Scale",
+            "pivot" => "Pivot",
+            "translate_step" => "Translate Step",
+            "rotate_step_deg" => "Rotate Step",
+            "scale_step" => "Scale Step",
+            "count" => "Count",
             _ => key,
         }
         .to_string();
@@ -824,6 +847,7 @@ fn int_slider_range(
         "domain" => 0..=3,
         "op" => 0..=3,
         "rows" | "cols" => 2..=64,
+        "subdivs" => 1..=64,
         "iterations" => 0..=20,
         "seed" => 0..=100,
         "blur_iters" => 0..=6,

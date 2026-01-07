@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 
-use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Geometry, Mesh};
+use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Geometry};
 
 use crate::app::LobedoApp;
 
@@ -75,6 +75,10 @@ impl LobedoApp {
                 ui.label("Splat Count");
                 ui.label(splat_count.to_string());
                 ui.end_row();
+
+                ui.label("Curve Primitives");
+                ui.label(geometry.curves.len().to_string());
+                ui.end_row();
             });
 
         if (node.name == "Splat Read" || node.name == "Read Splats") && !geometry.splats.is_empty()
@@ -109,9 +113,9 @@ impl LobedoApp {
 
         self.show_groups_section(ui, geometry);
 
-        if let Some(mesh) = geometry.merged_mesh() {
+        if !geometry.meshes.is_empty() || !geometry.curves.is_empty() {
             ui.separator();
-            self.show_mesh_info(ui, &mesh);
+            self.show_mesh_info(ui, geometry);
         }
     }
 
@@ -187,10 +191,20 @@ impl LobedoApp {
         ui.add_space(6.0);
     }
 
-    fn show_mesh_info(&self, ui: &mut egui::Ui, mesh: &Mesh) {
-        let point_count = mesh.positions.len();
-        let vertex_count = mesh.indices.len();
-        let prim_count = mesh.indices.len() / 3;
+    fn show_mesh_info(&self, ui: &mut egui::Ui, geometry: &Geometry) {
+        let mesh = geometry.merged_mesh();
+        let mesh_point_count = mesh.as_ref().map(|m| m.positions.len()).unwrap_or(0);
+        let mesh_vertex_count = mesh.as_ref().map(|m| m.indices.len()).unwrap_or(0);
+        let mesh_prim_count = mesh
+            .as_ref()
+            .map(|m| m.indices.len() / 3)
+            .unwrap_or(0);
+        let curve_point_count: usize = geometry.curves.iter().map(|c| c.points.len()).sum();
+        let curve_prim_count = geometry.curves.len();
+        let curve_vertex_count = curve_point_count;
+        let point_count = mesh_point_count + curve_point_count;
+        let vertex_count = mesh_vertex_count + curve_vertex_count;
+        let prim_count = mesh_prim_count + curve_prim_count;
         let detail_count = if point_count == 0 && vertex_count == 0 {
             0
         } else {
@@ -221,17 +235,34 @@ impl LobedoApp {
 
         ui.separator();
         ui.heading("Bounds");
-        if let Some(bounds) = mesh.bounds() {
+        let mut min = [f32::INFINITY; 3];
+        let mut max = [f32::NEG_INFINITY; 3];
+        let mut has_bounds = false;
+        if let Some(mesh) = mesh.as_ref() {
+            if let Some(bounds) = mesh.bounds() {
+                min = bounds.min;
+                max = bounds.max;
+                has_bounds = true;
+            }
+        }
+        for curve in &geometry.curves {
+            for point in &curve.points {
+                min[0] = min[0].min(point[0]);
+                min[1] = min[1].min(point[1]);
+                min[2] = min[2].min(point[2]);
+                max[0] = max[0].max(point[0]);
+                max[1] = max[1].max(point[1]);
+                max[2] = max[2].max(point[2]);
+                has_bounds = true;
+            }
+        }
+        if has_bounds {
             let center = [
-                (bounds.min[0] + bounds.max[0]) * 0.5,
-                (bounds.min[1] + bounds.max[1]) * 0.5,
-                (bounds.min[2] + bounds.max[2]) * 0.5,
+                (min[0] + max[0]) * 0.5,
+                (min[1] + max[1]) * 0.5,
+                (min[2] + max[2]) * 0.5,
             ];
-            let size = [
-                bounds.max[0] - bounds.min[0],
-                bounds.max[1] - bounds.min[1],
-                bounds.max[2] - bounds.min[2],
-            ];
+            let size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
             egui::Grid::new("node_info_bounds")
                 .num_columns(4)
                 .spacing([10.0, 6.0])
@@ -249,20 +280,24 @@ impl LobedoApp {
                     ui.end_row();
 
                     ui.label("Min");
-                    ui.label(format!("{:.3}", bounds.min[0]));
-                    ui.label(format!("{:.3}", bounds.min[1]));
-                    ui.label(format!("{:.3}", bounds.min[2]));
+                    ui.label(format!("{:.3}", min[0]));
+                    ui.label(format!("{:.3}", min[1]));
+                    ui.label(format!("{:.3}", min[2]));
                     ui.end_row();
 
                     ui.label("Max");
-                    ui.label(format!("{:.3}", bounds.max[0]));
-                    ui.label(format!("{:.3}", bounds.max[1]));
-                    ui.label(format!("{:.3}", bounds.max[2]));
+                    ui.label(format!("{:.3}", max[0]));
+                    ui.label(format!("{:.3}", max[1]));
+                    ui.label(format!("{:.3}", max[2]));
                     ui.end_row();
                 });
         } else {
             ui.label("No bounds available.");
         }
+
+        let Some(mesh) = mesh.as_ref() else {
+            return;
+        };
 
         ui.separator();
         ui.heading("Attributes");

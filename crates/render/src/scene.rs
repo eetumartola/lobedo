@@ -24,9 +24,16 @@ pub struct RenderSplats {
 }
 
 #[derive(Debug, Clone)]
+pub struct RenderCurve {
+    pub points: Vec<[f32; 3]>,
+    pub closed: bool,
+}
+
+#[derive(Debug, Clone)]
 pub enum RenderDrawable {
     Mesh(RenderMesh),
     Splats(RenderSplats),
+    Curve(RenderCurve),
 }
 
 #[derive(Debug, Clone)]
@@ -78,5 +85,15 @@ impl RenderScene {
             RenderDrawable::Splats(splats) => Some(splats),
             _ => None,
         })
+    }
+
+    pub fn curves(&self) -> Vec<&RenderCurve> {
+        self.drawables
+            .iter()
+            .filter_map(|drawable| match drawable {
+                RenderDrawable::Curve(curve) => Some(curve),
+                _ => None,
+            })
+            .collect()
     }
 }
