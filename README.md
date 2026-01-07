@@ -45,4 +45,4 @@ cargo run -p lobedo -- --headless --plan headless_plan.json --save output.json
 - `lobedo_backlog.md`
 
 ## License
-Apache-2.0
+GPL-3.0-only

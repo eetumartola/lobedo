@@ -58,21 +58,25 @@ pub fn splat_group_mask(
     }
     let group_type = group_type_from_params(params);
     let len = splats.len();
+    let point_groups = splat_group_map_with_intrinsic(splats, AttributeDomain::Point);
+    let prim_groups = splat_group_map_with_intrinsic(splats, AttributeDomain::Primitive);
     let mask = match group_type {
-        GroupType::Point => build_group_mask(splats.groups.map(AttributeDomain::Point), expr, len),
-        GroupType::Primitive => {
-            build_group_mask(splats.groups.map(AttributeDomain::Primitive), expr, len)
-        }
+        GroupType::Point => build_group_mask(&point_groups, expr, len),
+        GroupType::Primitive => build_group_mask(&prim_groups, expr, len),
         GroupType::Vertex => Some(vec![false; len]),
         GroupType::Auto => {
-            let domain = if group_expr_matches(splats.groups.map(AttributeDomain::Point), expr) {
+            let domain = if group_expr_matches(&point_groups, expr) {
                 AttributeDomain::Point
-            } else if group_expr_matches(splats.groups.map(AttributeDomain::Primitive), expr) {
+            } else if group_expr_matches(&prim_groups, expr) {
                 AttributeDomain::Primitive
             } else {
                 AttributeDomain::Point
             };
-            build_group_mask(splats.groups.map(domain), expr, len)
+            let groups = match domain {
+                AttributeDomain::Primitive => &prim_groups,
+                _ => &point_groups,
+            };
+            build_group_mask(groups, expr, len)
         }
     };
 
@@ -81,6 +85,18 @@ pub fn splat_group_mask(
         AttributeDomain::Vertex => Some(vec![false; splats.attribute_domain_len(target_domain)]),
         _ => mask,
     }
+}
+
+fn splat_group_map_with_intrinsic(
+    splats: &SplatGeo,
+    domain: AttributeDomain,
+) -> std::collections::BTreeMap<String, Vec<bool>> {
+    let mut map = splats.groups.map(domain).clone();
+    if splats.len() > 0 {
+        map.entry("splats".to_string())
+            .or_insert_with(|| vec![true; splats.len()]);
+    }
+    map
 }
 
 fn select_group_domain(mesh: &Mesh, expr: &str, group_type: GroupType) -> AttributeDomain {

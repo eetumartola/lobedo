@@ -9,6 +9,7 @@ Status: done | in progress | not started
 - **G5**: Migrate project format + graphs to new geometry pin type (done)
 - **G6**: Add group system (named point/vertex/primitive groups; splats in primitive groups) (done)
 - **G7**: Treat splat centers as points (point ops apply), add point vs primitive groups, map splat attributes to Houdini names (done)
+- **G8**: Intrinsic `splats` group for splat-only operations (done)
 
 ## Epic C - Architecture cleanup
 - **C1**: Centralize built-in node registry metadata (definitions/defaults/compute/input policy) (done)
@@ -87,3 +88,8 @@ Status: done | in progress | not started
 - **P6**: Show splat info text in Splat Read parameter pane (done)
 - **P7**: File requester buttons for Read/Write OBJ + Splat Read/Splat Write (done)
 - **P8**: Viewport/node editor split is draggable (done)
+- **P9**: Parameter pane help strings (node + every parameter) (done)
+- **P10**: Screen-space MMB pan in viewport (done)
+- **P11**: File menu About entry (done)
+- **P12**: Delete node reconnects upstream/downstream links (done)
+- **P13**: README refresh + GPL license switch (done)

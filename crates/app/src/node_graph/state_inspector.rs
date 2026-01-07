@@ -2,6 +2,7 @@ use egui::Ui;
 
 use lobedo_core::{Graph, ParamValue};
 
+use super::help::{node_help, show_help_tooltip};
 use super::params::edit_param;
 use super::state::NodeGraphState;
 
@@ -18,7 +19,13 @@ impl NodeGraphState {
             return false;
         };
 
-        ui.label(format!("{} ({})", node.name, node.category));
+        let title = format!("{} ({})", node.name, node.category);
+        let response = ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
+        if response.hovered() {
+            if let Some(help) = node_help(&node.name) {
+                show_help_tooltip(ui.ctx(), response.rect, help);
+            }
+        }
         ui.separator();
 
         let params: Vec<(String, ParamValue)> = node

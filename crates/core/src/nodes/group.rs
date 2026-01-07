@@ -103,7 +103,13 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     let base_mask = if base_expr.is_empty() {
         None
     } else {
-        build_group_mask(splats.groups.map(domain), base_expr, len)
+        let mut groups = splats.groups.map(domain).clone();
+        if len > 0 {
+            groups
+                .entry("splats".to_string())
+                .or_insert_with(|| vec![true; len]);
+        }
+        build_group_mask(&groups, base_expr, len)
     };
 
     let mut mask = if shape.eq_ignore_ascii_case("group") {

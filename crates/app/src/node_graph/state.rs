@@ -244,8 +244,31 @@ impl NodeGraphState {
     }
 
     pub fn delete_node(&mut self, graph: &mut Graph, node_id: NodeId) -> bool {
+        let Some(node) = graph.node(node_id) else {
+            return false;
+        };
+        let input_pins = node.inputs.clone();
+        let output_pins = node.outputs.clone();
+        let mut upstream_outputs = HashSet::new();
+        let mut downstream_inputs = Vec::new();
+        for link in graph.links() {
+            if input_pins.contains(&link.to) {
+                upstream_outputs.insert(link.from);
+            }
+            if output_pins.contains(&link.from) {
+                downstream_inputs.push(link.to);
+            }
+        }
+
         if !graph.remove_node(node_id) {
             return false;
+        }
+
+        if upstream_outputs.len() == 1 && !downstream_inputs.is_empty() {
+            let from = *upstream_outputs.iter().next().unwrap();
+            for to in downstream_inputs {
+                let _ = graph.add_link(from, to);
+            }
         }
         if let Some(snarl_id) = self.core_to_snarl.remove(&node_id) {
             self.snarl_to_core.remove(&snarl_id);

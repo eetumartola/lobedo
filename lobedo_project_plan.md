@@ -31,6 +31,11 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Viewport top-left icons for normals + stats overlay toggles
 - Parameter sliders are 2x wider
 - Viewport/node editor split is draggable
+- Parameter pane help strings for nodes + parameters (hover)
+- Screen-space MMB pan in viewport
+- File menu About entry
+- Delete node reconnects upstream/downstream links
+- README refresh + GPL license switch
 
 ## Epic C - Architecture cleanup
 - Centralize built-in node registry metadata (definitions/defaults/compute/input policy)
@@ -96,6 +101,7 @@ Geometry carries **named groups** for point/vertex/primitive membership. Groups 
 Delete-style rules (box/sphere/plane) or by copying existing groups. Nodes may optionally restrict
 their operation to a group or exclude a group; unsupported primitive types pass through.
 Group expressions use Houdini-style matching (wildcards) and exclusion tokens (e.g. `grp* ^tmp`).
+Splats always expose an intrinsic `splats` group to target splat primitives explicitly.
 
 ### Pin types (expanded)
 Add pin types:

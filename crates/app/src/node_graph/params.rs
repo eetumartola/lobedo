@@ -13,6 +13,8 @@ use wasm_bindgen_futures::spawn_local;
 
 use lobedo_core::ParamValue;
 
+use super::help::{param_help, show_help_tooltip};
+
 pub(super) fn edit_param(
     ui: &mut Ui,
     node_name: &str,
@@ -20,9 +22,11 @@ pub(super) fn edit_param(
     value: ParamValue,
 ) -> (ParamValue, bool) {
     let display_label = display_label(node_name, label);
+    let help = param_help(node_name, label);
+    let help = help.as_deref();
     match value {
         ParamValue::Float(mut v) => {
-            let changed = param_row_with_label(ui, label, &display_label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let height = ui.spacing().interact_size.y;
@@ -62,6 +66,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")],
                     "Point",
@@ -71,6 +76,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[
                         (0, "Auto"),
@@ -85,6 +91,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Full (SH)"), (1, "Base Color")],
                     "Full (SH)",
@@ -94,6 +101,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Float"), (1, "Vec2"), (2, "Vec3")],
                     "Vec3",
@@ -103,6 +111,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Value"), (1, "Perlin")],
                     "Value",
@@ -112,6 +121,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Area"), (1, "Gradient")],
                     "Area",
@@ -121,6 +131,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Normal"), (1, "Direction"), (2, "Closest")],
                     "Normal",
@@ -130,6 +141,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")],
                     "Add",
@@ -139,6 +151,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
                     "Density (Iso)",
@@ -148,6 +161,7 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[
                         (0, "Planar"),
@@ -162,12 +176,13 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[(0, "X"), (1, "Y"), (2, "Z")],
                     "Y",
                 )
             } else {
-                param_row_with_label(ui, label, &display_label, |ui| {
+                param_row_with_label(ui, label, &display_label, help, |ui| {
                     let mut changed = false;
                     let spacing = 8.0;
                     let height = ui.spacing().interact_size.y;
@@ -203,14 +218,14 @@ pub(super) fn edit_param(
             (ParamValue::Int(v), changed)
         }
         ParamValue::Bool(mut v) => {
-            let changed = param_row_with_label(ui, label, &display_label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let checkbox = egui::Checkbox::without_text(&mut v);
                 ui.add(checkbox).changed()
             });
             (ParamValue::Bool(v), changed)
         }
         ParamValue::Vec2(mut v) => {
-            let changed = param_row_with_label(ui, label, &display_label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
@@ -236,7 +251,7 @@ pub(super) fn edit_param(
             (ParamValue::Vec2(v), changed)
         }
         ParamValue::Vec3(mut v) => {
-            let changed = param_row_with_label(ui, label, &display_label, |ui| {
+            let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let mut changed = false;
                 let spacing = 8.0;
                 let available = ui.available_width();
@@ -267,12 +282,13 @@ pub(super) fn edit_param(
                     ui,
                     label,
                     &display_label,
+                    help,
                     &mut v,
                     &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")],
                     "Box",
                 )
             } else if label == "code" {
-                param_row_with_height_label(ui, label, &display_label, 120.0, |ui| {
+                param_row_with_height_label(ui, label, &display_label, help, 120.0, |ui| {
                     ui.add_sized(
                         [ui.available_width().max(160.0), 100.0],
                         egui::TextEdit::multiline(&mut v)
@@ -284,11 +300,11 @@ pub(super) fn edit_param(
             } else {
                 let use_picker = path_picker_kind(node_name, label).is_some();
                 if use_picker {
-                    param_row_with_label(ui, label, &display_label, |ui| {
+                    param_row_with_label(ui, label, &display_label, help, |ui| {
                         edit_path_field(ui, node_name, label, &mut v)
                     })
                 } else {
-                    param_row_with_label(ui, label, &display_label, |ui| {
+                    param_row_with_label(ui, label, &display_label, help, |ui| {
                         let height = ui.spacing().interact_size.y;
                         ui.add_sized(
                             [ui.available_width().max(160.0), height],
@@ -475,15 +491,17 @@ fn param_row_with_label(
     ui: &mut Ui,
     id: &str,
     label: &str,
+    help: Option<&str>,
     add_controls: impl FnOnce(&mut Ui) -> bool,
 ) -> bool {
-    param_row_with_height_label(ui, id, label, 36.0, add_controls)
+    param_row_with_height_label(ui, id, label, help, 36.0, add_controls)
 }
 
 fn param_row_with_height_label(
     ui: &mut Ui,
     _id: &str,
     label: &str,
+    help: Option<&str>,
     row_height: f32,
     add_controls: impl FnOnce(&mut Ui) -> bool,
 ) -> bool {
@@ -500,15 +518,22 @@ fn param_row_with_height_label(
         egui::pos2(row_rect.min.x + label_width, row_rect.min.y),
         egui::vec2(controls_width, row_height),
     );
+    let mut label_response = None;
     ui.scope_builder(
         egui::UiBuilder::new()
             .max_rect(label_rect)
             .layout(egui::Layout::right_to_left(egui::Align::Center)),
         |ui| {
             ui.set_min_height(row_height);
-            ui.label(label);
+            let response = ui.add(egui::Label::new(label).sense(egui::Sense::hover()));
+            label_response = Some(response);
         },
     );
+    if let (Some(help), Some(response)) = (help, label_response) {
+        if response.hovered() {
+            show_help_tooltip(ui.ctx(), response.rect, help);
+        }
+    }
     ui.scope_builder(
         egui::UiBuilder::new()
             .max_rect(controls_rect)
@@ -527,11 +552,12 @@ fn combo_row_i32(
     ui: &mut Ui,
     id: &str,
     label: &str,
+    help: Option<&str>,
     value: &mut i32,
     options: &[(i32, &str)],
     fallback: &str,
 ) -> bool {
-    param_row_with_label(ui, id, label, |ui| {
+    param_row_with_label(ui, id, label, help, |ui| {
         let mut changed = false;
         let selected = options
             .iter()
@@ -555,11 +581,12 @@ fn combo_row_string(
     ui: &mut Ui,
     id: &str,
     label: &str,
+    help: Option<&str>,
     value: &mut String,
     options: &[(&str, &str)],
     fallback: &str,
 ) -> bool {
-    param_row_with_label(ui, id, label, |ui| {
+    param_row_with_label(ui, id, label, help, |ui| {
         let mut changed = false;
         let selected = options
             .iter()

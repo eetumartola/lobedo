@@ -45,6 +45,11 @@ impl LobedoApp {
                         ui.add_enabled(false, egui::Button::new("Save As..."));
                         ui.label("File I/O is not available in web builds.");
                     }
+
+                    ui.separator();
+                    ui.menu_button("About", |ui| {
+                        ui.label("Lobedo 0.2 (c) Eetu Martola 2026");
+                    });
                 });
 
                 ui.separator();

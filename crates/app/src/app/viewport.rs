@@ -37,8 +37,27 @@ impl LobedoApp {
 
         if response.dragged_by(egui::PointerButton::Middle) {
             let delta = response.drag_motion();
-            camera.target[0] -= delta.x * pan_speed;
-            camera.target[1] += delta.y * pan_speed;
+            let pitch = camera.pitch.clamp(-1.54, 1.54);
+            let yaw = camera.yaw;
+            let cos_pitch = pitch.cos();
+            let sin_pitch = pitch.sin();
+            let cos_yaw = yaw.cos();
+            let sin_yaw = yaw.sin();
+
+            let dir = [
+                cos_pitch * cos_yaw,
+                sin_pitch,
+                cos_pitch * sin_yaw,
+            ];
+            let forward = [-dir[0], -dir[1], -dir[2]];
+            let world_up = [0.0f32, 1.0f32, 0.0f32];
+            let right = normalize(cross(forward, world_up));
+            let up = normalize(cross(right, forward));
+            let pan_x = -delta.x * pan_speed;
+            let pan_y = delta.y * pan_speed;
+            camera.target[0] += right[0] * pan_x + up[0] * pan_y;
+            camera.target[1] += right[1] * pan_x + up[1] * pan_y;
+            camera.target[2] += right[2] * pan_x + up[2] * pan_y;
         }
 
         let scroll_delta = response.ctx.input(|i| i.raw_scroll_delta.y);
@@ -111,5 +130,22 @@ impl LobedoApp {
         let camera = &mut self.project.settings.camera;
         camera.target = center;
         camera.distance = distance;
+    }
+}
+
+fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn normalize(v: [f32; 3]) -> [f32; 3] {
+    let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    if len > 1.0e-6 {
+        [v[0] / len, v[1] / len, v[2] / len]
+    } else {
+        [0.0, 0.0, 0.0]
     }
 }

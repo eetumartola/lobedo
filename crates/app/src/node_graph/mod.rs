@@ -1,4 +1,5 @@
 mod menu;
+mod help;
 mod params;
 mod state;
 mod state_inspector;
