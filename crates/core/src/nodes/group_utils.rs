@@ -92,7 +92,7 @@ fn splat_group_map_with_intrinsic(
     domain: AttributeDomain,
 ) -> std::collections::BTreeMap<String, Vec<bool>> {
     let mut map = splats.groups.map(domain).clone();
-    if splats.len() > 0 {
+    if !splats.is_empty() {
         map.entry("splats".to_string())
             .or_insert_with(|| vec![true; splats.len()]);
     }

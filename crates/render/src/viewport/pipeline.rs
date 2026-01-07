@@ -50,6 +50,7 @@ pub(super) struct PipelineState {
     pub(super) shadow_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) line_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) splat_pipeline: egui_wgpu::wgpu::RenderPipeline,
+    pub(super) splat_overdraw_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_bind_group: egui_wgpu::wgpu::BindGroup,
     pub(super) blit_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
@@ -482,6 +483,59 @@ impl PipelineState {
                 cache: None,
             });
 
+        let splat_overdraw_pipeline =
+            device.create_render_pipeline(&egui_wgpu::wgpu::RenderPipelineDescriptor {
+                label: Some("lobedo_viewport_splats_overdraw"),
+                layout: Some(&pipeline_layout),
+                vertex: egui_wgpu::wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_splat"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<SplatVertex>()
+                            as egui_wgpu::wgpu::BufferAddress,
+                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                        attributes: &SPLAT_ATTRIBUTES,
+                    }],
+                },
+                fragment: Some(egui_wgpu::wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_splat"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(egui_wgpu::wgpu::ColorTargetState {
+                        format: target_format,
+                        blend: Some(egui_wgpu::wgpu::BlendState {
+                            color: egui_wgpu::wgpu::BlendComponent {
+                                src_factor: egui_wgpu::wgpu::BlendFactor::One,
+                                dst_factor: egui_wgpu::wgpu::BlendFactor::One,
+                                operation: egui_wgpu::wgpu::BlendOperation::Add,
+                            },
+                            alpha: egui_wgpu::wgpu::BlendComponent {
+                                src_factor: egui_wgpu::wgpu::BlendFactor::One,
+                                dst_factor: egui_wgpu::wgpu::BlendFactor::One,
+                                operation: egui_wgpu::wgpu::BlendOperation::Add,
+                            },
+                        }),
+                        write_mask: egui_wgpu::wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: egui_wgpu::wgpu::PrimitiveState {
+                    topology: egui_wgpu::wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(egui_wgpu::wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: egui_wgpu::wgpu::CompareFunction::LessEqual,
+                    stencil: egui_wgpu::wgpu::StencilState::default(),
+                    bias: egui_wgpu::wgpu::DepthBiasState::default(),
+                }),
+                multisample: egui_wgpu::wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
         let blit_shader = create_blit_shader(device);
 
         let blit_bind_group_layout =
@@ -644,6 +698,7 @@ impl PipelineState {
             shadow_pipeline,
             line_pipeline,
             splat_pipeline,
+            splat_overdraw_pipeline,
             blit_pipeline,
             blit_bind_group,
             blit_bind_group_layout,

@@ -44,7 +44,7 @@ Status: done | in progress | not started
 ## Epic R - Splat rendering
 - **R1**: Baseline splat rasterization (SH0) (done)
 - **R2**: Sorting strategy v1 (CPU) + web fallback (done)
-- **R3**: Debug modes (opacity/scale/depth/overdraw) (not started)
+- **R3**: Debug modes (opacity/scale/depth/overdraw) (done)
 - **R4**: SH evaluation degree 2/3 (not started)
 - **R5**: Sorting strategy v2 (GPU/tile binning) (not started)
 

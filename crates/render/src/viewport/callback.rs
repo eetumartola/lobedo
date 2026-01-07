@@ -62,6 +62,9 @@ impl CallbackTrait for ViewportCallback {
             ViewportShadingMode::Lit => 0.0,
             ViewportShadingMode::Normals => 1.0,
             ViewportShadingMode::Depth => 2.0,
+            ViewportShadingMode::SplatOpacity => 3.0,
+            ViewportShadingMode::SplatScale => 4.0,
+            ViewportShadingMode::SplatOverdraw => 5.0,
         };
 
         if let Some(pipeline) = callback_resources.get_mut::<PipelineState>() {
@@ -402,12 +405,27 @@ impl CallbackTrait for ViewportCallback {
                     let mut opacity = Vec::with_capacity(sorted.len());
                     let mut scales = Vec::with_capacity(sorted.len());
                     let mut rotations = Vec::with_capacity(sorted.len());
+                    let mut scale_min = f32::INFINITY;
+                    let mut scale_max = f32::NEG_INFINITY;
                     for entry in sorted {
                         positions.push(entry.position);
                         colors.push(entry.color);
                         opacity.push(entry.opacity);
                         scales.push(entry.scale);
                         rotations.push(entry.rotation);
+                        let scale_metric = entry
+                            .scale
+                            .iter()
+                            .copied()
+                            .fold(f32::NEG_INFINITY, f32::max);
+                        if scale_metric.is_finite() {
+                            scale_min = scale_min.min(scale_metric);
+                            scale_max = scale_max.max(scale_metric);
+                        }
+                    }
+                    if !scale_min.is_finite() || !scale_max.is_finite() || scale_max <= scale_min {
+                        scale_min = 0.0;
+                        scale_max = 1.0;
                     }
                     let vertex_bytes = std::mem::size_of::<SplatVertex>() as u64;
                     let max_buffer_size =
@@ -429,6 +447,7 @@ impl CallbackTrait for ViewportCallback {
                             opacities: &opacity[chunk_range..end],
                             scales: &scales[chunk_range..end],
                             rotations: &rotations[chunk_range..end],
+                            scale_range: [scale_min, scale_max],
                             view,
                             viewport: [width as f32, height as f32],
                             fov_y: 45_f32.to_radians(),
@@ -466,7 +485,15 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.last_splat_rebuild = Some(now);
                 }
                 if !pipeline.splat_buffers.is_empty() {
-                    render_pass.set_pipeline(&pipeline.splat_pipeline);
+                    let splat_pipeline = if matches!(
+                        self.debug.shading_mode,
+                        ViewportShadingMode::SplatOverdraw
+                    ) {
+                        &pipeline.splat_overdraw_pipeline
+                    } else {
+                        &pipeline.splat_pipeline
+                    };
+                    render_pass.set_pipeline(splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                     render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                     for (buffer, count) in pipeline

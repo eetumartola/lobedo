@@ -32,6 +32,9 @@ pub enum ViewportShadingMode {
     Lit,
     Normals,
     Depth,
+    SplatOpacity,
+    SplatScale,
+    SplatOverdraw,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

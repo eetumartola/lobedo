@@ -310,7 +310,7 @@ fn erosion(p: Vec2, dir: Vec2) -> Vec3 {
 }
 
 fn hash(x_in: Vec2) -> Vec2 {
-    let k = Vec2::new(0.3183099, 0.3678794);
+    let k = Vec2::new(std::f32::consts::FRAC_1_PI, 1.0 / std::f32::consts::E);
     let x = x_in * k + Vec2::new(k.y, k.x);
     let prod = x.x * x.y * (x.x + x.y);
     let inner = vec2_fract(Vec2::splat(prod));

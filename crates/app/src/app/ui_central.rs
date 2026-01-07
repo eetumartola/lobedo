@@ -577,20 +577,20 @@ fn mesh_corner_uvs(mesh: &lobedo_core::Mesh) -> Option<Vec<[f32; 2]>> {
     if mesh.indices.is_empty() {
         return None;
     }
-    if let Some(attr) = mesh.attribute(lobedo_core::AttributeDomain::Vertex, "uv") {
-        if let lobedo_core::AttributeRef::Vec2(values) = attr {
-            if values.len() == mesh.indices.len() {
-                return Some(values.to_vec());
-            }
+    if let Some(lobedo_core::AttributeRef::Vec2(values)) =
+        mesh.attribute(lobedo_core::AttributeDomain::Vertex, "uv")
+    {
+        if values.len() == mesh.indices.len() {
+            return Some(values.to_vec());
         }
     }
 
     let mut point_uvs = None;
-    if let Some(attr) = mesh.attribute(lobedo_core::AttributeDomain::Point, "uv") {
-        if let lobedo_core::AttributeRef::Vec2(values) = attr {
-            if values.len() == mesh.positions.len() {
-                point_uvs = Some(values.to_vec());
-            }
+    if let Some(lobedo_core::AttributeRef::Vec2(values)) =
+        mesh.attribute(lobedo_core::AttributeDomain::Point, "uv")
+    {
+        if values.len() == mesh.positions.len() {
+            point_uvs = Some(values.to_vec());
         }
     }
     if point_uvs.is_none() {

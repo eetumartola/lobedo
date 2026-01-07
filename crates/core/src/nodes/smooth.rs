@@ -255,8 +255,8 @@ fn surface_neighbors(mesh: &Mesh, domain: AttributeDomain, radius: f32) -> Vec<V
     }
 
     let mut neighbors = vec![Vec::new(); adjacency.len()];
-    for idx in 0..adjacency.len() {
-        neighbors[idx] = dijkstra_neighbors(idx, &adjacency, radius);
+    for (idx, list) in neighbors.iter_mut().enumerate() {
+        *list = dijkstra_neighbors(idx, &adjacency, radius);
     }
     neighbors
 }

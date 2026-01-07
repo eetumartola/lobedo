@@ -108,6 +108,9 @@ pub enum ShadingMode {
     Lit,
     Normals,
     Depth,
+    SplatOpacity,
+    SplatScale,
+    SplatOverdraw,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

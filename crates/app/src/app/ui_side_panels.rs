@@ -90,12 +90,18 @@ impl LobedoApp {
                                     ShadingMode::Lit => "Lit",
                                     ShadingMode::Normals => "Normals",
                                     ShadingMode::Depth => "Depth",
+                                    ShadingMode::SplatOpacity => "Splat Opacity",
+                                    ShadingMode::SplatScale => "Splat Scale",
+                                    ShadingMode::SplatOverdraw => "Splat Overdraw",
                                 })
                                 .show_ui(ui, |ui| {
                                     for (mode, label) in [
                                         (ShadingMode::Lit, "Lit"),
                                         (ShadingMode::Normals, "Normals"),
                                         (ShadingMode::Depth, "Depth"),
+                                        (ShadingMode::SplatOpacity, "Splat Opacity"),
+                                        (ShadingMode::SplatScale, "Splat Scale"),
+                                        (ShadingMode::SplatOverdraw, "Splat Overdraw"),
                                     ] {
                                         if ui
                                             .selectable_label(*shading == mode, label)

@@ -26,6 +26,27 @@ impl Default for ColorGradient {
     }
 }
 
+impl fmt::Display for ColorGradient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.stops.is_empty() {
+            return Ok(());
+        }
+        let mut stops = self.stops.clone();
+        normalize_stops(&mut stops);
+        for (index, stop) in stops.into_iter().enumerate() {
+            if index > 0 {
+                f.write_str(";")?;
+            }
+            write!(
+                f,
+                "{:.3}:{:.3},{:.3},{:.3}",
+                stop.pos, stop.color[0], stop.color[1], stop.color[2]
+            )?;
+        }
+        Ok(())
+    }
+}
+
 impl ColorGradient {
     pub fn sample(&self, t: f32) -> [f32; 3] {
         if self.stops.is_empty() {
@@ -49,22 +70,6 @@ impl ColorGradient {
             prev = *stop;
         }
         prev.color
-    }
-
-    pub fn to_string(&self) -> String {
-        if self.stops.is_empty() {
-            return String::new();
-        }
-        let mut stops = self.stops.clone();
-        normalize_stops(&mut stops);
-        let mut parts = Vec::with_capacity(stops.len());
-        for stop in stops {
-            parts.push(format!(
-                "{:.3}:{:.3},{:.3},{:.3}",
-                stop.pos, stop.color[0], stop.color[1], stop.color[2]
-            ));
-        }
-        parts.join(";")
     }
 
     pub fn endpoints(&self) -> (usize, usize) {
@@ -128,7 +133,7 @@ impl ColorGradient {
     }
 }
 
-fn normalize_stops(stops: &mut Vec<ColorStop>) {
+fn normalize_stops(stops: &mut [ColorStop]) {
     for stop in stops.iter_mut() {
         if !stop.pos.is_finite() {
             stop.pos = 0.0;
@@ -157,7 +162,7 @@ fn parse_color(value: &str) -> Option<[f32; 3]> {
         }
     }
     let mut parts = trimmed
-        .split(|c| c == ',' || c == ' ')
+        .split([',', ' '])
         .filter(|p| !p.is_empty())
         .collect::<Vec<_>>();
     if parts.len() < 3 {
@@ -185,3 +190,4 @@ fn clamp_color(color: [f32; 3]) -> [f32; 3] {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
+use std::fmt;

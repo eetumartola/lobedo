@@ -32,10 +32,11 @@ pub(crate) struct SplatVertex {
     pub(crate) offset: [f32; 2],
     pub(crate) uv: [f32; 2],
     pub(crate) color: [f32; 4],
+    pub(crate) scale: f32,
 }
 
-pub(crate) const SPLAT_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x2, 3 => Float32x4];
+pub(crate) const SPLAT_ATTRIBUTES: [wgpu::VertexAttribute; 5] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x2, 3 => Float32x4, 4 => Float32];
 
 pub(crate) struct SplatBillboardInputs<'a> {
     pub(crate) positions: &'a [[f32; 3]],
@@ -43,6 +44,7 @@ pub(crate) struct SplatBillboardInputs<'a> {
     pub(crate) opacities: &'a [f32],
     pub(crate) scales: &'a [[f32; 3]],
     pub(crate) rotations: &'a [[f32; 4]],
+    pub(crate) scale_range: [f32; 2],
     pub(crate) view: Mat4,
     pub(crate) viewport: [f32; 2],
     pub(crate) fov_y: f32,
@@ -339,6 +341,14 @@ pub(crate) fn splat_billboard_vertices(
             glam::Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]).normalize();
         let rot = Mat3::from_quat(quat);
         let scale = Vec3::from(scale);
+        let scale_metric = scale.x.max(scale.y).max(scale.z);
+        let scale_min = inputs.scale_range[0];
+        let scale_max = inputs.scale_range[1];
+        let scale_norm = if scale_metric.is_finite() && scale_max > scale_min {
+            ((scale_metric - scale_min) / (scale_max - scale_min)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         let cov_local = Mat3::from_diagonal(scale * scale);
         let cov_world = inputs.world_transform * (rot * cov_local * rot.transpose())
             * inputs.world_transform.transpose();
@@ -445,6 +455,7 @@ pub(crate) fn splat_billboard_vertices(
             offset: [0.0, 0.0],
             uv: [0.0, 0.0],
             color,
+            scale: scale_norm,
         }; 4];
 
         for (i, (sx, sy)) in corners.into_iter().enumerate() {
@@ -454,6 +465,7 @@ pub(crate) fn splat_billboard_vertices(
                 offset: offset.to_array(),
                 uv: [sx * radius, sy * radius],
                 color,
+                scale: scale_norm,
             };
         }
 

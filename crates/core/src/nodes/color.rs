@@ -154,9 +154,7 @@ fn apply_gradient_to_values(
         {
             continue;
         }
-        let t = if !value.is_finite() {
-            0.0
-        } else if inv == 0.0 {
+        let t = if !value.is_finite() || inv == 0.0 {
             0.0
         } else {
             ((*value - min) * inv).clamp(0.0, 1.0)

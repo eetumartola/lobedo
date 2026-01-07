@@ -208,12 +208,15 @@ struct SplatInput {
     @location(1) offset: vec2<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) color: vec4<f32>,
+    @location(4) scale: f32,
 };
 
 struct SplatOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) center: vec3<f32>,
+    @location(3) scale: f32,
 };
 
 @vertex
@@ -223,6 +226,8 @@ fn vs_splat(input: SplatInput) -> SplatOutput {
     out.position = clip + vec4<f32>(input.offset * clip.w, 0.0, 0.0);
     out.uv = input.uv;
     out.color = input.color;
+    out.center = input.center;
+    out.scale = input.scale;
     return out;
 }
 
@@ -230,6 +235,28 @@ fn vs_splat(input: SplatInput) -> SplatOutput {
 fn fs_splat(input: SplatOutput) -> @location(0) vec4<f32> {
     let r2 = dot(input.uv, input.uv);
     let weight = exp(-0.5 * r2);
+    let mode = i32(uniforms.debug_params.x + 0.5);
+    if mode == 2 {
+        let near = uniforms.debug_params.y;
+        let far = uniforms.debug_params.z;
+        let denom = max(far - near, 0.0001);
+        let dist = distance(uniforms.camera_pos, input.center);
+        let t = clamp((dist - near) / denom, 0.0, 1.0);
+        let shade = 1.0 - t;
+        return vec4<f32>(vec3<f32>(shade), weight);
+    }
+    if mode == 3 {
+        let opacity = clamp(input.color.a, 0.0, 1.0);
+        return vec4<f32>(vec3<f32>(opacity), weight);
+    }
+    if mode == 4 {
+        let s = clamp(input.scale, 0.0, 1.0);
+        let color = vec3<f32>(s, 0.2, 1.0 - s);
+        return vec4<f32>(color, weight);
+    }
+    if mode == 5 {
+        return vec4<f32>(vec3<f32>(weight), weight);
+    }
     let alpha = input.color.a * weight;
     let rgb = input.color.rgb;
     return vec4<f32>(rgb, alpha);

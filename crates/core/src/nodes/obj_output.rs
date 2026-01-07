@@ -63,20 +63,20 @@ fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
         }
     }
     if matches!(uv_mode, UvMode::None) {
-        if let Some(attr) = mesh.attribute(AttributeDomain::Point, "uv") {
-            if let crate::attributes::AttributeRef::Vec2(values) = attr {
-                if values.len() == mesh.positions.len() {
-                    uv_mode = UvMode::PerVertex(values.to_vec());
-                }
+        if let Some(crate::attributes::AttributeRef::Vec2(values)) =
+            mesh.attribute(AttributeDomain::Point, "uv")
+        {
+            if values.len() == mesh.positions.len() {
+                uv_mode = UvMode::PerVertex(values.to_vec());
             }
         }
     }
     if matches!(uv_mode, UvMode::None) {
-        if let Some(attr) = mesh.attribute(AttributeDomain::Vertex, "uv") {
-            if let crate::attributes::AttributeRef::Vec2(values) = attr {
-                if values.len() == mesh.indices.len() {
-                    uv_mode = UvMode::PerCorner(values.to_vec());
-                }
+        if let Some(crate::attributes::AttributeRef::Vec2(values)) =
+            mesh.attribute(AttributeDomain::Vertex, "uv")
+        {
+            if values.len() == mesh.indices.len() {
+                uv_mode = UvMode::PerCorner(values.to_vec());
             }
         }
     }

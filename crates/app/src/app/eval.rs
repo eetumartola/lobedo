@@ -158,6 +158,9 @@ impl LobedoApp {
             ShadingMode::Lit => ViewportShadingMode::Lit,
             ShadingMode::Normals => ViewportShadingMode::Normals,
             ShadingMode::Depth => ViewportShadingMode::Depth,
+            ShadingMode::SplatOpacity => ViewportShadingMode::SplatOpacity,
+            ShadingMode::SplatScale => ViewportShadingMode::SplatScale,
+            ShadingMode::SplatOverdraw => ViewportShadingMode::SplatOverdraw,
         };
         ViewportDebug {
             show_grid: self.project.settings.render_debug.show_grid,
