@@ -136,6 +136,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\gradient.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\graph.rs
 Description: TODO: add description.
 Functions: None

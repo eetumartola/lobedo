@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 
 use glam::Vec3;
 
@@ -6,16 +7,33 @@ use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    attribute_utils::{domain_from_params, parse_attribute_list},
+    attribute_utils::{
+        domain_from_params, mesh_positions_for_domain, parse_attribute_list,
+        splat_positions_for_domain,
+    },
     geometry_in,
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
-use crate::nodes::splat_utils::{splat_bounds, splat_cell_key};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Smooth";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SmoothSpace {
+    World,
+    Surface,
+}
+
+impl SmoothSpace {
+    fn from_params(params: &NodeParams) -> Self {
+        match params.get_int("smooth_space", 0) {
+            1 => SmoothSpace::Surface,
+            _ => SmoothSpace::World,
+        }
+    }
+}
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -31,6 +49,8 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("attr".to_string(), ParamValue::String("P".to_string())),
             ("domain".to_string(), ParamValue::Int(0)),
+            ("smooth_space".to_string(), ParamValue::Int(0)),
+            ("radius".to_string(), ParamValue::Float(0.0)),
             ("iterations".to_string(), ParamValue::Int(1)),
             ("strength".to_string(), ParamValue::Float(0.5)),
             ("group".to_string(), ParamValue::String(String::new())),
@@ -54,6 +74,8 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     if domain == AttributeDomain::Detail || domain == AttributeDomain::Vertex {
         return Ok(());
     }
+    let smooth_space = SmoothSpace::from_params(params);
+    let radius = params.get_float("radius", 0.0).max(0.0);
     let iterations = params.get_int("iterations", 1).max(0) as usize;
     if iterations == 0 {
         return Ok(());
@@ -64,7 +86,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         return Ok(());
     }
 
-    let neighbors = splat_neighbors(splats);
+    let neighbors = splat_neighbors(splats, domain, smooth_space, radius);
     if neighbors.is_empty() {
         return Ok(());
     }
@@ -122,6 +144,8 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         return Ok(());
     }
     let domain = domain_from_params(params);
+    let smooth_space = SmoothSpace::from_params(params);
+    let radius = params.get_float("radius", 0.0).max(0.0);
     let iterations = params.get_int("iterations", 1).max(0) as usize;
     if iterations == 0 {
         return Ok(());
@@ -132,7 +156,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         return Ok(());
     }
 
-    let neighbors = mesh_neighbors(mesh, domain);
+    let neighbors = mesh_neighbors(mesh, domain, smooth_space, radius);
     if neighbors.is_empty() {
         return Ok(());
     }
@@ -179,13 +203,57 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     Ok(())
 }
 
-fn mesh_neighbors(mesh: &Mesh, domain: AttributeDomain) -> Vec<Vec<usize>> {
-    match domain {
-        AttributeDomain::Point => point_neighbors(mesh),
-        AttributeDomain::Vertex => vertex_neighbors(mesh),
-        AttributeDomain::Primitive => primitive_neighbors(mesh),
-        AttributeDomain::Detail => Vec::new(),
+fn mesh_neighbors(
+    mesh: &Mesh,
+    domain: AttributeDomain,
+    space: SmoothSpace,
+    radius: f32,
+) -> Vec<Vec<usize>> {
+    match space {
+        SmoothSpace::World => world_neighbors_for_mesh(mesh, domain, radius),
+        SmoothSpace::Surface => surface_neighbors(mesh, domain, radius),
     }
+}
+
+fn world_neighbors_for_mesh(
+    mesh: &Mesh,
+    domain: AttributeDomain,
+    radius: f32,
+) -> Vec<Vec<usize>> {
+    let positions = mesh_positions_for_domain(mesh, domain);
+    world_neighbors_from_positions(&positions, radius)
+}
+
+fn surface_neighbors(mesh: &Mesh, domain: AttributeDomain, radius: f32) -> Vec<Vec<usize>> {
+    if radius <= 0.0 {
+        return match domain {
+            AttributeDomain::Point => point_neighbors(mesh),
+            AttributeDomain::Vertex => vertex_neighbors(mesh),
+            AttributeDomain::Primitive => primitive_neighbors(mesh),
+            AttributeDomain::Detail => Vec::new(),
+        };
+    }
+
+    let positions = mesh_positions_for_domain(mesh, domain);
+    if positions.is_empty() {
+        return Vec::new();
+    }
+
+    let adjacency = match domain {
+        AttributeDomain::Point => point_adjacency(mesh, &positions),
+        AttributeDomain::Vertex => vertex_adjacency(mesh, &positions),
+        AttributeDomain::Primitive => primitive_adjacency(mesh, &positions),
+        AttributeDomain::Detail => Vec::new(),
+    };
+    if adjacency.is_empty() {
+        return Vec::new();
+    }
+
+    let mut neighbors = vec![Vec::new(); adjacency.len()];
+    for idx in 0..adjacency.len() {
+        neighbors[idx] = dijkstra_neighbors(idx, &adjacency, radius);
+    }
+    neighbors
 }
 
 fn point_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
@@ -259,42 +327,133 @@ fn primitive_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
     neighbors
 }
 
-fn splat_neighbors(splats: &SplatGeo) -> Vec<Vec<usize>> {
-    let count = splats.len();
+fn point_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
+    let mut adjacency = vec![Vec::new(); positions.len()];
+    for tri in mesh.indices.chunks_exact(3) {
+        let a = tri[0] as usize;
+        let b = tri[1] as usize;
+        let c = tri[2] as usize;
+        push_edge(&mut adjacency, positions, a, b);
+        push_edge(&mut adjacency, positions, b, a);
+        push_edge(&mut adjacency, positions, b, c);
+        push_edge(&mut adjacency, positions, c, b);
+        push_edge(&mut adjacency, positions, c, a);
+        push_edge(&mut adjacency, positions, a, c);
+    }
+    dedup_weighted_adjacency(&mut adjacency);
+    adjacency
+}
+
+fn vertex_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
+    let mut adjacency = vec![Vec::new(); positions.len()];
+    let tri_count = mesh.indices.len() / 3;
+    for tri_index in 0..tri_count {
+        let base = tri_index * 3;
+        let a = base;
+        let b = base + 1;
+        let c = base + 2;
+        push_edge(&mut adjacency, positions, a, b);
+        push_edge(&mut adjacency, positions, b, a);
+        push_edge(&mut adjacency, positions, b, c);
+        push_edge(&mut adjacency, positions, c, b);
+        push_edge(&mut adjacency, positions, c, a);
+        push_edge(&mut adjacency, positions, a, c);
+    }
+    dedup_weighted_adjacency(&mut adjacency);
+    adjacency
+}
+
+fn primitive_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
+    let neighbors = primitive_neighbors(mesh);
+    let mut adjacency = vec![Vec::new(); neighbors.len()];
+    for (idx, list) in neighbors.iter().enumerate() {
+        for &other in list {
+            if other < positions.len() && idx < positions.len() {
+                let dist = positions[idx].distance(positions[other]);
+                if dist.is_finite() {
+                    adjacency[idx].push((other, dist));
+                }
+            }
+        }
+    }
+    adjacency
+}
+
+fn push_edge(
+    adjacency: &mut [Vec<(usize, f32)>],
+    positions: &[Vec3],
+    from: usize,
+    to: usize,
+) {
+    if from >= adjacency.len() || to >= positions.len() {
+        return;
+    }
+    let dist = positions[from].distance(positions[to]);
+    if dist.is_finite() {
+        adjacency[from].push((to, dist));
+    }
+}
+
+fn dedup_weighted_adjacency(adjacency: &mut [Vec<(usize, f32)>]) {
+    for list in adjacency.iter_mut() {
+        list.sort_by(|a, b| a.0.cmp(&b.0));
+        list.dedup_by(|a, b| {
+            if a.0 == b.0 {
+                if b.1 < a.1 {
+                    a.1 = b.1;
+                }
+                true
+            } else {
+                false
+            }
+        });
+    }
+}
+
+fn world_neighbors_from_positions(positions: &[Vec3], radius: f32) -> Vec<Vec<usize>> {
+    let count = positions.len();
     if count == 0 {
         return Vec::new();
     }
-    let (min, max) = splat_bounds(splats);
-    let extent = max - min;
-    let volume = extent.x * extent.y * extent.z;
-    let mut cell_size = if volume > 0.0 {
-        (volume / count as f32).cbrt()
-    } else {
-        0.0
-    };
+    let (min, max) = positions_bounds(positions);
+    let auto_radius = auto_radius_from_bounds(min, max, count);
+    let search_radius = if radius > 0.0 { radius } else { auto_radius };
+    let mut cell_size = if radius > 0.0 { radius } else { auto_radius };
     if !cell_size.is_finite() || cell_size <= 1.0e-6 {
         cell_size = 1.0;
     }
     let inv_cell = 1.0 / cell_size;
+    let cell_range = (search_radius / cell_size).ceil().max(1.0) as i32;
+    let radius_sq = search_radius * search_radius;
 
     let mut grid: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
-    for (idx, position) in splats.positions.iter().enumerate() {
-        let pos = Vec3::from(*position);
-        let key = splat_cell_key(pos, min, inv_cell);
+    let mut valid = vec![false; count];
+    for (idx, position) in positions.iter().enumerate() {
+        if !position.is_finite() {
+            continue;
+        }
+        valid[idx] = true;
+        let key = cell_key(*position, min, inv_cell);
         grid.entry(key).or_default().push(idx);
     }
 
     let mut neighbors = vec![Vec::new(); count];
-    for (idx, position) in splats.positions.iter().enumerate() {
-        let pos = Vec3::from(*position);
-        let base = splat_cell_key(pos, min, inv_cell);
-        for dz in -1..=1 {
-            for dy in -1..=1 {
-                for dx in -1..=1 {
+    for (idx, position) in positions.iter().enumerate() {
+        if !valid[idx] {
+            continue;
+        }
+        let base = cell_key(*position, min, inv_cell);
+        for dz in -cell_range..=cell_range {
+            for dy in -cell_range..=cell_range {
+                for dx in -cell_range..=cell_range {
                     let key = (base.0 + dx, base.1 + dy, base.2 + dz);
                     if let Some(list) = grid.get(&key) {
                         for &other in list {
-                            if other != idx {
+                            if other == idx {
+                                continue;
+                            }
+                            let diff = positions[other] - *position;
+                            if diff.length_squared() <= radius_sq {
                                 neighbors[idx].push(other);
                             }
                         }
@@ -307,6 +466,124 @@ fn splat_neighbors(splats: &SplatGeo) -> Vec<Vec<usize>> {
     }
 
     neighbors
+}
+
+fn positions_bounds(positions: &[Vec3]) -> (Vec3, Vec3) {
+    let mut iter = positions.iter().copied().filter(|p| p.is_finite());
+    let Some(first) = iter.next() else {
+        return (Vec3::ZERO, Vec3::ZERO);
+    };
+    let mut min = first;
+    let mut max = first;
+    for p in iter {
+        min = min.min(p);
+        max = max.max(p);
+    }
+    (min, max)
+}
+
+fn auto_radius_from_bounds(min: Vec3, max: Vec3, count: usize) -> f32 {
+    if count == 0 {
+        return 1.0;
+    }
+    let extent = max - min;
+    let volume = extent.x * extent.y * extent.z;
+    if volume <= 0.0 {
+        return 1.0;
+    }
+    let radius = (volume / count as f32).cbrt();
+    if radius.is_finite() && radius > 1.0e-6 {
+        radius
+    } else {
+        1.0
+    }
+}
+
+fn cell_key(pos: Vec3, origin: Vec3, inv_cell: f32) -> (i32, i32, i32) {
+    let rel = (pos - origin) * inv_cell;
+    (rel.x.floor() as i32, rel.y.floor() as i32, rel.z.floor() as i32)
+}
+
+#[derive(Clone, Copy, Debug)]
+struct HeapItem {
+    cost: f32,
+    index: usize,
+}
+
+impl Eq for HeapItem {}
+
+impl PartialEq for HeapItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost && self.index == other.index
+    }
+}
+
+impl Ord for HeapItem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal)
+    }
+}
+
+impl PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn dijkstra_neighbors(
+    start: usize,
+    adjacency: &[Vec<(usize, f32)>],
+    max_distance: f32,
+) -> Vec<usize> {
+    let mut dist = vec![f32::INFINITY; adjacency.len()];
+    let mut heap = BinaryHeap::new();
+    dist[start] = 0.0;
+    heap.push(HeapItem {
+        cost: 0.0,
+        index: start,
+    });
+
+    let mut out = Vec::new();
+    while let Some(HeapItem { cost, index }) = heap.pop() {
+        if cost > max_distance {
+            continue;
+        }
+        if cost > dist[index] {
+            continue;
+        }
+        if index != start {
+            out.push(index);
+        }
+        if let Some(list) = adjacency.get(index) {
+            for &(neighbor, weight) in list {
+                if !weight.is_finite() {
+                    continue;
+                }
+                let next = cost + weight;
+                if next <= max_distance && next < dist[neighbor] {
+                    dist[neighbor] = next;
+                    heap.push(HeapItem {
+                        cost: next,
+                        index: neighbor,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+fn splat_neighbors(
+    splats: &SplatGeo,
+    domain: AttributeDomain,
+    _space: SmoothSpace,
+    radius: f32,
+) -> Vec<Vec<usize>> {
+    let positions = splat_positions_for_domain(splats, domain);
+    world_neighbors_from_positions(&positions, radius)
 }
 
 

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::attributes::{AttributeDomain, AttributeStorage};
+use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage};
+use crate::gradient::{parse_color_gradient, ColorGradient};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
@@ -26,7 +27,13 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
+            ("color_mode".to_string(), ParamValue::Int(0)),
             ("color".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
+            ("attr".to_string(), ParamValue::String("mask".to_string())),
+            (
+                "gradient".to_string(),
+                ParamValue::String(ColorGradient::default().to_string()),
+            ),
             ("domain".to_string(), ParamValue::Int(0)),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
@@ -36,7 +43,10 @@ pub fn default_params() -> NodeParams {
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let mut input = require_mesh_input(inputs, 0, "Color requires a mesh input")?;
+    let mode = params.get_int("color_mode", 0).clamp(0, 1);
     let color = params.get_vec3("color", [1.0, 1.0, 1.0]);
+    let attr = params.get_string("attr", "mask");
+    let gradient = parse_color_gradient(params.get_string("gradient", ""));
     let domain = domain_from_params(params);
     let count = input.attribute_domain_len(domain);
     if count == 0 && domain != AttributeDomain::Detail {
@@ -47,7 +57,14 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         return Ok(input);
     }
     let mut values = existing_vec3_attr_mesh(&input, domain, "Cd", count);
-    apply_color_to_values(&mut values, color, mask.as_deref());
+    if mode == 0 {
+        apply_color_to_values(&mut values, color, mask.as_deref());
+    } else {
+        let Some(samples) = mesh_attribute_samples(&input, domain, attr, count) else {
+            return Ok(input);
+        };
+        apply_gradient_to_values(&mut values, &samples, &gradient, mask.as_deref());
+    }
     input
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
         .map_err(|err| format!("Color attribute error: {:?}", err))?;
@@ -55,7 +72,10 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 }
 
 pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
+    let mode = params.get_int("color_mode", 0).clamp(0, 1);
     let color = params.get_vec3("color", [1.0, 1.0, 1.0]);
+    let attr = params.get_string("attr", "mask");
+    let gradient = parse_color_gradient(params.get_string("gradient", ""));
     let domain = domain_from_params(params);
     let count = splats.attribute_domain_len(domain);
     if count == 0 {
@@ -68,7 +88,14 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     }
 
     let mut values = existing_vec3_attr_splats(splats, domain, "Cd", count);
-    apply_color_to_values(&mut values, color, mask.as_deref());
+    if mode == 0 {
+        apply_color_to_values(&mut values, color, mask.as_deref());
+    } else {
+        let Some(samples) = splat_attribute_samples(splats, domain, attr, count) else {
+            return Ok(());
+        };
+        apply_gradient_to_values(&mut values, &samples, &gradient, mask.as_deref());
+    }
 
     splats
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
@@ -92,3 +119,90 @@ fn apply_color_to_values(
     }
 }
 
+fn apply_gradient_to_values(
+    values: &mut [[f32; 3]],
+    samples: &[f32],
+    gradient: &ColorGradient,
+    mask: Option<&[bool]>,
+) {
+    if values.len() != samples.len() {
+        return;
+    }
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    for (idx, value) in samples.iter().enumerate() {
+        if mask
+            .as_ref()
+            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+        {
+            continue;
+        }
+        if value.is_finite() {
+            min = min.min(*value);
+            max = max.max(*value);
+        }
+    }
+    if !min.is_finite() || !max.is_finite() {
+        return;
+    }
+    let denom = (max - min).abs();
+    let inv = if denom > 1.0e-6 { 1.0 / denom } else { 0.0 };
+    for (idx, value) in samples.iter().enumerate() {
+        if mask
+            .as_ref()
+            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+        {
+            continue;
+        }
+        let t = if !value.is_finite() {
+            0.0
+        } else if inv == 0.0 {
+            0.0
+        } else {
+            ((*value - min) * inv).clamp(0.0, 1.0)
+        };
+        if let Some(slot) = values.get_mut(idx) {
+            *slot = gradient.sample(t);
+        }
+    }
+}
+
+fn mesh_attribute_samples(
+    mesh: &Mesh,
+    domain: AttributeDomain,
+    attr: &str,
+    count: usize,
+) -> Option<Vec<f32>> {
+    let attr_ref = mesh.attribute(domain, attr)?;
+    attribute_samples(attr_ref, count)
+}
+
+fn splat_attribute_samples(
+    splats: &SplatGeo,
+    domain: AttributeDomain,
+    attr: &str,
+    count: usize,
+) -> Option<Vec<f32>> {
+    let attr_ref = splats.attribute(domain, attr)?;
+    attribute_samples(attr_ref, count)
+}
+
+fn attribute_samples(attr_ref: AttributeRef<'_>, count: usize) -> Option<Vec<f32>> {
+    match attr_ref {
+        AttributeRef::Float(values) => {
+            if values.len() == count {
+                Some(values.to_vec())
+            } else {
+                None
+            }
+        }
+        AttributeRef::Int(values) => {
+            if values.len() == count {
+                Some(values.iter().map(|v| *v as f32).collect())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}

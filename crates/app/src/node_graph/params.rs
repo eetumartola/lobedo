@@ -11,7 +11,7 @@ use std::sync::{Mutex, OnceLock};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
-use lobedo_core::ParamValue;
+use lobedo_core::{parse_color_gradient, ParamValue};
 
 use super::help::{param_help, show_help_tooltip};
 
@@ -116,6 +116,16 @@ pub(super) fn edit_param(
                     &[(0, "Value"), (1, "Perlin")],
                     "Value",
                 )
+            } else if label == "color_mode" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Constant"), (1, "From Attribute")],
+                    "Constant",
+                )
             } else if label == "feature" {
                 combo_row_i32(
                     ui,
@@ -180,6 +190,16 @@ pub(super) fn edit_param(
                     &mut v,
                     &[(0, "X"), (1, "Y"), (2, "Z")],
                     "Y",
+                )
+            } else if label == "smooth_space" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "World"), (1, "Surface")],
+                    "World",
                 )
             } else {
                 param_row_with_label(ui, label, &display_label, help, |ui| {
@@ -277,7 +297,11 @@ pub(super) fn edit_param(
             (ParamValue::Vec3(v), changed)
         }
         ParamValue::String(mut v) => {
-            let changed = if label == "shape" {
+            let changed = if label == "gradient" {
+                param_row_with_label(ui, label, &display_label, help, |ui| {
+                    edit_gradient_field(ui, &mut v)
+                })
+            } else if label == "shape" {
                 combo_row_string(
                     ui,
                     label,
@@ -317,6 +341,45 @@ pub(super) fn edit_param(
             (ParamValue::String(v), changed)
         }
     }
+}
+
+fn edit_gradient_field(ui: &mut Ui, value: &mut String) -> bool {
+    let mut gradient = parse_color_gradient(value);
+    let (min_idx, max_idx) = gradient.endpoints();
+    let mut left = gradient
+        .stops
+        .get(min_idx)
+        .map(|stop| stop.color)
+        .unwrap_or([0.0, 0.0, 0.0]);
+    let mut right = gradient
+        .stops
+        .get(max_idx)
+        .map(|stop| stop.color)
+        .unwrap_or([1.0, 1.0, 1.0]);
+    let mut color_changed = false;
+    if ui.color_edit_button_rgb(&mut left).changed() {
+        color_changed = true;
+    }
+    ui.add_space(6.0);
+    if ui.color_edit_button_rgb(&mut right).changed() {
+        color_changed = true;
+    }
+    ui.add_space(6.0);
+    let height = ui.spacing().interact_size.y;
+    let text_width = ui.available_width().max(140.0);
+    let text_changed = ui
+        .add_sized([text_width, height], egui::TextEdit::singleline(value))
+        .changed();
+    if color_changed {
+        if let Some(stop) = gradient.stops.get_mut(min_idx) {
+            stop.color = left;
+        }
+        if let Some(stop) = gradient.stops.get_mut(max_idx) {
+            stop.color = right;
+        }
+        *value = gradient.to_string();
+    }
+    color_changed || text_changed
 }
 
 fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
@@ -610,6 +673,23 @@ fn combo_row_string(
 }
 
 fn display_label(node_name: &str, key: &str) -> String {
+    if node_name == "Color" {
+        return match key {
+            "color_mode" => "Mode",
+            "attr" => "Attribute",
+            "gradient" => "Gradient",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Smooth" {
+        return match key {
+            "smooth_space" => "Space",
+            "radius" => "Radius",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Splat to Mesh" {
         return match key {
             "algorithm" => "Method",
@@ -673,6 +753,7 @@ fn float_slider_range(
         "frequency" => 0.0..=10.0,
         "strength" => 0.0..=1.0,
         "value_f" => -10.0..=10.0,
+        "radius" => 0.0..=1000.0,
         "max_distance" => 0.0..=1000.0,
         "voxel_size" => 0.0..=10.0,
         "n_sigma" => 0.0..=6.0,

@@ -1,5 +1,6 @@
 mod attributes;
 mod eval;
+mod gradient;
 mod geometry;
 mod geometry_eval;
 mod groups;
@@ -27,6 +28,7 @@ pub use eval::{
     evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
     EvalNodeReport, EvalReport, EvalState,
 };
+pub use gradient::{parse_color_gradient, ColorGradient, ColorStop};
 pub use geometry::{merge_splats, Geometry};
 pub use graph::{
     Graph, GraphError, Link, LinkId, Node, NodeDefinition, NodeId, NodeParams, ParamValue, Pin,

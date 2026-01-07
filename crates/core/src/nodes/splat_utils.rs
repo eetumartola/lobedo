@@ -2,22 +2,6 @@ use glam::Vec3;
 
 use crate::splat::SplatGeo;
 
-pub fn splat_bounds(splats: &SplatGeo) -> (Vec3, Vec3) {
-    let mut iter = splats.positions.iter();
-    let first = iter
-        .next()
-        .copied()
-        .unwrap_or([0.0, 0.0, 0.0]);
-    let mut min = Vec3::from(first);
-    let mut max = Vec3::from(first);
-    for p in iter {
-        let v = Vec3::from(*p);
-        min = min.min(v);
-        max = max.max(v);
-    }
-    (min, max)
-}
-
 pub fn splat_bounds_indices(splats: &SplatGeo, indices: &[usize]) -> (Vec3, Vec3) {
     let mut iter = indices.iter().copied();
     let first = iter
