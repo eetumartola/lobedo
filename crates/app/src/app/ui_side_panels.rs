@@ -139,6 +139,37 @@ impl LobedoApp {
                                     self.project.settings.render_debug.depth_far = near + 0.01;
                                 }
                             }
+                            if matches!(
+                                *shading,
+                                ShadingMode::SplatOpacity
+                                    | ShadingMode::SplatScale
+                                    | ShadingMode::SplatOverdraw
+                            ) {
+                                ui.horizontal(|ui| {
+                                    ui.label("Min");
+                                    ui.add(
+                                        egui::DragValue::new(
+                                            &mut self.project.settings.render_debug.splat_debug_min,
+                                        )
+                                        .speed(0.05),
+                                    );
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Max");
+                                    ui.add(
+                                        egui::DragValue::new(
+                                            &mut self.project.settings.render_debug.splat_debug_max,
+                                        )
+                                        .speed(0.05),
+                                    );
+                                });
+                                let min = self.project.settings.render_debug.splat_debug_min;
+                                let max = self.project.settings.render_debug.splat_debug_max;
+                                if max <= min + 0.0001 {
+                                    self.project.settings.render_debug.splat_debug_max =
+                                        min + 0.0001;
+                                }
+                            }
 
                             ui.separator();
                             ui.label("Evaluation");

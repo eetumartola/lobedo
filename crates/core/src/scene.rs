@@ -20,7 +20,9 @@ pub struct SceneMesh {
 #[derive(Debug, Clone)]
 pub struct SceneSplats {
     pub positions: Vec<[f32; 3]>,
-    pub colors: Vec<[f32; 3]>,
+    pub sh0: Vec<[f32; 3]>,
+    pub sh_coeffs: usize,
+    pub sh_rest: Vec<[f32; 3]>,
     pub opacity: Vec<f32>,
     pub scales: Vec<[f32; 3]>,
     pub rotations: Vec<[f32; 4]>,
@@ -139,7 +141,9 @@ impl SceneSplats {
     pub fn from_splats(splats: &SplatGeo) -> Self {
         Self {
             positions: splats.positions.clone(),
-            colors: splats.sh0.clone(),
+            sh0: splats.sh0.clone(),
+            sh_coeffs: splats.sh_coeffs,
+            sh_rest: splats.sh_rest.clone(),
             opacity: splats.opacity.clone(),
             scales: splats.scales.clone(),
             rotations: splats.rotations.clone(),

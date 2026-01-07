@@ -24,6 +24,7 @@ mod ui_info_panels;
 mod ui_inputs;
 mod ui_side_panels;
 mod ui_top_bar;
+mod ui_preferences;
 mod ui;
 mod undo;
 mod viewport;
@@ -58,6 +59,7 @@ pub(crate) struct LobedoApp {
     pause_viewport: bool,
     last_selected_node: Option<lobedo_core::NodeId>,
     last_selection_key: Option<(lobedo_core::NodeId, u64)>,
+    show_preferences: bool,
     info_panel: Option<NodeInfoPanel>,
     held_info_panel: Option<NodeInfoPanel>,
     wrangle_help_panel: Option<WrangleHelpPanel>,
@@ -100,6 +102,7 @@ impl LobedoApp {
             pause_viewport: false,
             last_selected_node: None,
             last_selection_key: None,
+            show_preferences: false,
             info_panel: None,
             held_info_panel: None,
             wrangle_help_panel: None,

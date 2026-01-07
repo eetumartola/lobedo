@@ -37,6 +37,12 @@ pub enum ViewportShadingMode {
     SplatOverdraw,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewportSplatShadingMode {
+    ColorOnly,
+    FullSh,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewportDebug {
     pub show_grid: bool,
@@ -47,6 +53,12 @@ pub struct ViewportDebug {
     pub shading_mode: ViewportShadingMode,
     pub depth_near: f32,
     pub depth_far: f32,
+    pub splat_debug_min: f32,
+    pub splat_debug_max: f32,
+    pub splat_shading_mode: ViewportSplatShadingMode,
+    pub splat_tile_binning: bool,
+    pub splat_tile_size: u32,
+    pub splat_tile_threshold: u32,
     pub show_points: bool,
     pub show_splats: bool,
     pub point_size: f32,

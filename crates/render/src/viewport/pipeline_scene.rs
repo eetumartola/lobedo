@@ -51,24 +51,32 @@ pub(super) fn apply_scene_to_pipeline(
 
     if let Some(splats) = scene.splats() {
         pipeline.splat_positions = splats.positions.clone();
-        pipeline.splat_colors = splats.colors.clone();
+        pipeline.splat_sh0 = splats.sh0.clone();
+        pipeline.splat_sh_coeffs = splats.sh_coeffs;
+        pipeline.splat_sh_rest = splats.sh_rest.clone();
+        pipeline.splat_sh0_is_coeff = splats.sh0_is_coeff;
         pipeline.splat_opacity = splats.opacity.clone();
         pipeline.splat_scales = splats.scales.clone();
         pipeline.splat_rotations = splats.rotations.clone();
         pipeline.splat_point_size = -1.0;
         pipeline.splat_buffers.clear();
         pipeline.splat_counts.clear();
+        pipeline.splat_scissors.clear();
         if pipeline.mesh_vertices.is_empty() {
             pipeline.mesh_bounds = bounds_from_positions(&pipeline.splat_positions);
         }
     } else {
         pipeline.splat_positions.clear();
-        pipeline.splat_colors.clear();
+        pipeline.splat_sh0.clear();
+        pipeline.splat_sh_coeffs = 0;
+        pipeline.splat_sh_rest.clear();
+        pipeline.splat_sh0_is_coeff = false;
         pipeline.splat_opacity.clear();
         pipeline.splat_scales.clear();
         pipeline.splat_rotations.clear();
         pipeline.splat_buffers.clear();
         pipeline.splat_counts.clear();
+        pipeline.splat_scissors.clear();
         pipeline.splat_point_size = -1.0;
     }
 

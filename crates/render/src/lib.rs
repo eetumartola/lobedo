@@ -8,4 +8,6 @@ pub use scene::{
     RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats, RenderTexture,
     SelectionShape,
 };
-pub use viewport::{ViewportDebug, ViewportRenderer, ViewportShadingMode, ViewportStats};
+pub use viewport::{
+    ViewportDebug, ViewportRenderer, ViewportShadingMode, ViewportSplatShadingMode, ViewportStats,
+};

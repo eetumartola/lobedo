@@ -10,10 +10,11 @@ use web_time::Instant;
 
 use lobedo_core::{
     evaluate_geometry_graph, Mesh, SceneDrawable, SceneSnapshot, SceneSplats, ShadingMode,
+    SplatShadingMode,
 };
 use render::{
     RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats, RenderTexture,
-    SelectionShape, ViewportDebug, ViewportShadingMode,
+    SelectionShape, ViewportDebug, ViewportShadingMode, ViewportSplatShadingMode,
 };
 
 use super::{DisplayState, LobedoApp};
@@ -162,6 +163,10 @@ impl LobedoApp {
             ShadingMode::SplatScale => ViewportShadingMode::SplatScale,
             ShadingMode::SplatOverdraw => ViewportShadingMode::SplatOverdraw,
         };
+        let splat_shading_mode = match self.project.settings.render_debug.splat_shading_mode {
+            SplatShadingMode::ColorOnly => ViewportSplatShadingMode::ColorOnly,
+            SplatShadingMode::FullSh => ViewportSplatShadingMode::FullSh,
+        };
         ViewportDebug {
             show_grid: self.project.settings.render_debug.show_grid,
             show_axes: self.project.settings.render_debug.show_axes,
@@ -171,6 +176,12 @@ impl LobedoApp {
             shading_mode,
             depth_near: self.project.settings.render_debug.depth_near,
             depth_far: self.project.settings.render_debug.depth_far,
+            splat_debug_min: self.project.settings.render_debug.splat_debug_min,
+            splat_debug_max: self.project.settings.render_debug.splat_debug_max,
+            splat_shading_mode,
+            splat_tile_binning: self.project.settings.render_debug.splat_tile_binning,
+            splat_tile_size: self.project.settings.render_debug.splat_tile_size,
+            splat_tile_threshold: self.project.settings.render_debug.splat_tile_threshold,
             show_points: self.project.settings.render_debug.show_points,
             show_splats: self.project.settings.render_debug.show_splats,
             point_size: self.project.settings.render_debug.point_size,
@@ -233,9 +244,11 @@ fn render_mesh_from_scene(mesh: &lobedo_core::SceneMesh) -> RenderMesh {
 }
 
 fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
-    let mut colors = splats.colors.clone();
+    let sh0 = splats.sh0.clone();
     let mut opacity = splats.opacity.clone();
     let mut scales = splats.scales.clone();
+    let sh_coeffs = splats.sh_coeffs;
+    let sh_rest = splats.sh_rest.clone();
 
     for value in &mut opacity {
         let logit = value.clamp(-9.21034, 9.21034);
@@ -249,23 +262,17 @@ fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
         *value = [sx, sy, sz];
     }
 
-    let use_sh0_colors = colors
-        .iter()
-        .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
-    if use_sh0_colors {
-        const SH_C0: f32 = 0.2820948;
-        for value in &mut colors {
-            *value = [
-                value[0] * SH_C0 + 0.5,
-                value[1] * SH_C0 + 0.5,
-                value[2] * SH_C0 + 0.5,
-            ];
-        }
-    }
+    let sh0_is_coeff = sh_coeffs > 0
+        || sh0
+            .iter()
+            .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
 
     RenderSplats {
         positions: splats.positions.clone(),
-        colors,
+        sh0,
+        sh_coeffs,
+        sh_rest,
+        sh0_is_coeff,
         opacity,
         scales,
         rotations: splats.rotations.clone(),

@@ -113,6 +113,13 @@ pub enum ShadingMode {
     SplatOverdraw,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SplatShadingMode {
+    ColorOnly,
+    FullSh,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RenderDebugSettings {
@@ -129,6 +136,12 @@ pub struct RenderDebugSettings {
     pub shading_mode: ShadingMode,
     pub depth_near: f32,
     pub depth_far: f32,
+    pub splat_debug_min: f32,
+    pub splat_debug_max: f32,
+    pub splat_shading_mode: SplatShadingMode,
+    pub splat_tile_binning: bool,
+    pub splat_tile_size: u32,
+    pub splat_tile_threshold: u32,
 }
 
 impl Default for RenderDebugSettings {
@@ -147,6 +160,12 @@ impl Default for RenderDebugSettings {
             shading_mode: ShadingMode::Lit,
             depth_near: 0.5,
             depth_far: 20.0,
+            splat_debug_min: 0.0,
+            splat_debug_max: 1.0,
+            splat_shading_mode: SplatShadingMode::FullSh,
+            splat_tile_binning: true,
+            splat_tile_size: 64,
+            splat_tile_threshold: 50_000,
         }
     }
 }

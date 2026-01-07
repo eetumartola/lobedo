@@ -40,6 +40,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\app\src\app\ui_preferences.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\app\src\app\ui_side_panels.rs
 Description: TODO: add description.
 Functions: None

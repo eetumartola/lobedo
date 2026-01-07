@@ -44,7 +44,7 @@ pub use nodes_builtin::{
 };
 pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
-    PROJECT_VERSION,
+    SplatShadingMode, PROJECT_VERSION,
 };
 pub use scene::{SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
 pub use splat::SplatGeo;

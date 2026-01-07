@@ -17,6 +17,7 @@ impl eframe::App for LobedoApp {
         let mut undo_pushed = false;
         self.handle_tab_add_menu(ctx);
         self.show_top_bar(ctx);
+        self.show_preferences_window(ctx);
         self.show_side_panels(ctx, pointer_down, &mut undo_pushed);
         self.show_central_panel(ctx, pointer_down, &mut undo_pushed);
         self.sync_selection_overlay();

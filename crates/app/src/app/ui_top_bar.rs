@@ -47,6 +47,10 @@ impl LobedoApp {
                     }
 
                     ui.separator();
+                    if ui.button("Preferences...").clicked() {
+                        self.show_preferences = true;
+                        ui.close();
+                    }
                     ui.menu_button("About", |ui| {
                         ui.label("Lobedo 0.2 (c) Eetu Martola 2026");
                     });

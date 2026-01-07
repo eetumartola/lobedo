@@ -14,7 +14,10 @@ pub struct RenderMesh {
 #[derive(Debug, Clone)]
 pub struct RenderSplats {
     pub positions: Vec<[f32; 3]>,
-    pub colors: Vec<[f32; 3]>,
+    pub sh0: Vec<[f32; 3]>,
+    pub sh_coeffs: usize,
+    pub sh_rest: Vec<[f32; 3]>,
+    pub sh0_is_coeff: bool,
     pub opacity: Vec<f32>,
     pub scales: Vec<[f32; 3]>,
     pub rotations: Vec<[f32; 4]>,

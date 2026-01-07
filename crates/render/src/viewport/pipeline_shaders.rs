@@ -246,16 +246,27 @@ fn fs_splat(input: SplatOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(vec3<f32>(shade), weight);
     }
     if mode == 3 {
+        let min_v = uniforms.debug_params.y;
+        let max_v = uniforms.debug_params.z;
+        let denom = max(max_v - min_v, 0.0001);
         let opacity = clamp(input.color.a, 0.0, 1.0);
-        return vec4<f32>(vec3<f32>(opacity), weight);
+        let t = clamp((opacity - min_v) / denom, 0.0, 1.0);
+        return vec4<f32>(vec3<f32>(t), weight);
     }
     if mode == 4 {
-        let s = clamp(input.scale, 0.0, 1.0);
-        let color = vec3<f32>(s, 0.2, 1.0 - s);
+        let min_v = uniforms.debug_params.y;
+        let max_v = uniforms.debug_params.z;
+        let denom = max(max_v - min_v, 0.0001);
+        let t = clamp((input.scale - min_v) / denom, 0.0, 1.0);
+        let color = vec3<f32>(t, 0.2, 1.0 - t);
         return vec4<f32>(color, weight);
     }
     if mode == 5 {
-        return vec4<f32>(vec3<f32>(weight), weight);
+        let min_v = uniforms.debug_params.y;
+        let max_v = uniforms.debug_params.z;
+        let denom = max(max_v - min_v, 0.0001);
+        let t = clamp((weight - min_v) / denom, 0.0, 1.0);
+        return vec4<f32>(vec3<f32>(t), weight);
     }
     let alpha = input.color.a * weight;
     let rgb = input.color.rgb;

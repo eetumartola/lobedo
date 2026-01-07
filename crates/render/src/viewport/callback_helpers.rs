@@ -107,3 +107,114 @@ pub(super) fn light_view_projection(bounds: ([f32; 3], [f32; 3]), key_dir: Vec3)
     let ortho = Mat4::orthographic_rh(min_ls.x, max_ls.x, min_ls.y, max_ls.y, near, far);
     ortho * view
 }
+
+#[allow(clippy::excessive_precision)]
+const SH_C0: f32 = 0.2820948;
+#[allow(clippy::excessive_precision)]
+const SH_C1: f32 = 0.4886025119029199;
+#[allow(clippy::excessive_precision)]
+const SH_C2: [f32; 5] = [
+    1.0925484305920792,
+    1.0925484305920792,
+    0.31539156525252005,
+    1.0925484305920792,
+    0.5462742152960396,
+];
+#[allow(clippy::excessive_precision)]
+const SH_C3: [f32; 7] = [
+    0.5900435899266435,
+    2.890611442640554,
+    0.4570457994644658,
+    0.3731763325901154,
+    0.4570457994644658,
+    1.445305721320277,
+    0.5900435899266435,
+];
+
+fn sh_basis_l1(dir: Vec3) -> [f32; 3] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [-SH_C1 * y, SH_C1 * z, -SH_C1 * x]
+}
+
+fn sh_basis_l2(dir: Vec3) -> [f32; 5] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [
+        SH_C2[0] * x * y,
+        SH_C2[1] * y * z,
+        SH_C2[2] * (3.0 * z * z - 1.0),
+        SH_C2[3] * x * z,
+        SH_C2[4] * (x * x - y * y),
+    ]
+}
+
+fn sh_basis_l3(dir: Vec3) -> [f32; 7] {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    [
+        SH_C3[0] * y * (3.0 * x * x - y * y),
+        SH_C3[1] * x * y * z,
+        SH_C3[2] * y * (5.0 * z * z - 1.0),
+        SH_C3[3] * z * (5.0 * z * z - 3.0),
+        SH_C3[4] * x * (5.0 * z * z - 1.0),
+        SH_C3[5] * z * (x * x - y * y),
+        SH_C3[6] * x * (x * x - 3.0 * y * y),
+    ]
+}
+
+pub(super) fn splat_color_from_sh(
+    sh0: [f32; 3],
+    sh_rest: &[[f32; 3]],
+    sh_coeffs: usize,
+    sh0_is_coeff: bool,
+    full_sh: bool,
+    view_dir: Vec3,
+) -> [f32; 3] {
+    let mut color = if sh0_is_coeff {
+        Vec3::from(sh0) * SH_C0
+    } else {
+        Vec3::from(sh0)
+    };
+
+    let mut dir = view_dir;
+    if dir.length_squared() < 1.0e-6 {
+        dir = Vec3::Z;
+    } else {
+        dir = dir.normalize();
+    }
+
+    let coeff_count = sh_coeffs.min(sh_rest.len());
+    if full_sh && sh0_is_coeff {
+        let mut index = 0usize;
+        if coeff_count >= 3 {
+            let basis = sh_basis_l1(dir);
+            for i in 0..3 {
+                color += Vec3::from(sh_rest[index + i]) * basis[i];
+            }
+            index += 3;
+        }
+        if coeff_count >= 8 {
+            let basis = sh_basis_l2(dir);
+            for i in 0..5 {
+                color += Vec3::from(sh_rest[index + i]) * basis[i];
+            }
+            index += 5;
+        }
+        if coeff_count >= 15 {
+            let basis = sh_basis_l3(dir);
+            for i in 0..7 {
+                color += Vec3::from(sh_rest[index + i]) * basis[i];
+            }
+        }
+    }
+
+    if sh0_is_coeff {
+        color += Vec3::splat(0.5);
+    }
+    color = color.clamp(Vec3::ZERO, Vec3::ONE);
+    color.to_array()
+}

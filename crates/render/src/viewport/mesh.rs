@@ -35,6 +35,15 @@ pub(crate) struct SplatVertex {
     pub(crate) scale: f32,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SplatBillboard {
+    pub(crate) center: [f32; 3],
+    pub(crate) axis1_ndc: [f32; 2],
+    pub(crate) axis2_ndc: [f32; 2],
+    pub(crate) color: [f32; 4],
+    pub(crate) scale: f32,
+}
+
 pub(crate) const SPLAT_ATTRIBUTES: [wgpu::VertexAttribute; 5] =
     wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x2, 3 => Float32x4, 4 => Float32];
 
@@ -44,12 +53,13 @@ pub(crate) struct SplatBillboardInputs<'a> {
     pub(crate) opacities: &'a [f32],
     pub(crate) scales: &'a [[f32; 3]],
     pub(crate) rotations: &'a [[f32; 4]],
-    pub(crate) scale_range: [f32; 2],
     pub(crate) view: Mat4,
     pub(crate) viewport: [f32; 2],
     pub(crate) fov_y: f32,
     pub(crate) world_transform: Mat3,
 }
+
+const SPLAT_BILLBOARD_RADIUS: f32 = 3.0;
 
 pub(crate) struct CubeMesh {
     pub(crate) vertices: Vec<Vertex>,
@@ -304,6 +314,11 @@ pub(crate) fn point_cross_vertices_with_colors(
 pub(crate) fn splat_billboard_vertices(
     inputs: SplatBillboardInputs<'_>,
 ) -> Vec<SplatVertex> {
+    let billboards = splat_billboards(inputs);
+    splat_vertices_from_billboards(&billboards, None)
+}
+
+pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBillboard> {
     if inputs.positions.is_empty() {
         return Vec::new();
     }
@@ -314,9 +329,8 @@ pub(crate) fn splat_billboard_vertices(
     let fx = fy * (width / height);
     let view_rot = Mat3::from_mat4(inputs.view);
     let flip = Mat3::from_diagonal(Vec3::new(1.0, 1.0, -1.0));
-    let radius = 3.0;
 
-    let mut vertices = Vec::with_capacity(inputs.positions.len() * 6);
+    let mut billboards = Vec::with_capacity(inputs.positions.len());
     for (idx, pos) in inputs.positions.iter().enumerate() {
         let center = inputs.world_transform * Vec3::from(*pos);
         let pos_view = inputs.view.transform_point3(center);
@@ -342,10 +356,8 @@ pub(crate) fn splat_billboard_vertices(
         let rot = Mat3::from_quat(quat);
         let scale = Vec3::from(scale);
         let scale_metric = scale.x.max(scale.y).max(scale.z);
-        let scale_min = inputs.scale_range[0];
-        let scale_max = inputs.scale_range[1];
-        let scale_norm = if scale_metric.is_finite() && scale_max > scale_min {
-            ((scale_metric - scale_min) / (scale_max - scale_min)).clamp(0.0, 1.0)
+        let scale_metric = if scale_metric.is_finite() {
+            scale_metric
         } else {
             0.0
         };
@@ -420,8 +432,8 @@ pub(crate) fn splat_billboard_vertices(
         }
         let v2 = Vec2::new(-v1.y, v1.x);
 
-        let axis1 = v1 * (sigma1 * radius);
-        let axis2 = v2 * (sigma2 * radius);
+        let axis1 = v1 * (sigma1 * SPLAT_BILLBOARD_RADIUS);
+        let axis2 = v2 * (sigma2 * SPLAT_BILLBOARD_RADIUS);
         let axis1_ndc = Vec2::new(axis1.x * 2.0 / width, axis1.y * 2.0 / height);
         let axis2_ndc = Vec2::new(axis2.x * 2.0 / width, axis2.y * 2.0 / height);
 
@@ -443,39 +455,70 @@ pub(crate) fn splat_billboard_vertices(
             alpha,
         ];
 
-        let corners = [
-            (-1.0, -1.0),
-            (1.0, -1.0),
-            (1.0, 1.0),
-            (-1.0, 1.0),
-        ];
-
-        let mut verts = [SplatVertex {
+        billboards.push(SplatBillboard {
             center: center.to_array(),
+            axis1_ndc: axis1_ndc.to_array(),
+            axis2_ndc: axis2_ndc.to_array(),
+            color,
+            scale: scale_metric,
+        });
+    }
+    billboards
+}
+
+pub(crate) fn splat_vertices_from_billboards(
+    billboards: &[SplatBillboard],
+    order: Option<&[usize]>,
+) -> Vec<SplatVertex> {
+    let count = order.map_or(billboards.len(), |order| order.len());
+    let mut vertices = Vec::with_capacity(count * 6);
+    let corners = [
+        (-1.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 1.0),
+        (-1.0, 1.0),
+    ];
+
+    let push_quad = |vertices: &mut Vec<SplatVertex>, billboard: &SplatBillboard| {
+        let axis1 = Vec2::from(billboard.axis1_ndc);
+        let axis2 = Vec2::from(billboard.axis2_ndc);
+        let mut verts = [SplatVertex {
+            center: billboard.center,
             offset: [0.0, 0.0],
             uv: [0.0, 0.0],
-            color,
-            scale: scale_norm,
+            color: billboard.color,
+            scale: billboard.scale,
         }; 4];
-
         for (i, (sx, sy)) in corners.into_iter().enumerate() {
-            let offset = axis1_ndc * sx + axis2_ndc * sy;
+            let offset = axis1 * sx + axis2 * sy;
             verts[i] = SplatVertex {
-                center: center.to_array(),
+                center: billboard.center,
                 offset: offset.to_array(),
-                uv: [sx * radius, sy * radius],
-                color,
-                scale: scale_norm,
+                uv: [sx * SPLAT_BILLBOARD_RADIUS, sy * SPLAT_BILLBOARD_RADIUS],
+                color: billboard.color,
+                scale: billboard.scale,
             };
         }
-
         vertices.push(verts[0]);
         vertices.push(verts[1]);
         vertices.push(verts[2]);
         vertices.push(verts[0]);
         vertices.push(verts[2]);
         vertices.push(verts[3]);
+    };
+
+    if let Some(order) = order {
+        for &idx in order {
+            if let Some(billboard) = billboards.get(idx) {
+                push_quad(&mut vertices, billboard);
+            }
+        }
+    } else {
+        for billboard in billboards {
+            push_quad(&mut vertices, billboard);
+        }
     }
+
     vertices
 }
 
