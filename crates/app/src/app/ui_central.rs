@@ -1,7 +1,10 @@
 use eframe::egui;
+use lobedo_core::NodeId;
 
 use super::spreadsheet::show_spreadsheet;
 use super::LobedoApp;
+
+type ViewportAction = (&'static str, bool, fn(&mut LobedoApp, NodeId));
 
 impl LobedoApp {
     pub(super) fn show_central_panel(
@@ -248,19 +251,48 @@ impl LobedoApp {
     }
 
     fn show_viewport_node_actions(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
+        if let Some(active_id) = self.group_select_node_id() {
+            let selected = self.selected_group_select_node();
+            if selected != Some(active_id) {
+                self.deactivate_group_select();
+            }
+        }
         let Some(node_id) = self.node_graph.selected_node_id() else {
             return;
         };
         let Some(node) = self.project.graph.node(node_id) else {
             return;
         };
-        if node.name != "Curve" {
+        let mut actions: Vec<ViewportAction> = Vec::new();
+        if node.name == "Curve" {
+            actions.push((
+                "Add Curve",
+                self.curve_draw_active(node_id),
+                toggle_curve_draw,
+            ));
+            actions.push((
+                "Edit Curve",
+                self.curve_edit_active(node_id),
+                toggle_curve_edit,
+            ));
+        }
+        let mut footer = None;
+        if node.name == "Group" {
+            let shape = node.params.get_string("shape", "box").to_lowercase();
+            if shape == "selection" {
+                actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
+                let selection = node.params.get_string("selection", "");
+                let count = selection_count(selection);
+                footer = Some(format!("Selected: {}", count));
+            }
+        }
+        if actions.is_empty() {
             return;
         }
 
-        let button_size = egui::vec2(120.0, 32.0);
+        let button_size = egui::vec2(130.0, 32.0);
         let spacing = 10.0;
-        let action_count = 2.0;
+        let action_count = actions.len() as f32;
         let total_width = button_size.x * action_count + spacing * (action_count - 1.0);
         let pos = egui::pos2(rect.center().x - total_width * 0.5, rect.min.y + 8.0);
         let ctx = ui.ctx();
@@ -278,36 +310,23 @@ impl LobedoApp {
                         egui::TextStyle::Button,
                         egui::FontId::proportional(16.0),
                     );
-                    let add_active = self.curve_draw_active(node_id);
-                    let edit_active = self.curve_edit_active(node_id);
                     ui.horizontal(|ui| {
-                        if ui
-                            .add_sized(
-                                button_size,
-                                egui::Button::new("Add Curve").selected(add_active),
-                            )
-                            .clicked()
-                        {
-                            if add_active {
-                                self.deactivate_curve_draw();
-                            } else {
-                                self.activate_curve_draw(node_id);
-                            }
-                        }
-                        if ui
-                            .add_sized(
-                                button_size,
-                                egui::Button::new("Edit Curve").selected(edit_active),
-                            )
-                            .clicked()
-                        {
-                            if edit_active {
-                                self.deactivate_curve_edit();
-                            } else {
-                                self.activate_curve_edit(node_id);
+                        for (label, active, action) in &actions {
+                            if ui
+                                .add_sized(
+                                    button_size,
+                                    egui::Button::new(*label).selected(*active),
+                                )
+                                .clicked()
+                            {
+                                action(self, node_id);
                             }
                         }
                     });
+                    if let Some(footer) = &footer {
+                        ui.add_space(4.0);
+                        ui.label(footer);
+                    }
                 });
             });
     }
@@ -699,4 +718,38 @@ fn sh_order_label(sh_coeffs: usize) -> String {
     } else {
         format!("Partial ({} coeffs)", total)
     }
+}
+
+fn toggle_curve_draw(app: &mut LobedoApp, node_id: NodeId) {
+    if app.curve_draw_active(node_id) {
+        app.deactivate_curve_draw();
+    } else {
+        app.activate_curve_draw(node_id);
+    }
+}
+
+fn toggle_curve_edit(app: &mut LobedoApp, node_id: NodeId) {
+    if app.curve_edit_active(node_id) {
+        app.deactivate_curve_edit();
+    } else {
+        app.activate_curve_edit(node_id);
+    }
+}
+
+fn toggle_group_select(app: &mut LobedoApp, node_id: NodeId) {
+    if app.group_select_active(node_id) {
+        app.deactivate_group_select();
+    } else {
+        app.activate_group_select(node_id);
+    }
+}
+
+fn selection_count(value: &str) -> usize {
+    let mut count = 0usize;
+    for token in value.split(|c: char| c.is_whitespace() || c == ',' || c == ';') {
+        if token.trim().parse::<usize>().is_ok() {
+            count += 1;
+        }
+    }
+    count
 }

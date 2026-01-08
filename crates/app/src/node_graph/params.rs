@@ -320,15 +320,17 @@ pub(super) fn edit_param(
                     edit_gradient_field(ui, &mut v)
                 })
             } else if label == "shape" {
-                combo_row_string(
-                    ui,
-                    label,
-                    &display_label,
-                    help,
-                    &mut v,
-                    &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane"), ("group", "Group")],
-                    "Box",
-                )
+                let options: &[(&str, &str)] = if node_name == "Group" {
+                    &[
+                        ("box", "Box"),
+                        ("sphere", "Sphere"),
+                        ("plane", "Plane"),
+                        ("selection", "Selection"),
+                    ]
+                } else {
+                    &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane")]
+                };
+                combo_row_string(ui, label, &display_label, help, &mut v, options, "Box")
             } else if label == "code" {
                 param_row_with_height_label(ui, label, &display_label, help, 120.0, |ui| {
                     ui.add_sized(
@@ -705,6 +707,13 @@ fn display_label(node_name: &str, key: &str) -> String {
             "points" => "Points",
             "subdivs" => "Subdivs",
             "closed" => "Closed",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Group" {
+        return match key {
+            "select_backface" => "Select Backfaces",
             _ => key,
         }
         .to_string();

@@ -58,7 +58,7 @@ struct VertexOutput {
     @location(1) world_pos: vec3<f32>,
     @location(2) color: vec3<f32>,
     @location(3) uv: vec2<f32>,
-    @location(4) material: u32,
+    @location(4) @interpolate(flat) material: u32,
 };
 
 @vertex
@@ -141,11 +141,12 @@ fn material_albedo(material_id: u32, uv: vec2<f32>, color: vec3<f32>) -> vec3<f3
     let mat = materials[material_id];
     var albedo = color * mat.base_color.xyz;
     let tex_index = i32(mat.params.y);
-    if tex_index >= 0 {
-        let uv_scaled = uv * mat.params.zw;
-        let tex = textureSample(material_texture, material_sampler, uv_scaled, tex_index).rgb;
-        albedo = albedo * tex;
-    }
+    let uv_scaled = uv * mat.params.zw;
+    let tex_layer = max(tex_index, 0);
+    let tex = textureSample(material_texture, material_sampler, uv_scaled, tex_layer).rgb;
+    let use_tex = select(0.0, 1.0, tex_index >= 0);
+    let tex_mix = mix(vec3<f32>(1.0), tex, use_tex);
+    albedo = albedo * tex_mix;
     return albedo;
 }
 

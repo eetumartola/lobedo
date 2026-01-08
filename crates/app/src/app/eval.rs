@@ -482,6 +482,7 @@ fn selection_shape_for_node(
 fn selection_shape_from_params(params: &lobedo_core::NodeParams) -> Option<SelectionShape> {
     let shape = params.get_string("shape", "box").to_lowercase();
     match shape.as_str() {
+        "selection" => None,
         "box" => {
             let center = params.get_vec3("center", [0.0, 0.0, 0.0]);
             let size = params.get_vec3("size", [1.0, 1.0, 1.0]);

@@ -1,7 +1,9 @@
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke};
+use std::collections::BTreeSet;
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
 use lobedo_core::{encode_curve_points, parse_curve_points, NodeId, ParamValue};
+use lobedo_core::AttributeDomain;
 
 use super::LobedoApp;
 
@@ -29,6 +31,13 @@ enum GizmoHit {
 enum BoxHandle {
     Center,
     Face { axis: GizmoAxis, sign: f32 },
+}
+
+#[derive(Clone, Copy)]
+enum SelectionAction {
+    Replace,
+    Add,
+    Remove,
 }
 
 #[derive(Clone, Copy)]
@@ -75,6 +84,13 @@ struct CurveEditState {
     drag: Option<CurvePointDrag>,
 }
 
+#[derive(Clone, Copy)]
+struct GroupSelectState {
+    node_id: NodeId,
+    drag_start: Option<Pos2>,
+    drag_rect: Option<Rect>,
+}
+
 #[derive(Default)]
 pub struct ViewportToolState {
     pub transform_mode: TransformMode,
@@ -82,6 +98,7 @@ pub struct ViewportToolState {
     box_drag: Option<BoxDrag>,
     curve_draw: Option<CurveDrawState>,
     curve_edit: Option<CurveEditState>,
+    group_select: Option<GroupSelectState>,
 }
 
 impl ViewportToolState {
@@ -89,6 +106,10 @@ impl ViewportToolState {
         self.transform_drag.is_some()
             || self.box_drag.is_some()
             || self.curve_edit.and_then(|edit| edit.drag).is_some()
+            || self
+                .group_select
+                .and_then(|select| select.drag_start)
+                .is_some()
     }
 }
 
@@ -126,6 +147,44 @@ impl LobedoApp {
             .is_some_and(|state| state.node_id == node_id)
     }
 
+    pub(super) fn activate_group_select(&mut self, node_id: NodeId) {
+        self.viewport_tools.group_select = Some(GroupSelectState {
+            node_id,
+            drag_start: None,
+            drag_rect: None,
+        });
+        self.viewport_tools.curve_draw = None;
+        self.viewport_tools.curve_edit = None;
+    }
+
+    pub(super) fn deactivate_group_select(&mut self) {
+        self.viewport_tools.group_select = None;
+    }
+
+    pub(super) fn group_select_active(&self, node_id: NodeId) -> bool {
+        self.viewport_tools
+            .group_select
+            .is_some_and(|state| state.node_id == node_id)
+    }
+
+    pub(super) fn group_select_node_id(&self) -> Option<NodeId> {
+        self.viewport_tools.group_select.map(|state| state.node_id)
+    }
+
+    pub(super) fn selected_group_select_node(&self) -> Option<NodeId> {
+        let node_id = self.node_graph.selected_node_id()?;
+        let node = self.project.graph.node(node_id)?;
+        if node.name != "Group" {
+            return None;
+        }
+        let shape = node.params.get_string("shape", "box").to_lowercase();
+        if shape == "selection" {
+            Some(node_id)
+        } else {
+            None
+        }
+    }
+
     pub(super) fn handle_viewport_tools_input(
         &mut self,
         response: &egui::Response,
@@ -139,8 +198,92 @@ impl LobedoApp {
         let pointer_pos = ctx.input(|i| i.pointer.interact_pos());
         let primary_down = ctx.input(|i| i.pointer.primary_down());
         let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
+        let primary_released = ctx.input(|i| i.pointer.primary_released());
+        let modifiers = ctx.input(|i| i.modifiers);
         let secondary_clicked = response.clicked_by(egui::PointerButton::Secondary);
         let primary_clicked = response.clicked_by(egui::PointerButton::Primary);
+
+        if let Some(mut select) = self.viewport_tools.group_select {
+            if self.selected_group_select_node() != Some(select.node_id) {
+                self.viewport_tools.group_select = None;
+            } else {
+                if modifiers.alt {
+                    select.drag_start = None;
+                    select.drag_rect = None;
+                    self.viewport_tools.group_select = Some(select);
+                    return false;
+                }
+                let mut capture = false;
+                if primary_pressed {
+                    select.drag_start = pointer_pos;
+                    select.drag_rect = None;
+                    let snapshot = self.snapshot_undo();
+                    self.queue_undo_snapshot(snapshot, true);
+                    capture = true;
+                }
+                if primary_down {
+                    if let (Some(start), Some(pos)) = (select.drag_start, pointer_pos) {
+                        if (pos - start).length() > 4.0 {
+                            select.drag_rect = Some(Rect::from_two_pos(start, pos));
+                        }
+                    }
+                    capture = true;
+                }
+                if primary_released {
+                    if let Some((domain, allow_backface)) =
+                        group_selection_settings(&self.project.graph, select.node_id)
+                    {
+                        let action = selection_action(modifiers);
+                        let indices = if let Some(scene) = self.last_scene.as_ref() {
+                            let view_proj = viewport_view_proj(
+                                self.camera_state(),
+                                rect,
+                                ctx.pixels_per_point(),
+                            );
+                            if let Some(rect_sel) = select.drag_rect {
+                                selection_indices_in_rect(
+                                    scene,
+                                    domain,
+                                    view_proj,
+                                    rect,
+                                    rect_sel,
+                                    self.camera_state(),
+                                    allow_backface,
+                                )
+                            } else if let Some(pos) = pointer_pos.or(select.drag_start) {
+                                let mut picked = BTreeSet::new();
+                                if let Some(index) =
+                                    pick_selection_index(
+                                        scene,
+                                        domain,
+                                        view_proj,
+                                        rect,
+                                        pos,
+                                        self.camera_state(),
+                                        allow_backface,
+                                    )
+                                {
+                                    picked.insert(index);
+                                }
+                                picked
+                            } else {
+                                BTreeSet::new()
+                            }
+                        } else {
+                            BTreeSet::new()
+                        };
+                        self.apply_group_selection(select.node_id, action, indices);
+                    }
+                    select.drag_start = None;
+                    select.drag_rect = None;
+                    capture = true;
+                }
+                self.viewport_tools.group_select = Some(select);
+                if capture {
+                    return true;
+                }
+            }
+        }
 
         if let Some(curve) = self.viewport_tools.curve_draw {
             if secondary_clicked {
@@ -415,6 +558,17 @@ impl LobedoApp {
             draw_curve_overlay(self, ui, rect, curve.node_id, true);
             draw_curve_handles(self, ui, rect, curve.node_id);
         }
+        if let Some(node_id) = self.selected_group_select_node() {
+            draw_group_selection_overlay(self, ui, rect, node_id);
+        }
+        if let Some(select) = self.viewport_tools.group_select {
+            if let Some(selection_rect) = select.drag_rect {
+                let painter = ui.painter();
+                let fill = Color32::from_rgba_unmultiplied(255, 235, 170, 40);
+                let stroke = Stroke::new(1.0, Color32::from_rgb(255, 235, 170));
+                painter.rect(selection_rect, 0.0, fill, stroke, egui::StrokeKind::Inside);
+            }
+        }
         if let Some(node_id) = self.selected_box_node() {
             draw_box_handles(self, ui, rect, node_id);
         }
@@ -483,6 +637,44 @@ impl LobedoApp {
             return true;
         }
         false
+    }
+
+    fn apply_group_selection(
+        &mut self,
+        node_id: NodeId,
+        action: SelectionAction,
+        indices: BTreeSet<usize>,
+    ) {
+        let Some(node) = self.project.graph.node(node_id) else {
+            return;
+        };
+        let current = parse_selection_indices(node.params.get_string("selection", ""));
+        let mut next = current.clone();
+        match action {
+            SelectionAction::Replace => {
+                next = indices;
+            }
+            SelectionAction::Add => {
+                next.extend(indices);
+            }
+            SelectionAction::Remove => {
+                for idx in indices {
+                    next.remove(&idx);
+                }
+            }
+        }
+        if next == current {
+            return;
+        }
+        let encoded = encode_selection_indices(&next);
+        if self
+            .project
+            .graph
+            .set_param(node_id, "selection".to_string(), ParamValue::String(encoded))
+            .is_ok()
+        {
+            self.mark_eval_dirty();
+        }
     }
 }
 
@@ -1250,4 +1442,440 @@ fn distance_to_polyline(p: Pos2, points: &[Pos2]) -> f32 {
         best = best.min(dist);
     }
     best
+}
+
+fn selection_action(modifiers: egui::Modifiers) -> SelectionAction {
+    if modifiers.ctrl || modifiers.command {
+        SelectionAction::Remove
+    } else if modifiers.shift {
+        SelectionAction::Add
+    } else {
+        SelectionAction::Replace
+    }
+}
+
+fn parse_selection_indices(value: &str) -> BTreeSet<usize> {
+    let mut set = BTreeSet::new();
+    for token in value.split(|c: char| c.is_whitespace() || c == ',' || c == ';') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if let Ok(index) = token.parse::<usize>() {
+            set.insert(index);
+        }
+    }
+    set
+}
+
+fn encode_selection_indices(indices: &BTreeSet<usize>) -> String {
+    let mut out = String::new();
+    for (idx, value) in indices.iter().enumerate() {
+        if idx > 0 {
+            out.push(' ');
+        }
+        out.push_str(&value.to_string());
+    }
+    out
+}
+
+fn group_selection_settings(
+    graph: &lobedo_core::Graph,
+    node_id: NodeId,
+) -> Option<(AttributeDomain, bool)> {
+    let node = graph.node(node_id)?;
+    if node.name != "Group" {
+        return None;
+    }
+    let domain = node.params.get_int("domain", 2).clamp(0, 2);
+    let domain = match domain {
+        0 => AttributeDomain::Point,
+        1 => AttributeDomain::Vertex,
+        _ => AttributeDomain::Primitive,
+    };
+    let allow_backface = node.params.get_bool("select_backface", false);
+    Some((domain, allow_backface))
+}
+
+enum SelectionSource<'a> {
+    Mesh(&'a render::RenderMesh),
+    Splats(&'a render::RenderSplats),
+}
+
+fn resolve_selection_source<'a>(
+    scene: &'a render::RenderScene,
+    domain: AttributeDomain,
+) -> Option<SelectionSource<'a>> {
+    match domain {
+        AttributeDomain::Point => {
+            if let Some(mesh) = scene.mesh() {
+                if !mesh.positions.is_empty() {
+                    return Some(SelectionSource::Mesh(mesh));
+                }
+            }
+            scene.splats().map(SelectionSource::Splats)
+        }
+        AttributeDomain::Vertex => scene.mesh().map(SelectionSource::Mesh),
+        AttributeDomain::Primitive => {
+            if let Some(mesh) = scene.mesh() {
+                if !mesh.indices.is_empty() {
+                    return Some(SelectionSource::Mesh(mesh));
+                }
+            }
+            scene.splats().map(SelectionSource::Splats)
+        }
+        AttributeDomain::Detail => None,
+    }
+}
+
+fn pick_selection_index(
+    scene: &render::RenderScene,
+    domain: AttributeDomain,
+    view_proj: Mat4,
+    rect: Rect,
+    mouse: Pos2,
+    camera: render::CameraState,
+    allow_backface: bool,
+) -> Option<usize> {
+    let threshold = 12.0;
+    let source = resolve_selection_source(scene, domain)?;
+    let camera_pos = camera_position(camera);
+    match (source, domain) {
+        (SelectionSource::Mesh(mesh), AttributeDomain::Point) => pick_nearest_index(
+            mesh.positions
+                .iter()
+                .enumerate()
+                .filter(|(idx, pos)| {
+                    allow_backface
+                        || is_front_facing_point(mesh, *idx, Vec3::from(**pos), camera_pos)
+                })
+                .map(|(idx, pos)| (idx, Vec3::from(*pos))),
+            view_proj,
+            rect,
+            mouse,
+            threshold,
+        ),
+        (SelectionSource::Mesh(mesh), AttributeDomain::Vertex) => pick_nearest_index(
+            mesh.indices
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, pos)| {
+                    let point_index = *pos as usize;
+                    let world = mesh.positions.get(point_index).copied()?;
+                    if !allow_backface
+                        && !is_front_facing_vertex(mesh, idx, point_index, Vec3::from(world), camera_pos)
+                    {
+                        return None;
+                    }
+                    Some((idx, Vec3::from(world)))
+                }),
+            view_proj,
+            rect,
+            mouse,
+            threshold,
+        ),
+        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => pick_nearest_index(
+            mesh.indices
+                .chunks_exact(3)
+                .enumerate()
+                .filter_map(|(idx, tri)| {
+                    let p0 = mesh.positions.get(tri[0] as usize)?;
+                    let p1 = mesh.positions.get(tri[1] as usize)?;
+                    let p2 = mesh.positions.get(tri[2] as usize)?;
+                    let center = (Vec3::from(*p0) + Vec3::from(*p1) + Vec3::from(*p2)) / 3.0;
+                    if !allow_backface
+                        && !is_front_facing_primitive(Vec3::from(*p0), Vec3::from(*p1), Vec3::from(*p2), camera_pos)
+                    {
+                        return None;
+                    }
+                    Some((idx, center))
+                }),
+            view_proj,
+            rect,
+            mouse,
+            threshold,
+        ),
+        (SelectionSource::Splats(splats), _) => pick_nearest_index(
+            splats
+                .positions
+                .iter()
+                .enumerate()
+                .map(|(idx, pos)| (idx, Vec3::from(*pos))),
+            view_proj,
+            rect,
+            mouse,
+            threshold,
+        ),
+        _ => None,
+    }
+}
+
+fn selection_indices_in_rect(
+    scene: &render::RenderScene,
+    domain: AttributeDomain,
+    view_proj: Mat4,
+    rect: Rect,
+    selection_rect: Rect,
+    camera: render::CameraState,
+    allow_backface: bool,
+) -> BTreeSet<usize> {
+    let mut out = BTreeSet::new();
+    let Some(source) = resolve_selection_source(scene, domain) else {
+        return out;
+    };
+    let camera_pos = camera_position(camera);
+    match (source, domain) {
+        (SelectionSource::Mesh(mesh), AttributeDomain::Point) => {
+            for (idx, pos) in mesh.positions.iter().enumerate() {
+                if !allow_backface
+                    && !is_front_facing_point(mesh, idx, Vec3::from(*pos), camera_pos)
+                {
+                    continue;
+                }
+                if let Some(screen) =
+                    project_world_to_screen(view_proj, rect, Vec3::from(*pos))
+                {
+                    if selection_rect.contains(screen) {
+                        out.insert(idx);
+                    }
+                }
+            }
+        }
+        (SelectionSource::Mesh(mesh), AttributeDomain::Vertex) => {
+            for (idx, pos) in mesh.indices.iter().enumerate() {
+                if let Some(world) = mesh.positions.get(*pos as usize) {
+                    if !allow_backface
+                        && !is_front_facing_vertex(
+                            mesh,
+                            idx,
+                            *pos as usize,
+                            Vec3::from(*world),
+                            camera_pos,
+                        )
+                    {
+                        continue;
+                    }
+                    if let Some(screen) =
+                        project_world_to_screen(view_proj, rect, Vec3::from(*world))
+                    {
+                        if selection_rect.contains(screen) {
+                            out.insert(idx);
+                        }
+                    }
+                }
+            }
+        }
+        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => {
+            for (idx, tri) in mesh.indices.chunks_exact(3).enumerate() {
+                let (Some(p0), Some(p1), Some(p2)) = (
+                    mesh.positions.get(tri[0] as usize),
+                    mesh.positions.get(tri[1] as usize),
+                    mesh.positions.get(tri[2] as usize),
+                ) else {
+                    continue;
+                };
+                if !allow_backface
+                    && !is_front_facing_primitive(
+                        Vec3::from(*p0),
+                        Vec3::from(*p1),
+                        Vec3::from(*p2),
+                        camera_pos,
+                    )
+                {
+                    continue;
+                }
+                let center = (Vec3::from(*p0) + Vec3::from(*p1) + Vec3::from(*p2)) / 3.0;
+                if let Some(screen) = project_world_to_screen(view_proj, rect, center) {
+                    if selection_rect.contains(screen) {
+                        out.insert(idx);
+                    }
+                }
+            }
+        }
+        (SelectionSource::Splats(splats), _) => {
+            for (idx, pos) in splats.positions.iter().enumerate() {
+                if let Some(screen) =
+                    project_world_to_screen(view_proj, rect, Vec3::from(*pos))
+                {
+                    if selection_rect.contains(screen) {
+                        out.insert(idx);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+fn pick_nearest_index<I>(
+    iter: I,
+    view_proj: Mat4,
+    rect: Rect,
+    mouse: Pos2,
+    threshold: f32,
+) -> Option<usize>
+where
+    I: Iterator<Item = (usize, Vec3)>,
+{
+    let mut best = None;
+    let mut best_dist = threshold;
+    for (idx, world) in iter {
+        let Some(screen) = project_world_to_screen(view_proj, rect, world) else {
+            continue;
+        };
+        let dist = (screen - mouse).length();
+        if dist <= best_dist {
+            best_dist = dist;
+            best = Some(idx);
+        }
+    }
+    best
+}
+
+fn draw_group_selection_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node_id: NodeId) {
+    let Some(scene) = app.last_scene.as_ref() else {
+        return;
+    };
+    let Some((domain, _)) = group_selection_settings(&app.project.graph, node_id) else {
+        return;
+    };
+    let Some(node) = app.project.graph.node(node_id) else {
+        return;
+    };
+    let selection = parse_selection_indices(node.params.get_string("selection", ""));
+    if selection.is_empty() {
+        return;
+    }
+    let view_proj = viewport_view_proj(app.camera_state(), rect, ui.ctx().pixels_per_point());
+    let painter = ui.painter();
+    let point_color = Color32::from_rgb(255, 210, 120);
+    let line_color = Color32::from_rgb(255, 235, 170);
+    let stroke = Stroke::new(1.0, line_color);
+    let point_radius = 3.0;
+    match resolve_selection_source(scene, domain) {
+        Some(SelectionSource::Mesh(mesh)) => match domain {
+            AttributeDomain::Point => {
+                for idx in selection {
+                    let Some(pos) = mesh.positions.get(idx) else {
+                        continue;
+                    };
+                    if let Some(screen) =
+                        project_world_to_screen(view_proj, rect, Vec3::from(*pos))
+                    {
+                        painter.circle_filled(screen, point_radius, point_color);
+                    }
+                }
+            }
+            AttributeDomain::Vertex => {
+                for idx in selection {
+                    let Some(point_index) = mesh.indices.get(idx).copied() else {
+                        continue;
+                    };
+                    let Some(pos) = mesh.positions.get(point_index as usize) else {
+                        continue;
+                    };
+                    if let Some(screen) =
+                        project_world_to_screen(view_proj, rect, Vec3::from(*pos))
+                    {
+                        painter.circle_filled(screen, point_radius, point_color);
+                    }
+                }
+            }
+            AttributeDomain::Primitive => {
+                for idx in selection {
+                    let tri = match mesh.indices.get(idx * 3..idx * 3 + 3) {
+                        Some(tri) => tri,
+                        None => continue,
+                    };
+                    let Some(p0) = mesh.positions.get(tri[0] as usize) else {
+                        continue;
+                    };
+                    let Some(p1) = mesh.positions.get(tri[1] as usize) else {
+                        continue;
+                    };
+                    let Some(p2) = mesh.positions.get(tri[2] as usize) else {
+                        continue;
+                    };
+                    let Some(s0) = project_world_to_screen(view_proj, rect, Vec3::from(*p0)) else {
+                        continue;
+                    };
+                    let Some(s1) = project_world_to_screen(view_proj, rect, Vec3::from(*p1)) else {
+                        continue;
+                    };
+                    let Some(s2) = project_world_to_screen(view_proj, rect, Vec3::from(*p2)) else {
+                        continue;
+                    };
+                    painter.line_segment([s0, s1], stroke);
+                    painter.line_segment([s1, s2], stroke);
+                    painter.line_segment([s2, s0], stroke);
+                }
+            }
+            _ => {}
+        },
+        Some(SelectionSource::Splats(splats)) => {
+            for idx in selection {
+                let Some(pos) = splats.positions.get(idx) else {
+                    continue;
+                };
+                if let Some(screen) =
+                    project_world_to_screen(view_proj, rect, Vec3::from(*pos))
+                {
+                    painter.circle_filled(screen, point_radius, point_color);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_front_facing_point(
+    mesh: &render::RenderMesh,
+    point_index: usize,
+    world: Vec3,
+    camera_pos: Vec3,
+) -> bool {
+    let normal = mesh
+        .normals
+        .get(point_index)
+        .copied()
+        .map(Vec3::from)
+        .unwrap_or(Vec3::ZERO);
+    is_front_facing(normal, world, camera_pos)
+}
+
+fn is_front_facing_vertex(
+    mesh: &render::RenderMesh,
+    vertex_index: usize,
+    point_index: usize,
+    world: Vec3,
+    camera_pos: Vec3,
+) -> bool {
+    let normal = if let Some(corner) = mesh.corner_normals.as_ref() {
+        corner
+            .get(vertex_index)
+            .copied()
+            .map(Vec3::from)
+            .unwrap_or(Vec3::ZERO)
+    } else {
+        mesh.normals
+            .get(point_index)
+            .copied()
+            .map(Vec3::from)
+            .unwrap_or(Vec3::ZERO)
+    };
+    is_front_facing(normal, world, camera_pos)
+}
+
+fn is_front_facing_primitive(p0: Vec3, p1: Vec3, p2: Vec3, camera_pos: Vec3) -> bool {
+    let normal = (p1 - p0).cross(p2 - p0);
+    is_front_facing(normal, (p0 + p1 + p2) / 3.0, camera_pos)
+}
+
+fn is_front_facing(normal: Vec3, world: Vec3, camera_pos: Vec3) -> bool {
+    if normal.length_squared() <= 1.0e-6 {
+        return true;
+    }
+    let view_dir = (camera_pos - world).normalize_or_zero();
+    normal.normalize_or_zero().dot(view_dir) > 0.0
 }

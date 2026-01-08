@@ -25,7 +25,9 @@ pub fn default_params() -> NodeParams {
         ParamValue::String("group1".to_string()),
     );
     values.insert("domain".to_string(), ParamValue::Int(2));
-    values.insert("base_group".to_string(), ParamValue::String(String::new()));
+    values.insert("base_group".to_string(), ParamValue::String(String::new())); 
+    values.insert("selection".to_string(), ParamValue::String(String::new()));  
+    values.insert("select_backface".to_string(), ParamValue::Bool(false));
     NodeParams { values }
 }
 
@@ -56,8 +58,8 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
         build_group_mask(mesh.groups.map(domain), base_expr, len)
     };
 
-    let mut mask = if shape.eq_ignore_ascii_case("group") {
-        base_mask.clone().unwrap_or_else(|| vec![false; len])
+    let mut mask = if shape.eq_ignore_ascii_case("selection") {
+        selection_mask(params.get_string("selection", ""), len)
     } else {
         let mut mask = Vec::with_capacity(len);
         for idx in 0..len {
@@ -112,8 +114,8 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         build_group_mask(&groups, base_expr, len)
     };
 
-    let mut mask = if shape.eq_ignore_ascii_case("group") {
-        base_mask.clone().unwrap_or_else(|| vec![false; len])
+    let mut mask = if shape.eq_ignore_ascii_case("selection") {
+        selection_mask(params.get_string("selection", ""), len)
     } else {
         let mut mask = Vec::with_capacity(len);
         for position in &splats.positions {
@@ -184,6 +186,22 @@ fn element_inside_mesh(
     position
         .map(|pos| crate::nodes::delete::is_inside(params, shape, Vec3::from(pos)))
         .unwrap_or(false)
+}
+
+fn selection_mask(selection: &str, len: usize) -> Vec<bool> {
+    let mut mask = vec![false; len];
+    for token in selection.split(|c: char| c.is_whitespace() || c == ',' || c == ';') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if let Ok(index) = token.parse::<usize>() {
+            if index < len {
+                mask[index] = true;
+            }
+        }
+    }
+    mask
 }
 
 #[cfg(test)]

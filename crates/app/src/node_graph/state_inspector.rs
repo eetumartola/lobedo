@@ -57,12 +57,16 @@ impl NodeGraphState {
         let mut changed = false;
         for (key, value) in params {
             if matches!(node_name.as_str(), "Group" | "Delete") {
+                if key == "selection" {
+                    continue;
+                }
                 if let Some(shape) = shape.as_deref() {
                     match key.as_str() {
                         "size" if shape != "box" && shape != "sphere" => continue,
                         "radius" => continue,
-                        "center" if shape == "plane" || shape == "group" => continue,
+                        "center" if shape == "plane" || shape == "selection" => continue,
                         "plane_origin" | "plane_normal" if shape != "plane" => continue,
+                        "select_backface" if shape != "selection" => continue,
                         _ => {}
                     }
                 }
