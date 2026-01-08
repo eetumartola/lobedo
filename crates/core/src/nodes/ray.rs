@@ -62,24 +62,30 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         return Err("Ray requires a target input".to_string());
     };
 
-    let mut meshes = Vec::with_capacity(source.meshes.len());
-    for mesh in &source.meshes {
-        let mut mesh = mesh.clone();
-        apply_to_mesh_with_targets(params, &mut mesh, &target.meshes, &target.splats)?;
+    let target_meshes = target
+        .merged_mesh()
+        .map(|mesh| vec![mesh])
+        .unwrap_or_default();
+    let target_meshes_ref = target_meshes.as_slice();
+
+    let mut meshes = Vec::new();
+    if let Some(mut mesh) = source.merged_mesh() {
+        apply_to_mesh_with_targets(params, &mut mesh, target_meshes_ref, &target.splats)?;
         meshes.push(mesh);
     }
 
     let mut splats = Vec::with_capacity(source.splats.len());
     for splat in &source.splats {
         let mut splat = splat.clone();
-        apply_to_splats_with_targets(params, &mut splat, &target.meshes, &target.splats)?;
+        apply_to_splats_with_targets(params, &mut splat, target_meshes_ref, &target.splats)?;
         splats.push(splat);
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { source.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: source.curves.clone(),
+        curves,
         materials: source.materials.clone(),
     })
 }

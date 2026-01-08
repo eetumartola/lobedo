@@ -78,13 +78,27 @@ pub fn apply_to_geometry(
     };
 
     let mesh = splats_to_mesh(params, &splats)?;
-    let mut meshes = input.meshes.clone();
-    meshes.push(mesh);
+    let mut meshes = Vec::new();
+    if let Some(existing) = input.merged_mesh() {
+        if mesh.positions.is_empty() && mesh.indices.is_empty() {
+            meshes.push(existing);
+        } else {
+            meshes.push(Mesh::merge(&[existing, mesh]));
+        }
+    } else if !mesh.positions.is_empty() || !mesh.indices.is_empty() {
+        meshes.push(mesh);
+    }
+
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
 
     Ok(Geometry {
         meshes,
         splats: Vec::new(),
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }

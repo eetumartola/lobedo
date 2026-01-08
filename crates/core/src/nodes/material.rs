@@ -44,17 +44,35 @@ pub fn apply_to_geometry(
     params: &NodeParams,
     inputs: &[Geometry],
 ) -> Result<Geometry, String> {
-    let mut output = inputs.first().cloned().unwrap_or_default();
+    let input = inputs.first().cloned().unwrap_or_default();
     let material = build_material(params);
     let name = material.name.clone();
-    output.materials.insert(material);
-    for mesh in &mut output.meshes {
-        assign_material_mesh(mesh, &name);
+    let mut materials = input.materials.clone();
+    materials.insert(material);
+
+    let mut meshes = Vec::new();
+    if let Some(mut mesh) = input.merged_mesh() {
+        assign_material_mesh(&mut mesh, &name);
+        meshes.push(mesh);
     }
-    for splats in &mut output.splats {
-        assign_material_splats(splats, &name);
+
+    let mut splats = input.splats.clone();
+    for splat in &mut splats {
+        assign_material_splats(splat, &name);
     }
-    Ok(output)
+
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
+
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        materials,
+    })
 }
 
 fn build_material(params: &NodeParams) -> Material {

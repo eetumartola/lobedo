@@ -31,10 +31,23 @@ pub fn default_params() -> NodeParams {
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let input = require_mesh_input(inputs, 0, "Delete requires a mesh input")?;
-    Ok(delete_mesh(params, &input))
+    Ok(delete_mesh_with_mapping(params, &input).mesh)
 }
 
-fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
+pub struct DeleteResult {
+    pub mesh: Mesh,
+    pub point_mapping: Vec<u32>,
+}
+
+pub fn compute_with_mapping(
+    params: &NodeParams,
+    inputs: &[Mesh],
+) -> Result<DeleteResult, String> {
+    let input = require_mesh_input(inputs, 0, "Delete requires a mesh input")?;
+    Ok(delete_mesh_with_mapping(params, &input))
+}
+
+fn delete_mesh_with_mapping(params: &NodeParams, mesh: &Mesh) -> DeleteResult {
     let shape = params.get_string("shape", "box");
     let invert = params.get_bool("invert", false);
 
@@ -53,7 +66,11 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
     }
 
     if mesh.indices.is_empty() {
-        return filter_point_cloud(mesh, &keep_points);
+        let (mapping, _) = build_index_mapping(&keep_points);
+        return DeleteResult {
+            mesh: filter_point_cloud(mesh, &keep_points),
+            point_mapping: mapping,
+        };
     }
 
     let mut kept_tris = Vec::new();
@@ -121,7 +138,7 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
     let new_attributes = filter_mesh_attributes(mesh, &kept_points_indices, &kept_tris, &new_indices);
     let new_groups = filter_mesh_groups(mesh, &kept_points_indices, &kept_tris, &new_indices);
 
-    Mesh {
+    let result = Mesh {
         positions: new_positions,
         indices: new_indices,
         normals: new_normals,
@@ -129,6 +146,11 @@ fn delete_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
         uvs: new_uvs,
         attributes: new_attributes,
         groups: new_groups,
+    };
+
+    DeleteResult {
+        mesh: result,
+        point_mapping: mapping,
     }
 }
 

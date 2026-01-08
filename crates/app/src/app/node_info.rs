@@ -199,10 +199,9 @@ impl LobedoApp {
             .as_ref()
             .map(|m| m.indices.len() / 3)
             .unwrap_or(0);
-        let curve_point_count: usize = geometry.curves.iter().map(|c| c.points.len()).sum();
+        let curve_vertex_count: usize = geometry.curves.iter().map(|c| c.indices.len()).sum();
         let curve_prim_count = geometry.curves.len();
-        let curve_vertex_count = curve_point_count;
-        let point_count = mesh_point_count + curve_point_count;
+        let point_count = mesh_point_count;
         let vertex_count = mesh_vertex_count + curve_vertex_count;
         let prim_count = mesh_prim_count + curve_prim_count;
         let detail_count = if point_count == 0 && vertex_count == 0 {
@@ -242,17 +241,6 @@ impl LobedoApp {
             if let Some(bounds) = mesh.bounds() {
                 min = bounds.min;
                 max = bounds.max;
-                has_bounds = true;
-            }
-        }
-        for curve in &geometry.curves {
-            for point in &curve.points {
-                min[0] = min[0].min(point[0]);
-                min[1] = min[1].min(point[1]);
-                min[2] = min[2].min(point[2]);
-                max[0] = max[0].max(point[0]);
-                max[1] = max[1].max(point[1]);
-                max[2] = max[2].max(point[2]);
                 has_bounds = true;
             }
         }

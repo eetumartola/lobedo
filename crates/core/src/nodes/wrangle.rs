@@ -102,9 +102,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         _ => AttributeDomain::Detail,
     };
 
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in &input.meshes {
-        let mut mesh = mesh.clone();
+    let mut meshes = Vec::new();
+    if let Some(mut mesh) = input.merged_mesh() {
         let mask = mesh_group_mask(&mesh, params, domain);
         apply_wrangle(
             &mut mesh,
@@ -132,10 +131,11 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         splats.push(splat);
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }

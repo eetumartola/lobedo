@@ -101,10 +101,17 @@ pub fn apply_to_geometry(
         }
     }
 
+    let merged_mesh = source.merged_mesh();
+    let meshes = merged_mesh.map(|mesh| vec![mesh]).unwrap_or_default();
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        source.curves.clone()
+    };
     Ok(Geometry {
-        meshes: source.meshes.clone(),
+        meshes,
         splats,
-        curves: source.curves.clone(),
+        curves,
         materials: source.materials.clone(),
     })
 }

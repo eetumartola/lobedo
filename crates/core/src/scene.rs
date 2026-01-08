@@ -160,9 +160,9 @@ impl SceneSplats {
 }
 
 impl SceneCurve {
-    pub fn from_curve(curve: &Curve) -> Self {
+    pub fn from_curve(curve: &Curve, positions: &[[f32; 3]]) -> Self {
         Self {
-            points: curve.points.clone(),
+            points: curve.resolved_points(positions),
             closed: curve.closed,
         }
     }
@@ -192,7 +192,8 @@ impl SceneSnapshot {
         for (idx, material) in materials.iter().enumerate() {
             material_lookup.insert(material.name.clone(), idx as u32);
         }
-        for mesh in &geometry.meshes {
+        let mesh = geometry.merged_mesh();
+        if let Some(mesh) = mesh.as_ref() {
             drawables.push(SceneDrawable::Mesh(SceneMesh::from_mesh_with_materials(
                 mesh,
                 &material_lookup,
@@ -201,8 +202,15 @@ impl SceneSnapshot {
         for splats in &geometry.splats {
             drawables.push(SceneDrawable::Splats(SceneSplats::from_splats(splats)));
         }
+        let curve_points = mesh
+            .as_ref()
+            .map(|mesh| mesh.positions.as_slice())
+            .unwrap_or(&[]);
         for curve in &geometry.curves {
-            drawables.push(SceneDrawable::Curve(SceneCurve::from_curve(curve)));
+            drawables.push(SceneDrawable::Curve(SceneCurve::from_curve(
+                curve,
+                curve_points,
+            )));
         }
         Self {
             drawables,

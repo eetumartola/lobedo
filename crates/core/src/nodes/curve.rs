@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::curve::{parse_curve_points, sample_catmull_rom, Curve};
+use crate::curve::{parse_curve_points, sample_catmull_rom};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::geometry_out;
 
@@ -25,7 +25,12 @@ pub fn default_params() -> NodeParams {
     }
 }
 
-pub fn compute(params: &NodeParams) -> Result<Curve, String> {
+pub struct CurveOutput {
+    pub points: Vec<[f32; 3]>,
+    pub closed: bool,
+}
+
+pub fn compute(params: &NodeParams) -> Result<CurveOutput, String> {
     let points = parse_curve_points(params.get_string("points", ""));
     let closed = params.get_bool("closed", false);
     let subdivs = params.get_int("subdivs", 8).max(1) as usize;
@@ -34,5 +39,8 @@ pub fn compute(params: &NodeParams) -> Result<Curve, String> {
     } else {
         points
     };
-    Ok(Curve::new(sampled, closed))
+    Ok(CurveOutput {
+        points: sampled,
+        closed,
+    })
 }

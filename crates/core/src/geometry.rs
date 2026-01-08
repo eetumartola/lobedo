@@ -37,9 +37,13 @@ impl Geometry {
         }
     }
 
-    pub fn with_curve(curve: Curve) -> Self {
+    pub fn with_curve(points: Vec<[f32; 3]>, closed: bool) -> Self {
+        let point_count = points.len();
+        let mesh = Mesh::with_positions_indices(points, Vec::new());
+        let indices = (0..point_count as u32).collect();
+        let curve = Curve::new(indices, closed);
         Self {
-            meshes: Vec::new(),
+            meshes: vec![mesh],
             splats: Vec::new(),
             curves: vec![curve],
             materials: MaterialLibrary::default(),
@@ -51,9 +55,35 @@ impl Geometry {
     }
 
     pub fn append(&mut self, mut other: Geometry) {
-        self.meshes.append(&mut other.meshes);
+        let mut self_mesh = take_merged_mesh(&mut self.meshes);
+        let mut other_mesh = take_merged_mesh(&mut other.meshes);
+        let point_offset = self_mesh
+            .as_ref()
+            .map(|mesh| mesh.positions.len() as u32)
+            .unwrap_or(0);
+
+        match (self_mesh.take(), other_mesh.take()) {
+            (Some(a), Some(b)) => {
+                self.meshes = vec![Mesh::merge(&[a, b])];
+            }
+            (Some(a), None) => {
+                self.meshes = vec![a];
+            }
+            (None, Some(b)) => {
+                self.meshes = vec![b];
+            }
+            (None, None) => {
+                self.meshes.clear();
+            }
+        }
+
         self.splats.append(&mut other.splats);
-        self.curves.append(&mut other.curves);
+        for mut curve in other.curves {
+            if point_offset > 0 {
+                curve.offset_indices(point_offset);
+            }
+            self.curves.push(curve);
+        }
         self.materials.merge(&other.materials);
     }
 
@@ -70,6 +100,18 @@ impl Geometry {
             0 => None,
             1 => Some(self.splats[0].clone()),
             _ => Some(merge_splats(&self.splats)),
+        }
+    }
+}
+
+fn take_merged_mesh(meshes: &mut Vec<Mesh>) -> Option<Mesh> {
+    match meshes.len() {
+        0 => None,
+        1 => meshes.pop(),
+        _ => {
+            let merged = Mesh::merge(meshes);
+            meshes.clear();
+            Some(merged)
         }
     }
 }

@@ -1,50 +1,57 @@
-use glam::Mat4;
-
-use crate::attributes::{AttributeDomain, MeshAttributes};
-use crate::mesh::MeshGroups;
-
 #[derive(Debug, Clone, Default)]
 pub struct Curve {
-    pub points: Vec<[f32; 3]>,
+    pub indices: Vec<u32>,
     pub closed: bool,
-    pub attributes: MeshAttributes,
-    pub groups: MeshGroups,
 }
 
 impl Curve {
-    pub fn new(points: Vec<[f32; 3]>, closed: bool) -> Self {
-        Self {
-            points,
-            closed,
-            attributes: MeshAttributes::default(),
-            groups: MeshGroups::default(),
-        }
+    pub fn new(indices: Vec<u32>, closed: bool) -> Self {
+        Self { indices, closed }
     }
 
     pub fn primitive_count(&self) -> usize {
-        if self.points.len() < 2 {
+        if self.indices.len() < 2 {
             0
         } else if self.closed {
-            self.points.len()
+            self.indices.len()
         } else {
-            self.points.len() - 1
+            self.indices.len() - 1
         }
     }
 
-    pub fn attribute_domain_len(&self, domain: AttributeDomain) -> usize {
-        match domain {
-            AttributeDomain::Point => self.points.len(),
-            AttributeDomain::Vertex => self.primitive_count() * 2,
-            AttributeDomain::Primitive => self.primitive_count(),
-            AttributeDomain::Detail => 1,
+    pub fn offset_indices(&mut self, offset: u32) {
+        for index in &mut self.indices {
+            *index = index.saturating_add(offset);
         }
     }
 
-    pub fn transform(&mut self, matrix: Mat4) {
-        for point in &mut self.points {
-            let v = matrix.transform_point3((*point).into());
-            *point = v.to_array();
+    pub fn resolved_points(&self, positions: &[[f32; 3]]) -> Vec<[f32; 3]> {
+        let mut out = Vec::with_capacity(self.indices.len());
+        for &index in &self.indices {
+            if let Some(point) = positions.get(index as usize) {
+                out.push(*point);
+            }
         }
+        out
+    }
+
+    pub fn remap_indices(&self, mapping: &[u32]) -> Option<Self> {
+        if mapping.is_empty() {
+            return None;
+        }
+        let mut indices = Vec::with_capacity(self.indices.len());
+        for &index in &self.indices {
+            let mapped = mapping.get(index as usize).copied().unwrap_or(u32::MAX);
+            if mapped != u32::MAX {
+                indices.push(mapped);
+            }
+        }
+        if indices.len() < 2 {
+            return None;
+        }
+        let mut out = self.clone();
+        out.indices = indices;
+        Some(out)
     }
 }
 

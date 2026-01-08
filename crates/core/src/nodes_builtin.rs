@@ -480,7 +480,10 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
         BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
         BuiltinNodeKind::Tube => Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?)),
-        BuiltinNodeKind::Curve => Ok(Geometry::with_curve(nodes::curve::compute(params)?)),
+        BuiltinNodeKind::Curve => {
+            let output = nodes::curve::compute(params)?;
+            Ok(Geometry::with_curve(output.points, output.closed))
+        }
         BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
@@ -537,9 +540,9 @@ fn apply_mesh_unary(
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in input.meshes.iter() {
-        meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(mesh))?);
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(&mesh))?);
     }
 
     let mut splats = Vec::with_capacity(input.splats.len());
@@ -575,10 +578,16 @@ fn apply_mesh_unary(
         splats.push(splat);
     }
 
+    let curves = if matches!(kind, BuiltinNodeKind::Scatter) || meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
+
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -595,9 +604,16 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
         return Ok(Geometry::default());
     };
 
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in &input.meshes {
-        meshes.push(nodes::delete::compute(params, std::slice::from_ref(mesh))?);
+    let mut meshes = Vec::new();
+    let mut curves = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        let result = nodes::delete::compute_with_mapping(params, &[mesh])?;
+        meshes.push(result.mesh);
+        for curve in &input.curves {
+            if let Some(remapped) = curve.remap_indices(&result.point_mapping) {
+                curves.push(remapped);
+            }
+        }
     }
 
     let mut splats = Vec::with_capacity(input.splats.len());
@@ -608,7 +624,7 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -618,16 +634,20 @@ fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         return Ok(Geometry::default());
     };
 
-    let meshes = input.meshes.clone();
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(nodes::prune::apply_to_splats(params, splat));
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -637,16 +657,20 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
         return Ok(Geometry::default());
     };
 
-    let meshes = input.meshes.clone();
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(nodes::regularize::apply_to_splats(params, splat));
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -656,16 +680,20 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         return Ok(Geometry::default());
     };
 
-    let meshes = input.meshes.clone();
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(nodes::splat_lod::apply_to_splats(params, splat));
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -697,9 +725,9 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         return Ok(Geometry::default());
     };
 
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in &input.meshes {
-        meshes.push(nodes::group::compute(params, std::slice::from_ref(mesh))?);
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(nodes::group::compute(params, std::slice::from_ref(&mesh))?);
     }
 
     let mut splats = Vec::with_capacity(input.splats.len());
@@ -709,10 +737,11 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         splats.push(splat);
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: input.curves.clone(),
+        curves,
         materials: input.materials.clone(),
     })
 }
@@ -724,9 +753,8 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
 
     let matrix = nodes::transform::transform_matrix(params);
 
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in &input.meshes {
-        let mut mesh = mesh.clone();
+    let mut meshes = Vec::new();
+    if let Some(mut mesh) = input.merged_mesh() {
         nodes::transform::apply_to_mesh(params, &mut mesh, matrix);
         meshes.push(mesh);
     }
@@ -744,13 +772,7 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         splats.push(splat);
     }
 
-    let mut curves = Vec::with_capacity(input.curves.len());
-    for curve in &input.curves {
-        let mut curve = curve.clone();
-        curve.transform(matrix);
-        curves.push(curve);
-    }
-
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
@@ -768,8 +790,10 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
         return Ok(Geometry::default());
     }
 
-    let mut meshes = Vec::with_capacity(input.meshes.len());
-    for mesh in &input.meshes {
+    let mut meshes = Vec::new();
+    let base_mesh = input.merged_mesh();
+    let base_point_count = base_mesh.as_ref().map(|mesh| mesh.positions.len() as u32).unwrap_or(0);
+    if let Some(mesh) = base_mesh {
         let mut copies = Vec::with_capacity(matrices.len());
         for matrix in &matrices {
             let mut copy = mesh.clone();
@@ -791,11 +815,13 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
     }
 
     let mut curves = Vec::new();
-    for curve in &input.curves {
-        for matrix in &matrices {
-            let mut copy = curve.clone();
-            copy.transform(*matrix);
-            curves.push(copy);
+    if base_point_count > 0 {
+        for curve in &input.curves {
+            for (copy_idx, _) in matrices.iter().enumerate() {
+                let mut copy = curve.clone();
+                copy.offset_indices(base_point_count * copy_idx as u32);
+                curves.push(copy);
+            }
         }
     }
 
@@ -811,7 +837,7 @@ fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
-        output.curves = input.curves.clone();
+        output.curves = Vec::new();
     }
 
     let source = inputs
@@ -833,10 +859,12 @@ fn apply_obj_output(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
-        output.curves = input.curves.clone();
         if let Some(mesh) = input.merged_mesh() {
             let mesh = nodes::obj_output::compute(params, &[mesh])?;
             output.meshes.push(mesh);
+        }
+        if !output.meshes.is_empty() {
+            output.curves = input.curves.clone();
         }
     }
     Ok(output)

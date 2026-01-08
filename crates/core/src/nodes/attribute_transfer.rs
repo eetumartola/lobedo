@@ -82,9 +82,8 @@ pub fn apply_to_geometry(
     let domain = domain_from_params(params);
     let samples = build_source_samples_geometry(source, domain, &attr_names);
 
-    let mut meshes = Vec::with_capacity(target.meshes.len());
-    for mesh in &target.meshes {
-        let mut mesh = mesh.clone();
+    let mut meshes = Vec::new();
+    if let Some(mut mesh) = target.merged_mesh() {
         apply_transfer_to_mesh(params, &samples, domain, &mut mesh)?;
         meshes.push(mesh);
     }
@@ -96,10 +95,11 @@ pub fn apply_to_geometry(
         splats.push(splat);
     }
 
+    let curves = if meshes.is_empty() { Vec::new() } else { target.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
-        curves: target.curves.clone(),
+        curves,
         materials: target.materials.clone(),
     })
 }
@@ -134,9 +134,9 @@ fn build_source_samples_geometry(
     attr_names: &[String],
 ) -> HashMap<String, AttributeSamples> {
     let mut samples = HashMap::new();
-    for mesh in &source.meshes {
-        let positions = mesh_positions_for_domain(mesh, domain);
-        append_samples_from_mesh(mesh, domain, &positions, attr_names, &mut samples);
+    if let Some(mesh) = source.merged_mesh() {
+        let positions = mesh_positions_for_domain(&mesh, domain);
+        append_samples_from_mesh(&mesh, domain, &positions, attr_names, &mut samples);
     }
     for splat in &source.splats {
         let positions = splat_positions_for_domain(splat, domain);
