@@ -29,11 +29,30 @@ pub struct RenderCurve {
     pub closed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RenderVolumeKind {
+    Density,
+    Sdf,
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderVolume {
+    pub kind: RenderVolumeKind,
+    pub origin: [f32; 3],
+    pub dims: [u32; 3],
+    pub voxel_size: f32,
+    pub values: Vec<f32>,
+    pub transform: glam::Mat4,
+    pub density_scale: f32,
+    pub sdf_band: f32,
+}
+
 #[derive(Debug, Clone)]
 pub enum RenderDrawable {
     Mesh(RenderMesh),
     Splats(RenderSplats),
     Curve(RenderCurve),
+    Volume(RenderVolume),
 }
 
 #[derive(Debug, Clone)]
@@ -95,5 +114,12 @@ impl RenderScene {
                 _ => None,
             })
             .collect()
+    }
+
+    pub fn volume(&self) -> Option<&RenderVolume> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            RenderDrawable::Volume(volume) => Some(volume),
+            _ => None,
+        })
     }
 }

@@ -52,6 +52,7 @@ impl CallbackTrait for ViewportCallback {
         }
 
         let view_proj = camera_view_proj(self.camera, self.rect, screen_descriptor);
+        let inv_view_proj = view_proj.inverse();
         let camera_pos = camera_position(self.camera);
         let target = glam::Vec3::from(self.camera.target);
         let forward = (target - camera_pos).normalize_or_zero();
@@ -110,6 +111,7 @@ impl CallbackTrait for ViewportCallback {
                         pipeline.template_count = 0;
                         pipeline.curve_count = 0;
                         pipeline.selection_count = 0;
+                        pipeline.volume_present = false;
                         pipeline.splat_positions.clear();
                         pipeline.splat_sh0.clear();
                         pipeline.splat_sh_coeffs = 0;
@@ -145,6 +147,7 @@ impl CallbackTrait for ViewportCallback {
 
             let uniforms = Uniforms {
                 view_proj: view_proj.to_cols_array_2d(),
+                inv_view_proj: inv_view_proj.to_cols_array_2d(),
                 light_view_proj: light_view_proj.to_cols_array_2d(),
                 key_dir: key_dir.to_array(),
                 _pad0: 0.0,
@@ -312,6 +315,13 @@ impl CallbackTrait for ViewportCallback {
                 });
 
             render_pass.set_viewport(0.0, 0.0, width as f32, height as f32, 0.0, 1.0);
+            if pipeline.volume_present {
+                render_pass.set_pipeline(&pipeline.volume_pipeline);
+                render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                render_pass.set_bind_group(2, &pipeline.volume_bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
+            }
             if let Some(mesh) = mesh {
                 if !self.debug.show_points && pipeline.index_count > 0 {
                     render_pass.set_pipeline(&pipeline.mesh_pipeline);

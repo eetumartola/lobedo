@@ -22,6 +22,7 @@ pub(super) const DEPTH_FORMAT: egui_wgpu::wgpu::TextureFormat =
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub(super) struct Uniforms {
     pub(super) view_proj: [[f32; 4]; 4],
+    pub(super) inv_view_proj: [[f32; 4]; 4],
     pub(super) light_view_proj: [[f32; 4]; 4],
     pub(super) key_dir: [f32; 3],
     pub(super) _pad0: f32,
@@ -45,12 +46,24 @@ pub(super) struct MaterialGpu {
     pub(super) params: [f32; 4],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub(super) struct VolumeParams {
+    pub(super) origin: [f32; 3],
+    pub(super) voxel_size: f32,
+    pub(super) dims: [u32; 3],
+    pub(super) kind: u32,
+    pub(super) params: [f32; 4],
+    pub(super) world_to_volume: [[f32; 4]; 4],
+}
+
 pub(super) struct PipelineState {
     pub(super) mesh_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) shadow_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) line_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) splat_pipeline: egui_wgpu::wgpu::RenderPipeline,
-    pub(super) splat_overdraw_pipeline: egui_wgpu::wgpu::RenderPipeline,
+    pub(super) splat_overdraw_pipeline: egui_wgpu::wgpu::RenderPipeline,        
+    pub(super) volume_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_bind_group: egui_wgpu::wgpu::BindGroup,
     pub(super) blit_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
@@ -72,6 +85,12 @@ pub(super) struct PipelineState {
     pub(super) material_sampler: egui_wgpu::wgpu::Sampler,
     pub(super) material_texture: egui_wgpu::wgpu::Texture,
     pub(super) material_texture_view: egui_wgpu::wgpu::TextureView,
+    pub(super) volume_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) volume_bind_group: egui_wgpu::wgpu::BindGroup,
+    pub(super) volume_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
+    pub(super) volume_texture: egui_wgpu::wgpu::Texture,
+    pub(super) volume_view: egui_wgpu::wgpu::TextureView,
+    pub(super) volume_present: bool,
     pub(super) mesh_cache: GpuMeshCache,
     pub(super) mesh_id: u64,
     pub(super) mesh_vertices: Vec<Vertex>,
@@ -130,6 +149,7 @@ impl PipelineState {
                 label: Some("lobedo_viewport_uniforms"),
                 contents: bytemuck::bytes_of(&Uniforms {
                     view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                    inv_view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
                     light_view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
                     key_dir: [0.6, 1.0, 0.2],
                     _pad0: 0.0,
@@ -215,6 +235,34 @@ impl PipelineState {
                                 filterable: true,
                             },
                             view_dimension: egui_wgpu::wgpu::TextureViewDimension::D2Array,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+        let volume_bind_group_layout =
+            device.create_bind_group_layout(&egui_wgpu::wgpu::BindGroupLayoutDescriptor {
+                label: Some("lobedo_viewport_volume_layout"),
+                entries: &[
+                    egui_wgpu::wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: egui_wgpu::wgpu::ShaderStages::FRAGMENT,
+                        ty: egui_wgpu::wgpu::BindingType::Buffer {
+                            ty: egui_wgpu::wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    egui_wgpu::wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: egui_wgpu::wgpu::ShaderStages::FRAGMENT,
+                        ty: egui_wgpu::wgpu::BindingType::Texture {
+                            sample_type: egui_wgpu::wgpu::TextureSampleType::Float {
+                                filterable: false,
+                            },
+                            view_dimension: egui_wgpu::wgpu::TextureViewDimension::D3,
                             multisampled: false,
                         },
                         count: None,
@@ -321,10 +369,67 @@ impl PipelineState {
             })
         };
 
+        let volume_buffer = device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+            label: Some("lobedo_volume_params"),
+            contents: bytemuck::bytes_of(&VolumeParams {
+                origin: [0.0, 0.0, 0.0],
+                voxel_size: 1.0,
+                dims: [0, 0, 0],
+                kind: 0,
+                params: [1.0, 1.0, 1.0, 0.0],
+                world_to_volume: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            }),
+            usage: egui_wgpu::wgpu::BufferUsages::UNIFORM | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+        });
+        let volume_texture = device.create_texture_with_data(
+            queue,
+            &egui_wgpu::wgpu::TextureDescriptor {
+                label: Some("lobedo_volume_texture"),
+                size: egui_wgpu::wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: egui_wgpu::wgpu::TextureDimension::D3,
+                format: egui_wgpu::wgpu::TextureFormat::R32Float,
+                usage: egui_wgpu::wgpu::TextureUsages::TEXTURE_BINDING
+                    | egui_wgpu::wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
+            bytemuck::cast_slice(&[0.0f32]),
+        );
+        let volume_view = volume_texture.create_view(&egui_wgpu::wgpu::TextureViewDescriptor {
+            dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        });
+        let volume_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
+            label: Some("lobedo_volume_bind_group"),
+            layout: &volume_bind_group_layout,
+            entries: &[
+                egui_wgpu::wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: volume_buffer.as_entire_binding(),
+                },
+                egui_wgpu::wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: egui_wgpu::wgpu::BindingResource::TextureView(&volume_view),
+                },
+            ],
+        });
+
         let pipeline_layout =
             device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
                 label: Some("lobedo_viewport_layout"),
                 bind_group_layouts: &[&uniform_layout, &material_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+        let volume_pipeline_layout =
+            device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
+                label: Some("lobedo_viewport_volume_layout"),
+                bind_group_layouts: &[&uniform_layout, &material_bind_group_layout, &volume_bind_group_layout],
                 push_constant_ranges: &[],
             });
         let shadow_pipeline_layout =
@@ -548,6 +653,42 @@ impl PipelineState {
                 cache: None,
             });
 
+        let volume_pipeline =
+            device.create_render_pipeline(&egui_wgpu::wgpu::RenderPipelineDescriptor {
+                label: Some("lobedo_viewport_volume"),
+                layout: Some(&volume_pipeline_layout),
+                vertex: egui_wgpu::wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_volume"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                fragment: Some(egui_wgpu::wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_volume"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(egui_wgpu::wgpu::ColorTargetState {
+                        format: target_format,
+                        blend: Some(egui_wgpu::wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: egui_wgpu::wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: egui_wgpu::wgpu::PrimitiveState {
+                    topology: egui_wgpu::wgpu::PrimitiveTopology::TriangleList,
+                    ..Default::default()
+                },
+                depth_stencil: Some(egui_wgpu::wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: false,
+                    depth_compare: egui_wgpu::wgpu::CompareFunction::LessEqual,
+                    stencil: egui_wgpu::wgpu::StencilState::default(),
+                    bias: egui_wgpu::wgpu::DepthBiasState::default(),
+                }),
+                multisample: egui_wgpu::wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
         let blit_shader = create_blit_shader(device);
 
         let blit_bind_group_layout =
@@ -721,6 +862,7 @@ impl PipelineState {
             line_pipeline,
             splat_pipeline,
             splat_overdraw_pipeline,
+            volume_pipeline,
             blit_pipeline,
             blit_bind_group,
             blit_bind_group_layout,
@@ -742,6 +884,12 @@ impl PipelineState {
             material_sampler,
             material_texture: fallback_texture,
             material_texture_view,
+            volume_buffer,
+            volume_bind_group,
+            volume_bind_group_layout,
+            volume_texture,
+            volume_view,
+            volume_present: false,
             mesh_cache,
             mesh_id,
             mesh_vertices: mesh.vertices,

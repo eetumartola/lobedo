@@ -1,4 +1,5 @@
 use eframe::egui;
+use glam::Vec3;
 use render::{CameraState, ViewportRenderer};
 
 use super::LobedoApp;
@@ -115,6 +116,36 @@ impl LobedoApp {
                         }
                         found = true;
                     }
+                }
+                render::RenderDrawable::Volume(volume) => {
+                    let origin = Vec3::from(volume.origin);
+                    let size = Vec3::new(
+                        volume.dims[0] as f32,
+                        volume.dims[1] as f32,
+                        volume.dims[2] as f32,
+                    ) * volume.voxel_size;
+                    let max_corner = origin + size;
+                    let corners = [
+                        Vec3::new(origin.x, origin.y, origin.z),
+                        Vec3::new(max_corner.x, origin.y, origin.z),
+                        Vec3::new(origin.x, max_corner.y, origin.z),
+                        Vec3::new(origin.x, origin.y, max_corner.z),
+                        Vec3::new(max_corner.x, max_corner.y, origin.z),
+                        Vec3::new(origin.x, max_corner.y, max_corner.z),
+                        Vec3::new(max_corner.x, origin.y, max_corner.z),
+                        Vec3::new(max_corner.x, max_corner.y, max_corner.z),
+                    ];
+                    let transform = volume.transform;
+                    for corner in corners {
+                        let pos = transform.transform_point3(corner);
+                        min[0] = min[0].min(pos.x);
+                        min[1] = min[1].min(pos.y);
+                        min[2] = min[2].min(pos.z);
+                        max[0] = max[0].max(pos.x);
+                        max[1] = max[1].max(pos.y);
+                        max[2] = max[2].max(pos.z);
+                    }
+                    found = true;
                 }
             }
         }

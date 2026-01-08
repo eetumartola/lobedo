@@ -5,6 +5,7 @@ use egui_wgpu::wgpu;
 const MAIN_WGSL: &str = r#"
 struct Uniforms {
     view_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
     light_view_proj: mat4x4<f32>,
     key_dir: vec3<f32>,
     _pad0: f32,
@@ -43,6 +44,21 @@ var material_sampler: sampler;
 
 @group(1) @binding(2)
 var material_texture: texture_2d_array<f32>;
+
+struct VolumeParams {
+    origin: vec3<f32>,
+    voxel_size: f32,
+    dims: vec3<u32>,
+    kind: u32,
+    params: vec4<f32>,
+    world_to_volume: mat4x4<f32>,
+};
+
+@group(2) @binding(0)
+var<uniform> volume_params: VolumeParams;
+
+@group(2) @binding(1)
+var volume_tex: texture_3d<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -273,6 +289,109 @@ fn fs_splat(input: SplatOutput) -> @location(0) vec4<f32> {
     let alpha = input.color.a * weight;
     let rgb = input.color.rgb;
     return vec4<f32>(rgb, alpha);
+}
+
+struct VolumeOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_volume(@builtin(vertex_index) index: u32) -> VolumeOut {
+    var positions = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    var uvs = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(2.0, 0.0),
+        vec2<f32>(0.0, 2.0),
+    );
+    var out: VolumeOut;
+    out.position = vec4<f32>(positions[index], 0.0, 1.0);
+    out.uv = uvs[index];
+    return out;
+}
+
+fn intersect_aabb(origin: vec3<f32>, dir: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) -> vec2<f32> {
+    let inv_dir = (1.0 / max(abs(dir), vec3<f32>(1.0e-6))) * sign(dir);
+    let t0 = (bmin - origin) * inv_dir;
+    let t1 = (bmax - origin) * inv_dir;
+    let tmin = max(max(min(t0.x, t1.x), min(t0.y, t1.y)), min(t0.z, t1.z));
+    let tmax = min(min(max(t0.x, t1.x), max(t0.y, t1.y)), max(t0.z, t1.z));
+    return vec2<f32>(tmin, tmax);
+}
+
+fn sample_volume_density(local_pos: vec3<f32>) -> f32 {
+    let dims = volume_params.dims;
+    if dims.x == 0u || dims.y == 0u || dims.z == 0u {
+        return 0.0;
+    }
+    let voxel = max(volume_params.voxel_size, 1.0e-6);
+    let grid = (local_pos - volume_params.origin) / voxel;
+    let ix = i32(floor(grid.x));
+    let iy = i32(floor(grid.y));
+    let iz = i32(floor(grid.z));
+    if ix < 0 || iy < 0 || iz < 0 {
+        return 0.0;
+    }
+    if ix >= i32(dims.x) || iy >= i32(dims.y) || iz >= i32(dims.z) {
+        return 0.0;
+    }
+    let value = textureLoad(volume_tex, vec3<i32>(ix, iy, iz), 0).x;
+    let scale = volume_params.params.x;
+    if volume_params.kind == 0u {
+        return max(value, 0.0) * scale;
+    }
+    let band = max(volume_params.params.y, 1.0e-6);
+    let d = abs(value);
+    return exp(-d / band) * scale;
+}
+
+@fragment
+fn fs_volume(input: VolumeOut) -> @location(0) vec4<f32> {
+    let dims = volume_params.dims;
+    if dims.x == 0u || dims.y == 0u || dims.z == 0u {
+        return vec4<f32>(0.0);
+    }
+    let ndc = vec4<f32>(input.uv * 2.0 - vec2<f32>(1.0), 1.0, 1.0);
+    let world_far = uniforms.inv_view_proj * ndc;
+    let world_pos = world_far.xyz / max(world_far.w, 1.0e-6);
+    let ray_dir = normalize(world_pos - uniforms.camera_pos);
+    let local_origin = (volume_params.world_to_volume * vec4<f32>(uniforms.camera_pos, 1.0)).xyz;
+    let local_dir = normalize((volume_params.world_to_volume * vec4<f32>(ray_dir, 0.0)).xyz);
+    let dims_f = vec3<f32>(f32(dims.x), f32(dims.y), f32(dims.z));
+    let bmin = volume_params.origin;
+    let bmax = volume_params.origin + dims_f * volume_params.voxel_size;
+    let hit = intersect_aabb(local_origin, local_dir, bmin, bmax);
+    let tmin = hit.x;
+    let tmax = hit.y;
+    if tmax <= tmin {
+        return vec4<f32>(0.0);
+    }
+    let step = max(volume_params.voxel_size, 1.0e-6);
+    var t = max(tmin, 0.0);
+    let t_end = tmax;
+    var accum_color = vec3<f32>(0.0);
+    var accum_alpha = 0.0;
+    var steps = 0u;
+    loop {
+        if t > t_end || accum_alpha > 0.98 || steps >= 512u {
+            break;
+        }
+        let pos = local_origin + local_dir * t;
+        let density = sample_volume_density(pos);
+        if density > 0.0 {
+            let alpha = 1.0 - exp(-density * step);
+            let contrib = (1.0 - accum_alpha) * alpha;
+            accum_color = accum_color + uniforms.base_color * contrib;
+            accum_alpha = accum_alpha + contrib;
+        }
+        t = t + step;
+        steps = steps + 1u;
+    }
+    return vec4<f32>(accum_color, accum_alpha);
 }
 "#;
 

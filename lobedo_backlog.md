@@ -29,12 +29,18 @@ Status: done | in progress | not started
 
 ## Epic U - Materials & Textures
 - **U1**: String attributes with value tables + index storage (mesh + splat) (done)
-- **U2**: UV support end-to-end (mesh reader + attributes + renderer) (done)
+- **U2**: UV support end-to-end (mesh reader + attributes + renderer) (done)    
 - **U3**: UV Texture node (basic projections) (done)
 - **U4**: UV Unwrap node (basic unwrap) (done)
 - **U5**: Material node (named PBR params + diffuse texture) (done)
 - **U6**: Renderer: UVs + diffuse texture sampling (MVP) (done)
 - **U7**: UV View node (wireframe UV preview in params) (done)
+
+## Epic W - Volume Support
+- **W1**: Add Volume primitive type + core representation (done)
+- **W2**: Volume from Geometry node (density + SDF) (done)
+- **W3**: Render volumes in viewport (raymarching MVP) (done)
+- **W4**: Node info + bounds for volume primitives (done)
 
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)

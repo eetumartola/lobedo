@@ -99,6 +99,7 @@ pub fn apply_to_geometry(
         meshes,
         splats: Vec::new(),
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }

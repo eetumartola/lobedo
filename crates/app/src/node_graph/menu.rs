@@ -107,6 +107,7 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         | BuiltinNodeKind::UvUnwrap
         | BuiltinNodeKind::UvView => Some("Attribute"),
         BuiltinNodeKind::Material => Some("Materials"),
+        BuiltinNodeKind::VolumeFromGeometry => Some("Volume"),
         _ => None,
     }
 }

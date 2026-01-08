@@ -59,6 +59,11 @@ impl LobedoApp {
         node: &lobedo_core::Node,
     ) {
         let splat_count: usize = geometry.splats.iter().map(|s| s.len()).sum();
+        let volume_voxels: u64 = geometry
+            .volumes
+            .iter()
+            .map(|v| v.dims[0] as u64 * v.dims[1] as u64 * v.dims[2] as u64)
+            .sum();
         ui.heading("Geometry");
         egui::Grid::new("node_info_geo_counts")
             .num_columns(2)
@@ -78,6 +83,14 @@ impl LobedoApp {
 
                 ui.label("Curve Primitives");
                 ui.label(geometry.curves.len().to_string());
+                ui.end_row();
+
+                ui.label("Volume Primitives");
+                ui.label(geometry.volumes.len().to_string());
+                ui.end_row();
+
+                ui.label("Volume Voxels");
+                ui.label(volume_voxels.to_string());
                 ui.end_row();
             });
 
@@ -107,6 +120,49 @@ impl LobedoApp {
 
                     ui.label("SH Order");
                     ui.label(sh_order_label(splat_geo.sh_coeffs));
+                    ui.end_row();
+                });
+        }
+
+        if !geometry.volumes.is_empty() {
+            ui.separator();
+            ui.heading("Volumes");
+            if geometry.volumes.len() > 1 {
+                ui.label("Multiple volumes; showing the first.");
+            }
+            let volume = &geometry.volumes[0];
+            let kind = match volume.kind {
+                lobedo_core::VolumeKind::Density => "Density",
+                lobedo_core::VolumeKind::Sdf => "SDF",
+            };
+            let (min, max) = volume.world_bounds();
+            let center = (min + max) * 0.5;
+            let size = max - min;
+            egui::Grid::new("node_info_volume")
+                .num_columns(2)
+                .spacing([12.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("Kind");
+                    ui.label(kind);
+                    ui.end_row();
+
+                    ui.label("Dims");
+                    ui.label(format!(
+                        "{} {} {}",
+                        volume.dims[0], volume.dims[1], volume.dims[2]
+                    ));
+                    ui.end_row();
+
+                    ui.label("Voxel Size");
+                    ui.label(format!("{:.4}", volume.voxel_size));
+                    ui.end_row();
+
+                    ui.label("Bounds Center");
+                    ui.label(format!("{:.3} {:.3} {:.3}", center.x, center.y, center.z));
+                    ui.end_row();
+
+                    ui.label("Bounds Size");
+                    ui.label(format!("{:.3} {:.3} {:.3}", size.x, size.y, size.z));
                     ui.end_row();
                 });
         }

@@ -319,6 +319,9 @@ pub(super) fn edit_param(
                 param_row_with_label(ui, label, &display_label, help, |ui| {
                     edit_gradient_field(ui, &mut v)
                 })
+            } else if label == "mode" && node_name == "Volume from Geometry" {
+                let options = &[("density", "Density"), ("sdf", "SDF")];
+                combo_row_string(ui, label, &display_label, help, &mut v, options, "Density")
             } else if label == "shape" {
                 let options: &[(&str, &str)] = if node_name == "Group" {
                     &[
@@ -772,6 +775,17 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Volume from Geometry" {
+        return match key {
+            "mode" => "Mode",
+            "max_dim" => "Max Dimension",
+            "padding" => "Padding",
+            "density_scale" => "Density Scale",
+            "sdf_band" => "SDF Band",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "UV Texture" {
         return match key {
             "projection" => "Projection",
@@ -836,6 +850,9 @@ fn float_slider_range(
         "max_m2" => 0.0..=10.0,
         "smooth_k" => 0.001..=2.0,
         "shell_radius" => 0.1..=4.0,
+        "padding" => 0.0..=10.0,
+        "density_scale" => 0.0..=10.0,
+        "sdf_band" => 0.0..=10.0,
         "metallic" | "roughness" => 0.0..=1.0,
         "erosion_strength" => 0.0..=1.0,
         "erosion_freq" => 0.0..=30.0,
@@ -861,6 +878,7 @@ fn int_slider_range(
         "seed" => 0..=100,
         "blur_iters" => 0..=6,
         "voxel_size_max" => 8..=2048,
+        "max_dim" => 8..=512,
         "erosion_octaves" => 1..=8,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,

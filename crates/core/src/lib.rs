@@ -18,6 +18,7 @@ mod scene;
 mod splat;
 mod splat_ply;
 mod splat_eval;
+mod volume;
 mod wrangle;
 
 pub use attributes::{
@@ -49,7 +50,10 @@ pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
     SplatShadingMode, PROJECT_VERSION,
 };
-pub use scene::{SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats};
+pub use scene::{
+    SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats, SceneVolume,
+};
 pub use splat::{save_splat_ply_with_format, SplatGeo, SplatSaveFormat};
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};
+pub use volume::{Volume, VolumeKind};
 mod assets;

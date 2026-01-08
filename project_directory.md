@@ -336,6 +336,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\volume_from_geo.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\wrangle.rs
 Description: TODO: add description.
 Functions: None
@@ -393,6 +397,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\splat_ply.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\volume.rs
 Description: TODO: add description.
 Functions: None
 

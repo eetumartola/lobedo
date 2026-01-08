@@ -5,12 +5,14 @@ use crate::material::MaterialLibrary;
 use crate::mesh::Mesh;
 use crate::curve::Curve;
 use crate::splat::SplatGeo;
+use crate::volume::Volume;
 
 #[derive(Debug, Clone, Default)]
 pub struct Geometry {
     pub meshes: Vec<Mesh>,
     pub splats: Vec<SplatGeo>,
     pub curves: Vec<Curve>,
+    pub volumes: Vec<Volume>,
     pub materials: MaterialLibrary,
 }
 
@@ -24,6 +26,7 @@ impl Geometry {
             meshes: vec![mesh],
             splats: Vec::new(),
             curves: Vec::new(),
+            volumes: Vec::new(),
             materials: MaterialLibrary::default(),
         }
     }
@@ -33,6 +36,7 @@ impl Geometry {
             meshes: Vec::new(),
             splats: vec![splats],
             curves: Vec::new(),
+            volumes: Vec::new(),
             materials: MaterialLibrary::default(),
         }
     }
@@ -46,12 +50,26 @@ impl Geometry {
             meshes: vec![mesh],
             splats: Vec::new(),
             curves: vec![curve],
+            volumes: Vec::new(),
+            materials: MaterialLibrary::default(),
+        }
+    }
+
+    pub fn with_volume(volume: Volume) -> Self {
+        Self {
+            meshes: Vec::new(),
+            splats: Vec::new(),
+            curves: Vec::new(),
+            volumes: vec![volume],
             materials: MaterialLibrary::default(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.meshes.is_empty() && self.splats.is_empty() && self.curves.is_empty()
+        self.meshes.is_empty()
+            && self.splats.is_empty()
+            && self.curves.is_empty()
+            && self.volumes.is_empty()
     }
 
     pub fn append(&mut self, mut other: Geometry) {
@@ -84,6 +102,7 @@ impl Geometry {
             }
             self.curves.push(curve);
         }
+        self.volumes.append(&mut other.volumes);
         self.materials.merge(&other.materials);
     }
 

@@ -100,6 +100,7 @@ pub fn apply_to_geometry(
         meshes,
         splats,
         curves,
+        volumes: target.volumes.clone(),
         materials: target.materials.clone(),
     })
 }

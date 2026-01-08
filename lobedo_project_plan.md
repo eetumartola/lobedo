@@ -62,7 +62,14 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - `UV Texture` node for basic projections (planar/box/cyl/sphere)
 - `UV Unwrap` node for basic unwrapping
 - `Material` node with named PBR parameters + diffuse texture path
-- Renderer support for UVs + diffuse texture sampling (MVP: diffuse only)
+- Renderer support for UVs + diffuse texture sampling (MVP: diffuse only)       
+
+## Epic W - Volume Support
+- Add a new Volume primitive type (sparse-friendly core representation)
+- `Volume from Geometry` node (density + SDF modes)
+- Volume rendering in viewport (raymarching MVP)
+- Volume bounds + node info reporting
+- Web-compatible volume texture upload/render path
 
 ---
 

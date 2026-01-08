@@ -10,11 +10,12 @@ use web_time::Instant;
 
 use lobedo_core::{
     evaluate_geometry_graph, Mesh, SceneCurve, SceneDrawable, SceneSnapshot, SceneSplats,
-    ShadingMode, SplatShadingMode,
+    SceneVolume, ShadingMode, SplatShadingMode, VolumeKind,
 };
 use render::{
     RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
-    RenderTexture, SelectionShape, ViewportDebug, ViewportShadingMode, ViewportSplatShadingMode,
+    RenderTexture, RenderVolume, RenderVolumeKind, SelectionShape, ViewportDebug,
+    ViewportShadingMode, ViewportSplatShadingMode,
 };
 
 use super::{DisplayState, LobedoApp};
@@ -232,6 +233,9 @@ pub(super) fn scene_to_render_with_template(
             SceneDrawable::Curve(curve) => {
                 drawables.push(RenderDrawable::Curve(render_curve_from_scene(curve)));
             }
+            SceneDrawable::Volume(volume) => {
+                drawables.push(RenderDrawable::Volume(render_volume_from_scene(volume)));
+            }
         }
     }
 
@@ -307,6 +311,23 @@ fn render_curve_from_scene(curve: &SceneCurve) -> RenderCurve {
     RenderCurve {
         points: curve.points.clone(),
         closed: curve.closed,
+    }
+}
+
+fn render_volume_from_scene(volume: &SceneVolume) -> RenderVolume {
+    let kind = match volume.kind {
+        VolumeKind::Density => RenderVolumeKind::Density,
+        VolumeKind::Sdf => RenderVolumeKind::Sdf,
+    };
+    RenderVolume {
+        kind,
+        origin: volume.origin,
+        dims: volume.dims,
+        voxel_size: volume.voxel_size,
+        values: volume.values.clone(),
+        transform: volume.transform,
+        density_scale: volume.density_scale,
+        sdf_band: volume.sdf_band,
     }
 }
 

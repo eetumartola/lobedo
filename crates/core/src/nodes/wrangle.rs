@@ -136,6 +136,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }

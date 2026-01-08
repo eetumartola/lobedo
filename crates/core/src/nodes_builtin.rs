@@ -21,6 +21,7 @@ pub enum BuiltinNodeKind {
     SplatLod,
     SplatToMesh,
     SplatDeform,
+    VolumeFromGeometry,
     Group,
     Transform,
     CopyTransform,
@@ -77,6 +78,10 @@ fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mes
 
 fn mesh_error_splat_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Splat to Mesh expects splat geometry, not meshes".to_string())
+}
+
+fn mesh_error_volume_from_geo(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Volume from Geometry outputs volume primitives, not meshes".to_string())
 }
 
 static NODE_SPECS: &[NodeSpec] = &[
@@ -204,6 +209,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_deform::definition,
         default_params: nodes::splat_deform::default_params,
         compute_mesh: nodes::splat_deform::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::VolumeFromGeometry,
+        name: nodes::volume_from_geo::NAME,
+        aliases: &[],
+        definition: nodes::volume_from_geo::definition,
+        default_params: nodes::volume_from_geo::default_params,
+        compute_mesh: mesh_error_volume_from_geo,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -495,6 +509,9 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::SplatLod => apply_splat_lod(params, inputs),
         BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::VolumeFromGeometry => {
+            nodes::volume_from_geo::apply_to_geometry(params, inputs)
+        }
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
@@ -588,6 +605,7 @@ fn apply_mesh_unary(
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -625,6 +643,7 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -648,6 +667,7 @@ fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -671,6 +691,7 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -694,6 +715,7 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -742,6 +764,7 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         meshes,
         splats,
         curves,
+        volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
 }
@@ -772,11 +795,19 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         splats.push(splat);
     }
 
+    let mut volumes = Vec::with_capacity(input.volumes.len());
+    for volume in &input.volumes {
+        let mut volume = volume.clone();
+        volume.transform = matrix * volume.transform;
+        volumes.push(volume);
+    }
+
     let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
         meshes,
         splats,
         curves,
+        volumes,
         materials: input.materials.clone(),
     })
 }
@@ -814,6 +845,15 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
         splats.push(merge_splats(&copies));
     }
 
+    let mut volumes = Vec::new();
+    for volume in &input.volumes {
+        for matrix in &matrices {
+            let mut copy = volume.clone();
+            copy.transform = *matrix * copy.transform;
+            volumes.push(copy);
+        }
+    }
+
     let mut curves = Vec::new();
     if base_point_count > 0 {
         for curve in &input.curves {
@@ -829,6 +869,7 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
         meshes,
         splats,
         curves,
+        volumes,
         materials: input.materials.clone(),
     })
 }
@@ -838,6 +879,7 @@ fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
         output.curves = Vec::new();
+        output.volumes = input.volumes.clone();
     }
 
     let source = inputs
@@ -859,6 +901,7 @@ fn apply_obj_output(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
         output.splats = input.splats.clone();
+        output.volumes = input.volumes.clone();
         if let Some(mesh) = input.merged_mesh() {
             let mesh = nodes::obj_output::compute(params, &[mesh])?;
             output.meshes.push(mesh);

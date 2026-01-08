@@ -4,6 +4,7 @@ use crate::geometry::Geometry;
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
 
 #[derive(Debug, Clone)]
 pub struct SceneMesh {
@@ -36,10 +37,23 @@ pub struct SceneCurve {
 }
 
 #[derive(Debug, Clone)]
+pub struct SceneVolume {
+    pub kind: VolumeKind,
+    pub origin: [f32; 3],
+    pub dims: [u32; 3],
+    pub voxel_size: f32,
+    pub values: Vec<f32>,
+    pub transform: glam::Mat4,
+    pub density_scale: f32,
+    pub sdf_band: f32,
+}
+
+#[derive(Debug, Clone)]
 pub enum SceneDrawable {
     Mesh(SceneMesh),
     Splats(SceneSplats),
     Curve(SceneCurve),
+    Volume(SceneVolume),
 }
 
 #[derive(Debug, Clone)]
@@ -168,6 +182,21 @@ impl SceneCurve {
     }
 }
 
+impl SceneVolume {
+    pub fn from_volume(volume: &Volume) -> Self {
+        Self {
+            kind: volume.kind,
+            origin: volume.origin,
+            dims: volume.dims,
+            voxel_size: volume.voxel_size,
+            values: volume.values.clone(),
+            transform: volume.transform,
+            density_scale: volume.density_scale,
+            sdf_band: volume.sdf_band,
+        }
+    }
+}
+
 impl SceneSnapshot {
     pub fn from_mesh(mesh: &Mesh, base_color: [f32; 3]) -> Self {
         Self {
@@ -212,6 +241,9 @@ impl SceneSnapshot {
                 curve_points,
             )));
         }
+        for volume in &geometry.volumes {
+            drawables.push(SceneDrawable::Volume(SceneVolume::from_volume(volume)));
+        }
         Self {
             drawables,
             base_color,
@@ -241,6 +273,13 @@ impl SceneSnapshot {
                 _ => None,
             })
             .collect()
+    }
+
+    pub fn volume(&self) -> Option<&SceneVolume> {
+        self.drawables.iter().find_map(|drawable| match drawable {
+            SceneDrawable::Volume(volume) => Some(volume),
+            _ => None,
+        })
     }
 }
 

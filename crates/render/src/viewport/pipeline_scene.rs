@@ -6,7 +6,8 @@ use super::mesh::{
     bounds_from_positions, bounds_vertices, build_vertices, curve_vertices, normals_vertices,
     selection_shape_vertices, wireframe_vertices,
 };
-use super::pipeline::{MaterialGpu, PipelineState};
+use super::pipeline::{MaterialGpu, PipelineState, VolumeParams};
+use glam::Vec3;
 
 pub(super) fn apply_scene_to_pipeline(
     device: &egui_wgpu::wgpu::Device,
@@ -87,6 +88,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_point_size = -1.0;
     }
 
+    let volume_bounds = apply_volume_to_pipeline(device, queue, pipeline, scene.volume());
+
     if pipeline.mesh_vertices.is_empty() && pipeline.splat_positions.is_empty() {
         if curve_positions.is_empty() {
             pipeline.mesh_bounds = ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]);
@@ -103,6 +106,20 @@ pub(super) fn apply_scene_to_pipeline(
         for i in 0..3 {
             pipeline.mesh_bounds.0[i] = pipeline.mesh_bounds.0[i].min(curve_min[i]);
             pipeline.mesh_bounds.1[i] = pipeline.mesh_bounds.1[i].max(curve_max[i]);
+        }
+    }
+
+    if let Some((vol_min, vol_max)) = volume_bounds {
+        if pipeline.mesh_vertices.is_empty()
+            && pipeline.splat_positions.is_empty()
+            && curve_positions.is_empty()
+        {
+            pipeline.mesh_bounds = (vol_min, vol_max);
+        } else {
+            for i in 0..3 {
+                pipeline.mesh_bounds.0[i] = pipeline.mesh_bounds.0[i].min(vol_min[i]);
+                pipeline.mesh_bounds.1[i] = pipeline.mesh_bounds.1[i].max(vol_max[i]);
+            }
         }
     }
 
@@ -358,4 +375,147 @@ fn apply_materials_to_pipeline(
     );
     pipeline.material_texture = active_texture;
     pipeline.material_texture_view = active_view;
+}
+
+fn apply_volume_to_pipeline(
+    device: &egui_wgpu::wgpu::Device,
+    queue: &egui_wgpu::wgpu::Queue,
+    pipeline: &mut PipelineState,
+    volume: Option<&crate::scene::RenderVolume>,
+) -> Option<([f32; 3], [f32; 3])> {
+    let Some(volume) = volume else {
+        pipeline.volume_present = false;
+        let params = empty_volume_params();
+        queue.write_buffer(&pipeline.volume_buffer, 0, bytemuck::bytes_of(&params));
+        return None;
+    };
+
+    let dims = volume.dims;
+    let total = dims[0] as u64 * dims[1] as u64 * dims[2] as u64;
+    if total == 0 || volume.values.len() as u64 != total {
+        pipeline.volume_present = false;
+        let params = empty_volume_params();
+        queue.write_buffer(&pipeline.volume_buffer, 0, bytemuck::bytes_of(&params));
+        return None;
+    }
+
+    let max_dim = device.limits().max_texture_dimension_3d.max(1);
+    if dims[0] > max_dim || dims[1] > max_dim || dims[2] > max_dim {
+        eprintln!(
+            "volume dims exceed GPU limit ({}x{}x{} > {})",
+            dims[0], dims[1], dims[2], max_dim
+        );
+        pipeline.volume_present = false;
+        let params = empty_volume_params();
+        queue.write_buffer(&pipeline.volume_buffer, 0, bytemuck::bytes_of(&params));
+        return None;
+    }
+
+    let size = egui_wgpu::wgpu::Extent3d {
+        width: dims[0].max(1),
+        height: dims[1].max(1),
+        depth_or_array_layers: dims[2].max(1),
+    };
+    pipeline.volume_texture = device.create_texture_with_data(
+        queue,
+        &egui_wgpu::wgpu::TextureDescriptor {
+            label: Some("lobedo_volume_texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: egui_wgpu::wgpu::TextureDimension::D3,
+            format: egui_wgpu::wgpu::TextureFormat::R32Float,
+            usage: egui_wgpu::wgpu::TextureUsages::TEXTURE_BINDING
+                | egui_wgpu::wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        },
+        egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
+        bytemuck::cast_slice(volume.values.as_slice()),
+    );
+    pipeline.volume_view = pipeline.volume_texture.create_view(
+        &egui_wgpu::wgpu::TextureViewDescriptor {
+            dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        },
+    );
+    pipeline.volume_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
+        label: Some("lobedo_volume_bind_group"),
+        layout: &pipeline.volume_bind_group_layout,
+        entries: &[
+            egui_wgpu::wgpu::BindGroupEntry {
+                binding: 0,
+                resource: pipeline.volume_buffer.as_entire_binding(),
+            },
+            egui_wgpu::wgpu::BindGroupEntry {
+                binding: 1,
+                resource: egui_wgpu::wgpu::BindingResource::TextureView(&pipeline.volume_view),
+            },
+        ],
+    });
+
+    let world_to_volume = volume
+        .transform
+        .inverse()
+        .to_cols_array_2d();
+    let kind = match volume.kind {
+        crate::scene::RenderVolumeKind::Density => 0u32,
+        crate::scene::RenderVolumeKind::Sdf => 1u32,
+    };
+    let params = VolumeParams {
+        origin: volume.origin,
+        voxel_size: volume.voxel_size.max(1.0e-6),
+        dims,
+        kind,
+        params: [
+            volume.density_scale.max(0.0),
+            volume.sdf_band.max(1.0e-6),
+            1.0,
+            0.0,
+        ],
+        world_to_volume,
+    };
+    queue.write_buffer(&pipeline.volume_buffer, 0, bytemuck::bytes_of(&params));
+    pipeline.volume_present = true;
+
+    let (min, max) = volume_world_bounds(volume);
+    Some((min.to_array(), max.to_array()))
+}
+
+fn empty_volume_params() -> VolumeParams {
+    VolumeParams {
+        origin: [0.0, 0.0, 0.0],
+        voxel_size: 1.0,
+        dims: [0, 0, 0],
+        kind: 0,
+        params: [1.0, 1.0, 1.0, 0.0],
+        world_to_volume: glam::Mat4::IDENTITY.to_cols_array_2d(),
+    }
+}
+
+fn volume_world_bounds(volume: &crate::scene::RenderVolume) -> (Vec3, Vec3) {
+    let min = Vec3::from(volume.origin);
+    let size = Vec3::new(
+        volume.dims[0] as f32 * volume.voxel_size,
+        volume.dims[1] as f32 * volume.voxel_size,
+        volume.dims[2] as f32 * volume.voxel_size,
+    );
+    let max = min + size;
+    let corners = [
+        Vec3::new(min.x, min.y, min.z),
+        Vec3::new(max.x, min.y, min.z),
+        Vec3::new(min.x, max.y, min.z),
+        Vec3::new(max.x, max.y, min.z),
+        Vec3::new(min.x, min.y, max.z),
+        Vec3::new(max.x, min.y, max.z),
+        Vec3::new(min.x, max.y, max.z),
+        Vec3::new(max.x, max.y, max.z),
+    ];
+    let mut world_min = Vec3::splat(f32::INFINITY);
+    let mut world_max = Vec3::splat(f32::NEG_INFINITY);
+    for corner in corners {
+        let world = volume.transform.transform_point3(corner);
+        world_min = world_min.min(world);
+        world_max = world_max.max(world);
+    }
+    (world_min, world_max)
 }

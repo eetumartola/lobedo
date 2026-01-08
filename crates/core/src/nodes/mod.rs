@@ -27,6 +27,7 @@ pub mod splat_to_mesh;
 pub mod splat_deform;
 pub mod splat_lod;
 pub mod splat_utils;
+pub mod volume_from_geo;
 pub mod write_splats;
 pub mod delete;
 pub mod scatter;
