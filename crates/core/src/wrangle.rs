@@ -6,6 +6,8 @@ use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, Attribu
 use crate::mesh::Mesh;
 use crate::nodes::recompute_mesh_normals;
 use crate::splat::SplatGeo;
+use crate::volume::Volume;
+use crate::volume_sampling::VolumeSampler;
 
 #[derive(Debug, Clone)]
 struct Program {
@@ -95,6 +97,7 @@ enum Token {
     Semicolon,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn apply_wrangle(
     mesh: &mut Mesh,
     domain: AttributeDomain,
@@ -103,6 +106,8 @@ pub fn apply_wrangle(
     secondary_mesh: Option<&Mesh>,
     primary_splats: Option<&SplatGeo>,
     secondary_splats: Option<&SplatGeo>,
+    primary_volume: Option<&Volume>,
+    secondary_volume: Option<&Volume>,
 ) -> Result<(), String> {
     let program = parse_program(code)?;
     if program.statements.is_empty() {
@@ -119,7 +124,16 @@ pub fn apply_wrangle(
     }
 
     let mut ctx =
-        WrangleContext::new(mesh, domain, mask, secondary_mesh, primary_splats, secondary_splats);
+        WrangleContext::new(
+            mesh,
+            domain,
+            mask,
+            secondary_mesh,
+            primary_splats,
+            secondary_splats,
+            primary_volume,
+            secondary_volume,
+        );
     for stmt in program.statements {
         ctx.apply_statement(stmt)?;
     }
@@ -138,6 +152,8 @@ pub fn apply_wrangle_splats(
     code: &str,
     mask: Option<&[bool]>,
     secondary: Option<&SplatGeo>,
+    primary_volume: Option<&Volume>,
+    secondary_volume: Option<&Volume>,
 ) -> Result<(), String> {
     let program = parse_program(code)?;
     if program.statements.is_empty() {
@@ -153,7 +169,14 @@ pub fn apply_wrangle_splats(
         }
     }
 
-    let mut ctx = SplatWrangleContext::new(splats, domain, mask, secondary);
+    let mut ctx = SplatWrangleContext::new(
+        splats,
+        domain,
+        mask,
+        secondary,
+        primary_volume,
+        secondary_volume,
+    );
     for stmt in program.statements {
         ctx.apply_statement(stmt)?;
     }
@@ -344,6 +367,8 @@ struct WrangleContext<'a> {
     secondary_query: Option<MeshQueryCache<'a>>,
     primary_splats: Option<SplatQueryCache<'a>>,
     secondary_splats: Option<SplatQueryCache<'a>>,
+    primary_volume: Option<VolumeSampler<'a>>,
+    secondary_volume: Option<VolumeSampler<'a>>,
     domain: AttributeDomain,
     len: usize,
     mask: Option<&'a [bool]>,
@@ -359,6 +384,7 @@ struct WrangleContext<'a> {
 }
 
 impl<'a> WrangleContext<'a> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         mesh: &'a Mesh,
         domain: AttributeDomain,
@@ -366,6 +392,8 @@ impl<'a> WrangleContext<'a> {
         secondary_mesh: Option<&'a Mesh>,
         primary_splats: Option<&'a SplatGeo>,
         secondary_splats: Option<&'a SplatGeo>,
+        primary_volume: Option<&'a Volume>,
+        secondary_volume: Option<&'a Volume>,
     ) -> Self {
         let len = mesh.attribute_domain_len(domain);
         Self {
@@ -373,6 +401,8 @@ impl<'a> WrangleContext<'a> {
             secondary_query: secondary_mesh.map(MeshQueryCache::new),
             primary_splats: primary_splats.map(SplatQueryCache::new),
             secondary_splats: secondary_splats.map(SplatQueryCache::new),
+            primary_volume: primary_volume.map(VolumeSampler::new),
+            secondary_volume: secondary_volume.map(VolumeSampler::new),
             domain,
             len,
             mask,
@@ -530,6 +560,7 @@ impl<'a> WrangleContext<'a> {
             "vertex" => self.eval_geo_query(AttributeDomain::Vertex, args, idx),
             "prim" => self.eval_geo_query(AttributeDomain::Primitive, args, idx),
             "splat" => self.eval_splat_query(args, idx),
+            "sample" => self.eval_volume_sample(args, idx),
             "vec2" => build_vec(args, idx, 2, self),
             "vec3" => build_vec(args, idx, 3, self),
             "vec4" => build_vec(args, idx, 4, self),
@@ -575,6 +606,34 @@ impl<'a> WrangleContext<'a> {
             1 => Ok(self.query_secondary_attr(domain, &attr_name, elem_index)),
             _ => Err("Input index must be 0 or 1".to_string()),
         }
+    }
+
+    fn eval_volume_sample(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+        let (input_index, pos_expr) = match args.len() {
+            2 => (self.eval_expr(&args[0], idx)?, &args[1]),
+            3 => {
+                let _ = attr_name_arg(&args[1])?;
+                (self.eval_expr(&args[0], idx)?, &args[2])
+            }
+            _ => {
+                return Err(format!(
+                    "sample expects 2 or 3 arguments, got {}",
+                    args.len()
+                ));
+            }
+        };
+        let input_index = value_to_index(input_index)?;
+        let pos_value = self.eval_expr(pos_expr, idx)?;
+        let pos = value_to_vec3(pos_value)?;
+
+        let sampler = match input_index {
+            0 => self.primary_volume.as_ref(),
+            1 => self.secondary_volume.as_ref(),
+            _ => return Err("Input index must be 0 or 1".to_string()),
+        };
+        Ok(Value::Float(
+            sampler.map(|sampler| sampler.sample_world(pos)).unwrap_or(0.0),
+        ))
     }
 
     fn eval_splat_query(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
@@ -1105,6 +1164,8 @@ impl<'a> SplatQueryCache<'a> {
 struct SplatWrangleContext<'a> {
     splats: &'a SplatGeo,
     secondary_query: Option<SplatQueryCache<'a>>,
+    primary_volume: Option<VolumeSampler<'a>>,
+    secondary_volume: Option<VolumeSampler<'a>>,
     domain: AttributeDomain,
     len: usize,
     mask: Option<&'a [bool]>,
@@ -1120,11 +1181,15 @@ impl<'a> SplatWrangleContext<'a> {
         domain: AttributeDomain,
         mask: Option<&'a [bool]>,
         secondary_splats: Option<&'a SplatGeo>,
+        primary_volume: Option<&'a Volume>,
+        secondary_volume: Option<&'a Volume>,
     ) -> Self {
         let len = splats.attribute_domain_len(domain);
         Self {
             splats,
             secondary_query: secondary_splats.map(SplatQueryCache::new),
+            primary_volume: primary_volume.map(VolumeSampler::new),
+            secondary_volume: secondary_volume.map(VolumeSampler::new),
             domain,
             len,
             mask,
@@ -1276,6 +1341,7 @@ impl<'a> SplatWrangleContext<'a> {
             "vertex" => self.eval_geo_query(AttributeDomain::Vertex, args, idx),
             "prim" => self.eval_geo_query(AttributeDomain::Primitive, args, idx),
             "splat" => self.eval_splat_query(args, idx),
+            "sample" => self.eval_volume_sample(args, idx),
             "vec2" => build_vec_splats(args, idx, 2, self),
             "vec3" => build_vec_splats(args, idx, 3, self),
             "vec4" => build_vec_splats(args, idx, 4, self),
@@ -1336,6 +1402,34 @@ impl<'a> SplatWrangleContext<'a> {
             1 => Ok(self.query_secondary_attr(domain, &attr_name, elem_index)),
             _ => Err("Input index must be 0 or 1".to_string()),
         }
+    }
+
+    fn eval_volume_sample(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+        let (input_index, pos_expr) = match args.len() {
+            2 => (self.eval_expr(&args[0], idx)?, &args[1]),
+            3 => {
+                let _ = attr_name_arg(&args[1])?;
+                (self.eval_expr(&args[0], idx)?, &args[2])
+            }
+            _ => {
+                return Err(format!(
+                    "sample expects 2 or 3 arguments, got {}",
+                    args.len()
+                ));
+            }
+        };
+        let input_index = value_to_index(input_index)?;
+        let pos_value = self.eval_expr(pos_expr, idx)?;
+        let pos = value_to_vec3(pos_value)?;
+
+        let sampler = match input_index {
+            0 => self.primary_volume.as_ref(),
+            1 => self.secondary_volume.as_ref(),
+            _ => return Err("Input index must be 0 or 1".to_string()),
+        };
+        Ok(Value::Float(
+            sampler.map(|sampler| sampler.sample_world(pos)).unwrap_or(0.0),
+        ))
     }
 
     fn query_primary_splat_attr(&mut self, name: &str, idx: usize) -> Value {
@@ -1638,6 +1732,13 @@ fn value_to_index(value: Value) -> Result<usize, String> {
             Ok(idx as usize)
         }
         _ => Err("Index argument must be a number".to_string()),
+    }
+}
+
+fn value_to_vec3(value: Value) -> Result<Vec3, String> {
+    match value {
+        Value::Vec3(v) => Ok(Vec3::from(v)),
+        _ => Err("Position argument must be a vec3".to_string()),
     }
 }
 
@@ -2385,6 +2486,7 @@ impl Parser {
 mod tests {
     use super::*;
     use crate::attributes::AttributeStorage;
+    use crate::volume::VolumeKind;
 
     #[test]
     fn wrangle_ptnum_sets_point_attribute() {
@@ -2394,6 +2496,8 @@ mod tests {
             &mut mesh,
             AttributeDomain::Point,
             "@id = @ptnum;",
+            None,
+            None,
             None,
             None,
             None,
@@ -2425,6 +2529,8 @@ mod tests {
             Some(&secondary),
             None,
             None,
+            None,
+            None,
         )
         .unwrap();
 
@@ -2444,6 +2550,8 @@ mod tests {
             "@P = splat(1, P, @ptnum);",
             None,
             Some(&secondary),
+            None,
+            None,
         )
         .unwrap();
 
@@ -2465,9 +2573,48 @@ mod tests {
             None,
             None,
             Some(&secondary),
+            None,
+            None,
         )
         .unwrap();
 
         assert_eq!(mesh.positions, secondary.positions);
+    }
+
+    #[test]
+    fn wrangle_sample_secondary_volume() {
+        let mut mesh = Mesh::with_positions_indices(
+            vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            Vec::new(),
+        );
+        let volume = Volume::new(
+            VolumeKind::Density,
+            [0.0, 0.0, 0.0],
+            [2, 1, 1],
+            1.0,
+            vec![0.1, 0.9],
+        );
+
+        apply_wrangle(
+            &mut mesh,
+            AttributeDomain::Point,
+            "@val = sample(1, @P);",
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(&volume),
+        )
+        .unwrap();
+
+        let Some(AttributeStorage::Float(values)) =
+            mesh.attributes.get(AttributeDomain::Point, "val")
+        else {
+            panic!("Expected float attribute 'val' on points");
+        };
+        assert_eq!(values.len(), 2);
+        assert!((values[0] - 0.1).abs() < 1.0e-4);
+        assert!((values[1] - 0.9).abs() < 1.0e-4);
     }
 }

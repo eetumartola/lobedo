@@ -19,6 +19,7 @@ mod splat;
 mod splat_ply;
 mod splat_eval;
 mod volume;
+mod volume_sampling;
 mod wrangle;
 
 pub use attributes::{

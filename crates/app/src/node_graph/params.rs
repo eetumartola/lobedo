@@ -37,7 +37,9 @@ pub(super) fn edit_param(
                 if ui
                     .add_sized(
                         [value_width, height],
-                        egui::DragValue::new(&mut v).speed(0.1),
+                        egui::DragValue::new(&mut v)
+                            .speed(0.1)
+                            .update_while_editing(false),
                     )
                     .changed()
                 {
@@ -150,6 +152,33 @@ pub(super) fn edit_param(
                     &[(0, "Normal"), (1, "Direction"), (2, "Closest")],
                     "Normal",
                 )
+            } else if label == "op" && node_name == "Volume Combine" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[
+                        (0, "Add"),
+                        (1, "Subtract"),
+                        (2, "Multiply"),
+                        (3, "Min"),
+                        (4, "Max"),
+                        (5, "Average"),
+                    ],
+                    "Add",
+                )
+            } else if label == "resolution" && node_name == "Volume Combine" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Lower"), (1, "Higher"), (2, "Average")],
+                    "Lower",
+                )
             } else if label == "op" {
                 combo_row_i32(
                     ui,
@@ -227,7 +256,9 @@ pub(super) fn edit_param(
                     if ui
                         .add_sized(
                             [value_width, height],
-                            egui::DragValue::new(&mut v).speed(1.0),
+                            egui::DragValue::new(&mut v)
+                                .speed(1.0)
+                                .update_while_editing(false),
                         )
                         .changed()
                     {
@@ -274,7 +305,12 @@ pub(super) fn edit_param(
                 let len = v.len();
                 for (idx, item) in v.iter_mut().enumerate() {
                     if ui
-                        .add_sized([value_width, height], egui::DragValue::new(item).speed(0.1))
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(item)
+                                .speed(0.1)
+                                .update_while_editing(false),
+                        )
                         .changed()
                     {
                         changed = true;
@@ -300,7 +336,12 @@ pub(super) fn edit_param(
                 let len = v.len();
                 for (idx, item) in v.iter_mut().enumerate() {
                     if ui
-                        .add_sized([value_width, height], egui::DragValue::new(item).speed(0.1))
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(item)
+                                .speed(0.1)
+                                .update_while_editing(false),
+                        )
                         .changed()
                     {
                         changed = true;
@@ -319,7 +360,9 @@ pub(super) fn edit_param(
                 param_row_with_label(ui, label, &display_label, help, |ui| {
                     edit_gradient_field(ui, &mut v)
                 })
-            } else if label == "mode" && node_name == "Volume from Geometry" {
+            } else if label == "mode"
+                && matches!(node_name, "Volume to Mesh" | "Volume from Geometry")
+            {
                 let options = &[("density", "Density"), ("sdf", "SDF")];
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Density")
             } else if label == "shape" {
@@ -786,6 +829,23 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Volume Combine" {
+        return match key {
+            "op" => "Operator",
+            "resolution" => "Resolution",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Volume to Mesh" {
+        return match key {
+            "mode" => "Mode",
+            "density_iso" => "Density Iso",
+            "surface_iso" => "Surface Iso",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "UV Texture" {
         return match key {
             "projection" => "Projection",
@@ -811,6 +871,14 @@ fn display_label(node_name: &str, key: &str) -> String {
             "base_color_tex" => "Base Color Texture",
             "metallic" => "Metallic",
             "roughness" => "Roughness",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Attribute from Volume" {
+        return match key {
+            "attr" => "Attribute",
+            "domain" => "Domain",
             _ => key,
         }
         .to_string();
@@ -843,6 +911,8 @@ fn float_slider_range(
         "max_distance" => 0.0..=1000.0,
         "voxel_size" => 0.0..=10.0,
         "n_sigma" => 0.0..=6.0,
+        "density_iso" if _node_name == "Volume to Mesh" => 0.0..=1.0,
+        "surface_iso" if _node_name == "Volume to Mesh" => -1.0..=1.0,
         "density_iso" => 0.0..=10.0,
         "surface_iso" => -5.0..=5.0,
         "bounds_padding" => 0.0..=10.0,

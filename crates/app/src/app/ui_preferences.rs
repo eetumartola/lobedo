@@ -57,7 +57,8 @@ impl LobedoApp {
                         egui::DragValue::new(
                             &mut self.project.settings.render_debug.splat_tile_size,
                         )
-                        .speed(1.0),
+                        .speed(1.0)
+                        .update_while_editing(false),
                     );
                 });
                 ui.horizontal(|ui| {
@@ -67,7 +68,8 @@ impl LobedoApp {
                         egui::DragValue::new(
                             &mut self.project.settings.render_debug.splat_tile_threshold,
                         )
-                        .speed(1000.0),
+                        .speed(1000.0)
+                        .update_while_editing(false),
                     );
                 });
             });

@@ -1,15 +1,15 @@
 # Lobedo - A Node Editor with Native Gaussian Splats
 
-Lobedo is a node-based 3D editor focused on fast iteration for procedural geometry and Gaussian splats, with a path toward ML-powered operators.
+Lobedo is a Houdini-style node editor for procedural geometry, Gaussian splats, and volumes. It targets fast iteration in a native desktop app and a Web build; headless mode exists for testing only.
 
-## Overview
-Lobedo currently implements a Houdini-lite / GeometryNodes-lite workflow for meshes, and is evolving into a splat-native editor with a job-based ML pipeline.
-
-## Features (current)
-- Node-based geometry graph and 3D viewport.
-- Project persistence (JSON) with native and web save/load.
-- Headless CLI for automated validation (testing only).
-- Evaluation engine with topo sort, caching, and per-node error reporting.
+## Current features
+- Node-based graph + 3D viewport for meshes, curves, splats, and volumes.
+- Gaussian splat pipeline: read/write PLY, prune/regularize, LOD, deform, and splat-to-mesh.
+- Geometry operators: transform/copy, delete/group, noise/erosion, smooth, attribute tools, and wrangle scripting.
+- Curves: draw and edit curves in the viewport; curve primitives share the main point pool.
+- Volumes: volume-from-geometry (density or SDF), combine, volume-to-mesh, and attribute-from-volume.
+- UVs & materials: UV projection/unwrap, UV view, material assignment with texture-backed base color.
+- Project persistence (JSON) with native and web save/load; headless CLI for validation/testing.
 
 ## Requirements
 - Rust stable toolchain.

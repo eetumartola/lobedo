@@ -1,6 +1,7 @@
 pub mod attribute_math;
 pub mod attribute_utils;
 pub mod attribute_from_feature;
+pub mod attribute_from_volume;
 pub mod attribute_noise;
 pub mod attribute_transfer;
 pub mod box_node;
@@ -28,6 +29,8 @@ pub mod splat_deform;
 pub mod splat_lod;
 pub mod splat_utils;
 pub mod volume_from_geo;
+pub mod volume_combine;
+pub mod volume_to_mesh;
 pub mod write_splats;
 pub mod delete;
 pub mod scatter;

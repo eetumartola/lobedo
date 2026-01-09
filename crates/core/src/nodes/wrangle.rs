@@ -58,6 +58,8 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
             secondary,
             None,
             None,
+            None,
+            None,
         )?;
     }
     Ok(input)
@@ -67,6 +69,8 @@ pub(crate) fn apply_to_splats(
     params: &NodeParams,
     splats: &mut SplatGeo,
     secondary: Option<&SplatGeo>,
+    primary_volume: Option<&crate::volume::Volume>,
+    secondary_volume: Option<&crate::volume::Volume>,
 ) -> Result<(), String> {
     let code = params.get_string("code", "");
     let domain = match params.get_int("mode", 0).clamp(0, 3) {
@@ -77,7 +81,15 @@ pub(crate) fn apply_to_splats(
     };
     if !code.trim().is_empty() {
         let mask = splat_group_mask(splats, params, domain);
-        apply_wrangle_splats(splats, domain, code, mask.as_deref(), secondary)?;
+        apply_wrangle_splats(
+            splats,
+            domain,
+            code,
+            mask.as_deref(),
+            secondary,
+            primary_volume,
+            secondary_volume,
+        )?;
     }
     Ok(())
 }
@@ -90,6 +102,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     let secondary_mesh = secondary.and_then(|geo| geo.merged_mesh());
     let secondary_splats = secondary.and_then(|geo| geo.merged_splats());
     let primary_splats = input.merged_splats();
+    let primary_volume = input.volumes.first();
+    let secondary_volume = secondary.and_then(|geo| geo.volumes.first());
     let code = params.get_string("code", "");
     if code.trim().is_empty() {
         return Ok(input.clone());
@@ -113,6 +127,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
             secondary_mesh.as_ref(),
             primary_splats.as_ref(),
             secondary_splats.as_ref(),
+            primary_volume,
+            secondary_volume,
         )?;
         meshes.push(mesh);
     }
@@ -127,6 +143,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
             code,
             mask.as_deref(),
             secondary_splats.as_ref(),
+            primary_volume,
+            secondary_volume,
         )?;
         splats.push(splat);
     }

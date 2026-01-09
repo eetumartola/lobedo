@@ -3,9 +3,13 @@ use std::collections::BTreeMap;
 use glam::Vec3;
 
 use crate::attributes::AttributeDomain;
+use crate::curve::Curve;
+use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::volume::{Volume, VolumeKind};
+use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Scatter";
 
@@ -35,6 +39,45 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let seed = params.get_int("seed", 1).max(0) as u32;
     let mask = mesh_group_mask(&input, params, AttributeDomain::Primitive);
     scatter_points(&input, count, seed, mask.as_deref())
+}
+
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let count = params.get_int("count", 200).max(0) as usize;
+    if count == 0 {
+        return Ok(Geometry::default());
+    }
+    let seed = params.get_int("seed", 1).max(0) as u32;
+
+    let merged_mesh = input.merged_mesh();
+    if let Some(mesh) = merged_mesh.as_ref() {
+        if !mesh.positions.is_empty()
+            && mesh.indices.len() >= 3
+            && mesh.indices.len().is_multiple_of(3)
+        {
+            let mask = mesh_group_mask(mesh, params, AttributeDomain::Primitive);
+            let mesh = scatter_points(mesh, count, seed, mask.as_deref())?;
+            return Ok(Geometry::with_mesh(mesh));
+        }
+    }
+
+    if !input.curves.is_empty() {
+        let positions = merged_mesh
+            .as_ref()
+            .map(|mesh| mesh.positions.as_slice())
+            .unwrap_or(&[]);
+        let mesh = scatter_curves(positions, &input.curves, count, seed)?;
+        return Ok(Geometry::with_mesh(mesh));
+    }
+
+    if let Some(volume) = input.volumes.first() {
+        let mesh = scatter_volume(volume, count, seed)?;
+        return Ok(Geometry::with_mesh(mesh));
+    }
+
+    Ok(Geometry::default())
 }
 
 fn scatter_points(
@@ -123,6 +166,127 @@ fn scatter_points(
 
     Ok(Mesh {
         positions,
+        indices: Vec::new(),
+        normals: Some(normals),
+        corner_normals: None,
+        uvs: None,
+        attributes: Default::default(),
+        groups: Default::default(),
+    })
+}
+
+fn scatter_curves(
+    positions: &[[f32; 3]],
+    curves: &[Curve],
+    count: usize,
+    seed: u32,
+) -> Result<Mesh, String> {
+    if count == 0 || positions.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let mut segments = Vec::new();
+    let mut cumulative = Vec::new();
+    let mut total = 0.0f32;
+    for curve in curves {
+        let indices = &curve.indices;
+        if indices.len() < 2 {
+            continue;
+        }
+        let seg_count = if curve.closed { indices.len() } else { indices.len() - 1 };
+        for i in 0..seg_count {
+            let a = indices.get(i).copied().unwrap_or(0) as usize;
+            let b = indices
+                .get((i + 1) % indices.len())
+                .copied()
+                .unwrap_or(0) as usize;
+            let Some(p0) = positions.get(a) else { continue };
+            let Some(p1) = positions.get(b) else { continue };
+            let p0 = Vec3::from(*p0);
+            let p1 = Vec3::from(*p1);
+            let len = (p1 - p0).length();
+            if len <= 0.0 {
+                continue;
+            }
+            total += len;
+            segments.push((p0, p1));
+            cumulative.push(total);
+        }
+    }
+
+    if total <= 0.0 || segments.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let mut rng = XorShift32::new(seed);
+    let mut out_positions = Vec::with_capacity(count);
+    let mut normals = Vec::with_capacity(count);
+    for _ in 0..count {
+        let sample = rng.next_f32() * total;
+        let seg_index = find_area_index(&cumulative, sample).min(segments.len() - 1);
+        let (p0, p1) = segments[seg_index];
+        let t = rng.next_f32().clamp(0.0, 1.0);
+        let point = p0.lerp(p1, t);
+        out_positions.push(point.to_array());
+        normals.push([0.0, 1.0, 0.0]);
+    }
+
+    Ok(Mesh {
+        positions: out_positions,
+        indices: Vec::new(),
+        normals: Some(normals),
+        corner_normals: None,
+        uvs: None,
+        attributes: Default::default(),
+        groups: Default::default(),
+    })
+}
+
+fn scatter_volume(volume: &Volume, count: usize, seed: u32) -> Result<Mesh, String> {
+    if count == 0 || volume.values.is_empty() {
+        return Ok(Mesh::default());
+    }
+
+    let (world_min, world_max) = volume.world_bounds();
+    let sampler = VolumeSampler::new(volume);
+    let max_density = if matches!(volume.kind, VolumeKind::Density) {
+        volume
+            .values
+            .iter()
+            .copied()
+            .fold(0.0_f32, f32::max)
+            .max(1.0e-6)
+    } else {
+        1.0
+    };
+
+    let mut rng = XorShift32::new(seed);
+    let mut out_positions = Vec::with_capacity(count);
+    let mut normals = Vec::with_capacity(count);
+    let mut attempts = 0usize;
+    let max_attempts = (count.max(1) * 50).max(100);
+    while out_positions.len() < count && attempts < max_attempts {
+        attempts += 1;
+        let x = world_min.x + rng.next_f32() * (world_max.x - world_min.x);
+        let y = world_min.y + rng.next_f32() * (world_max.y - world_min.y);
+        let z = world_min.z + rng.next_f32() * (world_max.z - world_min.z);
+        let world_pos = Vec3::new(x, y, z);
+        let mut density = sampler.sample_world(world_pos);
+        if matches!(volume.kind, VolumeKind::Sdf) {
+            density = if density <= 0.0 { 1.0 } else { 0.0 };
+        }
+        if density <= 0.0 {
+            continue;
+        }
+        let accept = (density / max_density).clamp(0.0, 1.0);
+        if rng.next_f32() <= accept {
+            out_positions.push(world_pos.to_array());
+            normals.push([0.0, 1.0, 0.0]);
+        }
+    }
+
+    Ok(Mesh {
+        positions: out_positions,
         indices: Vec::new(),
         normals: Some(normals),
         corner_normals: None,

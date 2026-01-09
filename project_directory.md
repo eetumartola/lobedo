@@ -184,6 +184,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\attribute_from_volume.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\attribute_math.rs
 Description: TODO: add description.
 Functions: None
@@ -336,7 +340,15 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\volume_combine.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\volume_from_geo.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\volume_to_mesh.rs
 Description: TODO: add description.
 Functions: None
 
@@ -401,6 +413,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\volume.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\volume_sampling.rs
 Description: TODO: add description.
 Functions: None
 

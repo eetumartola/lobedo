@@ -101,13 +101,16 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::ErosionNoise
         | BuiltinNodeKind::AttributeFromFeature
+        | BuiltinNodeKind::AttributeFromVolume
         | BuiltinNodeKind::AttributeTransfer
         | BuiltinNodeKind::AttributeMath
         | BuiltinNodeKind::UvTexture
         | BuiltinNodeKind::UvUnwrap
         | BuiltinNodeKind::UvView => Some("Attribute"),
         BuiltinNodeKind::Material => Some("Materials"),
-        BuiltinNodeKind::VolumeFromGeometry => Some("Volume"),
+        BuiltinNodeKind::VolumeFromGeometry
+        | BuiltinNodeKind::VolumeCombine
+        | BuiltinNodeKind::VolumeToMesh => Some("Volume"),
         _ => None,
     }
 }

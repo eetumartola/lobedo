@@ -41,6 +41,8 @@ Status: done | in progress | not started
 - **W2**: Volume from Geometry node (density + SDF) (done)
 - **W3**: Render volumes in viewport (raymarching MVP) (done)
 - **W4**: Node info + bounds for volume primitives (done)
+- **W5**: Volume Combine node (ops + resolution mode) (done)
+- **W6**: Volume to Mesh node (density/SDF surface extraction) (done)
 
 ## Epic S - Core splat data type
 - **S1**: Define `Splat` schema + typed channel storage (done)
@@ -73,6 +75,7 @@ Status: done | in progress | not started
 - **N14**: Wrangle: @ptnum/@vtxnum/@primnum + point/vertex/prim/splat queries (inputs 0/1) (done)
 - **N15**: Splat Deform (deform source splats from edited point cloud; optional new splats) (done)
 - **N16**: Erosion Noise (heightfield-style erosion noise on point height) (done)
+- **N17**: Attribute from Volume (sample volume into attribute) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

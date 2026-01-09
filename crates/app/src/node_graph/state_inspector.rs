@@ -48,6 +48,11 @@ impl NodeGraphState {
         } else {
             None
         };
+        let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
+            Some(node.params.get_string("mode", "density").to_lowercase())
+        } else {
+            None
+        };
 
         if params.is_empty() {
             ui.label("No parameters.");
@@ -71,11 +76,24 @@ impl NodeGraphState {
                     }
                 }
             }
+            if node_name == "Volume from Geometry" && key == "voxel_size" {
+                continue;
+            }
             if node_name == "Splat to Mesh" {
                 if let Some(method) = splat_to_mesh_method {
                     match (method, key.as_str()) {
                         (0, "surface_iso") | (0, "smooth_k") | (0, "shell_radius") => continue,
                         (1, "density_iso") | (1, "blur_iters") => continue,
+                        _ => {}
+                    }
+                }
+            }
+            if node_name == "Volume to Mesh" {
+                if let Some(mode) = volume_to_mesh_mode.as_deref() {
+                    let is_density = !mode.contains("sdf");
+                    match (is_density, key.as_str()) {
+                        (true, "surface_iso") => continue,
+                        (false, "density_iso") => continue,
                         _ => {}
                     }
                 }

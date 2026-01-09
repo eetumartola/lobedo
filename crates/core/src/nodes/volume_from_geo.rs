@@ -138,9 +138,7 @@ pub fn apply_to_geometry(
                 if has_tris {
                     let inside = is_inside_mesh(pos, &triangles);
                     let signed_mesh = if inside { -unsigned_dist } else { unsigned_dist };
-                    if signed_dist.is_infinite() {
-                        signed_dist = signed_mesh;
-                    } else if signed_mesh < signed_dist {
+                    if signed_dist.is_infinite() || signed_mesh < signed_dist {
                         signed_dist = signed_mesh;
                     }
                 }
@@ -169,7 +167,11 @@ pub fn apply_to_geometry(
     }
 
     let mut volume = Volume::new(kind, min.to_array(), dims, voxel_size, values);
-    volume.density_scale = density_scale;
+    volume.density_scale = if matches!(kind, VolumeKind::Density) {
+        1.0
+    } else {
+        density_scale
+    };
     volume.sdf_band = sdf_band;
 
     Ok(Geometry::with_volume(volume))
@@ -277,46 +279,33 @@ fn distance_to_triangle(p: Vec3, tri: &Triangle) -> f32 {
 }
 
 fn is_inside_mesh(p: Vec3, triangles: &[Triangle]) -> bool {
-    let dir = Vec3::X;
-    let mut hits = 0usize;
-    for tri in triangles {
-        if let Some(t) = ray_triangle_intersect(p, dir, tri.a, tri.b, tri.c) {
-            if t > 0.0 {
-                hits += 1;
-            }
-        }
+    if triangles.is_empty() {
+        return false;
     }
-    hits % 2 == 1
+    let wn = winding_number(p, triangles);
+    wn.abs() >= 0.5
 }
 
-fn ray_triangle_intersect(
-    origin: Vec3,
-    dir: Vec3,
-    a: Vec3,
-    b: Vec3,
-    c: Vec3,
-) -> Option<f32> {
-    let eps = 1.0e-6;
-    let edge1 = b - a;
-    let edge2 = c - a;
-    let h = dir.cross(edge2);
-    let det = edge1.dot(h);
-    if det.abs() < eps {
-        return None;
+fn winding_number(p: Vec3, triangles: &[Triangle]) -> f32 {
+    let mut total = 0.0f32;
+    for tri in triangles {
+        let a = tri.a - p;
+        let b = tri.b - p;
+        let c = tri.c - p;
+        let la = a.length();
+        let lb = b.length();
+        let lc = c.length();
+        if la < 1.0e-8 || lb < 1.0e-8 || lc < 1.0e-8 {
+            continue;
+        }
+        let numerator = a.dot(b.cross(c));
+        let denom = la * lb * lc + a.dot(b) * lc + b.dot(c) * la + c.dot(a) * lb;
+        if denom.abs() < 1.0e-12 {
+            continue;
+        }
+        total += 2.0 * numerator.atan2(denom);
     }
-    let inv_det = 1.0 / det;
-    let s = origin - a;
-    let u = s.dot(h) * inv_det;
-    if !(0.0..=1.0).contains(&u) {
-        return None;
-    }
-    let q = s.cross(edge1);
-    let v = dir.dot(q) * inv_det;
-    if v < 0.0 || u + v > 1.0 {
-        return None;
-    }
-    let t = edge2.dot(q) * inv_det;
-    Some(t)
+    total / (4.0 * std::f32::consts::PI)
 }
 
 fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (Vec3, [f32; 3]) {

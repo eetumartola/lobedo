@@ -69,6 +69,8 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - `Volume from Geometry` node (density + SDF modes)
 - Volume rendering in viewport (raymarching MVP)
 - Volume bounds + node info reporting
+- `Volume Combine` node (binary ops + resolution mode)
+- `Volume to Mesh` node (density/SDF surface extraction)
 - Web-compatible volume texture upload/render path
 
 ---

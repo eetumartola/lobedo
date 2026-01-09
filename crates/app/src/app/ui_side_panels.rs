@@ -43,6 +43,7 @@ impl LobedoApp {
                                             &mut self.project.settings.render_debug.normal_length,
                                         )
                                         .speed(0.02)
+                                        .update_while_editing(false)
                                         .range(0.01..=10.0),
                                     );
                                 });
@@ -69,6 +70,7 @@ impl LobedoApp {
                                             &mut self.project.settings.render_debug.point_size,
                                         )
                                         .speed(0.5)
+                                        .update_while_editing(false)
                                         .range(1.0..=24.0),
                                     );
                                 });
@@ -120,6 +122,7 @@ impl LobedoApp {
                                             &mut self.project.settings.render_debug.depth_near,
                                         )
                                         .speed(0.1)
+                                        .update_while_editing(false)
                                         .range(0.01..=1000.0),
                                     );
                                 });
@@ -130,6 +133,7 @@ impl LobedoApp {
                                             &mut self.project.settings.render_debug.depth_far,
                                         )
                                         .speed(0.1)
+                                        .update_while_editing(false)
                                         .range(0.01..=5000.0),
                                     );
                                 });
@@ -151,7 +155,8 @@ impl LobedoApp {
                                         egui::DragValue::new(
                                             &mut self.project.settings.render_debug.splat_debug_min,
                                         )
-                                        .speed(0.05),
+                                        .speed(0.05)
+                                        .update_while_editing(false),
                                     );
                                 });
                                 ui.horizontal(|ui| {
@@ -160,7 +165,8 @@ impl LobedoApp {
                                         egui::DragValue::new(
                                             &mut self.project.settings.render_debug.splat_debug_max,
                                         )
-                                        .speed(0.05),
+                                        .speed(0.05)
+                                        .update_while_editing(false),
                                     );
                                 });
                                 let min = self.project.settings.render_debug.splat_debug_min;

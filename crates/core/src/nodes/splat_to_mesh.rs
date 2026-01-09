@@ -209,12 +209,12 @@ fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String
     Ok(mesh)
 }
 
-struct GridSpec {
-    min: Vec3,
-    dx: f32,
-    nx: usize,
-    ny: usize,
-    nz: usize,
+pub(crate) struct GridSpec {
+    pub min: Vec3,
+    pub dx: f32,
+    pub nx: usize,
+    pub ny: usize,
+    pub nz: usize,
 }
 
 struct ColorGrid {
@@ -488,7 +488,7 @@ fn grid_index(spec: &GridSpec, ix: usize, iy: usize, iz: usize) -> usize {
     ix + spec.nx * (iy + spec.ny * iz)
 }
 
-fn marching_cubes(
+pub(crate) fn marching_cubes(
     grid: &[f32],
     spec: &GridSpec,
     iso: f32,
@@ -535,7 +535,7 @@ fn marching_cubes(
     Ok(Mesh::with_positions_indices(positions, indices))
 }
 
-fn sanitize_grid(grid: &mut [f32], iso: f32, inside_is_greater: bool) {
+pub(crate) fn sanitize_grid(grid: &mut [f32], iso: f32, inside_is_greater: bool) {
     let outside = if inside_is_greater { iso - 1.0 } else { iso + 1.0 };
     for value in grid {
         if !value.is_finite() {

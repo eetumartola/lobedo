@@ -22,6 +22,8 @@ pub enum BuiltinNodeKind {
     SplatToMesh,
     SplatDeform,
     VolumeFromGeometry,
+    VolumeCombine,
+    VolumeToMesh,
     Group,
     Transform,
     CopyTransform,
@@ -40,6 +42,7 @@ pub enum BuiltinNodeKind {
     Ray,
     AttributeNoise,
     AttributeFromFeature,
+    AttributeFromVolume,
     AttributeTransfer,
     AttributeMath,
     Wrangle,
@@ -82,6 +85,18 @@ fn mesh_error_splat_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Me
 
 fn mesh_error_volume_from_geo(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Volume from Geometry outputs volume primitives, not meshes".to_string())
+}
+
+fn mesh_error_volume_combine(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Volume Combine outputs volume primitives, not meshes".to_string())
+}
+
+fn mesh_error_volume_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Volume to Mesh expects volume geometry, not meshes".to_string())
+}
+
+fn mesh_error_attribute_from_volume(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Attribute from Volume requires volume input, not meshes".to_string())
 }
 
 static NODE_SPECS: &[NodeSpec] = &[
@@ -218,6 +233,24 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::volume_from_geo::definition,
         default_params: nodes::volume_from_geo::default_params,
         compute_mesh: mesh_error_volume_from_geo,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::VolumeCombine,
+        name: nodes::volume_combine::NAME,
+        aliases: &[],
+        definition: nodes::volume_combine::definition,
+        default_params: nodes::volume_combine::default_params,
+        compute_mesh: mesh_error_volume_combine,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::VolumeToMesh,
+        name: nodes::volume_to_mesh::NAME,
+        aliases: &[],
+        definition: nodes::volume_to_mesh::definition,
+        default_params: nodes::volume_to_mesh::default_params,
+        compute_mesh: mesh_error_volume_to_mesh,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -383,6 +416,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::AttributeFromVolume,
+        name: nodes::attribute_from_volume::NAME,
+        aliases: &[],
+        definition: nodes::attribute_from_volume::definition,
+        default_params: nodes::attribute_from_volume::default_params,
+        compute_mesh: mesh_error_attribute_from_volume,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::AttributeTransfer,
         name: nodes::attribute_transfer::NAME,
         aliases: &[],
@@ -512,13 +554,15 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::VolumeFromGeometry => {
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
         }
+        BuiltinNodeKind::VolumeCombine => nodes::volume_combine::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
         BuiltinNodeKind::Ray => nodes::ray::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Material => nodes::material::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::Scatter => nodes::scatter::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Normal
-        | BuiltinNodeKind::Scatter
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise
         | BuiltinNodeKind::ErosionNoise
@@ -531,6 +575,9 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
         BuiltinNodeKind::Wrangle => nodes::wrangle::apply_to_geometry(params, inputs),
         BuiltinNodeKind::AttributeTransfer => apply_attribute_transfer(params, inputs),
+        BuiltinNodeKind::AttributeFromVolume => {
+            nodes::attribute_from_volume::apply_to_geometry(params, inputs)
+        }
         BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
         BuiltinNodeKind::Merge => merge_geometry(inputs),
         BuiltinNodeKind::ObjOutput => apply_obj_output(params, inputs),
@@ -588,14 +635,14 @@ fn apply_mesh_unary(
                 nodes::attribute_math::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::Wrangle => {
-                nodes::wrangle::apply_to_splats(params, &mut splat, None)?;
+                nodes::wrangle::apply_to_splats(params, &mut splat, None, None, None)?;
             }
             _ => {}
         }
         splats.push(splat);
     }
 
-    let curves = if matches!(kind, BuiltinNodeKind::Scatter) || meshes.is_empty() {
+    let curves = if meshes.is_empty() {
         Vec::new()
     } else {
         input.curves.clone()
