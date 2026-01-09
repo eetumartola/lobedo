@@ -31,6 +31,8 @@ pub fn default_params() -> NodeParams {
             ("count".to_string(), ParamValue::Int(100)),
             ("seed".to_string(), ParamValue::Int(1)),
             ("density_attr".to_string(), ParamValue::String("density".to_string())),
+            ("density_min".to_string(), ParamValue::Float(0.0)),
+            ("density_max".to_string(), ParamValue::Float(1.0)),
             ("inherit".to_string(), ParamValue::String("Cd".to_string())),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
@@ -43,6 +45,8 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let count = params.get_int("count", 200).max(0) as usize;
     let seed = params.get_int("seed", 1).max(0) as u32;
     let density_attr = params.get_string("density_attr", "").trim().to_string();
+    let density_min = params.get_float("density_min", 0.0);
+    let density_max = params.get_float("density_max", 1.0);
     let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
     let mask = mesh_group_mask(&input, params, AttributeDomain::Primitive);
     scatter_points(
@@ -55,6 +59,8 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         } else {
             Some(density_attr.as_str())
         },
+        density_min,
+        density_max,
         &inherit,
     )
 }
@@ -69,6 +75,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     }
     let seed = params.get_int("seed", 1).max(0) as u32;
     let density_attr = params.get_string("density_attr", "").trim().to_string();
+    let density_min = params.get_float("density_min", 0.0);
+    let density_max = params.get_float("density_max", 1.0);
     let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
 
     let merged_mesh = input.merged_mesh();
@@ -88,6 +96,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
                 } else {
                     Some(density_attr.as_str())
                 },
+                density_min,
+                density_max,
                 &inherit,
             )?;
             return Ok(Geometry::with_mesh(mesh));
@@ -106,6 +116,8 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
                 } else {
                     Some(density_attr.as_str())
                 },
+                density_min,
+                density_max,
                 &inherit,
             )?;
             return Ok(Geometry::with_mesh(mesh));
@@ -126,6 +138,8 @@ fn scatter_points(
     seed: u32,
     mask: Option<&[bool]>,
     density_attr: Option<&str>,
+    density_min: f32,
+    density_max: f32,
     inherit: &[String],
 ) -> Result<Mesh, String> {
     if count == 0 {
@@ -164,7 +178,9 @@ fn scatter_points(
         let area = 0.5 * (p1 - p0).cross(p2 - p0).length();
         let density = density_source
             .as_ref()
-            .map(|source| source.sample(prim_index, i0, i1, i2))
+            .map(|source| {
+                map_density_value(source.sample(prim_index, i0, i1, i2), density_min, density_max)
+            })
             .unwrap_or(1.0);
         let weight = area.max(0.0) * density.max(0.0);
         total += weight;
@@ -243,6 +259,8 @@ fn scatter_curves(
     count: usize,
     seed: u32,
     density_attr: Option<&str>,
+    density_min: f32,
+    density_max: f32,
     inherit: &[String],
 ) -> Result<Mesh, String> {
     if count == 0 || mesh.positions.is_empty() {
@@ -280,7 +298,7 @@ fn scatter_curves(
             }
             let density = density_source
                 .as_ref()
-                .map(|source| source.sample(a, b))
+                .map(|source| map_density_value(source.sample(a, b), density_min, density_max))
                 .unwrap_or(1.0);
             let weight = len * density.max(0.0);
             total += weight;
@@ -392,6 +410,14 @@ fn find_area_index(cumulative: &[f32], sample: f32) -> usize {
         }
     }
     lo.min(cumulative.len().saturating_sub(1))
+}
+
+fn map_density_value(value: f32, min: f32, max: f32) -> f32 {
+    if !value.is_finite() {
+        return 0.0;
+    }
+    let t = value.clamp(0.0, 1.0);
+    min + (max - min) * t
 }
 
 struct DensitySource<'a> {

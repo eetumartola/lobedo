@@ -794,6 +794,8 @@ fn display_label(node_name: &str, key: &str) -> String {
     if node_name == "Scatter" {
         return match key {
             "density_attr" => "Density Attribute",
+            "density_min" => "Density Min",
+            "density_max" => "Density Max",
             "inherit" => "Inherit Attributes",
             _ => key,
         }
@@ -950,6 +952,7 @@ fn float_slider_range(
         "amplitude" => -10.0..=10.0,
         "frequency" => 0.0..=10.0,
         "strength" => 0.0..=1.0,
+        "density_min" | "density_max" => 0.0..=1.0,
         "value_f" => -10.0..=10.0,
         "radius" => 0.0..=1000.0,
         "max_distance" => 0.0..=1000.0,

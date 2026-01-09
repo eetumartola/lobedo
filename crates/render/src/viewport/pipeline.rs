@@ -79,6 +79,7 @@ pub(super) struct PipelineState {
     pub(super) offscreen_size: [u32; 2],
     pub(super) uniform_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) uniform_bind_group: egui_wgpu::wgpu::BindGroup,
+    pub(super) shadow_uniform_bind_group: egui_wgpu::wgpu::BindGroup,
     pub(super) material_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) material_bind_group: egui_wgpu::wgpu::BindGroup,
     pub(super) material_bind_group_layout: egui_wgpu::wgpu::BindGroupLayout,
@@ -203,6 +204,20 @@ impl PipelineState {
                         count: None,
                     },
                 ],
+            });
+        let shadow_uniform_layout =
+            device.create_bind_group_layout(&egui_wgpu::wgpu::BindGroupLayoutDescriptor {
+                label: Some("lobedo_viewport_shadow_uniform_layout"),
+                entries: &[egui_wgpu::wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: egui_wgpu::wgpu::ShaderStages::VERTEX,
+                    ty: egui_wgpu::wgpu::BindingType::Buffer {
+                        ty: egui_wgpu::wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
             });
         let material_bind_group_layout =
             device.create_bind_group_layout(&egui_wgpu::wgpu::BindGroupLayoutDescriptor {
@@ -346,6 +361,15 @@ impl PipelineState {
                 },
             ],
         });
+        let shadow_uniform_bind_group =
+            device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
+                label: Some("lobedo_viewport_shadow_uniform_bind_group"),
+                layout: &shadow_uniform_layout,
+                entries: &[egui_wgpu::wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }],
+            });
         let material_bind_group = {
             device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
                 label: Some("lobedo_viewport_material_bind_group"),
@@ -435,7 +459,7 @@ impl PipelineState {
         let shadow_pipeline_layout =
             device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
                 label: Some("lobedo_viewport_shadow_layout"),
-                bind_group_layouts: &[&uniform_layout, &material_bind_group_layout],
+                bind_group_layouts: &[&shadow_uniform_layout],
                 push_constant_ranges: &[],
             });
 
@@ -878,6 +902,7 @@ impl PipelineState {
             offscreen_size: [1, 1],
             uniform_buffer,
             uniform_bind_group,
+            shadow_uniform_bind_group,
             material_buffer,
             material_bind_group,
             material_bind_group_layout,

@@ -173,6 +173,8 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Scatter", "count") => Some("Number of points to scatter."),
         ("Scatter", "seed") => Some("Random seed."),
         ("Scatter", "density_attr") => Some("Optional density attribute for weighting."),
+        ("Scatter", "density_min") => Some("Minimum mapped density value (0->min)."),
+        ("Scatter", "density_max") => Some("Maximum mapped density value (1->max)."),
         ("Scatter", "inherit") => Some("Attributes to inherit from the source."),
         ("Scatter", "group") => Some("Restrict scattering to a group."),
         ("Scatter", "group_type") => Some("Group domain to use."),

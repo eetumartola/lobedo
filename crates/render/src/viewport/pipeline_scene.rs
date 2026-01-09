@@ -3,8 +3,9 @@ use egui_wgpu::wgpu::util::DeviceExt as _;
 use crate::scene::RenderScene;
 
 use super::mesh::{
-    bounds_from_positions, bounds_vertices, build_vertices, curve_vertices, normals_vertices,
-    selection_shape_vertices, wireframe_vertices,
+    bounds_from_positions, bounds_vertices, build_vertices, curve_vertices,
+    normals_vertices, point_cross_vertices_with_colors, selection_shape_vertices,
+    wireframe_vertices,
 };
 use super::pipeline::{MaterialGpu, PipelineState, VolumeParams};
 use glam::Vec3;
@@ -146,7 +147,17 @@ pub(super) fn apply_scene_to_pipeline(
     pipeline.bounds_count = bounds_vertices.len() as u32;
 
     let template_lines = if let Some(template) = &scene.template_mesh {
-        wireframe_vertices(&template.positions, &template.indices)
+        if !template.indices.is_empty() {
+            wireframe_vertices(&template.positions, &template.indices)
+        } else if !template.positions.is_empty() {
+            let (min, max) = bounds_from_positions(&template.positions);
+            let diag = (Vec3::from(max) - Vec3::from(min)).length();
+            let size = (diag * 0.01).max(0.0005);
+            let colors = vec![[0.6, 0.6, 0.6]; template.positions.len()];
+            point_cross_vertices_with_colors(&template.positions, &colors, size)
+        } else {
+            Vec::new()
+        }
     } else {
         Vec::new()
     };

@@ -243,8 +243,7 @@ impl CallbackTrait for ViewportCallback {
                             timestamp_writes: None,
                         });
                     shadow_pass.set_pipeline(&pipeline.shadow_pipeline);
-                    shadow_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
-                    shadow_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                    shadow_pass.set_bind_group(0, &pipeline.shadow_uniform_bind_group, &[]);
                     match &mesh.data {
                         GpuMeshData::Indexed {
                             vertex_buffer,
