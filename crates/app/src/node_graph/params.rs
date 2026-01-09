@@ -92,6 +92,16 @@ pub(super) fn edit_param(
                     ],
                     "Auto",
                 )
+            } else if label == "copy_attr_class" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Point"), (1, "Vertex"), (2, "Primitive")],
+                    "Point",
+                )
             } else if label == "read_mode" {
                 combo_row_i32(
                     ui,
@@ -808,6 +818,15 @@ fn display_label(node_name: &str, key: &str) -> String {
             "rotate_step_deg" => "Rotate Step",
             "scale_step" => "Scale Step",
             "count" => "Count",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Copy to Points" {
+        return match key {
+            "inherit" => "Inherit Attributes",
+            "copy_attr" => "Copy Attribute",
+            "copy_attr_class" => "Copy Attribute Class",
             _ => key,
         }
         .to_string();
