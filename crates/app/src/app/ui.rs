@@ -5,6 +5,7 @@ use super::LobedoApp;
 impl eframe::App for LobedoApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.sync_wgpu_renderer(frame);
+        self.update_window_title(ctx);
         let pointer_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
         self.pause_viewport = ctx
             .input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))

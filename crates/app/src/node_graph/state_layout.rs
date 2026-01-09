@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use egui::Pos2;
 use lobedo_core::Graph;
 
 use super::state::{NodeGraphLayout, NodeGraphState, SnarlNode};
@@ -14,6 +15,18 @@ impl NodeGraphState {
             positions,
             selected: self.selected_node,
         }
+    }
+
+    pub fn restore_layout_from_graph(&mut self, graph: &Graph) {
+        let mut layout = NodeGraphLayout::default();
+        for node in graph.nodes() {
+            if let Some(pos) = node.position {
+                layout
+                    .positions
+                    .insert(node.id, Pos2::new(pos[0], pos[1]));
+            }
+        }
+        self.restore_layout(graph, &layout);
     }
 
     pub fn restore_layout(&mut self, graph: &Graph, layout: &NodeGraphLayout) {
@@ -33,6 +46,12 @@ impl NodeGraphState {
             .selected
             .filter(|selected| graph.node(*selected).is_some());
         self.needs_wire_sync = true;
+    }
+
+    pub fn sync_graph_positions(&self, graph: &mut Graph) {
+        for (_, pos, node) in self.snarl.nodes_pos_ids() {
+            let _ = graph.set_node_position(node.core_id, [pos.x, pos.y]);
+        }
     }
 
     pub(super) fn ensure_nodes(&mut self, graph: &Graph) {

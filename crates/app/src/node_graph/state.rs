@@ -203,6 +203,8 @@ impl NodeGraphState {
             }
         }
 
+        self.sync_graph_positions(graph);
+
         if viewer_changed && !self.layout_changed {
             *eval_dirty = true;
             self.needs_wire_sync = true;

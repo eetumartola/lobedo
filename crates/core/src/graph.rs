@@ -152,6 +152,7 @@ impl Graph {
                 param_version: 0,
                 display: false,
                 template: false,
+                position: None,
             },
         );
 
@@ -175,6 +176,23 @@ impl Graph {
         }
 
         true
+    }
+
+    pub fn set_node_position(
+        &mut self,
+        node_id: NodeId,
+        position: [f32; 2],
+    ) -> Result<(), GraphError> {
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(GraphError::MissingNode(node_id))?;
+        node.position = Some(position);
+        Ok(())
+    }
+
+    pub fn node_position(&self, node_id: NodeId) -> Option<[f32; 2]> {
+        self.nodes.get(&node_id).and_then(|node| node.position)
     }
 
     pub fn add_link(&mut self, from: PinId, to: PinId) -> Result<LinkId, GraphError> {
@@ -406,6 +424,8 @@ pub struct Node {
     pub display: bool,
     #[serde(default)]
     pub template: bool,
+    #[serde(default)]
+    pub position: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

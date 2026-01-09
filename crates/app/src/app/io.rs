@@ -22,6 +22,7 @@ impl LobedoApp {
         self.project = Project::default();
         self.project_path = None;
         self.node_graph.reset();
+        self.fit_nodes_on_load = false;
         self.undo_stack.clear();
         self.pending_undo = None;
         self.eval_dirty = true;
@@ -55,7 +56,9 @@ impl LobedoApp {
         project.migrate_to_latest();
         self.project = project;
         self.project_path = Some(path.to_path_buf());
-        self.node_graph.reset();
+        self.node_graph
+            .restore_layout_from_graph(&self.project.graph);
+        self.fit_nodes_on_load = true;
         self.undo_stack.clear();
         self.pending_undo = None;
         self.eval_dirty = true;

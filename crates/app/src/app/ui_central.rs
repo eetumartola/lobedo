@@ -549,6 +549,12 @@ impl LobedoApp {
             let snapshot = self.snapshot_undo();
             self.node_graph
                 .show(ui, &mut self.project.graph, &mut self.eval_dirty);
+            if self.fit_nodes_on_load {
+                if let Some(rect) = self.last_node_graph_rect {
+                    self.node_graph.fit_to_rect(rect);
+                    self.fit_nodes_on_load = false;
+                }
+            }
             let layout_moved = self.node_graph.take_layout_changed();
             if (self.node_graph.take_changed() || layout_moved) && !*undo_pushed {
                 self.queue_undo_snapshot(snapshot, pointer_down);

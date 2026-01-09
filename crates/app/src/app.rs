@@ -70,6 +70,8 @@ pub(crate) struct LobedoApp {
     pending_undo: Option<UndoSnapshot>,
     spreadsheet_mode: SpreadsheetMode,
     spreadsheet_domain: lobedo_core::AttributeDomain,
+    fit_nodes_on_load: bool,
+    last_window_title: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,6 +116,8 @@ impl LobedoApp {
             pending_undo: None,
             spreadsheet_mode: SpreadsheetMode::Mesh,
             spreadsheet_domain: lobedo_core::AttributeDomain::Point,
+            fit_nodes_on_load: false,
+            last_window_title: String::new(),
         }
     }
 
@@ -162,6 +166,23 @@ impl LobedoApp {
         self.eval_dirty = true;
         self.last_param_change = None;
         self.info_panel = None;
+    }
+
+    fn update_window_title(&mut self, ctx: &egui::Context) {
+        let title = match self.project_path.as_ref() {
+            Some(path) => {
+                let name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "project.json".to_string());
+                format!("Lobedo - {}", name)
+            }
+            None => "Lobedo - Unsaved".to_string(),
+        };
+        if title != self.last_window_title {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.last_window_title = title;
+        }
     }
 
     fn try_undo(&mut self) {
