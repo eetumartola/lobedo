@@ -12,6 +12,7 @@ pub enum BuiltinNodeKind {
     Sphere,
     Tube,
     Curve,
+    Sweep,
     File,
     ReadSplats,
     WriteSplats,
@@ -73,6 +74,10 @@ fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh
 
 fn mesh_error_curve(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Curve outputs curve geometry, not meshes".to_string())
+}
+
+fn mesh_error_sweep(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Sweep requires curve/mesh geometry inputs".to_string())
 }
 
 fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -144,6 +149,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         default_params: nodes::curve::default_params,
         compute_mesh: mesh_error_curve,
         input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Sweep,
+        name: nodes::sweep::NAME,
+        aliases: &[],
+        definition: nodes::sweep::definition,
+        default_params: nodes::sweep::default_params,
+        compute_mesh: mesh_error_sweep,
+        input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::File,
@@ -540,6 +554,7 @@ pub fn compute_geometry_node(
             let output = nodes::curve::compute(params)?;
             Ok(Geometry::with_curve(output.points, output.closed))
         }
+        BuiltinNodeKind::Sweep => nodes::sweep::apply_to_geometry(params, inputs),
         BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
         BuiltinNodeKind::ReadSplats => {
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))

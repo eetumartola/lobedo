@@ -76,6 +76,7 @@ Status: done | in progress | not started
 - **N15**: Splat Deform (deform source splats from edited point cloud; optional new splats) (done)
 - **N16**: Erosion Noise (heightfield-style erosion noise on point height) (done)
 - **N17**: Attribute from Volume (sample volume into attribute) (done)
+- **N18**: Sweep (profile curve/polygon along a path curve to form a surface) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)
