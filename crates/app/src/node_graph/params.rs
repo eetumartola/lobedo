@@ -388,6 +388,9 @@ pub(super) fn edit_param(
                     &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane")]
                 };
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Box")
+            } else if label == "output" && node_name == "Circle" {
+                let options = &[("curve", "Curve"), ("mesh", "Mesh")];
+                combo_row_string(ui, label, &display_label, help, &mut v, options, "Curve")
             } else if label == "code" {
                 param_row_with_height_label(ui, label, &display_label, help, 120.0, |ui| {
                     ui.add_sized(
@@ -768,6 +771,16 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Circle" {
+        return match key {
+            "output" => "Output",
+            "radius" => "Radius",
+            "segments" => "Segments",
+            "center" => "Center",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Group" {
         return match key {
             "select_backface" => "Select Backfaces",
@@ -975,6 +988,7 @@ fn int_slider_range(
         "op" => 0..=3,
         "rows" | "cols" => 2..=64,
         "subdivs" => 1..=64,
+        "segments" => 3..=256,
         "iterations" => 0..=20,
         "seed" => 0..=100,
         "blur_iters" => 0..=6,

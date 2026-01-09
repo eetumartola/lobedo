@@ -11,6 +11,7 @@ pub enum BuiltinNodeKind {
     Grid,
     Sphere,
     Tube,
+    Circle,
     Curve,
     Sweep,
     File,
@@ -24,6 +25,7 @@ pub enum BuiltinNodeKind {
     SplatDeform,
     VolumeFromGeometry,
     VolumeCombine,
+    VolumeBlur,
     VolumeToMesh,
     Group,
     Transform,
@@ -74,6 +76,10 @@ fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh
 
 fn mesh_error_curve(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Curve outputs curve geometry, not meshes".to_string())
+}
+
+fn mesh_error_volume_blur(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Volume Blur requires volume input, not meshes".to_string())
 }
 
 fn mesh_error_sweep(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -139,6 +145,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::tube::definition,
         default_params: nodes::tube::default_params,
         compute_mesh: nodes::tube::compute,
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Circle,
+        name: nodes::circle::NAME,
+        aliases: &[],
+        definition: nodes::circle::definition,
+        default_params: nodes::circle::default_params,
+        compute_mesh: nodes::circle::compute,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
@@ -257,6 +272,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         default_params: nodes::volume_combine::default_params,
         compute_mesh: mesh_error_volume_combine,
         input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::VolumeBlur,
+        name: nodes::volume_blur::NAME,
+        aliases: &[],
+        definition: nodes::volume_blur::definition,
+        default_params: nodes::volume_blur::default_params,
+        compute_mesh: mesh_error_volume_blur,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::VolumeToMesh,
@@ -550,6 +574,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
         BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
         BuiltinNodeKind::Tube => Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?)),
+        BuiltinNodeKind::Circle => nodes::circle::apply_to_geometry(params),
         BuiltinNodeKind::Curve => {
             let output = nodes::curve::compute(params)?;
             Ok(Geometry::with_curve(output.points, output.closed))
@@ -570,6 +595,7 @@ pub fn compute_geometry_node(
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
         }
         BuiltinNodeKind::VolumeCombine => nodes::volume_combine::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::VolumeBlur => nodes::volume_blur::apply_to_geometry(params, inputs),
         BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),

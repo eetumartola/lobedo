@@ -208,6 +208,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\circle.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\color.rs
 Description: TODO: add description.
 Functions: None
@@ -341,6 +345,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\uv_view.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\volume_blur.rs
 Description: TODO: add description.
 Functions: None
 
