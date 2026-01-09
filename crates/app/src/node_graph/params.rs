@@ -372,6 +372,7 @@ pub(super) fn edit_param(
                         ("sphere", "Sphere"),
                         ("plane", "Plane"),
                         ("selection", "Selection"),
+                        ("attribute", "Attribute"),
                     ]
                 } else {
                     &[("box", "Box"), ("sphere", "Sphere"), ("plane", "Plane")]
@@ -760,6 +761,17 @@ fn display_label(node_name: &str, key: &str) -> String {
     if node_name == "Group" {
         return match key {
             "select_backface" => "Select Backfaces",
+            "attr_min" => "Range Min",
+            "attr_max" => "Range Max",
+            "attr" => "Attribute",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Scatter" {
+        return match key {
+            "density_attr" => "Density Attribute",
+            "inherit" => "Inherit Attributes",
             _ => key,
         }
         .to_string();

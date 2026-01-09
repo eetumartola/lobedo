@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::attributes::AttributeDomain;
+use crate::attributes::{AttributeDomain, AttributeRef};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::groups::build_group_mask;
 use crate::mesh::Mesh;
@@ -25,9 +25,12 @@ pub fn default_params() -> NodeParams {
         ParamValue::String("group1".to_string()),
     );
     values.insert("domain".to_string(), ParamValue::Int(2));
-    values.insert("base_group".to_string(), ParamValue::String(String::new())); 
-    values.insert("selection".to_string(), ParamValue::String(String::new()));  
+    values.insert("base_group".to_string(), ParamValue::String(String::new()));
+    values.insert("selection".to_string(), ParamValue::String(String::new()));
     values.insert("select_backface".to_string(), ParamValue::Bool(false));
+    values.insert("attr".to_string(), ParamValue::String(String::new()));
+    values.insert("attr_min".to_string(), ParamValue::Float(0.0));
+    values.insert("attr_max".to_string(), ParamValue::Float(1.0));
     NodeParams { values }
 }
 
@@ -60,19 +63,26 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
 
     let mut mask = if shape.eq_ignore_ascii_case("selection") {
         selection_mask(params.get_string("selection", ""), len)
+    } else if shape.eq_ignore_ascii_case("attribute") {
+        let attr = params.get_string("attr", "");
+        let min = params.get_float("attr_min", 0.0);
+        let max = params.get_float("attr_max", 1.0);
+        attribute_range_mask_mesh(mesh, domain, attr.trim(), min, max)?
     } else {
         let mut mask = Vec::with_capacity(len);
         for idx in 0..len {
             let keep = element_inside_mesh(mesh, domain, idx, params, shape);
             mask.push(keep);
         }
+        mask
+    };
+    if !shape.eq_ignore_ascii_case("selection") {
         if let Some(base) = &base_mask {
             for (dst, base_keep) in mask.iter_mut().zip(base.iter()) {
                 *dst &= *base_keep;
             }
         }
-        mask
-    };
+    }
 
     if invert {
         for value in &mut mask {
@@ -116,19 +126,26 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
 
     let mut mask = if shape.eq_ignore_ascii_case("selection") {
         selection_mask(params.get_string("selection", ""), len)
+    } else if shape.eq_ignore_ascii_case("attribute") {
+        let attr = params.get_string("attr", "");
+        let min = params.get_float("attr_min", 0.0);
+        let max = params.get_float("attr_max", 1.0);
+        attribute_range_mask_splats(splats, domain, attr.trim(), min, max)?
     } else {
         let mut mask = Vec::with_capacity(len);
         for position in &splats.positions {
             let keep = crate::nodes::delete::is_inside(params, shape, Vec3::from(*position));
             mask.push(keep);
         }
+        mask
+    };
+    if !shape.eq_ignore_ascii_case("selection") {
         if let Some(base) = &base_mask {
             for (dst, base_keep) in mask.iter_mut().zip(base.iter()) {
                 *dst &= *base_keep;
             }
         }
-        mask
-    };
+    }
 
     if invert {
         for value in &mut mask {
@@ -202,6 +219,67 @@ fn selection_mask(selection: &str, len: usize) -> Vec<bool> {
         }
     }
     mask
+}
+
+fn attribute_range_mask_mesh(
+    mesh: &Mesh,
+    domain: AttributeDomain,
+    attr: &str,
+    min: f32,
+    max: f32,
+) -> Result<Vec<bool>, String> {
+    if attr.is_empty() {
+        return Err("Group attribute selection requires an attribute name".to_string());
+    }
+    let Some(values) = mesh.attribute(domain, attr) else {
+        return Err(format!("Group attribute selection missing attribute '{attr}'"));
+    };
+    let len = mesh.attribute_domain_len(domain);
+    Ok((0..len)
+        .map(|idx| {
+            attribute_value(values, idx)
+                .map(|value| value >= min && value <= max)
+                .unwrap_or(false)
+        })
+        .collect())
+}
+
+fn attribute_range_mask_splats(
+    splats: &SplatGeo,
+    domain: AttributeDomain,
+    attr: &str,
+    min: f32,
+    max: f32,
+) -> Result<Vec<bool>, String> {
+    if attr.is_empty() {
+        return Err("Group attribute selection requires an attribute name".to_string());
+    }
+    let Some(values) = splats.attribute(domain, attr) else {
+        return Err(format!("Group attribute selection missing attribute '{attr}'"));
+    };
+    let len = splats.attribute_domain_len(domain);
+    Ok((0..len)
+        .map(|idx| {
+            attribute_value(values, idx)
+                .map(|value| value >= min && value <= max)
+                .unwrap_or(false)
+        })
+        .collect())
+}
+
+fn attribute_value(values: AttributeRef<'_>, index: usize) -> Option<f32> {
+    match values {
+        AttributeRef::Float(list) => list.get(index).copied(),
+        AttributeRef::Int(list) => list.get(index).copied().map(|v| v as f32),
+        AttributeRef::Vec2(list) => list
+            .get(index)
+            .map(|v| Vec3::new(v[0], v[1], 0.0).length()),
+        AttributeRef::Vec3(list) => list.get(index).map(|v| Vec3::from(*v).length()),
+        AttributeRef::Vec4(list) => list
+            .get(index)
+            .map(|v| Vec3::new(v[0], v[1], v[2]).length()),
+        AttributeRef::StringTable(_) => None,
+    }
 }
 
 #[cfg(test)]
