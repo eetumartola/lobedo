@@ -19,7 +19,10 @@ impl NodeGraphState {
             return false;
         };
 
-        let title = format!("{} ({})", node.name, node.category);
+        let node_name = node.name.clone();
+        let node_category = node.category.clone();
+        let param_values = node.params.values.clone();
+        let title = format!("{} ({})", node_name, node_category);
         let response = ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
         if response.hovered() {
             if let Some(help) = node_help(&node.name) {
@@ -28,39 +31,100 @@ impl NodeGraphState {
         }
         ui.separator();
 
-        let params: Vec<(String, ParamValue)> = node
-            .params
-            .values
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect();
-        let node_name = node.name.clone();
-        let shape = node
-            .params
-            .values
-            .get("shape")
-            .and_then(|value| match value {
-                ParamValue::String(value) => Some(value.to_lowercase()),
-                _ => None,
-            });
+        let mut param_keys: Vec<String> = param_values.keys().cloned().collect();
+        param_keys.sort_by(|a, b| {
+            let priority = |key: &str| match key {
+                "group" => 0,
+                "group_type" => 1,
+                _ => 2,
+            };
+            let pa = priority(a);
+            let pb = priority(b);
+            pa.cmp(&pb).then_with(|| a.cmp(b))
+        });
+        let shape = param_values.get("shape").and_then(|value| match value {
+            ParamValue::String(value) => Some(value.to_lowercase()),
+            _ => None,
+        });
+        let color_mode = if node_name == "Color" {
+            Some(
+                param_values
+                    .get("color_mode")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
+        let ray_method = if node_name == "Ray" {
+            Some(
+                param_values
+                    .get("method")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 2),
+            )
+        } else {
+            None
+        };
+        let volume_from_mode = if node_name == "Volume from Geometry" {
+            Some(
+                param_values
+                    .get("mode")
+                    .and_then(|value| match value {
+                        ParamValue::String(value) => Some(value.to_lowercase()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "density".to_string()),
+            )
+        } else {
+            None
+        };
         let splat_to_mesh_method = if node_name == "Splat to Mesh" {
-            Some(node.params.get_int("algorithm", 0).clamp(0, 1))
+            Some(
+                param_values
+                    .get("algorithm")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
         } else {
             None
         };
         let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
-            Some(node.params.get_string("mode", "density").to_lowercase())
+            Some(
+                param_values
+                    .get("mode")
+                    .and_then(|value| match value {
+                        ParamValue::String(value) => Some(value.to_lowercase()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "density".to_string()),
+            )
         } else {
             None
         };
 
-        if params.is_empty() {
+        if param_keys.is_empty() {
             ui.label("No parameters.");
             return false;
         }
 
         let mut changed = false;
-        for (key, value) in params {
+        for key in param_keys {
+            let Some(value) = param_values.get(&key).cloned() else {
+                continue;
+            };
             if matches!(node_name.as_str(), "Group" | "Delete") {
                 if key == "selection" {
                     continue;
@@ -80,6 +144,16 @@ impl NodeGraphState {
             if node_name == "Volume from Geometry" && key == "voxel_size" {
                 continue;
             }
+            if node_name == "Volume from Geometry" {
+                if let Some(mode) = volume_from_mode.as_deref() {
+                    let is_density = !mode.contains("sdf");
+                    match (is_density, key.as_str()) {
+                        (true, "sdf_band") => continue,
+                        (false, "density_scale") => continue,
+                        _ => {}
+                    }
+                }
+            }
             if node_name == "Splat to Mesh" {
                 if let Some(method) = splat_to_mesh_method {
                     match (method, key.as_str()) {
@@ -96,6 +170,22 @@ impl NodeGraphState {
                         (true, "surface_iso") => continue,
                         (false, "density_iso") => continue,
                         _ => {}
+                    }
+                }
+            }
+            if node_name == "Color" {
+                if let Some(mode) = color_mode {
+                    match (mode, key.as_str()) {
+                        (0, "attr") | (0, "gradient") => continue,
+                        (1, "color") => continue,
+                        _ => {}
+                    }
+                }
+            }
+            if node_name == "Ray" {
+                if let Some(method) = ray_method {
+                    if method != 1 && key == "direction" {
+                        continue;
                     }
                 }
             }

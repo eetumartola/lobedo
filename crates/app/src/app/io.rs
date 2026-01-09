@@ -16,6 +16,8 @@ use crate::node_graph::WriteRequest;
 use crate::node_graph::WriteRequestKind;
 
 const DEFAULT_GRAPH_PATH: &str = "graphs/default.json";
+const DEFAULT_GRAPH_JSON: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../graphs/default.json"));
 
 impl LobedoApp {
     pub(super) fn new_project(&mut self) {
@@ -51,21 +53,7 @@ impl LobedoApp {
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn load_project_from(&mut self, path: &Path) -> io::Result<()> {
         let data = std::fs::read(path)?;
-        let mut project: Project = serde_json::from_slice(&data)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        project.migrate_to_latest();
-        self.project = project;
-        self.project_path = Some(path.to_path_buf());
-        self.node_graph
-            .restore_layout_from_graph(&self.project.graph);
-        self.fit_nodes_on_load = true;
-        self.undo_stack.clear();
-        self.pending_undo = None;
-        self.eval_dirty = true;
-        self.pending_scene = None;
-        self.last_scene = None;
-        self.last_selection_key = None;
-        Ok(())
+        self.load_project_from_bytes(&data, Some(path.to_path_buf()))
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -79,20 +67,30 @@ impl LobedoApp {
 
     pub(crate) fn try_load_default_graph(&mut self) {
         if cfg!(target_arch = "wasm32") {
-            return;
-        }
-        let path = Path::new(DEFAULT_GRAPH_PATH);
-        if !path.exists() {
+            if let Err(err) = self.load_project_from_bytes(DEFAULT_GRAPH_JSON.as_bytes(), None) {
+                tracing::error!("failed to load compiled default graph: {}", err);
+            } else {
+                tracing::info!("compiled default graph loaded");
+            }
             return;
         }
 
-        match self.load_project_from(path) {
-            Ok(()) => {
-                tracing::info!("default graph loaded");
+        let path = Path::new(DEFAULT_GRAPH_PATH);
+        if path.exists() {
+            match self.load_project_from(path) {
+                Ok(()) => {
+                    tracing::info!("default graph loaded");
+                }
+                Err(err) => {
+                    tracing::error!("failed to load default graph: {}", err);
+                }
             }
-            Err(err) => {
-                tracing::error!("failed to load default graph: {}", err);
-            }
+            return;
+        }
+
+        match self.load_project_from_bytes(DEFAULT_GRAPH_JSON.as_bytes(), None) {
+            Ok(()) => tracing::info!("compiled default graph loaded"),
+            Err(err) => tracing::error!("failed to load compiled default graph: {}", err),
         }
     }
 
@@ -190,5 +188,27 @@ impl LobedoApp {
                 }
             }
         }
+    }
+
+    fn load_project_from_bytes(
+        &mut self,
+        data: &[u8],
+        path: Option<std::path::PathBuf>,
+    ) -> io::Result<()> {
+        let mut project: Project = serde_json::from_slice(data)
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        project.migrate_to_latest();
+        self.project = project;
+        self.project_path = path;
+        self.node_graph
+            .restore_layout_from_graph(&self.project.graph);
+        self.fit_nodes_on_load = true;
+        self.undo_stack.clear();
+        self.pending_undo = None;
+        self.eval_dirty = true;
+        self.pending_scene = None;
+        self.last_scene = None;
+        self.last_selection_key = None;
+        Ok(())
     }
 }

@@ -13,6 +13,9 @@ use crate::splat::SplatGeo;
 pub const NAME: &str = "Splat Deform";
 const MIN_NEIGHBORS: usize = 3;
 const MAX_NEIGHBORS: usize = 16;
+const STRETCH_THRESHOLD: f32 = 1.5;
+const MAX_NEW_PER_EDGE: usize = 2;
+const RATIO_CLAMP_MULT: f32 = 2.0;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -130,22 +133,33 @@ fn deform_pair(
     allow_new: bool,
     derive_rot_scale: bool,
 ) -> SplatGeo {
-    let mut out = deform_splats(source, target_positions, allow_new);
+    let neighbors = build_neighbors(&source.positions);
+    let densified_targets = if allow_new {
+        densify_targets(&source.positions, target_positions, &neighbors)
+    } else {
+        target_positions.to_vec()
+    };
+    let (mut out, mapping) = deform_splats_with_mapping(source, &densified_targets, allow_new);
     if derive_rot_scale {
-        apply_local_deform(source, target_positions, &mut out);
+        let linears = derive_linear_map(&source.positions, target_positions, &neighbors);
+        apply_local_deform_with_mapping(source, &linears, &mapping, &mut out);
     }
     out
 }
 
-fn deform_splats(source: &SplatGeo, target_positions: &[[f32; 3]], allow_new: bool) -> SplatGeo {
+fn deform_splats_with_mapping(
+    source: &SplatGeo,
+    target_positions: &[[f32; 3]],
+    allow_new: bool,
+) -> (SplatGeo, Vec<usize>) {
     if source.is_empty() {
-        return source.clone();
+        return (source.clone(), Vec::new());
     }
     if target_positions.is_empty() {
         if allow_new {
-            return source.filter_by_indices(&[]);
+            return (source.filter_by_indices(&[]), Vec::new());
         }
-        return source.clone();
+        return (source.clone(), (0..source.len()).collect());
     }
 
     if allow_new {
@@ -168,33 +182,50 @@ fn deform_splats(source: &SplatGeo, target_positions: &[[f32; 3]], allow_new: bo
                 *slot = *pos;
             }
         }
-        return out;
+        return (out, mapping);
     }
 
     let mut out = source.clone();
     let min_len = source.len().min(target_positions.len());
     out.positions[..min_len].copy_from_slice(&target_positions[..min_len]);
-    out
+    let mapping: Vec<usize> = (0..source.len()).collect();
+    (out, mapping)
 }
 
-fn apply_local_deform(source: &SplatGeo, target_positions: &[[f32; 3]], output: &mut SplatGeo) {
-    if source.is_empty() || target_positions.is_empty() {
+fn derive_linear_map(
+    source_positions: &[[f32; 3]],
+    target_positions: &[[f32; 3]],
+    neighbors: &[Vec<usize>],
+) -> Vec<Option<LinearEstimate>> {
+    if source_positions.is_empty() || target_positions.is_empty() {
+        return Vec::new();
+    }
+    let limit = source_positions.len().min(target_positions.len());
+    let mut linears = vec![None; source_positions.len()];
+    for (idx, slot) in linears.iter_mut().enumerate().take(limit) {
+        *slot = derive_linear(idx, source_positions, target_positions, neighbors);
+    }
+    linears
+}
+
+fn apply_local_deform_with_mapping(
+    source: &SplatGeo,
+    linears: &[Option<LinearEstimate>],
+    mapping: &[usize],
+    output: &mut SplatGeo,
+) {
+    if output.is_empty() || mapping.is_empty() {
         return;
     }
-    let neighbors = build_neighbors(&source.positions);
-    if neighbors.is_empty() {
-        return;
-    }
-    let limit = source
-        .len()
-        .min(target_positions.len())
-        .min(output.len());
-    for idx in 0..limit {
-        if let Some(linear) =
-            derive_linear(idx, &source.positions, target_positions, &neighbors)
-        {
-            output.apply_linear_deform(idx, linear);
+    for (out_idx, &src_idx) in mapping.iter().enumerate() {
+        let Some(estimate) = linears.get(src_idx).and_then(|linear| linear.as_ref()) else {
+            continue;
+        };
+        if out_idx >= output.len() {
+            break;
         }
+        output.apply_linear_deform(out_idx, estimate.linear);
+        clamp_output_scales(output, out_idx, source, src_idx, estimate.max_ratio);
     }
 }
 
@@ -277,12 +308,18 @@ fn positions_bounds(positions: &[[f32; 3]]) -> (Vec3, Vec3) {
     (min, max)
 }
 
+#[derive(Clone, Copy)]
+struct LinearEstimate {
+    linear: Mat3,
+    max_ratio: f32,
+}
+
 fn derive_linear(
     idx: usize,
     source_positions: &[[f32; 3]],
     target_positions: &[[f32; 3]],
     neighbors: &[Vec<usize>],
-) -> Option<Mat3> {
+) -> Option<LinearEstimate> {
     if idx >= source_positions.len() || idx >= target_positions.len() {
         return None;
     }
@@ -296,37 +333,48 @@ fn derive_linear(
     let mut ms = [[0.0f32; 3]; 3];
     let mut mt = [[0.0f32; 3]; 3];
     let mut used = 0usize;
+    let mut ratio_sum = 0.0f32;
+    let mut ratio_max = 0.0f32;
+    let mut ratio_weight = 0.0f32;
 
     for &other in neigh {
         if other >= source_positions.len() || other >= target_positions.len() {
             continue;
         }
         let s = Vec3::from(source_positions[other]) - src_center;
-        if s.length_squared() < 1.0e-8 {
+        let s_len_sq = s.length_squared();
+        if s_len_sq < 1.0e-8 {
             continue;
         }
         let t = Vec3::from(target_positions[other]) - tgt_center;
         used += 1;
+        let weight = 1.0 / (s_len_sq + 1.0e-6);
+        let ratio = t.length() / s_len_sq.sqrt();
+        if ratio.is_finite() {
+            ratio_sum += ratio * weight;
+            ratio_weight += weight;
+            ratio_max = ratio_max.max(ratio);
+        }
 
-        ms[0][0] += s.x * s.x;
-        ms[0][1] += s.x * s.y;
-        ms[0][2] += s.x * s.z;
-        ms[1][0] += s.y * s.x;
-        ms[1][1] += s.y * s.y;
-        ms[1][2] += s.y * s.z;
-        ms[2][0] += s.z * s.x;
-        ms[2][1] += s.z * s.y;
-        ms[2][2] += s.z * s.z;
+        ms[0][0] += s.x * s.x * weight;
+        ms[0][1] += s.x * s.y * weight;
+        ms[0][2] += s.x * s.z * weight;
+        ms[1][0] += s.y * s.x * weight;
+        ms[1][1] += s.y * s.y * weight;
+        ms[1][2] += s.y * s.z * weight;
+        ms[2][0] += s.z * s.x * weight;
+        ms[2][1] += s.z * s.y * weight;
+        ms[2][2] += s.z * s.z * weight;
 
-        mt[0][0] += t.x * s.x;
-        mt[0][1] += t.x * s.y;
-        mt[0][2] += t.x * s.z;
-        mt[1][0] += t.y * s.x;
-        mt[1][1] += t.y * s.y;
-        mt[1][2] += t.y * s.z;
-        mt[2][0] += t.z * s.x;
-        mt[2][1] += t.z * s.y;
-        mt[2][2] += t.z * s.z;
+        mt[0][0] += t.x * s.x * weight;
+        mt[0][1] += t.x * s.y * weight;
+        mt[0][2] += t.x * s.z * weight;
+        mt[1][0] += t.y * s.x * weight;
+        mt[1][1] += t.y * s.y * weight;
+        mt[1][2] += t.y * s.z * weight;
+        mt[2][0] += t.z * s.x * weight;
+        mt[2][1] += t.z * s.y * weight;
+        mt[2][2] += t.z * s.z * weight;
     }
 
     if used < MIN_NEIGHBORS {
@@ -353,7 +401,17 @@ fn derive_linear(
     if !mat3_is_finite(linear) {
         return None;
     }
-    Some(linear)
+    if ratio_weight > 0.0 {
+        let avg = (ratio_sum / ratio_weight).max(0.0);
+        if avg.is_finite() && avg > 0.0 {
+            let limit = (avg * RATIO_CLAMP_MULT).max(avg);
+            ratio_max = ratio_max.min(limit);
+        }
+    }
+    Some(LinearEstimate {
+        linear,
+        max_ratio: ratio_max.max(1.0e-6),
+    })
 }
 
 fn mat3_is_finite(mat: Mat3) -> bool {
@@ -379,6 +437,90 @@ fn find_nearest_index(target: [f32; 3], positions: &[[f32; 3]]) -> usize {
     best
 }
 
+fn clamp_output_scales(
+    output: &mut SplatGeo,
+    out_idx: usize,
+    source: &SplatGeo,
+    src_idx: usize,
+    max_ratio: f32,
+) {
+    if out_idx >= output.scales.len() || src_idx >= source.scales.len() {
+        return;
+    }
+    if !max_ratio.is_finite() || max_ratio <= 0.0 {
+        return;
+    }
+    let source_scale = Vec3::from(source.scales[src_idx]);
+    let src_sigma = Vec3::new(
+        source_scale.x.exp(),
+        source_scale.y.exp(),
+        source_scale.z.exp(),
+    );
+    let max_sigma = Vec3::new(
+        src_sigma.x * max_ratio,
+        src_sigma.y * max_ratio,
+        src_sigma.z * max_ratio,
+    );
+    let mut log_scale = Vec3::from(output.scales[out_idx]);
+    let mut sigma = Vec3::new(
+        log_scale.x.exp(),
+        log_scale.y.exp(),
+        log_scale.z.exp(),
+    );
+    sigma = Vec3::new(
+        sigma.x.min(max_sigma.x),
+        sigma.y.min(max_sigma.y),
+        sigma.z.min(max_sigma.z),
+    );
+    log_scale = Vec3::new(sigma.x.ln(), sigma.y.ln(), sigma.z.ln());
+    output.scales[out_idx] = [log_scale.x, log_scale.y, log_scale.z];
+}
+
+fn densify_targets(
+    source_positions: &[[f32; 3]],
+    target_positions: &[[f32; 3]],
+    neighbors: &[Vec<usize>],
+) -> Vec<[f32; 3]> {
+    let mut out = target_positions.to_vec();
+    let limit = source_positions
+        .len()
+        .min(target_positions.len())
+        .min(neighbors.len());
+    if limit < 2 {
+        return out;
+    }
+    for i in 0..limit {
+        let src_i = Vec3::from(source_positions[i]);
+        let tgt_i = Vec3::from(target_positions[i]);
+        for &j in neighbors[i].iter() {
+            if j <= i || j >= limit {
+                continue;
+            }
+            let src_j = Vec3::from(source_positions[j]);
+            let tgt_j = Vec3::from(target_positions[j]);
+            let src_dist = src_i.distance(src_j);
+            if src_dist <= 1.0e-6 {
+                continue;
+            }
+            let tgt_dist = tgt_i.distance(tgt_j);
+            let max_len = src_dist * STRETCH_THRESHOLD;
+            if tgt_dist <= max_len {
+                continue;
+            }
+            let segments = (tgt_dist / max_len).ceil().max(1.0) as usize;
+            let new_count = segments.saturating_sub(1).min(MAX_NEW_PER_EDGE);
+            if new_count == 0 {
+                continue;
+            }
+            for n in 0..new_count {
+                let t = (n + 1) as f32 / (new_count + 1) as f32;
+                out.push(tgt_i.lerp(tgt_j, t).to_array());
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -393,7 +535,7 @@ mod tests {
         source.opacity[1] = 2.0;
 
         let target = vec![[2.0, 0.0, 0.0]];
-        let out = deform_splats(&source, &target, false);
+        let out = deform_splats_with_mapping(&source, &target, false).0;
         assert_eq!(out.len(), 2);
         assert_eq!(out.positions[0], [2.0, 0.0, 0.0]);
         assert_eq!(out.positions[1], [1.0, 1.0, 1.0]);
@@ -413,7 +555,7 @@ mod tests {
             [10.0, 0.0, 0.0],
             [9.0, 0.0, 0.0],
         ];
-        let out = deform_splats(&source, &target, true);
+        let out = deform_splats_with_mapping(&source, &target, true).0;
         assert_eq!(out.len(), 3);
         assert_eq!(out.positions, target);
         assert!((out.opacity[2] - 1.5).abs() < 1.0e-6);
@@ -427,7 +569,7 @@ mod tests {
         source.positions[2] = [2.0, 0.0, 0.0];
 
         let target = vec![[5.0, 0.0, 0.0]];
-        let out = deform_splats(&source, &target, true);
+        let out = deform_splats_with_mapping(&source, &target, true).0;
         assert_eq!(out.len(), 1);
         assert_eq!(out.positions[0], [5.0, 0.0, 0.0]);
     }
@@ -447,8 +589,9 @@ mod tests {
             [0.0, 0.0, 4.0],
         ];
         let neighbors = build_neighbors(&source);
-        let linear = derive_linear(0, &source, &target, &neighbors).expect("linear");
-        let cols = linear.to_cols_array();
+        let estimate =
+            derive_linear(0, &source, &target, &neighbors).expect("linear");
+        let cols = estimate.linear.to_cols_array();
         assert!((cols[0] - 2.0).abs() < 1.0e-3);
         assert!((cols[4] - 3.0).abs() < 1.0e-3);
         assert!((cols[8] - 4.0).abs() < 1.0e-3);
