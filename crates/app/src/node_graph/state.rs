@@ -34,6 +34,7 @@ pub struct NodeGraphState {
     pub(super) pending_wire: Option<PendingWire>,
     pub(super) info_request: Option<NodeInfoRequest>,
     pub(super) wrangle_help_request: Option<Pos2>,
+    pub(super) help_page_node: Option<String>,
     pub(super) graph_transform: GraphTransformState,
     pub(super) pending_transform: Option<egui::emath::TSTransform>,
     pub(super) input_pin_positions: Rc<RefCell<HashMap<InPinId, Pos2>>>,
@@ -96,6 +97,7 @@ impl Default for NodeGraphState {
             pending_wire: None,
             info_request: None,
             wrangle_help_request: None,
+            help_page_node: None,
             graph_transform: GraphTransformState {
                 to_global: egui::emath::TSTransform::IDENTITY,
                 valid: false,

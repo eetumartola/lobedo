@@ -2,12 +2,20 @@ use egui::Ui;
 
 use lobedo_core::{Graph, ParamValue};
 
-use super::help::{node_help, show_help_tooltip};
+use super::help::{node_help, show_help_page_window, show_help_tooltip};
 use super::params::edit_param;
 use super::state::{NodeGraphState, WriteRequest, WriteRequestKind};
 
 impl NodeGraphState {
     pub fn show_inspector(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
+        if let Some(help_name) = self.help_page_node.clone() {
+            let mut open = true;
+            show_help_page_window(ui.ctx(), &help_name, &mut open);
+            if !open {
+                self.help_page_node = None;
+            }
+        }
+
         let Some(node_id) = self.selected_node else {
             ui.label("No selection.");
             return false;
@@ -23,11 +31,28 @@ impl NodeGraphState {
         let node_category = node.category.clone();
         let param_values = node.params.values.clone();
         let title = format!("{} ({})", node_name, node_category);
-        let response = ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
-        if response.hovered() {
-            if let Some(help) = node_help(&node.name) {
-                show_help_tooltip(ui.ctx(), response.rect, help);
+        let mut help_requested = false;
+        ui.horizontal(|ui| {
+            let response =
+                ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
+            if response.hovered() {
+                if let Some(help) = node_help(&node.name) {
+                    show_help_tooltip(ui.ctx(), response.rect, help);
+                }
             }
+            let available = ui.available_width();
+            ui.allocate_ui_with_layout(
+                available,
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    if ui.button("Help").clicked() {
+                        help_requested = true;
+                    }
+                },
+            );
+        });
+        if help_requested {
+            self.help_page_node = Some(node.name.clone());
         }
         ui.separator();
 

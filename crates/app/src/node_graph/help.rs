@@ -1,6 +1,12 @@
 use std::borrow::Cow;
 
-use egui::{Color32, Context, FontId, Frame, Id, Margin, Order, Pos2, Rect, Vec2};
+use egui::{
+    Color32, Context, FontId, Frame, Id, Margin, Order, Pos2, Rect, RichText,
+    ScrollArea, Vec2,
+};
+
+mod help_pages;
+pub use help_pages::{node_help_page, NodeHelpPage};
 
 pub fn node_help(node_name: &str) -> Option<&'static str> {
     match node_name {
@@ -56,7 +62,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
     }
 }
 
-pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
+pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {  
     let help = match (node_name, param) {
         ("Box", "size") => Some("Box dimensions in X/Y/Z."),
         ("Box", "center") => Some("Box center in world space."),
@@ -316,6 +322,85 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
     };
     help.map(Cow::Borrowed)
         .or_else(|| Some(Cow::Owned(format!("{} parameter.", param))))
+}
+
+pub fn show_help_page_window(ctx: &Context, node_name: &str, open: &mut bool) {
+    let Some(page) = node_help_page(node_name) else {
+        return;
+    };
+
+    egui::Window::new(format!("Help - {}", page.name))
+        .open(open)
+        .collapsible(false)
+        .resizable(true)
+        .min_width(420.0)
+        .show(ctx, |ui| {
+            ui.heading(page.name);
+            ui.add_space(4.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            show_text_section(ui, "Description", page.description);
+            show_list_section(ui, "Inputs", page.inputs);
+            show_list_section(ui, "Outputs", page.outputs);
+            show_param_section(ui, "Parameters", page.parameters);
+        });
+}
+
+fn show_section_title(ui: &mut egui::Ui, title: &str) {
+    ui.label(RichText::new(title).strong());
+}
+
+fn show_text_section(ui: &mut egui::Ui, title: &str, lines: &[&str]) {
+    show_section_title(ui, title);
+    ui.add_space(4.0);
+    let mut has_any = false;
+    for line in lines {
+        has_any = true;
+        ui.label(*line);
+        ui.add_space(4.0);
+    }
+    if !has_any {
+        ui.label("None.");
+        ui.add_space(4.0);
+    }
+    ui.add_space(6.0);
+}
+
+fn show_list_section(ui: &mut egui::Ui, title: &str, items: &[&str]) {
+    show_section_title(ui, title);
+    ui.add_space(4.0);
+    if items.is_empty() {
+        ui.label("None.");
+        ui.add_space(4.0);
+    } else {
+        for item in items {
+            ui.label(format!("• {}", item));
+        }
+        ui.add_space(4.0);
+    }
+    ui.add_space(6.0);
+}
+
+fn show_param_section(ui: &mut egui::Ui, title: &str, params: &[(&str, &str)]) {
+    show_section_title(ui, title);
+    ui.add_space(4.0);
+    if params.is_empty() {
+        ui.label("None.");
+        ui.add_space(4.0);
+    } else {
+        ScrollArea::vertical()
+            .max_height(240.0)
+            .show(ui, |ui| {
+                for (name, desc) in params {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(*name).strong());
+                        ui.label(*desc);
+                    });
+                    ui.add_space(2.0);
+                }
+            });
+    }
 }
 
 fn common_param_help(param: &str) -> Option<&'static str> {
