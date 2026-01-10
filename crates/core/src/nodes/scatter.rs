@@ -132,6 +132,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     Ok(Geometry::default())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scatter_points(
     input: &Mesh,
     count: usize,
@@ -253,6 +254,7 @@ fn scatter_points(
     Ok(mesh)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scatter_curves(
     mesh: &Mesh,
     curves: &[Curve],

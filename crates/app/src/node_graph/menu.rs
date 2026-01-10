@@ -98,7 +98,8 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         | BuiltinNodeKind::SplatLod
         | BuiltinNodeKind::SplatToMesh
         | BuiltinNodeKind::SplatDeform
-        | BuiltinNodeKind::SplatDelight => Some("Splat"),
+        | BuiltinNodeKind::SplatDelight
+        | BuiltinNodeKind::SplatIntegrate => Some("Splat"),
         BuiltinNodeKind::AttributeNoise
         | BuiltinNodeKind::ErosionNoise
         | BuiltinNodeKind::AttributeFromFeature

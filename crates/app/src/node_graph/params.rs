@@ -268,7 +268,17 @@ pub(super) fn edit_param(
                     ],
                     "SH Ratio",
                 )
-            } else if label == "source_env" {
+            } else if label == "relight_mode" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "SH Ratio"), (1, "Diffuse"), (2, "Hybrid")],
+                    "Hybrid",
+                )
+            } else if label == "source_env" || label == "target_env" {
                 combo_row_i32(
                     ui,
                     label,
@@ -287,6 +297,16 @@ pub(super) fn edit_param(
                     &mut v,
                     &[(0, "Uniform White"), (1, "Custom")],
                     "Uniform White",
+                )
+            } else if label == "high_band_mode" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Scale Only"), (1, "Scale + Ratio")],
+                    "Scale Only",
                 )
             } else if label == "output_sh_order" {
                 combo_row_i32(
@@ -984,6 +1004,24 @@ fn display_label(node_name: &str, key: &str) -> String {
             "ratio_min" => "Ratio Min",
             "ratio_max" => "Ratio Max",
             "high_band_gain" => "High Band Gain",
+            "output_sh_order" => "Output SH Order",
+            "albedo_max" => "Albedo Max",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Splat Integrate" {
+        return match key {
+            "relight_mode" => "Mode",
+            "source_env" => "Source Env",
+            "target_env" => "Target Env",
+            "source_color" => "Source Color",
+            "target_color" => "Target Color",
+            "eps" => "Epsilon",
+            "ratio_min" => "Ratio Min",
+            "ratio_max" => "Ratio Max",
+            "high_band_gain" => "High Band Gain",
+            "high_band_mode" => "High Band Mode",
             "output_sh_order" => "Output SH Order",
             "albedo_max" => "Albedo Max",
             _ => key,

@@ -24,6 +24,7 @@ pub enum BuiltinNodeKind {
     SplatToMesh,
     SplatDeform,
     SplatDelight,
+    SplatIntegrate,
     VolumeFromGeometry,
     VolumeCombine,
     VolumeBlur,
@@ -263,6 +264,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_delight::definition,
         default_params: nodes::splat_delight::default_params,
         compute_mesh: nodes::splat_delight::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatIntegrate,
+        name: nodes::splat_integrate::NAME,
+        aliases: &[],
+        definition: nodes::splat_integrate::definition,
+        default_params: nodes::splat_integrate::default_params,
+        compute_mesh: nodes::splat_integrate::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -602,6 +612,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDelight => apply_splat_delight(params, inputs),
+        BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::apply_to_geometry(params, inputs),
         BuiltinNodeKind::VolumeFromGeometry => {
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
         }

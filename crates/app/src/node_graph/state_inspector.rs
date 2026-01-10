@@ -129,7 +129,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_delight_neutral_env = if node_name == "Splat Delight" {
+        let splat_delight_neutral_env = if node_name == "Splat Delight" {       
             Some(
                 param_values
                     .get("neutral_env")
@@ -139,6 +139,48 @@ impl NodeGraphState {
                     })
                     .unwrap_or(0)
                     .clamp(0, 1),
+            )
+        } else {
+            None
+        };
+        let splat_integrate_mode = if node_name == "Splat Integrate" {
+            Some(
+                param_values
+                    .get("relight_mode")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(2)
+                    .clamp(0, 2),
+            )
+        } else {
+            None
+        };
+        let splat_integrate_source_env = if node_name == "Splat Integrate" {
+            Some(
+                param_values
+                    .get("source_env")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 2),
+            )
+        } else {
+            None
+        };
+        let splat_integrate_target_env = if node_name == "Splat Integrate" {
+            Some(
+                param_values
+                    .get("target_env")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 2),
             )
         } else {
             None
@@ -258,6 +300,31 @@ impl NodeGraphState {
                 }
                 if let Some(neutral_env) = splat_delight_neutral_env {
                     if neutral_env != 1 && key == "neutral_color" {
+                        continue;
+                    }
+                }
+            }
+            if node_name == "Splat Integrate" {
+                if let Some(mode) = splat_integrate_mode {
+                    match (mode, key.as_str()) {
+                        (0, "albedo_max") | (0, "high_band_mode") => continue,
+                        (1, "source_env")
+                        | (1, "source_color")
+                        | (1, "eps")
+                        | (1, "ratio_min")
+                        | (1, "ratio_max")
+                        | (1, "high_band_gain")
+                        | (1, "high_band_mode") => continue,
+                        _ => {}
+                    }
+                }
+                if let Some(source_env) = splat_integrate_source_env {
+                    if source_env != 2 && key == "source_color" {
+                        continue;
+                    }
+                }
+                if let Some(target_env) = splat_integrate_target_env {
+                    if target_env != 2 && key == "target_color" {
                         continue;
                     }
                 }

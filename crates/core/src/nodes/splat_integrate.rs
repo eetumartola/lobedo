@@ -3,12 +3,13 @@ use std::collections::BTreeMap;
 use glam::{Quat, Vec3};
 
 use crate::attributes::{AttributeDomain, AttributeRef};
+use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
 use crate::splat::SplatGeo;
 
-pub const NAME: &str = "Splat Delight";
+pub const NAME: &str = "Splat Integrate";
 
 #[allow(clippy::excessive_precision)]
 const SH_C0: f32 = 0.28209479177387814;
@@ -28,7 +29,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("splats")],
+        inputs: vec![geometry_in("source"), geometry_in("target")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -38,21 +39,22 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
-            ("delight_mode".to_string(), ParamValue::Int(1)),
+            ("relight_mode".to_string(), ParamValue::Int(2)),
             ("source_env".to_string(), ParamValue::Int(0)),
-            ("neutral_env".to_string(), ParamValue::Int(0)),
+            ("target_env".to_string(), ParamValue::Int(0)),
             (
                 "source_color".to_string(),
                 ParamValue::Vec3([1.0, 1.0, 1.0]),
             ),
             (
-                "neutral_color".to_string(),
+                "target_color".to_string(),
                 ParamValue::Vec3([1.0, 1.0, 1.0]),
             ),
             ("eps".to_string(), ParamValue::Float(1.0e-3)),
             ("ratio_min".to_string(), ParamValue::Float(0.25)),
             ("ratio_max".to_string(), ParamValue::Float(4.0)),
-            ("high_band_gain".to_string(), ParamValue::Float(0.25)),
+            ("high_band_gain".to_string(), ParamValue::Float(0.4)),
+            ("high_band_mode".to_string(), ParamValue::Int(0)),
             ("output_sh_order".to_string(), ParamValue::Int(3)),
             ("albedo_max".to_string(), ParamValue::Float(2.0)),
         ]),
@@ -60,56 +62,79 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
-    let input = require_mesh_input(inputs, 0, "Splat Delight requires a mesh input")?;
+    let input = require_mesh_input(inputs, 0, "Splat Integrate requires a mesh input")?;
     Ok(input)
 }
 
-pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(source) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+    let target = inputs.get(1);
+    let target_splats = target.and_then(|geo| geo.merged_splats());
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = source.merged_mesh() {
+        meshes.push(mesh);
+    }
+
+    let mut splats = Vec::with_capacity(source.splats.len());
+    for splat in &source.splats {
+        splats.push(apply_to_splats(params, splat, target_splats.as_ref()));
+    }
+
+    let curves = if meshes.is_empty() { Vec::new() } else { source.curves.clone() };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: source.volumes.clone(),
+        materials: source.materials.clone(),
+    })
+}
+
+fn apply_to_splats(
+    params: &NodeParams,
+    splats: &SplatGeo,
+    target: Option<&SplatGeo>,
+) -> SplatGeo {
     if splats.is_empty() {
         return splats.clone();
     }
     let mut output = splats.clone();
-    apply_to_splats_in_place(params, &mut output);
+    let mask = splat_group_mask(&output, params, AttributeDomain::Point);
+    let mask = mask.as_deref();
+    apply_to_splats_internal(params, &mut output, mask, target);
     output
 }
 
-fn apply_to_splats_in_place(params: &NodeParams, splats: &mut SplatGeo) {
-    let Some(mask) = splat_group_mask(splats, params, AttributeDomain::Point) else {
-        apply_to_splats_internal(params, splats, None);
-        return;
-    };
-    apply_to_splats_internal(params, splats, Some(&mask));
-}
-
-fn apply_to_splats_internal(params: &NodeParams, splats: &mut SplatGeo, mask: Option<&[bool]>) {
+fn apply_to_splats_internal(
+    params: &NodeParams,
+    splats: &mut SplatGeo,
+    mask: Option<&[bool]>,
+    target: Option<&SplatGeo>,
+) {
     let sh_coeffs = splats.sh_coeffs;
     let count = splats.len();
     if count == 0 {
         return;
     }
 
-    let mode = params.get_int("delight_mode", 1).clamp(0, 2);
+    let mode = params.get_int("relight_mode", 2).clamp(0, 2);
     let output_order = params.get_int("output_sh_order", 3).clamp(0, 3);
     let max_coeffs = sh_coeffs_for_order(output_order).min(sh_coeffs);
-    let high_band_gain = params.get_float("high_band_gain", 0.25).clamp(0.0, 1.0);
+    let high_band_gain = params.get_float("high_band_gain", 0.4).clamp(0.0, 1.0);
+    let high_band_mode = params.get_int("high_band_mode", 0).clamp(0, 1);
     let eps_scale = params.get_float("eps", 1.0e-3).abs().max(1.0e-8);
+
+    let source_env = build_env_coeffs(params, splats, mask, EnvSource::Source);
+    let target_env = build_target_env_coeffs(params, target);
+    let eps = eps_from_env(&source_env, eps_scale);
+    let (ratio_min, ratio_max) = ratio_bounds(params);
+    let ratios = build_ratio_table(&source_env, &target_env, eps, ratio_min, ratio_max);
 
     match mode {
         0 => {
-            for idx in 0..count {
-                if !selected(mask, idx) {
-                    continue;
-                }
-                zero_sh_rest(splats, idx);
-            }
-        }
-        1 => {
-            let source_env = build_env_coeffs(params, splats, mask, EnvSource::Source);
-            let neutral_env = build_env_coeffs(params, splats, mask, EnvSource::Neutral);
-            let eps = eps_from_env(&source_env, eps_scale);
-            let (ratio_min, ratio_max) = ratio_bounds(params);
-            let ratios = build_ratio_table(&source_env, &neutral_env, eps, ratio_min, ratio_max);
-
             for idx in 0..count {
                 if !selected(mask, idx) {
                     continue;
@@ -119,22 +144,47 @@ fn apply_to_splats_internal(params: &NodeParams, splats: &mut SplatGeo, mask: Op
                 clamp_sh_order(splats, idx, max_coeffs);
             }
         }
-        _ => {
-            let source_env = build_env_coeffs(params, splats, mask, EnvSource::Source);
-            let env_l2 = env_l2_from_coeffs(&source_env);
-            let eps = eps_from_env(&env_l2, eps_scale);
+        1 => {
+            let env_l2 = env_l2_from_coeffs(&target_env);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
             let normals = estimate_splat_normals(splats);
-
             for idx in 0..count {
                 if !selected(mask, idx) {
                     continue;
                 }
                 let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
                 let irradiance = irradiance_from_env_l2(n, &env_l2);
-                let avg = splat_dc_color(splats, idx);
-                let albedo = clamp_color(divide_color(avg, irradiance, eps), 0.0, albedo_max);
-                set_splat_dc_color(splats, idx, albedo);
+                let albedo = clamp_color(
+                    splat_dc_color(splats, idx),
+                    0.0,
+                    albedo_max,
+                );
+                let lit = multiply_color(albedo, irradiance);
+                set_splat_dc_color(splats, idx, lit);
+                zero_sh_rest(splats, idx);
+                clamp_sh_order(splats, idx, max_coeffs);
+            }
+        }
+        _ => {
+            let env_l2 = env_l2_from_coeffs(&target_env);
+            let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
+            let normals = estimate_splat_normals(splats);
+            for idx in 0..count {
+                if !selected(mask, idx) {
+                    continue;
+                }
+                let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
+                let irradiance = irradiance_from_env_l2(n, &env_l2);
+                let albedo = clamp_color(
+                    splat_dc_color(splats, idx),
+                    0.0,
+                    albedo_max,
+                );
+                let lit = multiply_color(albedo, irradiance);
+                set_splat_dc_color(splats, idx, lit);
+                if high_band_mode == 1 {
+                    apply_ratio_to_sh_rest(splats, idx, &ratios);
+                }
                 apply_high_band_gain(splats, idx, max_coeffs, high_band_gain);
                 clamp_sh_order(splats, idx, max_coeffs);
             }
@@ -203,20 +253,27 @@ fn apply_ratio_to_splat(splats: &mut SplatGeo, idx: usize, ratios: &[[f32; 3]]) 
         splats.sh0[idx][0] *= ratio[0];
         splats.sh0[idx][1] *= ratio[1];
         splats.sh0[idx][2] *= ratio[2];
-        let base = idx * splats.sh_coeffs;
-        for coeff in 0..splats.sh_coeffs {
-            let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
-            if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
-                slot[0] *= ratio[0];
-                slot[1] *= ratio[1];
-                slot[2] *= ratio[2];
-            }
-        }
+        apply_ratio_to_sh_rest(splats, idx, ratios);
     } else {
         let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
         splats.sh0[idx][0] *= ratio[0];
         splats.sh0[idx][1] *= ratio[1];
         splats.sh0[idx][2] *= ratio[2];
+    }
+}
+
+fn apply_ratio_to_sh_rest(splats: &mut SplatGeo, idx: usize, ratios: &[[f32; 3]]) {
+    if splats.sh_coeffs == 0 {
+        return;
+    }
+    let base = idx * splats.sh_coeffs;
+    for coeff in 0..splats.sh_coeffs {
+        let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
+        if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
+            slot[0] *= ratio[0];
+            slot[1] *= ratio[1];
+            slot[2] *= ratio[2];
+        }
     }
 }
 
@@ -273,21 +330,30 @@ fn build_env_coeffs(
 ) -> Vec<[f32; 3]> {
     let mode = match source {
         EnvSource::Source => params.get_int("source_env", 0),
-        EnvSource::Neutral => params.get_int("neutral_env", 0),
+        EnvSource::Target => params.get_int("target_env", 0),
     };
     match (source, mode) {
         (EnvSource::Source, 0) => average_env_coeffs(splats, mask),
-        (EnvSource::Neutral, 0) => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
+        (EnvSource::Target, 0) => average_env_coeffs(splats, None),
+        (EnvSource::Source, 1) => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
+        (EnvSource::Target, 1) => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
         (EnvSource::Source, 2) => {
             let color = params.get_vec3("source_color", [1.0, 1.0, 1.0]);
             uniform_env_coeffs(color, splats.sh_coeffs)
         }
-        (EnvSource::Neutral, 1) => {
-            let color = params.get_vec3("neutral_color", [1.0, 1.0, 1.0]);
+        (EnvSource::Target, 2) => {
+            let color = params.get_vec3("target_color", [1.0, 1.0, 1.0]);
             uniform_env_coeffs(color, splats.sh_coeffs)
         }
-        (EnvSource::Source, _) => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
-        (EnvSource::Neutral, _) => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
+        _ => uniform_env_coeffs([1.0, 1.0, 1.0], splats.sh_coeffs),
+    }
+}
+
+fn build_target_env_coeffs(params: &NodeParams, target: Option<&SplatGeo>) -> Vec<[f32; 3]> {
+    if let Some(target_splats) = target {
+        build_env_coeffs(params, target_splats, None, EnvSource::Target)
+    } else {
+        uniform_env_coeffs([1.0, 1.0, 1.0], 0)
     }
 }
 
@@ -377,7 +443,6 @@ fn irradiance_from_env_l2(n: Vec3, env: &[[f32; 3]]) -> [f32; 3] {
         e += Vec3::from(v) * a;
     };
 
-    // idx mapping: 0:L00 1:L1-1 2:L10 3:L11 4:L2-2 5:L2-1 6:L20 7:L21 8:L22
     add(IRRADIANCE_C4, env[0]);
     add(2.0 * IRRADIANCE_C2 * x, env[3]);
     add(2.0 * IRRADIANCE_C2 * y, env[1]);
@@ -413,17 +478,8 @@ fn set_splat_dc_color(splats: &mut SplatGeo, idx: usize, color: [f32; 3]) {
     }
 }
 
-fn divide_color(color: [f32; 3], irradiance: [f32; 3], eps: f32) -> [f32; 3] {
-    let mut out = [0.0f32; 3];
-    for channel in 0..3 {
-        let denom = irradiance[channel] + eps;
-        if denom.abs() < 1.0e-6 || !denom.is_finite() || !color[channel].is_finite() {
-            out[channel] = 0.0;
-        } else {
-            out[channel] = color[channel] / denom;
-        }
-    }
-    out
+fn multiply_color(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] * b[0], a[1] * b[1], a[2] * b[2]]
 }
 
 fn clamp_color(color: [f32; 3], min: f32, max: f32) -> [f32; 3] {
@@ -473,45 +529,42 @@ fn estimate_splat_normals(splats: &SplatGeo) -> Vec<Vec3> {
 
 enum EnvSource {
     Source,
-    Neutral,
+    Target,
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
+    use crate::geometry::Geometry;
     use crate::graph::{NodeParams, ParamValue};
     use crate::splat::SplatGeo;
 
-    use super::{apply_to_splats, SH_C0};
+    use super::apply_to_geometry;
 
     #[test]
-    fn band0_only_clears_sh_rest() {
-        let mut splats = SplatGeo::with_len_and_sh(1, 3);
-        splats.sh0[0] = [1.0, 1.0, 1.0];
-        splats.sh_rest[0] = [0.1, 0.2, 0.3];
-        splats.sh_rest[1] = [0.4, 0.5, 0.6];
-        splats.sh_rest[2] = [0.7, 0.8, 0.9];
-        let params = NodeParams {
-            values: BTreeMap::from([("delight_mode".to_string(), ParamValue::Int(0))]),
-        };
-        let out = apply_to_splats(&params, &splats);
-        assert_eq!(out.sh_rest[0], [0.0, 0.0, 0.0]);
-        assert_eq!(out.sh_rest[1], [0.0, 0.0, 0.0]);
-        assert_eq!(out.sh_rest[2], [0.0, 0.0, 0.0]);
-    }
+    fn integrate_ratio_scales_sh0() {
+        let mut source = SplatGeo::with_len_and_sh(1, 3);
+        source.sh0[0] = [0.5, 0.5, 0.5];
+        let mut target = SplatGeo::with_len_and_sh(1, 3);
+        target.sh0[0] = [1.0, 1.0, 1.0];
 
-    #[test]
-    fn irradiance_divide_updates_dc() {
-        let mut splats = SplatGeo::with_len_and_sh(1, 3);
-        splats.sh0[0] = [0.5 / SH_C0, 0.5 / SH_C0, 0.5 / SH_C0];
         let params = NodeParams {
             values: BTreeMap::from([
-                ("delight_mode".to_string(), ParamValue::Int(2)),
-                ("source_env".to_string(), ParamValue::Int(1)),
+                ("relight_mode".to_string(), ParamValue::Int(0)),
+                ("source_env".to_string(), ParamValue::Int(0)),
+                ("target_env".to_string(), ParamValue::Int(0)),
             ]),
         };
-        let out = apply_to_splats(&params, &splats);
-        assert!(out.sh0[0][0].is_finite());
+        let geo = apply_to_geometry(
+            &params,
+            &[
+                Geometry::with_splats(source),
+                Geometry::with_splats(target),
+            ],
+        )
+        .expect("geometry");
+        let out = geo.merged_splats().expect("splats");
+        assert!(out.sh0[0][0] > 0.5);
     }
 }
