@@ -5,97 +5,12 @@ use glam::Vec3;
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, AttributeType};
 use crate::mesh::Mesh;
 use crate::nodes::recompute_mesh_normals;
+use crate::parallel;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
 use crate::volume_sampling::VolumeSampler;
-
-#[derive(Debug, Clone)]
-struct Program {
-    statements: Vec<Statement>,
-}
-
-#[derive(Debug, Clone)]
-enum Statement {
-    Assign { target: String, expr: Expr },
-}
-
-#[derive(Debug, Clone)]
-enum Expr {
-    Literal(Value),
-    Attr(String),
-    Ident(String),
-    Swizzle {
-        expr: Box<Expr>,
-        mask: String,
-    },
-    Unary {
-        op: UnaryOp,
-        expr: Box<Expr>,
-    },
-    Binary {
-        op: BinaryOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
-    Call {
-        name: String,
-        args: Vec<Expr>,
-    },
-}
-
-#[derive(Debug, Clone, Copy)]
-enum UnaryOp {
-    Pos,
-    Neg,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum BinaryOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Value {
-    Float(f32),
-    Vec2([f32; 2]),
-    Vec3([f32; 3]),
-    Vec4([f32; 4]),
-}
-
-impl Value {
-    fn data_type(self) -> AttributeType {
-        match self {
-            Value::Float(_) => AttributeType::Float,
-            Value::Vec2(_) => AttributeType::Vec2,
-            Value::Vec3(_) => AttributeType::Vec3,
-            Value::Vec4(_) => AttributeType::Vec4,
-        }
-    }
-
-    fn negate(self) -> Value {
-        map_value(self, |v| -v)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum Token {
-    Ident(String),
-    Number(f32),
-    At,
-    Dot,
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    LParen,
-    RParen,
-    Comma,
-    Equal,
-    Semicolon,
-}
+use super::parser::{BinaryOp, Expr, Statement, UnaryOp, parse_program};
+use super::value::Value;
 
 #[allow(clippy::too_many_arguments)]
 pub fn apply_wrangle(
@@ -187,178 +102,159 @@ pub fn apply_wrangle_splats(
 
 struct MeshQueryCache<'a> {
     mesh: &'a Mesh,
-    point_normals: Option<Vec<[f32; 3]>>,
-    vertex_normals: Option<Vec<[f32; 3]>>,
-    prim_normals: Option<Vec<[f32; 3]>>,
-    prim_centers: Option<Vec<[f32; 3]>>,
-    detail_center: Option<[f32; 3]>,
-    detail_normal: Option<[f32; 3]>,
+    point_normals: Vec<[f32; 3]>,
+    vertex_normals: Vec<[f32; 3]>,
+    prim_normals: Vec<[f32; 3]>,
+    prim_centers: Vec<[f32; 3]>,
+    detail_center: [f32; 3],
+    detail_normal: [f32; 3],
+    point_first_vertex: Vec<usize>,
+    point_first_prim: Vec<usize>,
 }
 
 impl<'a> MeshQueryCache<'a> {
     fn new(mesh: &'a Mesh) -> Self {
-        Self {
-            mesh,
-            point_normals: None,
-            vertex_normals: None,
-            prim_normals: None,
-            prim_centers: None,
-            detail_center: None,
-            detail_normal: None,
-        }
-    }
+        let point_normals = if let Some(normals) = &mesh.normals {
+            if normals.len() == mesh.positions.len() {
+                normals.clone()
+            } else {
+                compute_point_normals(mesh)
+            }
+        } else {
+            compute_point_normals(mesh)
+        };
 
-    fn read_p(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point => self.mesh.positions.get(idx).copied().unwrap_or([0.0; 3]),
-            AttributeDomain::Vertex => {
-                let point = self.mesh.indices.get(idx).copied().unwrap_or(0) as usize;
-                self.mesh.positions.get(point).copied().unwrap_or([0.0; 3])
+        let vertex_normals = if let Some(normals) = &mesh.corner_normals {
+            if normals.len() == mesh.indices.len() {
+                normals.clone()
+            } else {
+                mesh.indices
+                    .iter()
+                    .map(|idx| {
+                        point_normals
+                            .get(*idx as usize)
+                            .copied()
+                            .unwrap_or([0.0, 1.0, 0.0])
+                    })
+                    .collect()
             }
-            AttributeDomain::Primitive => {
-                self.ensure_prim_centers();
-                self.prim_centers
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0; 3])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_center();
-                self.detail_center.unwrap_or([0.0; 3])
-            }
-        }
-    }
+        } else {
+            mesh.indices
+                .iter()
+                .map(|idx| {
+                    point_normals
+                        .get(*idx as usize)
+                        .copied()
+                        .unwrap_or([0.0, 1.0, 0.0])
+                })
+                .collect()
+        };
 
-    fn read_n(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point => {
-                self.ensure_point_normals();
-                self.point_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Vertex => {
-                self.ensure_vertex_normals();
-                self.vertex_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Primitive => {
-                self.ensure_prim_normals();
-                self.prim_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_normal();
-                self.detail_normal.unwrap_or([0.0, 1.0, 0.0])
-            }
-        }
-    }
-
-    fn ensure_point_normals(&mut self) {
-        if self.point_normals.is_some() {
-            return;
-        }
-        if let Some(normals) = &self.mesh.normals {
-            self.point_normals = Some(normals.clone());
-            return;
-        }
-        self.point_normals = Some(compute_point_normals(self.mesh));
-    }
-
-    fn ensure_vertex_normals(&mut self) {
-        if self.vertex_normals.is_some() {
-            return;
-        }
-        if let Some(normals) = &self.mesh.corner_normals {
-            self.vertex_normals = Some(normals.clone());
-            return;
-        }
-        self.ensure_point_normals();
-        let point_normals = self.point_normals.as_ref().cloned().unwrap_or_default();
-        let mut result = Vec::with_capacity(self.mesh.indices.len());
-        for idx in &self.mesh.indices {
-            let point = *idx as usize;
-            result.push(point_normals.get(point).copied().unwrap_or([0.0, 1.0, 0.0]));
-        }
-        self.vertex_normals = Some(result);
-    }
-
-    fn ensure_prim_normals(&mut self) {
-        if self.prim_normals.is_some() {
-            return;
-        }
-        let mut normals = Vec::new();
-        for tri in self.mesh.indices.chunks_exact(3) {
+        let mut prim_centers = Vec::new();
+        let mut prim_normals = Vec::new();
+        for tri in mesh.indices.chunks_exact(3) {
             let i0 = tri[0] as usize;
             let i1 = tri[1] as usize;
             let i2 = tri[2] as usize;
-            let p0 = Vec3::from(self.mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
-            let p1 = Vec3::from(self.mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
-            let p2 = Vec3::from(self.mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
+            let p0 = Vec3::from(mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
+            let p1 = Vec3::from(mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
+            let p2 = Vec3::from(mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
+            let center = (p0 + p1 + p2) / 3.0;
+            prim_centers.push(center.to_array());
             let n = (p1 - p0).cross(p2 - p0);
             let n = if n.length_squared() > 0.0 {
                 n.normalize().to_array()
             } else {
                 [0.0, 1.0, 0.0]
             };
-            normals.push(n);
+            prim_normals.push(n);
         }
-        self.prim_normals = Some(normals);
-    }
 
-    fn ensure_prim_centers(&mut self) {
-        if self.prim_centers.is_some() {
-            return;
-        }
-        let mut centers = Vec::new();
-        for tri in self.mesh.indices.chunks_exact(3) {
-            let i0 = tri[0] as usize;
-            let i1 = tri[1] as usize;
-            let i2 = tri[2] as usize;
-            let p0 = Vec3::from(self.mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
-            let p1 = Vec3::from(self.mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
-            let p2 = Vec3::from(self.mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
-            let center = (p0 + p1 + p2) / 3.0;
-            centers.push(center.to_array());
-        }
-        self.prim_centers = Some(centers);
-    }
+        let detail_center = mesh
+            .bounds()
+            .map(|bounds| {
+                [
+                    (bounds.min[0] + bounds.max[0]) * 0.5,
+                    (bounds.min[1] + bounds.max[1]) * 0.5,
+                    (bounds.min[2] + bounds.max[2]) * 0.5,
+                ]
+            })
+            .unwrap_or([0.0; 3]);
 
-    fn ensure_detail_center(&mut self) {
-        if self.detail_center.is_some() {
-            return;
-        }
-        let center = self.mesh.bounds().map(|bounds| {
-            [
-                (bounds.min[0] + bounds.max[0]) * 0.5,
-                (bounds.min[1] + bounds.max[1]) * 0.5,
-                (bounds.min[2] + bounds.max[2]) * 0.5,
-            ]
-        });
-        self.detail_center = Some(center.unwrap_or([0.0; 3]));
-    }
-
-    fn ensure_detail_normal(&mut self) {
-        if self.detail_normal.is_some() {
-            return;
-        }
-        self.ensure_point_normals();
-        let normals = self.point_normals.as_ref().cloned().unwrap_or_default();
         let mut sum = Vec3::ZERO;
-        for n in normals {
-            sum += Vec3::from(n);
+        for n in &point_normals {
+            sum += Vec3::from(*n);
         }
-        let normal = if sum.length_squared() > 0.0 {
+        let detail_normal = if sum.length_squared() > 0.0 {
             sum.normalize().to_array()
         } else {
             [0.0, 1.0, 0.0]
         };
-        self.detail_normal = Some(normal);
+
+        let mut first_vertex = vec![usize::MAX; mesh.positions.len()];
+        let mut first_prim = vec![usize::MAX; mesh.positions.len()];
+        for (vertex_index, point_index) in mesh.indices.iter().enumerate() {
+            let point_index = *point_index as usize;
+            if let Some(slot) = first_vertex.get_mut(point_index) {
+                if *slot == usize::MAX {
+                    *slot = vertex_index;
+                }
+            }
+            if let Some(slot) = first_prim.get_mut(point_index) {
+                if *slot == usize::MAX {
+                    *slot = vertex_index / 3;
+                }
+            }
+        }
+
+        Self {
+            mesh,
+            point_normals,
+            vertex_normals,
+            prim_normals,
+            prim_centers,
+            detail_center,
+            detail_normal,
+            point_first_vertex: first_vertex,
+            point_first_prim: first_prim,
+        }
+    }
+
+    fn read_p(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        match domain {
+            AttributeDomain::Point => self.mesh.positions.get(idx).copied().unwrap_or([0.0; 3]),
+            AttributeDomain::Vertex => {
+                let point = self.mesh.indices.get(idx).copied().unwrap_or(0) as usize;
+                self.mesh.positions.get(point).copied().unwrap_or([0.0; 3])
+            }
+            AttributeDomain::Primitive => self
+                .prim_centers
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0; 3]),
+            AttributeDomain::Detail => self.detail_center,
+        }
+    }
+
+    fn read_n(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        match domain {
+            AttributeDomain::Point => self
+                .point_normals
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0, 1.0, 0.0]),
+            AttributeDomain::Vertex => self
+                .vertex_normals
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0, 1.0, 0.0]),
+            AttributeDomain::Primitive => self
+                .prim_normals
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0, 1.0, 0.0]),
+            AttributeDomain::Detail => self.detail_normal,
+        }
     }
 }
 
@@ -373,14 +269,7 @@ struct WrangleContext<'a> {
     len: usize,
     mask: Option<&'a [bool]>,
     written: HashMap<String, AttributeStorage>,
-    point_normals: Option<Vec<[f32; 3]>>,
-    vertex_normals: Option<Vec<[f32; 3]>>,
-    prim_normals: Option<Vec<[f32; 3]>>,
-    prim_centers: Option<Vec<[f32; 3]>>,
-    detail_center: Option<[f32; 3]>,
-    detail_normal: Option<[f32; 3]>,
-    point_first_vertex: Option<Vec<usize>>,
-    point_first_prim: Option<Vec<usize>>,
+    query: MeshQueryCache<'a>,
 }
 
 impl<'a> WrangleContext<'a> {
@@ -407,14 +296,7 @@ impl<'a> WrangleContext<'a> {
             len,
             mask,
             written: HashMap::new(),
-            point_normals: None,
-            vertex_normals: None,
-            prim_normals: None,
-            prim_centers: None,
-            detail_center: None,
-            detail_normal: None,
-            point_first_vertex: None,
-            point_first_prim: None,
+            query: MeshQueryCache::new(mesh),
         }
     }
 
@@ -441,19 +323,24 @@ impl<'a> WrangleContext<'a> {
             self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
         });
 
-        let mut values = Vec::with_capacity(self.len.max(1));
-        for idx in 0..self.len.max(1) {
-            let selected = self
+        let default_value = target_type
+            .map(default_value_for_type)
+            .unwrap_or(Value::Float(0.0));
+        let mut values = vec![default_value; self.len.max(1)];
+        let ctx = &*self;
+        parallel::try_for_each_indexed_mut(&mut values, |idx, slot| {
+            let selected = ctx
                 .mask
                 .and_then(|mask| mask.get(idx).copied())
                 .unwrap_or(true);
             let value = if selected {
-                self.eval_expr(&expr, idx)?
+                ctx.eval_expr(&expr, idx)?
             } else {
-                self.read_attr_for_mask(&target, idx, target_type)?
+                ctx.read_attr_for_mask(&target, idx, target_type)?
             };
-            values.push(value);
-        }
+            *slot = value;
+            Ok::<(), String>(())
+        })?;
 
         let storage = build_storage(&values, target_type)?;
         self.written.insert(target, storage);
@@ -479,7 +366,7 @@ impl<'a> WrangleContext<'a> {
             .map(|attr| attr.data_type())
     }
 
-    fn eval_expr(&mut self, expr: &Expr, idx: usize) -> Result<Value, String> {
+    fn eval_expr(&self, expr: &Expr, idx: usize) -> Result<Value, String> {
         match expr {
             Expr::Literal(value) => Ok(*value),
             Expr::Attr(name) => self.read_attr(name, idx),
@@ -509,7 +396,7 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn eval_call(&mut self, name: &str, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_call(&self, name: &str, args: &[Expr], idx: usize) -> Result<Value, String> {
         let name = name.to_lowercase();
         match name.as_str() {
             "sin" | "cos" | "tan" | "abs" | "floor" | "ceil" => {
@@ -569,7 +456,7 @@ impl<'a> WrangleContext<'a> {
     }
 
     fn eval_args(
-        &mut self,
+        &self,
         args: &[Expr],
         idx: usize,
         expected: usize,
@@ -589,7 +476,7 @@ impl<'a> WrangleContext<'a> {
     }
 
     fn eval_geo_query(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         args: &[Expr],
         idx: usize,
@@ -608,7 +495,7 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn eval_volume_sample(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_volume_sample(&self, args: &[Expr], idx: usize) -> Result<Value, String> {
         let (input_index, pos_expr) = match args.len() {
             2 => (self.eval_expr(&args[0], idx)?, &args[1]),
             3 => {
@@ -636,7 +523,7 @@ impl<'a> WrangleContext<'a> {
         ))
     }
 
-    fn eval_splat_query(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_splat_query(&self, args: &[Expr], idx: usize) -> Result<Value, String> {
         if args.len() != 3 {
             return Err(format!("Expected 3 arguments, got {}", args.len()));
         }
@@ -652,7 +539,7 @@ impl<'a> WrangleContext<'a> {
     }
 
     fn query_primary_attr(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         name: &str,
         idx: usize,
@@ -670,12 +557,12 @@ impl<'a> WrangleContext<'a> {
     }
 
     fn query_secondary_attr(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         name: &str,
         idx: usize,
     ) -> Value {
-        let Some(query) = self.secondary_query.as_mut() else {
+        let Some(query) = self.secondary_query.as_ref() else {
             return default_query_value(name);
         };
         if name.eq_ignore_ascii_case("P") {
@@ -690,8 +577,8 @@ impl<'a> WrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_primary_splat_attr(&mut self, name: &str, idx: usize) -> Value {
-        let Some(query) = self.primary_splats.as_mut() else {
+    fn query_primary_splat_attr(&self, name: &str, idx: usize) -> Value {
+        let Some(query) = self.primary_splats.as_ref() else {
             return default_query_value(name);
         };
         if name.eq_ignore_ascii_case("P") {
@@ -712,8 +599,8 @@ impl<'a> WrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_secondary_splat_attr(&mut self, name: &str, idx: usize) -> Value {
-        let Some(query) = self.secondary_splats.as_mut() else {
+    fn query_secondary_splat_attr(&self, name: &str, idx: usize) -> Value {
+        let Some(query) = self.secondary_splats.as_ref() else {
             return default_query_value(name);
         };
         if name.eq_ignore_ascii_case("P") {
@@ -734,7 +621,7 @@ impl<'a> WrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn read_attr(&mut self, name: &str, idx: usize) -> Result<Value, String> {
+    fn read_attr(&self, name: &str, idx: usize) -> Result<Value, String> {
         if let Some(storage) = self.written.get(name) {
             return value_from_storage(storage, idx);
         }
@@ -754,7 +641,7 @@ impl<'a> WrangleContext<'a> {
     }
 
     fn read_attr_for_mask(
-        &mut self,
+        &self,
         name: &str,
         idx: usize,
         target_type: Option<AttributeType>,
@@ -788,7 +675,7 @@ impl<'a> WrangleContext<'a> {
         mask.iter().any(|value| *value)
     }
 
-    fn read_implicit_attr(&mut self, name: &str, idx: usize) -> Option<Value> {
+    fn read_implicit_attr(&self, name: &str, idx: usize) -> Option<Value> {
         let name = name.to_ascii_lowercase();
         match name.as_str() {
             "ptnum" => Some(Value::Float(self.current_ptnum(idx) as f32)),
@@ -801,7 +688,7 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn current_ptnum(&mut self, idx: usize) -> i32 {
+    fn current_ptnum(&self, idx: usize) -> i32 {
         match self.domain {
             AttributeDomain::Point => idx as i32,
             AttributeDomain::Vertex => self
@@ -824,18 +711,17 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn current_vtxnum(&mut self, idx: usize) -> i32 {
+    fn current_vtxnum(&self, idx: usize) -> i32 {
         match self.domain {
             AttributeDomain::Vertex => idx as i32,
-            AttributeDomain::Point => {
-                self.ensure_point_maps();
-                self.point_first_vertex
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .filter(|value| *value != usize::MAX)
-                    .map(|value| value as i32)
-                    .unwrap_or(-1)
-            }
+            AttributeDomain::Point => self
+                .query
+                .point_first_vertex
+                .get(idx)
+                .copied()
+                .filter(|value| *value != usize::MAX)
+                .map(|value| value as i32)
+                .unwrap_or(-1),
             AttributeDomain::Primitive => {
                 let base = idx * 3;
                 if base < self.mesh.indices.len() {
@@ -848,226 +734,99 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn current_primnum(&mut self, idx: usize) -> i32 {
+    fn current_primnum(&self, idx: usize) -> i32 {
         match self.domain {
             AttributeDomain::Primitive => idx as i32,
             AttributeDomain::Vertex => (idx / 3) as i32,
-            AttributeDomain::Point => {
-                self.ensure_point_maps();
-                self.point_first_prim
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .filter(|value| *value != usize::MAX)
-                    .map(|value| value as i32)
-                    .unwrap_or(-1)
-            }
+            AttributeDomain::Point => self
+                .query
+                .point_first_prim
+                .get(idx)
+                .copied()
+                .filter(|value| *value != usize::MAX)
+                .map(|value| value as i32)
+                .unwrap_or(-1),
             AttributeDomain::Detail => -1,
         }
     }
 
-    fn read_p(&mut self, idx: usize) -> [f32; 3] {
+    fn read_p(&self, idx: usize) -> [f32; 3] {
         self.read_p_for_domain(self.domain, idx)
     }
 
-    fn read_n(&mut self, idx: usize) -> [f32; 3] {
+    fn read_n(&self, idx: usize) -> [f32; 3] {
         self.read_n_for_domain(self.domain, idx)
     }
 
-    fn read_p_for_domain(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point => self.mesh.positions.get(idx).copied().unwrap_or([0.0; 3]),
-            AttributeDomain::Vertex => {
-                let point = self.mesh.indices.get(idx).copied().unwrap_or(0) as usize;
-                self.mesh.positions.get(point).copied().unwrap_or([0.0; 3])
-            }
-            AttributeDomain::Primitive => {
-                self.ensure_prim_centers();
-                self.prim_centers
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0; 3])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_center();
-                self.detail_center.unwrap_or([0.0; 3])
-            }
-        }
+    fn read_p_for_domain(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        self.query.read_p(domain, idx)
     }
 
-    fn read_n_for_domain(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point => {
-                self.ensure_point_normals();
-                self.point_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Vertex => {
-                self.ensure_vertex_normals();
-                self.vertex_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Primitive => {
-                self.ensure_prim_normals();
-                self.prim_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_normal();
-                self.detail_normal.unwrap_or([0.0, 1.0, 0.0])
-            }
-        }
-    }
-
-    fn ensure_point_normals(&mut self) {
-        if self.point_normals.is_some() {
-            return;
-        }
-        if let Some(normals) = &self.mesh.normals {
-            self.point_normals = Some(normals.clone());
-            return;
-        }
-        self.point_normals = Some(compute_point_normals(self.mesh));
-    }
-
-    fn ensure_vertex_normals(&mut self) {
-        if self.vertex_normals.is_some() {
-            return;
-        }
-        if let Some(normals) = &self.mesh.corner_normals {
-            self.vertex_normals = Some(normals.clone());
-            return;
-        }
-        self.ensure_point_normals();
-        let point_normals = self.point_normals.as_ref().cloned().unwrap_or_default();
-        let mut result = Vec::with_capacity(self.mesh.indices.len());
-        for idx in &self.mesh.indices {
-            let point = *idx as usize;
-            result.push(point_normals.get(point).copied().unwrap_or([0.0, 1.0, 0.0]));
-        }
-        self.vertex_normals = Some(result);
-    }
-
-    fn ensure_prim_normals(&mut self) {
-        if self.prim_normals.is_some() {
-            return;
-        }
-        let mut normals = Vec::new();
-        for tri in self.mesh.indices.chunks_exact(3) {
-            let i0 = tri[0] as usize;
-            let i1 = tri[1] as usize;
-            let i2 = tri[2] as usize;
-            let p0 = Vec3::from(self.mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
-            let p1 = Vec3::from(self.mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
-            let p2 = Vec3::from(self.mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
-            let n = (p1 - p0).cross(p2 - p0);
-            let n = if n.length_squared() > 0.0 {
-                n.normalize().to_array()
-            } else {
-                [0.0, 1.0, 0.0]
-            };
-            normals.push(n);
-        }
-        self.prim_normals = Some(normals);
-    }
-
-    fn ensure_prim_centers(&mut self) {
-        if self.prim_centers.is_some() {
-            return;
-        }
-        let mut centers = Vec::new();
-        for tri in self.mesh.indices.chunks_exact(3) {
-            let i0 = tri[0] as usize;
-            let i1 = tri[1] as usize;
-            let i2 = tri[2] as usize;
-            let p0 = Vec3::from(self.mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
-            let p1 = Vec3::from(self.mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
-            let p2 = Vec3::from(self.mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
-            let center = (p0 + p1 + p2) / 3.0;
-            centers.push(center.to_array());
-        }
-        self.prim_centers = Some(centers);
-    }
-
-    fn ensure_detail_center(&mut self) {
-        if self.detail_center.is_some() {
-            return;
-        }
-        let center = self.mesh.bounds().map(|bounds| {
-            [
-                (bounds.min[0] + bounds.max[0]) * 0.5,
-                (bounds.min[1] + bounds.max[1]) * 0.5,
-                (bounds.min[2] + bounds.max[2]) * 0.5,
-            ]
-        });
-        self.detail_center = Some(center.unwrap_or([0.0; 3]));
-    }
-
-    fn ensure_detail_normal(&mut self) {
-        if self.detail_normal.is_some() {
-            return;
-        }
-        self.ensure_point_normals();
-        let normals = self.point_normals.as_ref().cloned().unwrap_or_default();
-        let mut sum = Vec3::ZERO;
-        for n in normals {
-            sum += Vec3::from(n);
-        }
-        let normal = if sum.length_squared() > 0.0 {
-            sum.normalize().to_array()
-        } else {
-            [0.0, 1.0, 0.0]
-        };
-        self.detail_normal = Some(normal);
-    }
-
-    fn ensure_point_maps(&mut self) {
-        if self.point_first_vertex.is_some() && self.point_first_prim.is_some() {
-            return;
-        }
-        let mut first_vertex = vec![usize::MAX; self.mesh.positions.len()];
-        let mut first_prim = vec![usize::MAX; self.mesh.positions.len()];
-        for (vertex_index, point_index) in self.mesh.indices.iter().enumerate() {
-            let point_index = *point_index as usize;
-            if let Some(slot) = first_vertex.get_mut(point_index) {
-                if *slot == usize::MAX {
-                    *slot = vertex_index;
-                }
-            }
-            if let Some(slot) = first_prim.get_mut(point_index) {
-                if *slot == usize::MAX {
-                    *slot = vertex_index / 3;
-                }
-            }
-        }
-        self.point_first_vertex = Some(first_vertex);
-        self.point_first_prim = Some(first_prim);
+    fn read_n_for_domain(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        self.query.read_n(domain, idx)
     }
 }
 
 struct SplatQueryCache<'a> {
     splats: &'a SplatGeo,
-    point_normals: Option<Vec<[f32; 3]>>,
-    detail_center: Option<[f32; 3]>,
-    detail_normal: Option<[f32; 3]>,
+    point_normals: Vec<[f32; 3]>,
+    detail_center: [f32; 3],
+    detail_normal: [f32; 3],
 }
 
 impl<'a> SplatQueryCache<'a> {
     fn new(splats: &'a SplatGeo) -> Self {
+        let point_normals = if let Some(AttributeRef::Vec3(values)) =
+            splats.attribute(AttributeDomain::Point, "N")
+        {
+            if values.len() == splats.positions.len() {
+                values.to_vec()
+            } else {
+                vec![[0.0, 1.0, 0.0]; splats.positions.len()]
+            }
+        } else {
+            vec![[0.0, 1.0, 0.0]; splats.positions.len()]
+        };
+
+        let detail_center = if splats.positions.is_empty() {
+            [0.0; 3]
+        } else {
+            let mut min = splats.positions[0];
+            let mut max = splats.positions[0];
+            for p in &splats.positions[1..] {
+                min[0] = min[0].min(p[0]);
+                min[1] = min[1].min(p[1]);
+                min[2] = min[2].min(p[2]);
+                max[0] = max[0].max(p[0]);
+                max[1] = max[1].max(p[1]);
+                max[2] = max[2].max(p[2]);
+            }
+            [
+                (min[0] + max[0]) * 0.5,
+                (min[1] + max[1]) * 0.5,
+                (min[2] + max[2]) * 0.5,
+            ]
+        };
+
+        let mut sum = Vec3::ZERO;
+        for n in &point_normals {
+            sum += Vec3::from(*n);
+        }
+        let detail_normal = if sum.length_squared() > 0.0 {
+            sum.normalize().to_array()
+        } else {
+            [0.0, 1.0, 0.0]
+        };
+
         Self {
             splats,
-            point_normals: None,
-            detail_center: None,
-            detail_normal: None,
+            point_normals,
+            detail_center,
+            detail_normal,
         }
     }
 
-    fn read_p(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+    fn read_p(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
         match domain {
             AttributeDomain::Point | AttributeDomain::Primitive => self
                 .splats
@@ -1075,89 +834,21 @@ impl<'a> SplatQueryCache<'a> {
                 .get(idx)
                 .copied()
                 .unwrap_or([0.0; 3]),
-            AttributeDomain::Detail => {
-                self.ensure_detail_center();
-                self.detail_center.unwrap_or([0.0; 3])
-            }
+            AttributeDomain::Detail => self.detail_center,
             AttributeDomain::Vertex => [0.0; 3],
         }
     }
 
-    fn read_n(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+    fn read_n(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
         match domain {
-            AttributeDomain::Point | AttributeDomain::Primitive => {
-                self.ensure_point_normals();
-                self.point_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_normal();
-                self.detail_normal.unwrap_or([0.0, 1.0, 0.0])
-            }
+            AttributeDomain::Point | AttributeDomain::Primitive => self
+                .point_normals
+                .get(idx)
+                .copied()
+                .unwrap_or([0.0, 1.0, 0.0]),
+            AttributeDomain::Detail => self.detail_normal,
             AttributeDomain::Vertex => [0.0, 1.0, 0.0],
         }
-    }
-
-    fn ensure_point_normals(&mut self) {
-        if self.point_normals.is_some() {
-            return;
-        }
-        if let Some(AttributeRef::Vec3(values)) =
-            self.splats.attribute(AttributeDomain::Point, "N")
-        {
-            if values.len() == self.splats.positions.len() {
-                self.point_normals = Some(values.to_vec());
-                return;
-            }
-        }
-        self.point_normals =
-            Some(vec![[0.0, 1.0, 0.0]; self.splats.positions.len()]);
-    }
-
-    fn ensure_detail_center(&mut self) {
-        if self.detail_center.is_some() {
-            return;
-        }
-        let mut iter = self.splats.positions.iter();
-        let Some(first) = iter.next().copied() else {
-            self.detail_center = Some([0.0; 3]);
-            return;
-        };
-        let mut min = first;
-        let mut max = first;
-        for p in iter {
-            min[0] = min[0].min(p[0]);
-            min[1] = min[1].min(p[1]);
-            min[2] = min[2].min(p[2]);
-            max[0] = max[0].max(p[0]);
-            max[1] = max[1].max(p[1]);
-            max[2] = max[2].max(p[2]);
-        }
-        self.detail_center = Some([
-            (min[0] + max[0]) * 0.5,
-            (min[1] + max[1]) * 0.5,
-            (min[2] + max[2]) * 0.5,
-        ]);
-    }
-
-    fn ensure_detail_normal(&mut self) {
-        if self.detail_normal.is_some() {
-            return;
-        }
-        self.ensure_point_normals();
-        let normals = self.point_normals.as_ref().cloned().unwrap_or_default();
-        let mut sum = Vec3::ZERO;
-        for n in normals {
-            sum += Vec3::from(n);
-        }
-        let normal = if sum.length_squared() > 0.0 {
-            sum.normalize().to_array()
-        } else {
-            [0.0, 1.0, 0.0]
-        };
-        self.detail_normal = Some(normal);
     }
 }
 
@@ -1170,9 +861,7 @@ struct SplatWrangleContext<'a> {
     len: usize,
     mask: Option<&'a [bool]>,
     written: HashMap<String, AttributeStorage>,
-    point_normals: Option<Vec<[f32; 3]>>,
-    detail_center: Option<[f32; 3]>,
-    detail_normal: Option<[f32; 3]>,
+    query: SplatQueryCache<'a>,
 }
 
 impl<'a> SplatWrangleContext<'a> {
@@ -1194,9 +883,7 @@ impl<'a> SplatWrangleContext<'a> {
             len,
             mask,
             written: HashMap::new(),
-            point_normals: None,
-            detail_center: None,
-            detail_normal: None,
+            query: SplatQueryCache::new(splats),
         }
     }
 
@@ -1223,19 +910,24 @@ impl<'a> SplatWrangleContext<'a> {
             self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
         });
 
-        let mut values = Vec::with_capacity(self.len.max(1));
-        for idx in 0..self.len.max(1) {
-            let selected = self
+        let default_value = target_type
+            .map(default_value_for_type)
+            .unwrap_or(Value::Float(0.0));
+        let mut values = vec![default_value; self.len.max(1)];
+        let ctx = &*self;
+        parallel::try_for_each_indexed_mut(&mut values, |idx, slot| {
+            let selected = ctx
                 .mask
                 .and_then(|mask| mask.get(idx).copied())
                 .unwrap_or(true);
             let value = if selected {
-                self.eval_expr(&expr, idx)?
+                ctx.eval_expr(&expr, idx)?
             } else {
-                self.read_attr_for_mask(&target, idx, target_type)?
+                ctx.read_attr_for_mask(&target, idx, target_type)?
             };
-            values.push(value);
-        }
+            *slot = value;
+            Ok::<(), String>(())
+        })?;
 
         let storage = build_storage(&values, target_type)?;
         self.written.insert(target, storage);
@@ -1260,7 +952,7 @@ impl<'a> SplatWrangleContext<'a> {
             .map(|attr| attr.data_type())
     }
 
-    fn eval_expr(&mut self, expr: &Expr, idx: usize) -> Result<Value, String> {
+    fn eval_expr(&self, expr: &Expr, idx: usize) -> Result<Value, String> {
         match expr {
             Expr::Literal(value) => Ok(*value),
             Expr::Attr(name) => self.read_attr(name, idx),
@@ -1290,7 +982,7 @@ impl<'a> SplatWrangleContext<'a> {
         }
     }
 
-    fn eval_call(&mut self, name: &str, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_call(&self, name: &str, args: &[Expr], idx: usize) -> Result<Value, String> {
         let name = name.to_lowercase();
         match name.as_str() {
             "sin" | "cos" | "tan" | "abs" | "floor" | "ceil" => {
@@ -1350,7 +1042,7 @@ impl<'a> SplatWrangleContext<'a> {
     }
 
     fn eval_args(
-        &mut self,
+        &self,
         args: &[Expr],
         idx: usize,
         expected: usize,
@@ -1369,7 +1061,7 @@ impl<'a> SplatWrangleContext<'a> {
         Ok(out)
     }
 
-    fn eval_splat_query(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_splat_query(&self, args: &[Expr], idx: usize) -> Result<Value, String> {
         if args.len() != 3 {
             return Err(format!("Expected 3 arguments, got {}", args.len()));
         }
@@ -1385,7 +1077,7 @@ impl<'a> SplatWrangleContext<'a> {
     }
 
     fn eval_geo_query(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         args: &[Expr],
         idx: usize,
@@ -1404,7 +1096,7 @@ impl<'a> SplatWrangleContext<'a> {
         }
     }
 
-    fn eval_volume_sample(&mut self, args: &[Expr], idx: usize) -> Result<Value, String> {
+    fn eval_volume_sample(&self, args: &[Expr], idx: usize) -> Result<Value, String> {
         let (input_index, pos_expr) = match args.len() {
             2 => (self.eval_expr(&args[0], idx)?, &args[1]),
             3 => {
@@ -1432,7 +1124,7 @@ impl<'a> SplatWrangleContext<'a> {
         ))
     }
 
-    fn query_primary_splat_attr(&mut self, name: &str, idx: usize) -> Value {
+    fn query_primary_splat_attr(&self, name: &str, idx: usize) -> Value {
         if name.eq_ignore_ascii_case("P") {
             return Value::Vec3(self.read_p_for_domain(AttributeDomain::Point, idx));
         }
@@ -1451,8 +1143,8 @@ impl<'a> SplatWrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_secondary_splat_attr(&mut self, name: &str, idx: usize) -> Value {
-        let Some(query) = self.secondary_query.as_mut() else {
+    fn query_secondary_splat_attr(&self, name: &str, idx: usize) -> Value {
+        let Some(query) = self.secondary_query.as_ref() else {
             return default_query_value(name);
         };
         if name.eq_ignore_ascii_case("P") {
@@ -1474,7 +1166,7 @@ impl<'a> SplatWrangleContext<'a> {
     }
 
     fn query_primary_attr(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         name: &str,
         idx: usize,
@@ -1492,12 +1184,12 @@ impl<'a> SplatWrangleContext<'a> {
     }
 
     fn query_secondary_attr(
-        &mut self,
+        &self,
         domain: AttributeDomain,
         name: &str,
         idx: usize,
     ) -> Value {
-        let Some(query) = self.secondary_query.as_mut() else {
+        let Some(query) = self.secondary_query.as_ref() else {
             return default_query_value(name);
         };
         if name.eq_ignore_ascii_case("P") {
@@ -1512,7 +1204,7 @@ impl<'a> SplatWrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn read_attr(&mut self, name: &str, idx: usize) -> Result<Value, String> {
+    fn read_attr(&self, name: &str, idx: usize) -> Result<Value, String> {
         if let Some(storage) = self.written.get(name) {
             return value_from_storage(storage, idx);
         }
@@ -1532,7 +1224,7 @@ impl<'a> SplatWrangleContext<'a> {
     }
 
     fn read_attr_for_mask(
-        &mut self,
+        &self,
         name: &str,
         idx: usize,
         target_type: Option<AttributeType>,
@@ -1597,105 +1289,20 @@ impl<'a> SplatWrangleContext<'a> {
         }
     }
 
-    fn read_p(&mut self, idx: usize) -> [f32; 3] {
+    fn read_p(&self, idx: usize) -> [f32; 3] {
         self.read_p_for_domain(self.domain, idx)
     }
 
-    fn read_n(&mut self, idx: usize) -> [f32; 3] {
+    fn read_n(&self, idx: usize) -> [f32; 3] {
         self.read_n_for_domain(self.domain, idx)
     }
 
-    fn read_p_for_domain(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point | AttributeDomain::Primitive => self
-                .splats
-                .positions
-                .get(idx)
-                .copied()
-                .unwrap_or([0.0; 3]),
-            AttributeDomain::Detail => {
-                self.ensure_detail_center();
-                self.detail_center.unwrap_or([0.0; 3])
-            }
-            AttributeDomain::Vertex => [0.0; 3],
-        }
+    fn read_p_for_domain(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        self.query.read_p(domain, idx)
     }
 
-    fn read_n_for_domain(&mut self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
-        match domain {
-            AttributeDomain::Point | AttributeDomain::Primitive => {
-                self.ensure_point_normals();
-                self.point_normals
-                    .as_ref()
-                    .and_then(|values| values.get(idx).copied())
-                    .unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Detail => {
-                self.ensure_detail_normal();
-                self.detail_normal.unwrap_or([0.0, 1.0, 0.0])
-            }
-            AttributeDomain::Vertex => [0.0, 1.0, 0.0],
-        }
-    }
-
-    fn ensure_point_normals(&mut self) {
-        if self.point_normals.is_some() {
-            return;
-        }
-        if let Some(AttributeRef::Vec3(values)) =
-            self.splats.attribute(AttributeDomain::Point, "N")
-        {
-            if values.len() == self.splats.positions.len() {
-                self.point_normals = Some(values.to_vec());
-                return;
-            }
-        }
-        self.point_normals =
-            Some(vec![[0.0, 1.0, 0.0]; self.splats.positions.len()]);
-    }
-
-    fn ensure_detail_center(&mut self) {
-        if self.detail_center.is_some() {
-            return;
-        }
-        let mut iter = self.splats.positions.iter();
-        let Some(first) = iter.next().copied() else {
-            self.detail_center = Some([0.0; 3]);
-            return;
-        };
-        let mut min = first;
-        let mut max = first;
-        for p in iter {
-            min[0] = min[0].min(p[0]);
-            min[1] = min[1].min(p[1]);
-            min[2] = min[2].min(p[2]);
-            max[0] = max[0].max(p[0]);
-            max[1] = max[1].max(p[1]);
-            max[2] = max[2].max(p[2]);
-        }
-        self.detail_center = Some([
-            (min[0] + max[0]) * 0.5,
-            (min[1] + max[1]) * 0.5,
-            (min[2] + max[2]) * 0.5,
-        ]);
-    }
-
-    fn ensure_detail_normal(&mut self) {
-        if self.detail_normal.is_some() {
-            return;
-        }
-        self.ensure_point_normals();
-        let normals = self.point_normals.as_ref().cloned().unwrap_or_default();
-        let mut sum = Vec3::ZERO;
-        for n in normals {
-            sum += Vec3::from(n);
-        }
-        let normal = if sum.length_squared() > 0.0 {
-            sum.normalize().to_array()
-        } else {
-            [0.0, 1.0, 0.0]
-        };
-        self.detail_normal = Some(normal);
+    fn read_n_for_domain(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
+        self.query.read_n(domain, idx)
     }
 }
 
@@ -2102,7 +1709,7 @@ fn build_vec(
     args: &[Expr],
     idx: usize,
     size: usize,
-    ctx: &mut WrangleContext<'_>,
+    ctx: &WrangleContext<'_>,
 ) -> Result<Value, String> {
     let values = if args.len() == 1 {
         vec![ctx.eval_expr(&args[0], idx)?; size]
@@ -2136,7 +1743,7 @@ fn build_vec_splats(
     args: &[Expr],
     idx: usize,
     size: usize,
-    ctx: &mut SplatWrangleContext<'_>,
+    ctx: &SplatWrangleContext<'_>,
 ) -> Result<Value, String> {
     let values = if args.len() == 1 {
         vec![ctx.eval_expr(&args[0], idx)?; size]
@@ -2164,457 +1771,4 @@ fn build_vec_splats(
         4 => Value::Vec4([floats[0], floats[1], floats[2], floats[3]]),
         _ => Value::Float(0.0),
     })
-}
-
-fn parse_program(code: &str) -> Result<Program, String> {
-    let tokens = tokenize(code)?;
-    let mut parser = Parser::new(tokens);
-    let mut statements = Vec::new();
-    while !parser.is_end() {
-        parser.consume_separators();
-        if parser.is_end() {
-            break;
-        }
-        let stmt = parser.parse_statement()?;
-        statements.push(stmt);
-        parser.consume_separators();
-    }
-    Ok(Program { statements })
-}
-
-fn tokenize(code: &str) -> Result<Vec<Token>, String> {
-    let mut tokens = Vec::new();
-    let chars: Vec<char> = code.chars().collect();
-    let mut i = 0usize;
-    while i < chars.len() {
-        let c = chars[i];
-        match c {
-            ' ' | '\t' | '\r' => {
-                i += 1;
-            }
-            '\n' | ';' => {
-                tokens.push(Token::Semicolon);
-                i += 1;
-            }
-            '+' => {
-                tokens.push(Token::Plus);
-                i += 1;
-            }
-            '-' => {
-                tokens.push(Token::Minus);
-                i += 1;
-            }
-            '*' => {
-                tokens.push(Token::Star);
-                i += 1;
-            }
-            '/' => {
-                if i + 1 < chars.len() && chars[i + 1] == '/' {
-                    i += 2;
-                    while i < chars.len() && chars[i] != '\n' {
-                        i += 1;
-                    }
-                } else {
-                    tokens.push(Token::Slash);
-                    i += 1;
-                }
-            }
-            '(' => {
-                tokens.push(Token::LParen);
-                i += 1;
-            }
-            ')' => {
-                tokens.push(Token::RParen);
-                i += 1;
-            }
-            ',' => {
-                tokens.push(Token::Comma);
-                i += 1;
-            }
-            '=' => {
-                tokens.push(Token::Equal);
-                i += 1;
-            }
-            '@' => {
-                tokens.push(Token::At);
-                i += 1;
-            }
-            '.' => {
-                if i + 1 < chars.len() && chars[i + 1].is_ascii_digit() {
-                    let start = i;
-                    i += 1;
-                    while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
-                        i += 1;
-                    }
-                    let number: f32 = chars[start..i]
-                        .iter()
-                        .collect::<String>()
-                        .parse()
-                        .map_err(|_| "Invalid number literal".to_string())?;
-                    tokens.push(Token::Number(number));
-                } else {
-                    tokens.push(Token::Dot);
-                    i += 1;
-                }
-            }
-            '0'..='9' => {
-                let start = i;
-                i += 1;
-                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
-                    i += 1;
-                }
-                let number: f32 = chars[start..i]
-                    .iter()
-                    .collect::<String>()
-                    .parse()
-                    .map_err(|_| "Invalid number literal".to_string())?;
-                tokens.push(Token::Number(number));
-            }
-            '_' | 'a'..='z' | 'A'..='Z' => {
-                let start = i;
-                i += 1;
-                while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                    i += 1;
-                }
-                let ident = chars[start..i].iter().collect::<String>();
-                tokens.push(Token::Ident(ident));
-            }
-            _ => {
-                return Err(format!("Unexpected character '{}'", c));
-            }
-        }
-    }
-    Ok(tokens)
-}
-
-struct Parser {
-    tokens: Vec<Token>,
-    pos: usize,
-}
-
-impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0 }
-    }
-
-    fn is_end(&self) -> bool {
-        self.pos >= self.tokens.len()
-    }
-
-    fn consume_separators(&mut self) {
-        while matches!(self.peek(), Some(Token::Semicolon)) {
-            self.pos += 1;
-        }
-    }
-
-    fn parse_statement(&mut self) -> Result<Statement, String> {
-        self.expect(Token::At)?;
-        let target = match self.next() {
-            Some(Token::Ident(name)) => name,
-            _ => return Err("Expected attribute name after '@'".to_string()),
-        };
-        self.expect(Token::Equal)?;
-        let expr = self.parse_expr()?;
-        Ok(Statement::Assign { target, expr })
-    }
-
-    fn parse_expr(&mut self) -> Result<Expr, String> {
-        self.parse_add_sub()
-    }
-
-    fn parse_add_sub(&mut self) -> Result<Expr, String> {
-        let mut expr = self.parse_mul_div()?;
-        loop {
-            match self.peek() {
-                Some(Token::Plus) => {
-                    self.pos += 1;
-                    let right = self.parse_mul_div()?;
-                    expr = Expr::Binary {
-                        op: BinaryOp::Add,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                    };
-                }
-                Some(Token::Minus) => {
-                    self.pos += 1;
-                    let right = self.parse_mul_div()?;
-                    expr = Expr::Binary {
-                        op: BinaryOp::Sub,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                    };
-                }
-                _ => break,
-            }
-        }
-        Ok(expr)
-    }
-
-    fn parse_mul_div(&mut self) -> Result<Expr, String> {
-        let mut expr = self.parse_unary()?;
-        loop {
-            match self.peek() {
-                Some(Token::Star) => {
-                    self.pos += 1;
-                    let right = self.parse_unary()?;
-                    expr = Expr::Binary {
-                        op: BinaryOp::Mul,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                    };
-                }
-                Some(Token::Slash) => {
-                    self.pos += 1;
-                    let right = self.parse_unary()?;
-                    expr = Expr::Binary {
-                        op: BinaryOp::Div,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                    };
-                }
-                _ => break,
-            }
-        }
-        Ok(expr)
-    }
-
-    fn parse_unary(&mut self) -> Result<Expr, String> {
-        match self.peek() {
-            Some(Token::Plus) => {
-                self.pos += 1;
-                let expr = self.parse_unary()?;
-                Ok(Expr::Unary {
-                    op: UnaryOp::Pos,
-                    expr: Box::new(expr),
-                })
-            }
-            Some(Token::Minus) => {
-                self.pos += 1;
-                let expr = self.parse_unary()?;
-                Ok(Expr::Unary {
-                    op: UnaryOp::Neg,
-                    expr: Box::new(expr),
-                })
-            }
-            _ => self.parse_postfix(),
-        }
-    }
-
-    fn parse_postfix(&mut self) -> Result<Expr, String> {
-        let mut expr = self.parse_primary()?;
-        loop {
-            if !matches!(self.peek(), Some(Token::Dot)) {
-                break;
-            }
-            self.pos += 1;
-            let mask = match self.next() {
-                Some(Token::Ident(name)) => name,
-                _ => return Err("Expected swizzle mask after '.'".to_string()),
-            };
-            expr = Expr::Swizzle {
-                expr: Box::new(expr),
-                mask,
-            };
-        }
-        Ok(expr)
-    }
-
-    fn parse_primary(&mut self) -> Result<Expr, String> {
-        match self.next() {
-            Some(Token::Number(value)) => Ok(Expr::Literal(Value::Float(value))),
-            Some(Token::At) => match self.next() {
-                Some(Token::Ident(name)) => Ok(Expr::Attr(name)),
-                _ => Err("Expected attribute name after '@'".to_string()),
-            },
-            Some(Token::Ident(name)) => {
-                if matches!(self.peek(), Some(Token::LParen)) {
-                    self.pos += 1;
-                    let mut args = Vec::new();
-                    if !matches!(self.peek(), Some(Token::RParen)) {
-                        loop {
-                            args.push(self.parse_expr()?);
-                            match self.peek() {
-                                Some(Token::Comma) => {
-                                    self.pos += 1;
-                                }
-                                Some(Token::RParen) => break,
-                                _ => return Err("Expected ',' or ')' in function call".to_string()),
-                            }
-                        }
-                    }
-                    self.expect(Token::RParen)?;
-                    Ok(Expr::Call { name, args })
-                } else if name == "PI" {
-                    Ok(Expr::Literal(Value::Float(std::f32::consts::PI)))
-                } else if name == "E" {
-                    Ok(Expr::Literal(Value::Float(std::f32::consts::E)))
-                } else {
-                    Ok(Expr::Ident(name))
-                }
-            }
-            Some(Token::LParen) => {
-                let expr = self.parse_expr()?;
-                self.expect(Token::RParen)?;
-                Ok(expr)
-            }
-            other => Err(format!("Unexpected token {:?}", other)),
-        }
-    }
-
-    fn expect(&mut self, token: Token) -> Result<(), String> {
-        match self.next() {
-            Some(t) if t == token => Ok(()),
-            other => Err(format!("Expected {:?}, got {:?}", token, other)),
-        }
-    }
-
-    fn peek(&self) -> Option<&Token> {
-        self.tokens.get(self.pos)
-    }
-
-    fn next(&mut self) -> Option<Token> {
-        if self.pos >= self.tokens.len() {
-            return None;
-        }
-        let token = self.tokens[self.pos].clone();
-        self.pos += 1;
-        Some(token)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::attributes::AttributeStorage;
-    use crate::volume::VolumeKind;
-
-    #[test]
-    fn wrangle_ptnum_sets_point_attribute() {
-        let positions = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
-        let mut mesh = Mesh::with_positions_indices(positions, Vec::new());
-        apply_wrangle(
-            &mut mesh,
-            AttributeDomain::Point,
-            "@id = @ptnum;",
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        let Some(AttributeStorage::Float(values)) =
-            mesh.attributes.get(AttributeDomain::Point, "id")
-        else {
-            panic!("Expected float attribute 'id' on points");
-        };
-        assert_eq!(values, &vec![0.0, 1.0, 2.0]);
-    }
-
-    #[test]
-    fn wrangle_point_query_secondary_mesh() {
-        let mut mesh = Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], Vec::new());
-        let secondary = Mesh::with_positions_indices(
-            vec![[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
-            Vec::new(),
-        );
-
-        apply_wrangle(
-            &mut mesh,
-            AttributeDomain::Point,
-            "@P = point(1, P, @ptnum);",
-            None,
-            Some(&secondary),
-            None,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        assert_eq!(mesh.positions, secondary.positions);
-    }
-
-    #[test]
-    fn wrangle_point_query_secondary_splats() {
-        let mut splats = SplatGeo::with_len(2);
-        splats.positions = vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]];
-        let mut secondary = SplatGeo::with_len(2);
-        secondary.positions = vec![[3.0, 0.0, 0.0], [6.0, 0.0, 0.0]];
-
-        apply_wrangle_splats(
-            &mut splats,
-            AttributeDomain::Point,
-            "@P = splat(1, P, @ptnum);",
-            None,
-            Some(&secondary),
-            None,
-            None,
-        )
-        .unwrap();
-
-        assert_eq!(splats.positions, secondary.positions);
-    }
-
-    #[test]
-    fn wrangle_splat_query_secondary_from_mesh() {
-        let mut mesh =
-            Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], Vec::new());
-        let mut secondary = SplatGeo::with_len(2);
-        secondary.positions = vec![[5.0, 0.0, 0.0], [7.0, 0.0, 0.0]];
-
-        apply_wrangle(
-            &mut mesh,
-            AttributeDomain::Point,
-            "@P = splat(1, P, @ptnum);",
-            None,
-            None,
-            None,
-            Some(&secondary),
-            None,
-            None,
-        )
-        .unwrap();
-
-        assert_eq!(mesh.positions, secondary.positions);
-    }
-
-    #[test]
-    fn wrangle_sample_secondary_volume() {
-        let mut mesh = Mesh::with_positions_indices(
-            vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
-            Vec::new(),
-        );
-        let volume = Volume::new(
-            VolumeKind::Density,
-            [0.0, 0.0, 0.0],
-            [2, 1, 1],
-            1.0,
-            vec![0.1, 0.9],
-        );
-
-        apply_wrangle(
-            &mut mesh,
-            AttributeDomain::Point,
-            "@val = sample(1, @P);",
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(&volume),
-        )
-        .unwrap();
-
-        let Some(AttributeStorage::Float(values)) =
-            mesh.attributes.get(AttributeDomain::Point, "val")
-        else {
-            panic!("Expected float attribute 'val' on points");
-        };
-        assert_eq!(values.len(), 2);
-        assert!((values[0] - 0.1).abs() < 1.0e-4);
-        assert!((values[1] - 0.9).abs() < 1.0e-4);
-    }
 }

@@ -14,6 +14,7 @@ mod material;
 mod noise;
 mod nodes;
 mod nodes_builtin;
+mod parallel;
 mod project;
 mod scene;
 mod splat;

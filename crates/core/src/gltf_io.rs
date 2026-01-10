@@ -103,7 +103,7 @@ fn build_mesh_from_gltf(
                     material_values.push(name);
                     idx
                 });
-                material_indices.extend(std::iter::repeat(*entry).take(tri_count));
+                material_indices.extend(std::iter::repeat_n(*entry, tri_count));
             }
         }
     }

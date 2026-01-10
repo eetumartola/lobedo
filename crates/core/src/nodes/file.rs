@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
-
 use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::assets;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};

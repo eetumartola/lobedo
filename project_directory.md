@@ -396,6 +396,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\parallel.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\project.rs
 Description: TODO: add description.
 Functions: None
@@ -448,7 +452,23 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
-## .\crates\core\src\wrangle.rs
+## .\crates\core\src\wrangle\mod.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\wrangle\parser.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\wrangle\runtime.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\wrangle\tests.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\wrangle\value.rs
 Description: TODO: add description.
 Functions: None
 

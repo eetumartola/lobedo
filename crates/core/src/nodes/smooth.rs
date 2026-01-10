@@ -17,6 +17,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::parallel;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Smooth";
@@ -602,16 +603,21 @@ fn smooth_scalar(
     let mut current = values.to_vec();
     let mut next = current.clone();
     for _ in 0..iterations {
-        for (idx, value) in current.iter().enumerate() {
-            if mask
+        let mask_ref = mask;
+        parallel::for_each_indexed_mut(&mut next, |idx, slot| {
+            if mask_ref
                 .as_ref()
                 .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
             {
-                continue;
+                return;
             }
+            let value = match current.get(idx) {
+                Some(value) => *value,
+                None => return,
+            };
             let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
             if neigh.is_empty() {
-                continue;
+                return;
             }
             let mut sum = 0.0;
             for &n in neigh {
@@ -620,10 +626,8 @@ fn smooth_scalar(
                 }
             }
             let avg = sum / neigh.len() as f32;
-            if let Some(slot) = next.get_mut(idx) {
-                *slot = lerp(*value, avg, strength);
-            }
-        }
+            *slot = lerp(value, avg, strength);
+        });
         std::mem::swap(&mut current, &mut next);
     }
     current
@@ -651,16 +655,21 @@ fn smooth_vec2(
     let mut current = values.to_vec();
     let mut next = current.clone();
     for _ in 0..iterations {
-        for (idx, value) in current.iter().enumerate() {
-            if mask
+        let mask_ref = mask;
+        parallel::for_each_indexed_mut(&mut next, |idx, slot| {
+            if mask_ref
                 .as_ref()
                 .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
             {
-                continue;
+                return;
             }
+            let value = match current.get(idx) {
+                Some(value) => *value,
+                None => return,
+            };
             let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
             if neigh.is_empty() {
-                continue;
+                return;
             }
             let mut sum = [0.0f32; 2];
             for &n in neigh {
@@ -671,13 +680,11 @@ fn smooth_vec2(
             }
             let inv = 1.0 / neigh.len() as f32;
             let avg = [sum[0] * inv, sum[1] * inv];
-            if let Some(slot) = next.get_mut(idx) {
-                *slot = [
-                    lerp(value[0], avg[0], strength),
-                    lerp(value[1], avg[1], strength),
-                ];
-            }
-        }
+            *slot = [
+                lerp(value[0], avg[0], strength),
+                lerp(value[1], avg[1], strength),
+            ];
+        });
         std::mem::swap(&mut current, &mut next);
     }
     current
@@ -693,16 +700,21 @@ fn smooth_vec3(
     let mut current = values.to_vec();
     let mut next = current.clone();
     for _ in 0..iterations {
-        for (idx, value) in current.iter().enumerate() {
-            if mask
+        let mask_ref = mask;
+        parallel::for_each_indexed_mut(&mut next, |idx, slot| {
+            if mask_ref
                 .as_ref()
                 .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
             {
-                continue;
+                return;
             }
+            let value = match current.get(idx) {
+                Some(value) => *value,
+                None => return,
+            };
             let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
             if neigh.is_empty() {
-                continue;
+                return;
             }
             let mut sum = [0.0f32; 3];
             for &n in neigh {
@@ -714,14 +726,12 @@ fn smooth_vec3(
             }
             let inv = 1.0 / neigh.len() as f32;
             let avg = [sum[0] * inv, sum[1] * inv, sum[2] * inv];
-            if let Some(slot) = next.get_mut(idx) {
-                *slot = [
-                    lerp(value[0], avg[0], strength),
-                    lerp(value[1], avg[1], strength),
-                    lerp(value[2], avg[2], strength),
-                ];
-            }
-        }
+            *slot = [
+                lerp(value[0], avg[0], strength),
+                lerp(value[1], avg[1], strength),
+                lerp(value[2], avg[2], strength),
+            ];
+        });
         std::mem::swap(&mut current, &mut next);
     }
     current
@@ -737,16 +747,21 @@ fn smooth_vec4(
     let mut current = values.to_vec();
     let mut next = current.clone();
     for _ in 0..iterations {
-        for (idx, value) in current.iter().enumerate() {
-            if mask
+        let mask_ref = mask;
+        parallel::for_each_indexed_mut(&mut next, |idx, slot| {
+            if mask_ref
                 .as_ref()
                 .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
             {
-                continue;
+                return;
             }
+            let value = match current.get(idx) {
+                Some(value) => *value,
+                None => return,
+            };
             let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
             if neigh.is_empty() {
-                continue;
+                return;
             }
             let mut sum = [0.0f32; 4];
             for &n in neigh {
@@ -764,15 +779,13 @@ fn smooth_vec4(
                 sum[2] * inv,
                 sum[3] * inv,
             ];
-            if let Some(slot) = next.get_mut(idx) {
-                *slot = [
-                    lerp(value[0], avg[0], strength),
-                    lerp(value[1], avg[1], strength),
-                    lerp(value[2], avg[2], strength),
-                    lerp(value[3], avg[3], strength),
-                ];
-            }
-        }
+            *slot = [
+                lerp(value[0], avg[0], strength),
+                lerp(value[1], avg[1], strength),
+                lerp(value[2], avg[2], strength),
+                lerp(value[3], avg[3], strength),
+            ];
+        });
         std::mem::swap(&mut current, &mut next);
     }
     current

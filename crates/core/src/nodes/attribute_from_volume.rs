@@ -13,6 +13,7 @@ use crate::nodes::{
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
 };
+use crate::parallel;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
 use crate::volume_sampling::VolumeSampler;
@@ -104,25 +105,23 @@ fn apply_to_mesh(
         return Ok(());
     }
     let mask = mesh_group_mask(mesh, params, domain);
+    let mask_ref = mask.as_deref();
     if !mask_has_any(mask.as_deref()) {
         return Ok(());
     }
 
     let mut values = existing_float_attr_mesh(mesh, domain, attr, count);
     let sampler = VolumeSampler::new(volume);
-    for index in 0..values.len() {
-        if mask
-            .as_ref()
+    let mesh_ref = &*mesh;
+    parallel::for_each_indexed_mut(&mut values, |index, slot| {
+        if mask_ref
             .is_some_and(|mask| !mask.get(index).copied().unwrap_or(false))
         {
-            continue;
+            return;
         }
-        let pos = mesh_sample_position(mesh, domain, index);
-        let value = sampler.sample_world(pos);
-        if let Some(slot) = values.get_mut(index) {
-            *slot = value;
-        }
-    }
+        let pos = mesh_sample_position(mesh_ref, domain, index);
+        *slot = sampler.sample_world(pos);
+    });
 
     mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
         .map_err(|err| format!("Attribute from Volume error: {:?}", err))?;
@@ -141,25 +140,23 @@ fn apply_to_splats(
         return Ok(());
     }
     let mask = splat_group_mask(splats, params, domain);
+    let mask_ref = mask.as_deref();
     if !mask_has_any(mask.as_deref()) {
         return Ok(());
     }
 
     let mut values = existing_float_attr_splats(splats, domain, attr, count);
     let sampler = VolumeSampler::new(volume);
-    for index in 0..values.len() {
-        if mask
-            .as_ref()
+    let splats_ref = &*splats;
+    parallel::for_each_indexed_mut(&mut values, |index, slot| {
+        if mask_ref
             .is_some_and(|mask| !mask.get(index).copied().unwrap_or(false))
         {
-            continue;
+            return;
         }
-        let pos = splat_sample_position(splats, domain, index);
-        let value = sampler.sample_world(pos);
-        if let Some(slot) = values.get_mut(index) {
-            *slot = value;
-        }
-    }
+        let pos = splat_sample_position(splats_ref, domain, index);
+        *slot = sampler.sample_world(pos);
+    });
 
     splats
         .set_attribute(domain, attr, AttributeStorage::Float(values))

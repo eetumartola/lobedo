@@ -20,6 +20,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::parallel;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Transfer";
@@ -350,81 +351,31 @@ fn apply_transfer_to_mesh(
         match samples {
             AttributeSamples::Float { positions: src_pos, values } => {
                 let mut out = existing_float_attr_mesh(mesh, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Float(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Int { positions: src_pos, values } => {
                 let mut out = existing_int_attr_mesh(mesh, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Int(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec2 { positions: src_pos, values } => {
                 let mut out = existing_vec2_attr_mesh(mesh, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec2(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec3 { positions: src_pos, values } => {
                 let mut out = existing_vec3_attr_mesh(mesh, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec3(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec4 { positions: src_pos, values } => {
                 let mut out = existing_vec4_attr_mesh(mesh, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
@@ -457,11 +408,7 @@ fn apply_transfer_to_mesh(
                     src_pos,
                     &source_indices,
                     mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
+                    &mut out,
                 );
                 let mut table = combined_values;
                 if table.is_empty() && !out.is_empty() {
@@ -514,85 +461,35 @@ fn apply_transfer_to_splats(
         match samples {
             AttributeSamples::Float { positions: src_pos, values } => {
                 let mut out = existing_float_attr_splats(splats, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Float(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Int { positions: src_pos, values } => {
                 let mut out = existing_int_attr_splats(splats, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Int(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec2 { positions: src_pos, values } => {
                 let mut out = existing_vec2_attr_splats(splats, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec2(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec3 { positions: src_pos, values } => {
                 let mut out = existing_vec3_attr_splats(splats, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec3(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
             }
             AttributeSamples::Vec4 { positions: src_pos, values } => {
                 let mut out = existing_vec4_attr_splats(splats, domain, name, count);
-                transfer_values(
-                    &positions,
-                    src_pos,
-                    values,
-                    mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
-                );
+                transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec4(out))
                     .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
@@ -626,11 +523,7 @@ fn apply_transfer_to_splats(
                     src_pos,
                     &source_indices,
                     mask.as_deref(),
-                    |idx, value| {
-                        if let Some(slot) = out.get_mut(idx) {
-                            *slot = value;
-                        }
-                    },
+                    &mut out,
                 );
                 let mut table = combined_values;
                 if table.is_empty() && !out.is_empty() {
@@ -651,28 +544,30 @@ fn apply_transfer_to_splats(
     Ok(())
 }
 
-fn transfer_values<T: Copy>(
+fn transfer_values<T: Copy + Send + Sync>(
     target_positions: &[Vec3],
     source_positions: &[Vec3],
     source_values: &[T],
     mask: Option<&[bool]>,
-    mut set_value: impl FnMut(usize, T),
+    out: &mut [T],
 ) {
     if source_positions.is_empty() || source_values.is_empty() {
         return;
     }
-    for (idx, position) in target_positions.iter().enumerate() {
-        if mask
+    let mask_ref = mask;
+    parallel::for_each_indexed_mut(out, |idx, slot| {
+        if mask_ref
             .as_ref()
             .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
         {
-            continue;
+            return;
         }
-        let nearest = find_nearest_index(*position, source_positions);
+        let position = target_positions.get(idx).copied().unwrap_or(Vec3::ZERO);
+        let nearest = find_nearest_index(position, source_positions);
         if let Some(value) = source_values.get(nearest).copied() {
-            set_value(idx, value);
+            *slot = value;
         }
-    }
+    });
 }
 
 fn append_string_table_values(

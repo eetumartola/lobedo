@@ -18,6 +18,7 @@ use crate::nodes::{
     require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
+use crate::parallel;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Noise";
@@ -70,6 +71,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     }
 
     let mask = splat_group_mask(splats, params, domain);
+    let mask_ref = mask.as_deref();
     if !mask_has_any(mask.as_deref()) {
         return Ok(());
     }
@@ -77,17 +79,16 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     match data_type {
         0 => {
             let mut values = existing_float_attr_splats(splats, domain, attr, count);
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
                 let n = fbm_noise(p, seed, noise_type, 3, 2.0, 0.5);
                 *value += n * amplitude;
-            }
+            });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Float(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
@@ -95,12 +96,11 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         1 => {
             let mut values = existing_vec2_attr_splats(splats, domain, attr, count);
             let offsets = [Vec3::new(12.7, 45.3, 19.1), Vec3::new(31.9, 7.2, 58.4)];
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
                 let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
@@ -114,7 +114,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
-            }
+            });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Vec2(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
@@ -126,12 +126,11 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 Vec3::new(31.9, 7.2, 58.4),
                 Vec3::new(23.1, 91.7, 3.7),
             ];
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
                 let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
@@ -154,7 +153,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
                 value[2] += n2 * amplitude;
-            }
+            });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Vec3(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
@@ -180,6 +179,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     }
 
     let mask = mesh_group_mask(mesh, params, domain);
+    let mask_ref = mask.as_deref();
     if !mask_has_any(mask.as_deref()) {
         return Ok(());
     }
@@ -187,29 +187,27 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     match data_type {
         0 => {
             let mut values = existing_float_attr_mesh(mesh, domain, attr, count);
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
                 let n = fbm_noise(p, seed, noise_type, 3, 2.0, 0.5);
                 *value += n * amplitude;
-            }
+            });
             mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
         }
         1 => {
             let mut values = existing_vec2_attr_mesh(mesh, domain, attr, count);
             let offsets = [Vec3::new(12.7, 45.3, 19.1), Vec3::new(31.9, 7.2, 58.4)];
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
                 let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
@@ -223,7 +221,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
-            }
+            });
             mesh.set_attribute(domain, attr, AttributeStorage::Vec2(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
         }
@@ -234,12 +232,11 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 Vec3::new(31.9, 7.2, 58.4),
                 Vec3::new(23.1, 91.7, 3.7),
             ];
-            for (idx, value) in values.iter_mut().enumerate() {
-                if mask
-                    .as_ref()
+            parallel::for_each_indexed_mut(&mut values, |idx, value| {
+                if mask_ref
                     .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
                 {
-                    continue;
+                    return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
                 let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
@@ -262,7 +259,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
                 value[2] += n2 * amplitude;
-            }
+            });
             mesh.set_attribute(domain, attr, AttributeStorage::Vec3(values))
                 .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
         }

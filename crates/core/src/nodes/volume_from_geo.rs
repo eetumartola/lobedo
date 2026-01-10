@@ -5,6 +5,7 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
+use crate::parallel;
 use crate::volume::{Volume, VolumeKind};
 
 pub const NAME: &str = "Volume from Geometry";
@@ -93,78 +94,80 @@ pub fn apply_to_geometry(
     let mut values = vec![0.0f32; total as usize];
     let has_tris = !triangles.is_empty();
     let use_points = !has_tris;
-    let mut idx = 0usize;
-    for z in 0..dims[2] {
+    let dim_x = dims[0] as usize;
+    let dim_y = dims[1] as usize;
+    let dim_z = dims[2] as usize;
+    let stride_xy = dim_x.saturating_mul(dim_y).max(1);
+    parallel::for_each_indexed_mut(&mut values, |idx, slot| {
+        let z = idx / stride_xy;
+        let rem = idx - z * stride_xy;
+        let y = rem / dim_x;
+        let x = rem - y * dim_x;
+        if z >= dim_z {
+            return;
+        }
         let zf = min.z + (z as f32 + 0.5) * voxel_size;
-        for y in 0..dims[1] {
-            let yf = min.y + (y as f32 + 0.5) * voxel_size;
-            for x in 0..dims[0] {
-                let xf = min.x + (x as f32 + 0.5) * voxel_size;
-                let pos = Vec3::new(xf, yf, zf);
-                let mut unsigned_dist = f32::INFINITY;
-                let mut signed_dist = f32::INFINITY;
-                if has_tris {
-                    for tri in &triangles {
-                        let approx = pos.distance(tri.center) - tri.radius;
-                        if approx > unsigned_dist {
-                            continue;
-                        }
-                        let d = distance_to_triangle(pos, tri);
-                        if d < unsigned_dist {
-                            unsigned_dist = d;
-                            if unsigned_dist <= 1.0e-6 {
-                                break;
-                            }
-                        }
+        let yf = min.y + (y as f32 + 0.5) * voxel_size;
+        let xf = min.x + (x as f32 + 0.5) * voxel_size;
+        let pos = Vec3::new(xf, yf, zf);
+        let mut unsigned_dist = f32::INFINITY;
+        let mut signed_dist = f32::INFINITY;
+        if has_tris {
+            for tri in &triangles {
+                let approx = pos.distance(tri.center) - tri.radius;
+                if approx > unsigned_dist {
+                    continue;
+                }
+                let d = distance_to_triangle(pos, tri);
+                if d < unsigned_dist {
+                    unsigned_dist = d;
+                    if unsigned_dist <= 1.0e-6 {
+                        break;
                     }
                 }
-                for (center, radius) in &splat_spheres {
-                    let d = pos.distance(*center) - *radius;
-                    if d.abs() < unsigned_dist {
-                        unsigned_dist = d.abs();
-                    }
-                    if d < signed_dist {
-                        signed_dist = d;
-                    }
-                }
-                if use_points {
-                    for point in &points {
-                        let d = pos.distance(*point);
-                        if d < unsigned_dist {
-                            unsigned_dist = d;
-                        }
-                    }
-                }
-                if has_tris {
-                    let inside = is_inside_mesh(pos, &triangles);
-                    let signed_mesh = if inside { -unsigned_dist } else { unsigned_dist };
-                    if signed_dist.is_infinite() || signed_mesh < signed_dist {
-                        signed_dist = signed_mesh;
-                    }
-                }
-                if !signed_dist.is_finite() {
-                    signed_dist = unsigned_dist;
-                }
-                if !signed_dist.is_finite() {
-                    signed_dist = 0.0;
-                }
-
-                let value = match kind {
-                    VolumeKind::Density => {
-                        let half = (voxel_size * 0.5).max(1.0e-6);
-                        let t = ((half - signed_dist) / (2.0 * half)).clamp(0.0, 1.0);
-                        let smooth = t * t * (3.0 - 2.0 * t);
-                        smooth * density_scale
-                    }
-                    VolumeKind::Sdf => {
-                        signed_dist
-                    }
-                };
-                values[idx] = value;
-                idx += 1;
             }
         }
-    }
+        for (center, radius) in &splat_spheres {
+            let d = pos.distance(*center) - *radius;
+            if d.abs() < unsigned_dist {
+                unsigned_dist = d.abs();
+            }
+            if d < signed_dist {
+                signed_dist = d;
+            }
+        }
+        if use_points {
+            for point in &points {
+                let d = pos.distance(*point);
+                if d < unsigned_dist {
+                    unsigned_dist = d;
+                }
+            }
+        }
+        if has_tris {
+            let inside = is_inside_mesh(pos, &triangles);
+            let signed_mesh = if inside { -unsigned_dist } else { unsigned_dist };
+            if signed_dist.is_infinite() || signed_mesh < signed_dist {
+                signed_dist = signed_mesh;
+            }
+        }
+        if !signed_dist.is_finite() {
+            signed_dist = unsigned_dist;
+        }
+        if !signed_dist.is_finite() {
+            signed_dist = 0.0;
+        }
+
+        *slot = match kind {
+            VolumeKind::Density => {
+                let half = (voxel_size * 0.5).max(1.0e-6);
+                let t = ((half - signed_dist) / (2.0 * half)).clamp(0.0, 1.0);
+                let smooth = t * t * (3.0 - 2.0 * t);
+                smooth * density_scale
+            }
+            VolumeKind::Sdf => signed_dist,
+        };
+    });
 
     let mut volume = Volume::new(kind, min.to_array(), dims, voxel_size, values);
     volume.density_scale = if matches!(kind, VolumeKind::Density) {

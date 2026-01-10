@@ -13,5 +13,8 @@ mcubes = "0.1.7"
 lin_alg = "1.3.5"
 gltf = "1.4"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1"
