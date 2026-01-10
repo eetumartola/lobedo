@@ -5,6 +5,7 @@ use glam::{Quat, Vec3};
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
+use crate::parallel;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
 use crate::splat::SplatGeo;
 
@@ -54,51 +55,75 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     let normalize_rotation = params.get_bool("normalize_rotation", true);
     let remove_invalid = params.get_bool("remove_invalid", true);
 
-    let mut kept = Vec::with_capacity(splats.len());
-    for idx in 0..splats.len() {
-        if let Some(mask) = &group_mask {
-            if !mask.get(idx).copied().unwrap_or(false) {
-                kept.push(idx);
-                continue;
-            }
+    let mask = group_mask.as_deref();
+    let mut keep_flags = vec![false; splats.len()];
+    parallel::for_each_indexed_mut(&mut keep_flags, |idx, keep| {
+        if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+            *keep = true;
+            return;
         }
         if remove_invalid && !splats.is_finite_at(idx) {
-            continue;
+            return;
         }
-        kept.push(idx);
-    }
+        *keep = true;
+    });
+
+    let kept: Vec<usize> = keep_flags
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, keep)| (*keep).then_some(idx))
+        .collect();
 
     let mut output = splats.filter_by_indices(&kept);
-    for (out_idx, src_idx) in kept.iter().copied().enumerate() {
-        let selected = group_mask
-            .as_ref()
+    if output.is_empty() {
+        return output;
+    }
+
+    #[derive(Clone, Copy)]
+    struct RegularizeUpdate {
+        opacity: f32,
+        rotation: [f32; 4],
+        scale: [f32; 3],
+    }
+
+    let mut updates: Vec<RegularizeUpdate> = (0..output.len())
+        .map(|idx| RegularizeUpdate {
+            opacity: output.opacity[idx],
+            rotation: output.rotations[idx],
+            scale: output.scales[idx],
+        })
+        .collect();
+
+    parallel::for_each_indexed_mut(&mut updates, |out_idx, update| {
+        let src_idx = kept[out_idx];
+        let selected = mask
             .map(|mask| mask.get(src_idx).copied().unwrap_or(false))
             .unwrap_or(true);
         if !selected {
-            continue;
+            return;
         }
 
         if normalize_opacity {
-            let mut opacity = output.opacity[out_idx];
+            let mut opacity = update.opacity;
             if !opacity.is_finite() {
                 opacity = 0.0;
             }
             let linear = sigmoid(opacity).clamp(1.0e-4, 1.0 - 1.0e-4);
-            output.opacity[out_idx] = logit(linear);
+            update.opacity = logit(linear);
         }
 
         if normalize_rotation {
-            let rotation = output.rotations[out_idx];
+            let rotation = update.rotation;
             let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
             if quat.length_squared() > 0.0 {
                 quat = quat.normalize();
             } else {
                 quat = Quat::IDENTITY;
             }
-            output.rotations[out_idx] = [quat.w, quat.x, quat.y, quat.z];
+            update.rotation = [quat.w, quat.x, quat.y, quat.z];
         }
 
-        let mut scale = Vec3::from(output.scales[out_idx]);
+        let mut scale = Vec3::from(update.scale);
         if !scale.x.is_finite() || !scale.y.is_finite() || !scale.z.is_finite() {
             scale = Vec3::splat(min_scale);
         }
@@ -107,7 +132,13 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             scale.y.clamp(min_scale, max_scale),
             scale.z.clamp(min_scale, max_scale),
         );
-        output.scales[out_idx] = scale.to_array();
+        update.scale = scale.to_array();
+    });
+
+    for (idx, update) in updates.iter().enumerate() {
+        output.opacity[idx] = update.opacity;
+        output.rotations[idx] = update.rotation;
+        output.scales[idx] = update.scale;
     }
 
     output

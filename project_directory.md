@@ -332,6 +332,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\splat_merge.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\splat_to_mesh.rs
 Description: TODO: add description.
 Functions: None

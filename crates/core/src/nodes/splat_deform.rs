@@ -8,6 +8,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_utils::splat_cell_key;
+use crate::parallel;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Deform";
@@ -202,9 +203,11 @@ fn derive_linear_map(
     }
     let limit = source_positions.len().min(target_positions.len());
     let mut linears = vec![None; source_positions.len()];
-    for (idx, slot) in linears.iter_mut().enumerate().take(limit) {
-        *slot = derive_linear(idx, source_positions, target_positions, neighbors);
-    }
+    parallel::for_each_indexed_mut(&mut linears, |idx, slot| {
+        if idx < limit {
+            *slot = derive_linear(idx, source_positions, target_positions, neighbors);
+        }
+    });
     linears
 }
 

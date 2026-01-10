@@ -9,7 +9,9 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
+use crate::parallel;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
 
 pub const NAME: &str = "Splat to Mesh";
 
@@ -24,6 +26,7 @@ const DEFAULT_SHELL_RADIUS: f32 = 1.0;
 const DEFAULT_BLUR_ITERS: i32 = 1;
 const DEFAULT_MAX_VOXEL_DIM: i32 = 256;
 const DEFAULT_TRANSFER_COLOR: bool = true;
+const DEFAULT_OUTPUT_MODE: i32 = 0;
 const MAX_GRID_POINTS: u64 = 32_000_000;
 
 pub fn definition() -> NodeDefinition {
@@ -38,6 +41,7 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
+            ("output".to_string(), ParamValue::Int(DEFAULT_OUTPUT_MODE)),
             ("algorithm".to_string(), ParamValue::Int(0)),
             ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
             (
@@ -76,6 +80,30 @@ pub fn apply_to_geometry(
     let Some(splats) = input.merged_splats() else {
         return Err("Splat to Mesh requires splat geometry on input 0".to_string());
     };
+
+    let output_mode = params.get_int("output", DEFAULT_OUTPUT_MODE).clamp(0, 1);
+    if output_mode == 1 {
+        let volume = splats_to_sdf(params, &splats)?;
+        let mut meshes = Vec::new();
+        if let Some(existing) = input.merged_mesh() {
+            meshes.push(existing);
+        }
+        let curves = if meshes.is_empty() {
+            Vec::new()
+        } else {
+            input.curves.clone()
+        };
+        let mut volumes = Vec::with_capacity(input.volumes.len() + 1);
+        volumes.push(volume);
+        volumes.extend(input.volumes.clone());
+        return Ok(Geometry {
+            meshes,
+            splats: Vec::new(),
+            curves,
+            volumes,
+            materials: input.materials.clone(),
+        });
+    }
 
     let mesh = splats_to_mesh(params, &splats)?;
     let mut meshes = Vec::new();
@@ -125,12 +153,95 @@ impl SplatSample {
     }
 }
 
+impl Default for SplatSample {
+    fn default() -> Self {
+        Self {
+            mu: Vec3::ZERO,
+            rt: Mat3::IDENTITY,
+            sigma: Vec3::ZERO,
+            alpha: 0.0,
+            max_sigma: 0.0,
+            color: [0.0, 0.0, 0.0],
+        }
+    }
+}
+
+enum SplatOutputMode {
+    Mesh,
+    Sdf,
+}
+
+struct SplatGrid {
+    values: Vec<f32>,
+    color_grid: Option<ColorGrid>,
+    spec: GridSpec,
+    iso: f32,
+    inside_is_greater: bool,
+}
+
 fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String> {
+    let grid = build_splat_grid(params, splats, SplatOutputMode::Mesh)?;
+    let mut mesh =
+        marching_cubes(&grid.values, &grid.spec, grid.iso, grid.inside_is_greater)?;
+    if let Some(color_grid) = grid.color_grid {
+        if !mesh.positions.is_empty() {
+            let positions = &mesh.positions;
+            let mut colors = vec![[1.0, 1.0, 1.0]; positions.len()];
+            parallel::for_each_indexed_mut(&mut colors, |idx, slot| {
+                let color = sample_color_grid(&color_grid, &grid.spec, Vec3::from(positions[idx]));
+                *slot = color;
+            });
+            mesh.set_attribute(
+                AttributeDomain::Point,
+                "Cd",
+                AttributeStorage::Vec3(colors),
+            )
+            .map_err(|err| format!("Failed to set Cd attribute: {err:?}"))?;
+        }
+    }
+    let _ = mesh.compute_normals();
+    Ok(mesh)
+}
+
+fn splats_to_sdf(params: &NodeParams, splats: &SplatGeo) -> Result<Volume, String> {
+    let grid = build_splat_grid(params, splats, SplatOutputMode::Sdf)?;
+    let dims = [grid.spec.nx as u32, grid.spec.ny as u32, grid.spec.nz as u32];
+    let mut volume = Volume::new(
+        VolumeKind::Sdf,
+        grid.spec.min.to_array(),
+        dims,
+        grid.spec.dx,
+        grid.values,
+    );
+    volume.sdf_band = grid.spec.dx.max(1.0e-6) * 2.0;
+    Ok(volume)
+}
+
+fn build_splat_grid(
+    params: &NodeParams,
+    splats: &SplatGeo,
+    output_mode: SplatOutputMode,
+) -> Result<SplatGrid, String> {
     if splats.is_empty() {
-        return Ok(Mesh::default());
+        return Ok(SplatGrid {
+            values: Vec::new(),
+            color_grid: None,
+            spec: GridSpec {
+                min: Vec3::ZERO,
+                dx: 1.0,
+                nx: 0,
+                ny: 0,
+                nz: 0,
+            },
+            iso: 0.0,
+            inside_is_greater: true,
+        });
     }
 
-    let algorithm = params.get_int("algorithm", 0).clamp(0, 1);
+    let mut algorithm = params.get_int("algorithm", 0).clamp(0, 1);
+    if matches!(output_mode, SplatOutputMode::Sdf) {
+        algorithm = 1;
+    }
     let voxel_size = params
         .get_float("voxel_size", DEFAULT_VOXEL_SIZE)
         .max(1.0e-4);
@@ -154,15 +265,29 @@ fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String
     let blur_iters = params.get_int("blur_iters", DEFAULT_BLUR_ITERS).max(0) as usize;
 
     let inside_is_greater = algorithm == 0;
+    let iso = if inside_is_greater { density_iso } else { surface_iso };
     let samples = build_samples(splats);
     if samples.is_empty() {
-        return Ok(Mesh::default());
+        return Ok(SplatGrid {
+            values: Vec::new(),
+            color_grid: None,
+            spec: GridSpec {
+                min: Vec3::ZERO,
+                dx: 1.0,
+                nx: 0,
+                ny: 0,
+                nz: 0,
+            },
+            iso,
+            inside_is_greater,
+        });
     }
 
-    let (mut grid, mut color_grid, spec, iso) = match algorithm {
+    let want_color = matches!(output_mode, SplatOutputMode::Mesh) && transfer_color;
+    let (mut values, mut color_grid, spec) = match algorithm {
         1 => {
             let spec = build_grid_spec(&samples, voxel_size, bounds_padding, max_voxel_dim)?;
-            let mut color_grid = transfer_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
+            let mut color_grid = want_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
             let grid = rasterize_smoothmin(
                 &samples,
                 &spec,
@@ -172,41 +297,31 @@ fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String
                 shell_radius,
                 color_grid.as_mut(),
             );
-            (grid, color_grid, spec, surface_iso)
+            (grid, color_grid, spec)
         }
         _ => {
             let spec = build_grid_spec(&samples, voxel_size, bounds_padding, max_voxel_dim)?;
-            let mut color_grid = transfer_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
+            let mut color_grid = want_color.then(|| ColorGrid::new(spec.nx * spec.ny * spec.nz));
             let grid = rasterize_density(&samples, &spec, n_sigma, max_m2, color_grid.as_mut());
-            (grid, color_grid, spec, density_iso)
+            (grid, color_grid, spec)
         }
     };
 
-    sanitize_grid(&mut grid, iso, inside_is_greater);
-    if algorithm == 0 && blur_iters > 0 {
-        blur_grid(&mut grid, &spec, blur_iters);
+    sanitize_grid(&mut values, iso, inside_is_greater);
+    if matches!(output_mode, SplatOutputMode::Mesh) && algorithm == 0 && blur_iters > 0 {
+        blur_grid(&mut values, &spec, blur_iters);
         if let Some(color_grid) = color_grid.as_mut() {
             blur_color_grid(color_grid, &spec, blur_iters);
         }
     }
-    let mut mesh = marching_cubes(&grid, &spec, iso, inside_is_greater)?;
-    if let Some(color_grid) = color_grid {
-        if !mesh.positions.is_empty() {
-            let mut colors = Vec::with_capacity(mesh.positions.len());
-            for position in &mesh.positions {
-                let color = sample_color_grid(&color_grid, &spec, Vec3::from(*position));
-                colors.push(color);
-            }
-            mesh.set_attribute(
-                AttributeDomain::Point,
-                "Cd",
-                AttributeStorage::Vec3(colors),
-            )
-            .map_err(|err| format!("Failed to set Cd attribute: {err:?}"))?;
-        }
-    }
-    let _ = mesh.compute_normals();
-    Ok(mesh)
+
+    Ok(SplatGrid {
+        values,
+        color_grid,
+        spec,
+        iso,
+        inside_is_greater,
+    })
 }
 
 pub(crate) struct GridSpec {
@@ -247,8 +362,8 @@ fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
             .iter()
             .any(|channel| channel.is_finite() && *channel < 0.0)
     });
-    let mut samples = Vec::with_capacity(splats.len());
-    for idx in 0..splats.len() {
+    let mut samples = vec![SplatSample::default(); splats.len()];
+    parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
         let position = world_transform * Vec3::from(splats.positions[idx]);
         let rotation = splats.rotations[idx];
         let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
@@ -284,15 +399,15 @@ fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
             ];
         }
 
-        samples.push(SplatSample {
+        *sample = SplatSample {
             mu: position,
             rt,
             sigma,
             alpha,
             max_sigma,
             color,
-        });
-    }
+        };
+    });
     samples
 }
 
@@ -537,11 +652,11 @@ pub(crate) fn marching_cubes(
 
 pub(crate) fn sanitize_grid(grid: &mut [f32], iso: f32, inside_is_greater: bool) {
     let outside = if inside_is_greater { iso - 1.0 } else { iso + 1.0 };
-    for value in grid {
+    parallel::for_each_indexed_mut(grid, |_, value| {
         if !value.is_finite() {
             *value = outside;
         }
-    }
+    });
 }
 
 fn blur_grid(grid: &mut [f32], spec: &GridSpec, iterations: usize) {
@@ -601,97 +716,71 @@ fn blur_color_grid(color: &mut ColorGrid, spec: &GridSpec, iterations: usize) {
 fn blur_axis_x(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
     let nx = spec.nx;
     let ny = spec.ny;
-    let nz = spec.nz;
+    let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            let base = nx * (iy + ny * iz);
-            for ix in 0..nx {
-                let idx = base + ix;
-                let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
-                let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
-                dst[idx] = (prev + src[idx] + next) * one_third;
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let rem = idx - iz * slice;
+        let ix = rem % nx;
+        let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
+        let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
+        *value = (prev + src[idx] + next) * one_third;
+    });
 }
 
 fn blur_color_axis_x(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
     let nx = spec.nx;
     let ny = spec.ny;
-    let nz = spec.nz;
+    let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            let base = nx * (iy + ny * iz);
-            for ix in 0..nx {
-                let idx = base + ix;
-                let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
-                let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
-                let current = src[idx];
-                dst[idx] = [
-                    (prev[0] + current[0] + next[0]) * one_third,
-                    (prev[1] + current[1] + next[1]) * one_third,
-                    (prev[2] + current[2] + next[2]) * one_third,
-                ];
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let rem = idx - iz * slice;
+        let ix = rem % nx;
+        let prev = if ix == 0 { src[idx] } else { src[idx - 1] };
+        let next = if ix + 1 == nx { src[idx] } else { src[idx + 1] };
+        let current = src[idx];
+        *value = [
+            (prev[0] + current[0] + next[0]) * one_third,
+            (prev[1] + current[1] + next[1]) * one_third,
+            (prev[2] + current[2] + next[2]) * one_third,
+        ];
+    });
 }
 
 fn blur_axis_y(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
     let nx = spec.nx;
     let ny = spec.ny;
-    let nz = spec.nz;
+    let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            for ix in 0..nx {
-                let idx = ix + nx * (iy + ny * iz);
-                let prev = if iy == 0 {
-                    src[idx]
-                } else {
-                    src[idx - nx]
-                };
-                let next = if iy + 1 == ny {
-                    src[idx]
-                } else {
-                    src[idx + nx]
-                };
-                dst[idx] = (prev + src[idx] + next) * one_third;
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let rem = idx - iz * slice;
+        let iy = rem / nx;
+        let prev = if iy == 0 { src[idx] } else { src[idx - nx] };
+        let next = if iy + 1 == ny { src[idx] } else { src[idx + nx] };
+        *value = (prev + src[idx] + next) * one_third;
+    });
 }
 
 fn blur_color_axis_y(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
     let nx = spec.nx;
     let ny = spec.ny;
-    let nz = spec.nz;
+    let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            for ix in 0..nx {
-                let idx = ix + nx * (iy + ny * iz);
-                let prev = if iy == 0 {
-                    src[idx]
-                } else {
-                    src[idx - nx]
-                };
-                let next = if iy + 1 == ny {
-                    src[idx]
-                } else {
-                    src[idx + nx]
-                };
-                let current = src[idx];
-                dst[idx] = [
-                    (prev[0] + current[0] + next[0]) * one_third,
-                    (prev[1] + current[1] + next[1]) * one_third,
-                    (prev[2] + current[2] + next[2]) * one_third,
-                ];
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let rem = idx - iz * slice;
+        let iy = rem / nx;
+        let prev = if iy == 0 { src[idx] } else { src[idx - nx] };
+        let next = if iy + 1 == ny { src[idx] } else { src[idx + nx] };
+        let current = src[idx];
+        *value = [
+            (prev[0] + current[0] + next[0]) * one_third,
+            (prev[1] + current[1] + next[1]) * one_third,
+            (prev[2] + current[2] + next[2]) * one_third,
+        ];
+    });
 }
 
 fn blur_axis_z(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
@@ -700,24 +789,12 @@ fn blur_axis_z(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
     let nz = spec.nz;
     let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            for ix in 0..nx {
-                let idx = ix + nx * (iy + ny * iz);
-                let prev = if iz == 0 {
-                    src[idx]
-                } else {
-                    src[idx - slice]
-                };
-                let next = if iz + 1 == nz {
-                    src[idx]
-                } else {
-                    src[idx + slice]
-                };
-                dst[idx] = (prev + src[idx] + next) * one_third;
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let prev = if iz == 0 { src[idx] } else { src[idx - slice] };
+        let next = if iz + 1 == nz { src[idx] } else { src[idx + slice] };
+        *value = (prev + src[idx] + next) * one_third;
+    });
 }
 
 fn blur_color_axis_z(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
@@ -726,29 +803,17 @@ fn blur_color_axis_z(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
     let nz = spec.nz;
     let slice = nx * ny;
     let one_third = 1.0 / 3.0;
-    for iz in 0..nz {
-        for iy in 0..ny {
-            for ix in 0..nx {
-                let idx = ix + nx * (iy + ny * iz);
-                let prev = if iz == 0 {
-                    src[idx]
-                } else {
-                    src[idx - slice]
-                };
-                let next = if iz + 1 == nz {
-                    src[idx]
-                } else {
-                    src[idx + slice]
-                };
-                let current = src[idx];
-                dst[idx] = [
-                    (prev[0] + current[0] + next[0]) * one_third,
-                    (prev[1] + current[1] + next[1]) * one_third,
-                    (prev[2] + current[2] + next[2]) * one_third,
-                ];
-            }
-        }
-    }
+    parallel::for_each_indexed_mut(dst, |idx, value| {
+        let iz = idx / slice;
+        let prev = if iz == 0 { src[idx] } else { src[idx - slice] };
+        let next = if iz + 1 == nz { src[idx] } else { src[idx + slice] };
+        let current = src[idx];
+        *value = [
+            (prev[0] + current[0] + next[0]) * one_third,
+            (prev[1] + current[1] + next[1]) * one_third,
+            (prev[2] + current[2] + next[2]) * one_third,
+        ];
+    });
 }
 
 fn sample_color_grid(color: &ColorGrid, spec: &GridSpec, position: Vec3) -> [f32; 3] {
@@ -821,6 +886,10 @@ fn sample_color_grid(color: &ColorGrid, spec: &GridSpec, position: Vec3) -> [f32
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph::{NodeParams, ParamValue};
+    use crate::splat::SplatGeo;
+    use crate::volume::VolumeKind;
+    use std::collections::BTreeMap;
 
     #[test]
     fn marching_cubes_extracts_surface() {
@@ -849,5 +918,16 @@ mod tests {
         let mesh = marching_cubes(&grid, &spec, 0.0, false).expect("mesh");
         assert!(!mesh.indices.is_empty());
         assert!(!mesh.positions.is_empty());
+    }
+
+    #[test]
+    fn splat_to_sdf_outputs_volume() {
+        let splats = SplatGeo::with_len(1);
+        let params = NodeParams {
+            values: BTreeMap::from([("output".to_string(), ParamValue::Int(1))]),
+        };
+        let volume = splats_to_sdf(&params, &splats).expect("sdf volume");
+        assert_eq!(volume.kind, VolumeKind::Sdf);
+        assert!(!volume.values.is_empty());
     }
 }

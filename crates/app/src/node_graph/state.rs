@@ -330,7 +330,7 @@ impl NodeGraphState {
         } else {
             egui::emath::TSTransform::IDENTITY
         };
-        let zoom = 1.0 + (scroll_delta * 0.1 / 100.0);
+        let zoom = 1.0 + (scroll_delta * 0.2 / 100.0);
         let next_scale = (base.scaling * zoom).clamp(0.1, 4.0);
         let graph_pos = base.inverse() * screen_pos;
         let translation = screen_pos.to_vec2() - graph_pos.to_vec2() * next_scale;

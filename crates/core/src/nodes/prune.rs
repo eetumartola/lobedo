@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
+use crate::parallel;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
 use crate::splat::SplatGeo;
 
@@ -59,33 +60,38 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     max_scale = max_scale.max(min_scale);
     let remove_invalid = params.get_bool("remove_invalid", true);
 
-    let mut kept = Vec::with_capacity(splats.len());
-    for idx in 0..splats.len() {
-        if let Some(mask) = &group_mask {
-            if !mask.get(idx).copied().unwrap_or(false) {
-                kept.push(idx);
-                continue;
-            }
+    let mask = group_mask.as_deref();
+    let mut keep_flags = vec![false; splats.len()];
+    parallel::for_each_indexed_mut(&mut keep_flags, |idx, keep| {
+        if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
+            *keep = true;
+            return;
         }
 
         if remove_invalid && !splats.is_finite_at(idx) {
-            continue;
+            return;
         }
 
         let opacity = splats.opacity[idx];
         if opacity < min_opacity || opacity > max_opacity {
-            continue;
+            return;
         }
 
         let scale = splats.scales[idx];
         let min_component = scale[0].min(scale[1]).min(scale[2]);
         let max_component = scale[0].max(scale[1]).max(scale[2]);
         if min_component < min_scale || max_component > max_scale {
-            continue;
+            return;
         }
 
-        kept.push(idx);
-    }
+        *keep = true;
+    });
+
+    let kept: Vec<usize> = keep_flags
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, keep)| (*keep).then_some(idx))
+        .collect();
 
     splats.filter_by_indices(&kept)
 }

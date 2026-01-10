@@ -101,6 +101,20 @@ impl NodeGraphState {
         } else {
             None
         };
+        let splat_to_mesh_output = if node_name == "Splat to Mesh" {
+            Some(
+                param_values
+                    .get("output")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
         let splat_delight_mode = if node_name == "Splat Delight" {
             Some(
                 param_values
@@ -185,6 +199,20 @@ impl NodeGraphState {
         } else {
             None
         };
+        let splat_merge_method = if node_name == "Splat Merge" {
+            Some(
+                param_values
+                    .get("method")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
         let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
             Some(
                 param_values
@@ -239,6 +267,18 @@ impl NodeGraphState {
                 }
             }
             if node_name == "Splat to Mesh" {
+                if let Some(output) = splat_to_mesh_output {
+                    if output == 1 {
+                        match key.as_str() {
+                            "algorithm"
+                            | "density_iso"
+                            | "surface_iso"
+                            | "transfer_color"
+                            | "blur_iters" => continue,
+                            _ => {}
+                        }
+                    }
+                }
                 if let Some(method) = splat_to_mesh_method {
                     match (method, key.as_str()) {
                         (0, "surface_iso") | (0, "smooth_k") | (0, "shell_radius") => continue,
@@ -326,6 +366,19 @@ impl NodeGraphState {
                 if let Some(target_env) = splat_integrate_target_env {
                     if target_env != 2 && key == "target_color" {
                         continue;
+                    }
+                }
+            }
+            if node_name == "Splat Merge" {
+                if let Some(method) = splat_merge_method {
+                    match (method, key.as_str()) {
+                        (0, "skirt_max_dist")
+                        | (0, "skirt_step")
+                        | (0, "skirt_max_new")
+                        | (0, "seam_alpha")
+                        | (0, "seam_scale")
+                        | (0, "seam_dc_only") => continue,
+                        _ => {}
                     }
                 }
             }

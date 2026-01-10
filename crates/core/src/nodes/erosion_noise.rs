@@ -13,6 +13,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::parallel;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Erosion Noise";
@@ -71,7 +72,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         return Ok(());
     }
     let do_mask = params.get_bool("do_mask", false);
-    let mut mask_values = if do_mask {
+    let mask_values = if do_mask {
         Some(existing_float_attr_splats(
             splats,
             AttributeDomain::Point,
@@ -104,36 +105,49 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         normals = vec![[0.0, 1.0, 0.0]; splats.positions.len()];
     }
 
-    for (idx, (pos, normal)) in splats
-        .positions
-        .iter_mut()
-        .zip(normals.iter())
-        .enumerate()
-    {
-        if mask
-            .as_ref()
-            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-        {
-            continue;
+    let base_positions = splats.positions.clone();
+    let mask = mask.as_deref();
+    if let Some(mut mask_values) = mask_values {
+        #[derive(Clone, Copy)]
+        struct ErosionSample {
+            pos: [f32; 3],
+            mask: f32,
         }
-        let position = Vec3::from(*pos);
-        let uv = uv_from_bounds(position, bounds.0, x_range, z_range);
-        let h_raw = position.y;
-        let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
-        let grad = gradient_from_normal(Vec3::from(*normal), normalized_height);
-        let eroded = apply_erosion(uv, grad, settings);
-        let new_height = hmin + eroded.x * hrange;
-        let mut next = position;
-        next.y = new_height;
-        *pos = next.to_array();
-        if let Some(mask_values) = mask_values.as_mut() {
+
+        let mut samples = Vec::with_capacity(count);
+        for (idx, pos) in base_positions.iter().enumerate() {
+            let mask_value = mask_values.get(idx).copied().unwrap_or(0.0);
+            samples.push(ErosionSample {
+                pos: *pos,
+                mask: mask_value,
+            });
+        }
+
+        parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
+            if mask
+                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+            {
+                return;
+            }
+            let position = Vec3::from(base_positions[idx]);
+            let uv = uv_from_bounds(position, bounds.0, x_range, z_range);
+            let h_raw = position.y;
+            let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
+            let grad = gradient_from_normal(Vec3::from(normals[idx]), normalized_height);
+            let eroded = apply_erosion(uv, grad, settings);
+            let new_height = hmin + eroded.x * hrange;
+            let mut next = position;
+            next.y = new_height;
+            sample.pos = next.to_array();
+            sample.mask = 0.5 + 0.5 * eroded.y;
+        });
+
+        splats.positions = samples.iter().map(|sample| sample.pos).collect();
+        for (idx, sample) in samples.iter().enumerate() {
             if let Some(slot) = mask_values.get_mut(idx) {
-                *slot = 0.5 + 0.5 * eroded.y;
+                *slot = sample.mask;
             }
         }
-    }
-
-    if let Some(mask_values) = mask_values {
         splats
             .set_attribute(
                 AttributeDomain::Point,
@@ -141,6 +155,26 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 AttributeStorage::Float(mask_values),
             )
             .map_err(|err| format!("Erosion Noise error: {:?}", err))?;
+    } else {
+        let mut new_positions = base_positions.clone();
+        parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {
+            if mask
+                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+            {
+                return;
+            }
+            let position = Vec3::from(base_positions[idx]);
+            let uv = uv_from_bounds(position, bounds.0, x_range, z_range);
+            let h_raw = position.y;
+            let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
+            let grad = gradient_from_normal(Vec3::from(normals[idx]), normalized_height);
+            let eroded = apply_erosion(uv, grad, settings);
+            let new_height = hmin + eroded.x * hrange;
+            let mut next = position;
+            next.y = new_height;
+            *pos = next.to_array();
+        });
+        splats.positions = new_positions;
     }
 
     Ok(())
@@ -156,7 +190,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         return Ok(());
     }
     let do_mask = params.get_bool("do_mask", false);
-    let mut mask_values = if do_mask {
+    let mask_values = if do_mask {
         Some(existing_float_attr_mesh(
             mesh,
             AttributeDomain::Point,
@@ -189,42 +223,75 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         normals = vec![[0.0, 1.0, 0.0]; mesh.positions.len()];
     }
 
-    for (idx, (pos, normal)) in mesh
-        .positions
-        .iter_mut()
-        .zip(normals.iter())
-        .enumerate()
-    {
-        if mask
-            .as_ref()
-            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-        {
-            continue;
+    let base_positions = mesh.positions.clone();
+    let mask = mask.as_deref();
+    if let Some(mut mask_values) = mask_values {
+        #[derive(Clone, Copy)]
+        struct ErosionSample {
+            pos: [f32; 3],
+            mask: f32,
         }
-        let position = Vec3::from(*pos);
-        let uv = uv_from_bounds(position, min, x_range, z_range);
-        let h_raw = position.y;
-        let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
-        let grad = gradient_from_normal(Vec3::from(*normal), normalized_height);
-        let eroded = apply_erosion(uv, grad, settings);
-        let new_height = hmin + eroded.x * hrange;
-        let mut next = position;
-        next.y = new_height;
-        *pos = next.to_array();
-        if let Some(mask_values) = mask_values.as_mut() {
+
+        let mut samples = Vec::with_capacity(base_positions.len());
+        for (idx, pos) in base_positions.iter().enumerate() {
+            let mask_value = mask_values.get(idx).copied().unwrap_or(0.0);
+            samples.push(ErosionSample {
+                pos: *pos,
+                mask: mask_value,
+            });
+        }
+
+        parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
+            if mask
+                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+            {
+                return;
+            }
+            let position = Vec3::from(base_positions[idx]);
+            let uv = uv_from_bounds(position, min, x_range, z_range);
+            let h_raw = position.y;
+            let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
+            let grad = gradient_from_normal(Vec3::from(normals[idx]), normalized_height);
+            let eroded = apply_erosion(uv, grad, settings);
+            let new_height = hmin + eroded.x * hrange;
+            let mut next = position;
+            next.y = new_height;
+            sample.pos = next.to_array();
+            sample.mask = 0.5 + 0.5 * eroded.y;
+        });
+
+        mesh.positions = samples.iter().map(|sample| sample.pos).collect();
+        for (idx, sample) in samples.iter().enumerate() {
             if let Some(slot) = mask_values.get_mut(idx) {
-                *slot = 0.5 + 0.5 * eroded.y;
+                *slot = sample.mask;
             }
         }
-    }
-
-    if let Some(mask_values) = mask_values {
         mesh.set_attribute(
             AttributeDomain::Point,
             "mask",
             AttributeStorage::Float(mask_values),
         )
         .map_err(|err| format!("Erosion Noise error: {:?}", err))?;
+    } else {
+        let mut new_positions = base_positions.clone();
+        parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {
+            if mask
+                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
+            {
+                return;
+            }
+            let position = Vec3::from(base_positions[idx]);
+            let uv = uv_from_bounds(position, min, x_range, z_range);
+            let h_raw = position.y;
+            let normalized_height = ((h_raw - hmin) / hrange).clamp(0.0, 1.0);
+            let grad = gradient_from_normal(Vec3::from(normals[idx]), normalized_height);
+            let eroded = apply_erosion(uv, grad, settings);
+            let new_height = hmin + eroded.x * hrange;
+            let mut next = position;
+            next.y = new_height;
+            *pos = next.to_array();
+        });
+        mesh.positions = new_positions;
     }
 
     recompute_mesh_normals(mesh);

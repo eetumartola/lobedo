@@ -152,6 +152,16 @@ pub(super) fn edit_param(
                     &[(0, "Area"), (1, "Gradient")],
                     "Area",
                 )
+            } else if label == "method" && node_name == "Splat Merge" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Feather"), (1, "Skirt")],
+                    "Feather",
+                )
             } else if label == "method" {
                 combo_row_i32(
                     ui,
@@ -208,6 +218,16 @@ pub(super) fn edit_param(
                     &mut v,
                     &[(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
                     "Density (Iso)",
+                )
+            } else if label == "output" && node_name == "Splat to Mesh" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Mesh"), (1, "SDF Volume")],
+                    "Mesh",
                 )
             } else if label == "projection" {
                 combo_row_i32(
@@ -920,6 +940,7 @@ fn display_label(node_name: &str, key: &str) -> String {
     }
     if node_name == "Splat to Mesh" {
         return match key {
+            "output" => "Output",
             "algorithm" => "Method",
             "voxel_size" => "Voxel Size",
             "n_sigma" => "Support Sigma",
@@ -932,6 +953,21 @@ fn display_label(node_name: &str, key: &str) -> String {
             "shell_radius" => "Shell Radius",
             "blur_iters" => "Density Blur",
             "voxel_size_max" => "Max Voxel Dimension",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Splat Merge" {
+        return match key {
+            "method" => "Method",
+            "blend_radius" => "Blend Radius",
+            "fade_originals" => "Fade Originals",
+            "skirt_max_dist" => "Skirt Max Dist",
+            "skirt_step" => "Skirt Step",
+            "skirt_max_new" => "Skirt Max New",
+            "seam_alpha" => "Seam Alpha",
+            "seam_scale" => "Seam Scale",
+            "seam_dc_only" => "Seam DC Only",
             _ => key,
         }
         .to_string();

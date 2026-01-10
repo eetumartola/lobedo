@@ -7,6 +7,9 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
+use crate::parallel;
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Integrate";
@@ -133,63 +136,82 @@ fn apply_to_splats_internal(
     let (ratio_min, ratio_max) = ratio_bounds(params);
     let ratios = build_ratio_table(&source_env, &target_env, eps, ratio_min, ratio_max);
 
+    let mut next_sh0 = splats.sh0.clone();
+    let mut next_rest = splats.sh_rest.clone();
+
     match mode {
         0 => {
-            for idx in 0..count {
+            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
-                    continue;
+                    return;
                 }
-                apply_ratio_to_splat(splats, idx, &ratios);
-                apply_high_band_gain(splats, idx, max_coeffs, high_band_gain);
-                clamp_sh_order(splats, idx, max_coeffs);
-            }
+                if rest.is_empty() {
+                    let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
+                    sh0[0] *= ratio[0];
+                    sh0[1] *= ratio[1];
+                    sh0[2] *= ratio[2];
+                    return;
+                }
+                apply_ratio_to_arrays(sh0, rest, &ratios);
+                apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
+                clamp_sh_order_slice(rest, max_coeffs);
+            });
         }
         1 => {
             let env_l2 = env_l2_from_coeffs(&target_env);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
             let normals = estimate_splat_normals(splats);
-            for idx in 0..count {
+            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
-                    continue;
+                    return;
                 }
                 let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
                 let irradiance = irradiance_from_env_l2(n, &env_l2);
                 let albedo = clamp_color(
-                    splat_dc_color(splats, idx),
+                    splat_dc_color_from(sh0, sh_coeffs),
                     0.0,
                     albedo_max,
                 );
                 let lit = multiply_color(albedo, irradiance);
-                set_splat_dc_color(splats, idx, lit);
-                zero_sh_rest(splats, idx);
-                clamp_sh_order(splats, idx, max_coeffs);
-            }
+                set_splat_dc_color_into(sh0, sh_coeffs, lit);
+                if rest.is_empty() {
+                    return;
+                }
+                zero_sh_rest_slice(rest);
+                clamp_sh_order_slice(rest, max_coeffs);
+            });
         }
         _ => {
             let env_l2 = env_l2_from_coeffs(&target_env);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
             let normals = estimate_splat_normals(splats);
-            for idx in 0..count {
+            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
-                    continue;
+                    return;
                 }
                 let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
                 let irradiance = irradiance_from_env_l2(n, &env_l2);
                 let albedo = clamp_color(
-                    splat_dc_color(splats, idx),
+                    splat_dc_color_from(sh0, sh_coeffs),
                     0.0,
                     albedo_max,
                 );
                 let lit = multiply_color(albedo, irradiance);
-                set_splat_dc_color(splats, idx, lit);
-                if high_band_mode == 1 {
-                    apply_ratio_to_sh_rest(splats, idx, &ratios);
+                set_splat_dc_color_into(sh0, sh_coeffs, lit);
+                if rest.is_empty() {
+                    return;
                 }
-                apply_high_band_gain(splats, idx, max_coeffs, high_band_gain);
-                clamp_sh_order(splats, idx, max_coeffs);
-            }
+                if high_band_mode == 1 {
+                    apply_ratio_to_sh_rest_slice(rest, &ratios);
+                }
+                apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
+                clamp_sh_order_slice(rest, max_coeffs);
+            });
         }
     }
+
+    splats.sh0 = next_sh0;
+    splats.sh_rest = next_rest;
 }
 
 fn selected(mask: Option<&[bool]>, idx: usize) -> bool {
@@ -208,71 +230,83 @@ fn sh_coeffs_for_order(order: i32) -> usize {
     }
 }
 
-fn zero_sh_rest(splats: &mut SplatGeo, idx: usize) {
-    if splats.sh_coeffs == 0 {
-        return;
-    }
-    let base = idx * splats.sh_coeffs;
-    for coeff in 0..splats.sh_coeffs {
-        if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
-            *slot = [0.0, 0.0, 0.0];
-        }
+fn zero_sh_rest_slice(rest: &mut [[f32; 3]]) {
+    for slot in rest {
+        *slot = [0.0, 0.0, 0.0];
     }
 }
 
-fn clamp_sh_order(splats: &mut SplatGeo, idx: usize, max_coeffs: usize) {
-    if splats.sh_coeffs == 0 || max_coeffs >= splats.sh_coeffs {
+fn clamp_sh_order_slice(rest: &mut [[f32; 3]], max_coeffs: usize) {
+    if max_coeffs >= rest.len() {
         return;
     }
-    let base = idx * splats.sh_coeffs;
-    for coeff in max_coeffs..splats.sh_coeffs {
-        if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
-            *slot = [0.0, 0.0, 0.0];
-        }
+    for slot in &mut rest[max_coeffs..] {
+        *slot = [0.0, 0.0, 0.0];
     }
 }
 
-fn apply_high_band_gain(splats: &mut SplatGeo, idx: usize, max_coeffs: usize, gain: f32) {
-    if splats.sh_coeffs == 0 || (gain - 1.0).abs() < 1.0e-6 {
+fn apply_high_band_gain_slice(rest: &mut [[f32; 3]], max_coeffs: usize, gain: f32) {
+    if rest.is_empty() || (gain - 1.0).abs() < 1.0e-6 {
         return;
     }
-    let base = idx * splats.sh_coeffs;
-    let limit = max_coeffs.min(splats.sh_coeffs);
-    for coeff in 0..limit {
-        if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
-            slot[0] *= gain;
-            slot[1] *= gain;
-            slot[2] *= gain;
-        }
+    let limit = max_coeffs.min(rest.len());
+    for slot in &mut rest[..limit] {
+        slot[0] *= gain;
+        slot[1] *= gain;
+        slot[2] *= gain;
     }
 }
 
-fn apply_ratio_to_splat(splats: &mut SplatGeo, idx: usize, ratios: &[[f32; 3]]) {
-    if splats.sh_coeffs > 0 {
-        let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
-        splats.sh0[idx][0] *= ratio[0];
-        splats.sh0[idx][1] *= ratio[1];
-        splats.sh0[idx][2] *= ratio[2];
-        apply_ratio_to_sh_rest(splats, idx, ratios);
-    } else {
-        let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
-        splats.sh0[idx][0] *= ratio[0];
-        splats.sh0[idx][1] *= ratio[1];
-        splats.sh0[idx][2] *= ratio[2];
-    }
-}
-
-fn apply_ratio_to_sh_rest(splats: &mut SplatGeo, idx: usize, ratios: &[[f32; 3]]) {
-    if splats.sh_coeffs == 0 {
-        return;
-    }
-    let base = idx * splats.sh_coeffs;
-    for coeff in 0..splats.sh_coeffs {
+fn apply_ratio_to_arrays(sh0: &mut [f32; 3], rest: &mut [[f32; 3]], ratios: &[[f32; 3]]) {
+    let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
+    sh0[0] *= ratio[0];
+    sh0[1] *= ratio[1];
+    sh0[2] *= ratio[2];
+    for (coeff, slot) in rest.iter_mut().enumerate() {
         let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
-        if let Some(slot) = splats.sh_rest.get_mut(base + coeff) {
-            slot[0] *= ratio[0];
-            slot[1] *= ratio[1];
-            slot[2] *= ratio[2];
+        slot[0] *= ratio[0];
+        slot[1] *= ratio[1];
+        slot[2] *= ratio[2];
+    }
+}
+
+fn apply_ratio_to_sh_rest_slice(rest: &mut [[f32; 3]], ratios: &[[f32; 3]]) {
+    for (coeff, slot) in rest.iter_mut().enumerate() {
+        let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
+        slot[0] *= ratio[0];
+        slot[1] *= ratio[1];
+        slot[2] *= ratio[2];
+    }
+}
+
+fn for_each_splat_mut<F>(
+    sh0: &mut [[f32; 3]],
+    sh_rest: &mut [[f32; 3]],
+    sh_coeffs: usize,
+    f: F,
+)
+where
+    F: Fn(usize, &mut [f32; 3], &mut [[f32; 3]]) + Sync + Send,
+{
+    if sh_coeffs == 0 {
+        parallel::for_each_indexed_mut(sh0, |idx, sh0| f(idx, sh0, &mut []));
+        return;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        sh0.par_iter_mut()
+            .zip(sh_rest.par_chunks_exact_mut(sh_coeffs))
+            .enumerate()
+            .for_each(|(idx, (sh0, rest))| f(idx, sh0, rest));
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        for (idx, (sh0, rest)) in sh0
+            .iter_mut()
+            .zip(sh_rest.chunks_exact_mut(sh_coeffs))
+            .enumerate()
+        {
+            f(idx, sh0, rest);
         }
     }
 }
@@ -459,22 +493,22 @@ fn irradiance_from_env_l2(n: Vec3, env: &[[f32; 3]]) -> [f32; 3] {
     e.to_array()
 }
 
-fn splat_dc_color(splats: &SplatGeo, idx: usize) -> [f32; 3] {
-    if splats.sh_coeffs > 0 {
-        let coeff = Vec3::from(splats.sh0[idx]);
+fn splat_dc_color_from(sh0: &[f32; 3], sh_coeffs: usize) -> [f32; 3] {
+    if sh_coeffs > 0 {
+        let coeff = Vec3::from(*sh0);
         let color = coeff * SH_C0 + Vec3::splat(0.5);
         color.to_array()
     } else {
-        splats.sh0[idx]
+        *sh0
     }
 }
 
-fn set_splat_dc_color(splats: &mut SplatGeo, idx: usize, color: [f32; 3]) {
-    if splats.sh_coeffs > 0 {
+fn set_splat_dc_color_into(sh0: &mut [f32; 3], sh_coeffs: usize, color: [f32; 3]) {
+    if sh_coeffs > 0 {
         let coeff = (Vec3::from(color) - Vec3::splat(0.5)) / SH_C0;
-        splats.sh0[idx] = coeff.to_array();
+        *sh0 = coeff.to_array();
     } else {
-        splats.sh0[idx] = color;
+        *sh0 = color;
     }
 }
 

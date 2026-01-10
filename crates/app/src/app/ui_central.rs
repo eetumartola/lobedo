@@ -543,6 +543,7 @@ impl LobedoApp {
                 if let Some(pos) = hover_pos {
                     if graph_rect.contains(pos) {
                         self.node_graph.zoom_at(pos, scroll_delta);
+                        ui.input_mut(|i| i.raw_scroll_delta = egui::Vec2::ZERO);
                     }
                 }
             }
