@@ -148,6 +148,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\gltf_io.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\gradient.rs
 Description: TODO: add description.
 Functions: None
@@ -237,6 +241,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\file.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\gltf_output.rs
 Description: TODO: add description.
 Functions: None
 

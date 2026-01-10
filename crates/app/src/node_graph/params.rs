@@ -560,8 +560,9 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PathPickerKind {
-    ReadObj,
+    ReadMesh,
     WriteObj,
+    WriteGltf,
     ReadSplat,
     WriteSplat,
     ReadTexture,
@@ -600,8 +601,9 @@ fn take_file_pick(kind: PathPickerKind) -> Option<FilePickResult> {
 
 fn path_picker_kind(node_name: &str, label: &str) -> Option<PathPickerKind> {
     match (node_name, label) {
-        ("File", "path") => Some(PathPickerKind::ReadObj),
+        ("File", "path") => Some(PathPickerKind::ReadMesh),
         ("OBJ Output", "path") => Some(PathPickerKind::WriteObj),
+        ("GLTF Output", "path") => Some(PathPickerKind::WriteGltf),
         ("Splat Read", "path") | ("Read Splats", "path") => Some(PathPickerKind::ReadSplat),
         ("Splat Write", "path") => Some(PathPickerKind::WriteSplat),
         ("Material", "base_color_tex") => Some(PathPickerKind::ReadTexture),
@@ -618,7 +620,10 @@ fn open_path_picker_button(
 ) -> bool {
     #[cfg(target_arch = "wasm32")]
     {
-        if matches!(kind, PathPickerKind::WriteObj | PathPickerKind::WriteSplat) {
+        if matches!(
+            kind,
+            PathPickerKind::WriteObj | PathPickerKind::WriteGltf | PathPickerKind::WriteSplat
+        ) {
             ui.add_enabled(false, egui::Button::new("..."))
                 .on_hover_text("Save dialogs are not available in web builds yet");
             let _ = (value, button_width, height);
@@ -632,7 +637,9 @@ fn open_path_picker_button(
             let kind_copy = kind;
             spawn_local(async move {
                 let (label, extensions) = match kind_copy {
-                    PathPickerKind::ReadObj | PathPickerKind::WriteObj => ("OBJ", &["obj"][..]),
+                    PathPickerKind::ReadMesh => ("Mesh", &["obj", "gltf", "glb"][..]),
+                    PathPickerKind::WriteObj => ("OBJ", &["obj"][..]),
+                    PathPickerKind::WriteGltf => ("glTF", &["glb", "gltf"][..]),
                     PathPickerKind::ReadSplat | PathPickerKind::WriteSplat => ("PLY", &["ply"][..]),
                     PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..]),
                 };
@@ -665,13 +672,14 @@ fn open_path_picker_button(
 
 #[cfg(not(target_arch = "wasm32"))]
 fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
-    let (label, extensions, is_save, default_name) = match kind {
-        PathPickerKind::ReadObj => ("OBJ", &["obj"][..], false, "model.obj"),
+        let (label, extensions, is_save, default_name) = match kind {
+        PathPickerKind::ReadMesh => ("Mesh", &["obj", "gltf", "glb"][..], false, "model.obj"),
         PathPickerKind::WriteObj => ("OBJ", &["obj"][..], true, "output.obj"),
+        PathPickerKind::WriteGltf => ("glTF", &["glb", "gltf"][..], true, "output.glb"),
         PathPickerKind::ReadSplat => ("PLY", &["ply"][..], false, "splats.ply"),
         PathPickerKind::WriteSplat => ("PLY", &["ply"][..], true, "output.ply"),
         PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..], false, "texture.png"),
-    };
+        };
     let mut dialog = FileDialog::new().add_filter(label, extensions);
     if !current.trim().is_empty() {
         let path = Path::new(current);
@@ -1032,6 +1040,13 @@ fn display_label(node_name: &str, key: &str) -> String {
         return match key {
             "path" => "Path",
             "format" => "Format",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "GLTF Output" {
+        return match key {
+            "path" => "Path",
             _ => key,
         }
         .to_string();

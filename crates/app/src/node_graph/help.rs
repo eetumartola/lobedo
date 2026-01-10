@@ -10,7 +10,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
         "Tube" => Some("Creates a tube/cylinder mesh."),
         "Circle" => Some("Creates a circle as a curve or mesh."),
         "Curve" => Some("Creates a polyline curve from the supplied points."),
-        "File" => Some("Reads a mesh from an OBJ file."),
+        "File" => Some("Reads a mesh from an OBJ or glTF file."),
         "Splat Read" | "Read Splats" => Some("Reads Gaussian splats from a PLY file."),
         "Splat Write" => Some("Writes splats to a PLY file using the Write button."),
         "Delete" => Some("Deletes geometry inside a selection shape."),
@@ -49,6 +49,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
         "Attribute Math" => Some("Applies math operations to attributes."),
         "Wrangle" => Some("Runs a small script to edit attributes, with query helpers and volume sampling."),
         "OBJ Output" => Some("Writes mesh geometry to an OBJ file using the Write button."),
+        "GLTF Output" => Some("Writes mesh geometry to a glTF/GLB file using the Write button."),
         "Output" => Some("Final output node; passes geometry through."),
         _ => None,
     }
@@ -79,7 +80,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Curve", "points") => Some("Curve points encoded as x y z; x y z; ..."),
         ("Curve", "subdivs") => Some("Subdivisions per segment for smoothing."),
         ("Curve", "closed") => Some("Close the curve loop."),
-        ("File", "path") => Some("Path to an OBJ file."),
+        ("File", "path") => Some("Path to an OBJ or glTF file."),
         ("Splat Read", "path") => Some("Path to a splat PLY file."),
         ("Splat Read", "read_mode") => Some("Read full SH data or base color only."),
         ("Read Splats", "path") => Some("Path to a splat PLY file."),
@@ -299,6 +300,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Wrangle", "group") => Some("Restrict to a group."),
         ("Wrangle", "group_type") => Some("Group domain to use."),
         ("OBJ Output", "path") => Some("Output OBJ file path."),
+        ("GLTF Output", "path") => Some("Output glTF/GLB file path."),
         _ => common_param_help(param),
     };
     help.map(Cow::Borrowed)

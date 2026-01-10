@@ -12,6 +12,7 @@ pub mod copy_transform;
 pub mod curve;
 pub mod erosion_noise;
 pub mod file;
+pub mod gltf_output;
 pub mod group;
 pub mod grid;
 pub mod group_utils;

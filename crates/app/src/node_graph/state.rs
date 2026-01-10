@@ -64,6 +64,7 @@ pub struct NodeInfoRequest {
 #[derive(Clone, Copy)]
 pub enum WriteRequestKind {
     Obj,
+    Gltf,
     Splat,
 }
 

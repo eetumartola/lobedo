@@ -17,6 +17,7 @@ pub enum BuiltinNodeKind {
     File,
     ReadSplats,
     WriteSplats,
+    GltfOutput,
     Delete,
     Prune,
     Regularize,
@@ -201,6 +202,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::write_splats::definition,
         default_params: nodes::write_splats::default_params,
         compute_mesh: mesh_error_write_splats,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::GltfOutput,
+        name: nodes::gltf_output::NAME,
+        aliases: &[],
+        definition: nodes::gltf_output::definition,
+        default_params: nodes::gltf_output::default_params,
+        compute_mesh: nodes::gltf_output::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -644,6 +654,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
         BuiltinNodeKind::Merge => merge_geometry(inputs),
         BuiltinNodeKind::ObjOutput => apply_obj_output(params, inputs),
+        BuiltinNodeKind::GltfOutput => apply_obj_output(params, inputs),
         BuiltinNodeKind::Output => Ok(inputs.first().cloned().unwrap_or_default()),
     }
 }

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use crate::attributes::{AttributeDomain, AttributeStorage};
@@ -7,6 +6,7 @@ use crate::assets;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::geometry_out;
+use crate::gltf_io;
 
 pub const NAME: &str = "File";
 
@@ -32,6 +32,19 @@ pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     let path = params.get_string("path", "");
     if path.trim().is_empty() {
         return Err("File node requires a path".to_string());
+    }
+    load_mesh(path)
+}
+
+fn load_mesh(path: &str) -> Result<Mesh, String> {
+    if is_gltf_path(path) {
+        return gltf_io::load_gltf_mesh(path);
+    }
+    if let Some(data) = assets::load_bytes(path) {
+        if is_glb_bytes(&data) {
+            return gltf_io::load_gltf_mesh_bytes(&data);
+        }
+        return load_obj_mesh_bytes(&data);
     }
     load_obj_mesh(path)
 }
@@ -78,6 +91,24 @@ fn load_obj_mesh_bytes(data: &[u8]) -> Result<Mesh, String> {
     })
     .map_err(|err| format!("OBJ load failed: {err}"))?;
     build_mesh_from_models(models)
+}
+
+fn is_gltf_path(path: &str) -> bool {
+    let name = if let Some(idx) = path.rfind("::") {
+        &path[idx + 2..]
+    } else {
+        path
+    };
+    let ext = std::path::Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(ext.as_str(), "gltf" | "glb")
+}
+
+fn is_glb_bytes(data: &[u8]) -> bool {
+    data.len() >= 4 && &data[0..4] == b"glTF"
 }
 
 fn build_mesh_from_models(models: Vec<tobj::Model>) -> Result<Mesh, String> {

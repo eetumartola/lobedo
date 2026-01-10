@@ -7,7 +7,7 @@ use rfd::FileDialog;
 use lobedo_core::Project;
 #[cfg(not(target_arch = "wasm32"))]
 use lobedo_core::{
-    evaluate_geometry_graph, save_splat_ply_with_format, write_obj, SplatSaveFormat,
+    evaluate_geometry_graph, save_splat_ply_with_format, write_gltf, write_obj, SplatSaveFormat,
 };
 
 use super::LobedoApp;
@@ -133,6 +133,17 @@ impl LobedoApp {
                     tracing::warn!("OBJ write failed: {}", err);
                 } else {
                     tracing::info!("OBJ written to {}", path);
+                }
+            }
+            WriteRequestKind::Gltf => {
+                let Some(mesh) = geometry.merged_mesh() else {
+                    tracing::warn!("Write failed: no mesh output");
+                    return;
+                };
+                if let Err(err) = write_gltf(path, &mesh) {
+                    tracing::warn!("GLTF write failed: {}", err);
+                } else {
+                    tracing::info!("GLTF written to {}", path);
                 }
             }
             WriteRequestKind::Splat => {

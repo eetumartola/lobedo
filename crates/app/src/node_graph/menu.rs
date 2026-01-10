@@ -92,7 +92,8 @@ fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
         BuiltinNodeKind::File
         | BuiltinNodeKind::ReadSplats
         | BuiltinNodeKind::WriteSplats
-        | BuiltinNodeKind::ObjOutput => Some("IO"),
+        | BuiltinNodeKind::ObjOutput
+        | BuiltinNodeKind::GltfOutput => Some("IO"),
         BuiltinNodeKind::Prune
         | BuiltinNodeKind::Regularize
         | BuiltinNodeKind::SplatLod

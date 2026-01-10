@@ -335,10 +335,15 @@ impl NodeGraphState {
             }
         }
 
-        if matches!(node_name.as_str(), "OBJ Output" | "Splat Write" | "Write Splats") {
+        if matches!(
+            node_name.as_str(),
+            "OBJ Output" | "GLTF Output" | "Splat Write" | "Write Splats"
+        ) {
             ui.separator();
             let label = if node_name == "OBJ Output" {
                 "Write OBJ"
+            } else if node_name == "GLTF Output" {
+                "Write GLTF"
             } else {
                 "Write PLY"
             };
@@ -346,6 +351,8 @@ impl NodeGraphState {
             if ui.add_enabled(can_write, egui::Button::new(label)).clicked() {
                 let kind = if node_name == "OBJ Output" {
                     WriteRequestKind::Obj
+                } else if node_name == "GLTF Output" {
+                    WriteRequestKind::Gltf
                 } else {
                     WriteRequestKind::Splat
                 };
