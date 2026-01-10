@@ -101,6 +101,48 @@ impl NodeGraphState {
         } else {
             None
         };
+        let splat_delight_mode = if node_name == "Splat Delight" {
+            Some(
+                param_values
+                    .get("delight_mode")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(1)
+                    .clamp(0, 2),
+            )
+        } else {
+            None
+        };
+        let splat_delight_source_env = if node_name == "Splat Delight" {
+            Some(
+                param_values
+                    .get("source_env")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 2),
+            )
+        } else {
+            None
+        };
+        let splat_delight_neutral_env = if node_name == "Splat Delight" {
+            Some(
+                param_values
+                    .get("neutral_env")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
         let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
             Some(
                 param_values
@@ -185,6 +227,37 @@ impl NodeGraphState {
             if node_name == "Ray" {
                 if let Some(method) = ray_method {
                     if method != 1 && key == "direction" {
+                        continue;
+                    }
+                }
+            }
+            if node_name == "Splat Delight" {
+                if let Some(mode) = splat_delight_mode {
+                    match (mode, key.as_str()) {
+                        (0, "source_env")
+                        | (0, "neutral_env")
+                        | (0, "source_color")
+                        | (0, "neutral_color")
+                        | (0, "eps")
+                        | (0, "ratio_min")
+                        | (0, "ratio_max")
+                        | (0, "high_band_gain")
+                        | (0, "albedo_max") => continue,
+                        (1, "albedo_max") => continue,
+                        (2, "neutral_env")
+                        | (2, "neutral_color")
+                        | (2, "ratio_min")
+                        | (2, "ratio_max") => continue,
+                        _ => {}
+                    }
+                }
+                if let Some(source_env) = splat_delight_source_env {
+                    if source_env != 2 && key == "source_color" {
+                        continue;
+                    }
+                }
+                if let Some(neutral_env) = splat_delight_neutral_env {
+                    if neutral_env != 1 && key == "neutral_color" {
                         continue;
                     }
                 }

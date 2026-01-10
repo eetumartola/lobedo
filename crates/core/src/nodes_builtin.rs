@@ -23,6 +23,7 @@ pub enum BuiltinNodeKind {
     SplatLod,
     SplatToMesh,
     SplatDeform,
+    SplatDelight,
     VolumeFromGeometry,
     VolumeCombine,
     VolumeBlur,
@@ -253,6 +254,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_deform::definition,
         default_params: nodes::splat_deform::default_params,
         compute_mesh: nodes::splat_deform::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatDelight,
+        name: nodes::splat_delight::NAME,
+        aliases: &[],
+        definition: nodes::splat_delight::definition,
+        default_params: nodes::splat_delight::default_params,
+        compute_mesh: nodes::splat_delight::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -591,6 +601,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::SplatLod => apply_splat_lod(params, inputs),
         BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::SplatDelight => apply_splat_delight(params, inputs),
         BuiltinNodeKind::VolumeFromGeometry => {
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
         }
@@ -796,6 +807,30 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(nodes::splat_lod::apply_to_splats(params, splat));
+    }
+
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
+}
+
+fn apply_splat_delight(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::splat_delight::apply_to_splats(params, splat));
     }
 
     let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };

@@ -254,6 +254,50 @@ pub(super) fn edit_param(
                     &[(0, "Binary"), (1, "ASCII")],
                     "Binary",
                 )
+            } else if label == "delight_mode" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[
+                        (0, "Band 0 Only"),
+                        (1, "SH Ratio"),
+                        (2, "Irradiance Divide"),
+                    ],
+                    "SH Ratio",
+                )
+            } else if label == "source_env" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "From Splats"), (1, "Uniform White"), (2, "Custom")],
+                    "From Splats",
+                )
+            } else if label == "neutral_env" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Uniform White"), (1, "Custom")],
+                    "Uniform White",
+                )
+            } else if label == "output_sh_order" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "L0"), (1, "L1"), (2, "L2"), (3, "L3")],
+                    "L3",
+                )
             } else {
                 param_row_with_label(ui, label, &display_label, help, |ui| {
                     let mut changed = false;
@@ -929,6 +973,23 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Splat Delight" {
+        return match key {
+            "delight_mode" => "Mode",
+            "source_env" => "Source Env",
+            "neutral_env" => "Neutral Env",
+            "source_color" => "Source Color",
+            "neutral_color" => "Neutral Color",
+            "eps" => "Epsilon",
+            "ratio_min" => "Ratio Min",
+            "ratio_max" => "Ratio Max",
+            "high_band_gain" => "High Band Gain",
+            "output_sh_order" => "Output SH Order",
+            "albedo_max" => "Albedo Max",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Splat Write" {
         return match key {
             "path" => "Path",
@@ -977,6 +1038,10 @@ fn float_slider_range(
         "erosion_lacunarity" => 1.0..=4.0,
         "erosion_slope_strength" => 0.0..=5.0,
         "erosion_branch_strength" => 0.0..=5.0,
+        "ratio_min" | "ratio_max" => 0.0..=10.0,
+        "high_band_gain" => 0.0..=1.0,
+        "eps" => 0.0..=0.1,
+        "albedo_max" => 0.0..=4.0,
         _ => -1000.0..=1000.0,
     }
 }
