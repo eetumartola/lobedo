@@ -26,6 +26,7 @@ pub enum BuiltinNodeKind {
     SplatDeform,
     SplatDelight,
     SplatIntegrate,
+    SplatHeal,
     SplatMerge,
     VolumeFromGeometry,
     VolumeCombine,
@@ -285,6 +286,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_integrate::definition,
         default_params: nodes::splat_integrate::default_params,
         compute_mesh: nodes::splat_integrate::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatHeal,
+        name: nodes::splat_heal::NAME,
+        aliases: &[],
+        definition: nodes::splat_heal::definition,
+        default_params: nodes::splat_heal::default_params,
+        compute_mesh: nodes::splat_heal::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -643,6 +653,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatDelight => apply_splat_delight(params, inputs),
         BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::SplatHeal => apply_splat_heal(params, inputs),
         BuiltinNodeKind::SplatMerge => nodes::splat_merge::apply_to_geometry(params, inputs),
         BuiltinNodeKind::VolumeFromGeometry => {
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
@@ -861,6 +872,10 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         volumes: input.volumes.clone(),
         materials: input.materials.clone(),
     })
+}
+
+fn apply_splat_heal(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    nodes::splat_heal::apply_to_geometry(params, inputs)
 }
 
 fn apply_splat_delight(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

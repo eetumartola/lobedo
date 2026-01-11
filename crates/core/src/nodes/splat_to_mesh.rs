@@ -166,17 +166,17 @@ impl Default for SplatSample {
     }
 }
 
-enum SplatOutputMode {
+pub(crate) enum SplatOutputMode {
     Mesh,
     Sdf,
 }
 
-struct SplatGrid {
-    values: Vec<f32>,
+pub(crate) struct SplatGrid {
+    pub(crate) values: Vec<f32>,
     color_grid: Option<ColorGrid>,
-    spec: GridSpec,
-    iso: f32,
-    inside_is_greater: bool,
+    pub(crate) spec: GridSpec,
+    pub(crate) iso: f32,
+    pub(crate) inside_is_greater: bool,
 }
 
 fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String> {
@@ -217,7 +217,7 @@ fn splats_to_sdf(params: &NodeParams, splats: &SplatGeo) -> Result<Volume, Strin
     Ok(volume)
 }
 
-fn build_splat_grid(
+pub(crate) fn build_splat_grid(
     params: &NodeParams,
     splats: &SplatGeo,
     output_mode: SplatOutputMode,

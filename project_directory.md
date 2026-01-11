@@ -332,6 +332,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\splat_heal.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\splat_integrate.rs
 Description: TODO: add description.
 Functions: None

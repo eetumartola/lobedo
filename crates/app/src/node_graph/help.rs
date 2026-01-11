@@ -28,6 +28,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
         "Splat Deform" => Some("Deforms splats from an edited point cloud."),
         "Splat Delight" => Some("Neutralizes baked lighting in splat SH coefficients."),
         "Splat Integrate" => Some("Matches splat lighting to a target environment."),
+        "Splat Heal" => Some("Fills small holes in splat surfaces by adding new splats."),
         "Splat Merge" => Some("Geometrically joins two splat models with feathering or skirts."),
         "Volume from Geometry" => Some("Converts geometry into a sparse volume."),
         "Volume Combine" => Some("Combines two volumes into one."),
@@ -161,6 +162,30 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Integrate", "albedo_max") => Some("Maximum albedo clamp for diffuse relighting."),
         ("Splat Integrate", "group") => Some("Optional group to restrict integration."),
         ("Splat Integrate", "group_type") => Some("Group domain to use."),
+        ("Splat Heal", "method") => Some("Healing method to apply."),
+        ("Splat Heal", "voxel_size") => Some("Voxel size for the density grid."),
+        ("Splat Heal", "voxel_size_max") => Some("Max voxel dimension (safety clamp)."),
+        ("Splat Heal", "n_sigma") => Some("Gaussian support radius in sigmas."),
+        ("Splat Heal", "density_iso") => Some("Density threshold for occupancy."),
+        ("Splat Heal", "bounds_padding") => Some("Padding around bounds in sigmas."),
+        ("Splat Heal", "close_radius") => Some("Closing radius in voxels."),
+        ("Splat Heal", "fill_stride") => Some("Subsample candidates (higher = fewer splats)."),
+        ("Splat Heal", "max_new") => Some("Maximum number of new splats."),
+        ("Splat Heal", "sdf_band") => Some("SDF band thickness around the surface."),
+        ("Splat Heal", "sdf_close") => Some("SDF offset to close small gaps."),
+        ("Splat Heal", "search_radius") => {
+            Some("Neighbor search radius for copying attributes (<=0 = auto).")
+        }
+        ("Splat Heal", "min_distance") => {
+            Some("Minimum distance to existing splats (<=0 = auto).")
+        }
+        ("Splat Heal", "scale_mul") => Some("Scale multiplier for new splats."),
+        ("Splat Heal", "opacity_mul") => Some("Opacity multiplier for new splats."),
+        ("Splat Heal", "copy_sh") => Some("Copy full SH coefficients (else DC only)."),
+        ("Splat Heal", "max_m2") => Some("Exponent clamp for SDF method."),
+        ("Splat Heal", "smooth_k") => Some("Smooth-min blend sharpness for SDF method."),
+        ("Splat Heal", "shell_radius") => Some("Ellipsoid shell radius for SDF method."),
+        ("Splat Heal", "blur_iters") => Some("Density blur iterations."),
         ("Splat Merge", "method") => Some("Join method."),
         ("Splat Merge", "blend_radius") => Some("Blend radius for feathering/fade."),
         ("Splat Merge", "fade_originals") => Some("Fade original splats near the seam."),

@@ -238,6 +238,20 @@ impl NodeGraphState {
         } else {
             None
         };
+        let splat_heal_method = if node_name == "Splat Heal" {
+            Some(
+                param_values
+                    .get("method")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
         let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
             Some(
                 param_values
@@ -420,6 +434,18 @@ impl NodeGraphState {
                         | (0, "seam_alpha")
                         | (0, "seam_scale")
                         | (0, "seam_dc_only") => continue,
+                        _ => {}
+                    }
+                }
+            }
+            if node_name == "Splat Heal" {
+                if let Some(method) = splat_heal_method {
+                    match (method, key.as_str()) {
+                        (0, "sdf_band")
+                        | (0, "sdf_close")
+                        | (0, "smooth_k")
+                        | (0, "shell_radius") => continue,
+                        (1, "close_radius") => continue,
                         _ => {}
                     }
                 }

@@ -162,6 +162,16 @@ pub(super) fn edit_param(
                     &[(0, "Feather"), (1, "Skirt")],
                     "Feather",
                 )
+            } else if label == "method" && node_name == "Splat Heal" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Voxel Close"), (1, "SDF Patch")],
+                    "Voxel Close",
+                )
             } else if label == "method" {
                 combo_row_i32(
                     ui,
@@ -1170,6 +1180,32 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Splat Heal" {
+        return match key {
+            "method" => "Method",
+            "voxel_size" => "Voxel Size",
+            "voxel_size_max" => "Max Voxel Dim",
+            "n_sigma" => "Support Sigma",
+            "density_iso" => "Density Threshold",
+            "bounds_padding" => "Bounds Padding",
+            "close_radius" => "Close Radius",
+            "fill_stride" => "Fill Stride",
+            "max_new" => "Max New",
+            "sdf_band" => "SDF Band",
+            "sdf_close" => "SDF Close",
+            "search_radius" => "Search Radius",
+            "min_distance" => "Min Distance",
+            "scale_mul" => "Scale Mult",
+            "opacity_mul" => "Opacity Mult",
+            "copy_sh" => "Copy SH",
+            "max_m2" => "Exponent Clamp",
+            "smooth_k" => "Blend Sharpness",
+            "shell_radius" => "Shell Radius",
+            "blur_iters" => "Density Blur",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Volume from Geometry" {
         return match key {
             "mode" => "Mode",
@@ -1289,7 +1325,7 @@ fn display_label(node_name: &str, key: &str) -> String {
 }
 
 fn float_slider_range(
-    _node_name: &str,
+    node_name: &str,
     label: &str,
     _value: f32,
 ) -> std::ops::RangeInclusive<f32> {
@@ -1306,8 +1342,8 @@ fn float_slider_range(
         "max_distance" => 0.0..=1000.0,
         "voxel_size" => 0.0..=10.0,
         "n_sigma" => 0.0..=6.0,
-        "density_iso" if _node_name == "Volume to Mesh" => 0.0..=1.0,
-        "surface_iso" if _node_name == "Volume to Mesh" => -1.0..=1.0,
+        "density_iso" if node_name == "Volume to Mesh" => 0.0..=1.0,
+        "surface_iso" if node_name == "Volume to Mesh" => -1.0..=1.0,
         "density_iso" => 0.0..=10.0,
         "surface_iso" => -5.0..=5.0,
         "bounds_padding" => 0.0..=10.0,
@@ -1315,6 +1351,12 @@ fn float_slider_range(
         "max_m2" => 0.0..=10.0,
         "smooth_k" => 0.001..=2.0,
         "shell_radius" => 0.1..=4.0,
+        "sdf_band" if node_name == "Splat Heal" => 0.0..=5.0,
+        "sdf_close" => -2.0..=2.0,
+        "search_radius" => 0.0..=10.0,
+        "min_distance" => 0.0..=10.0,
+        "scale_mul" => 0.1..=10.0,
+        "opacity_mul" => 0.0..=2.0,
         "padding" => 0.0..=10.0,
         "density_scale" => 0.0..=10.0,
         "sdf_band" => 0.0..=10.0,
@@ -1350,6 +1392,9 @@ fn int_slider_range(
         "blur_iters" => 0..=6,
         "voxel_size_max" => 8..=2048,
         "max_dim" => 8..=512,
+        "close_radius" => 0..=6,
+        "fill_stride" => 1..=8,
+        "max_new" => 0..=100_000,
         "erosion_octaves" => 1..=8,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,
