@@ -357,6 +357,10 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             parameters: &[
                 ("group", "Optional group to restrict healing."),
                 ("group_type", "Group domain to use."),
+                ("heal_shape", "Optional bounds for healing (None/Box/Sphere)."),
+                ("heal_center", "Center of the heal bounds."),
+                ("heal_size", "Size of the heal box."),
+                ("heal_radius", "Radius of the heal sphere."),
                 ("method", "Method: Voxel Close or SDF Patch."),
                 ("voxel_size", "Voxel size for the density grid."),
                 ("voxel_size_max", "Maximum voxel dimension (safety clamp)."),

@@ -34,6 +34,10 @@ const DEFAULT_MAX_M2: f32 = 3.0;
 const DEFAULT_SMOOTH_K: f32 = 0.1;
 const DEFAULT_SHELL_RADIUS: f32 = 1.0;
 const DEFAULT_BLUR_ITERS: i32 = 1;
+const DEFAULT_HEAL_SHAPE: &str = "none";
+const DEFAULT_HEAL_CENTER: [f32; 3] = [0.0, 0.0, 0.0];
+const DEFAULT_HEAL_SIZE: [f32; 3] = [1.0, 1.0, 1.0];
+const DEFAULT_HEAL_RADIUS: f32 = 1.0;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -49,6 +53,13 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
+            (
+                "heal_shape".to_string(),
+                ParamValue::String(DEFAULT_HEAL_SHAPE.to_string()),
+            ),
+            ("heal_center".to_string(), ParamValue::Vec3(DEFAULT_HEAL_CENTER)),
+            ("heal_size".to_string(), ParamValue::Vec3(DEFAULT_HEAL_SIZE)),
+            ("heal_radius".to_string(), ParamValue::Float(DEFAULT_HEAL_RADIUS)),
             ("method".to_string(), ParamValue::Int(DEFAULT_METHOD)),
             ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
             (
@@ -453,6 +464,9 @@ fn collect_new_splats(
             spec.min.z + iz as f32 * spec.dx,
         );
         let pos_world = Vec3::new(pos_grid.x, -pos_grid.y, pos_grid.z);
+        if !heal_bounds_contains(params, pos_world) {
+            continue;
+        }
         if let Some((hit_idx, dist)) = hash.nearest(&source.positions, pos_world, search_radius)
         {
             if min_distance > 0.0 && dist < min_distance {
@@ -468,6 +482,27 @@ fn collect_new_splats(
         }
     }
     new_splats
+}
+
+fn heal_bounds_contains(params: &NodeParams, position: Vec3) -> bool {
+    let shape = params
+        .get_string("heal_shape", DEFAULT_HEAL_SHAPE)
+        .to_lowercase();
+    match shape.as_str() {
+        "box" => {
+            let center = Vec3::from(params.get_vec3("heal_center", DEFAULT_HEAL_CENTER));
+            let size = Vec3::from(params.get_vec3("heal_size", DEFAULT_HEAL_SIZE)).abs();
+            let half = size * 0.5;
+            let delta = (position - center).abs();
+            delta.x <= half.x && delta.y <= half.y && delta.z <= half.z
+        }
+        "sphere" => {
+            let center = Vec3::from(params.get_vec3("heal_center", DEFAULT_HEAL_CENTER));
+            let radius = params.get_float("heal_radius", DEFAULT_HEAL_RADIUS).max(0.0);
+            (position - center).length_squared() <= radius * radius
+        }
+        _ => true,
+    }
 }
 
 fn append_new_splats(

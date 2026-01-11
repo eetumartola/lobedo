@@ -197,7 +197,7 @@ SH evaluation:
    - `Reduce SH Order` (e.g., L3->L1)
 19. `Splat Outlier` (remove stragglers by distance/scale/opacity thresholds)    
 20. `Splat Cluster` (cluster labeling with a `cluster` attribute)
-21. `Splat Heal` (fill small holes by resplatting via voxel close / SDF patch)  
+21. `Splat Heal` (fill small holes by resplatting via voxel close / SDF patch, optional bounds)  
 
 ### Conversion
 19. `Splats -> Points`

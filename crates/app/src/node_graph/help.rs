@@ -165,6 +165,12 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Integrate", "group") => Some("Optional group to restrict integration."),
         ("Splat Integrate", "group_type") => Some("Group domain to use."),
         ("Splat Heal", "method") => Some("Healing method to apply."),
+        ("Splat Heal", "heal_shape") => {
+            Some("Optional region shape for constraining healing (None/Box/Sphere).")
+        }
+        ("Splat Heal", "heal_center") => Some("Center of the heal bounds."),
+        ("Splat Heal", "heal_size") => Some("Size of the heal box."),
+        ("Splat Heal", "heal_radius") => Some("Radius of the heal sphere."),
         ("Splat Heal", "voxel_size") => Some("Voxel size for the density grid."),
         ("Splat Heal", "voxel_size_max") => Some("Max voxel dimension (safety clamp)."),
         ("Splat Heal", "n_sigma") => Some("Gaussian support radius in sigmas."),
