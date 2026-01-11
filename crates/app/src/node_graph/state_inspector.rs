@@ -252,6 +252,20 @@ impl NodeGraphState {
         } else {
             None
         };
+        let splat_cluster_method = if node_name == "Splat Cluster" {
+            Some(
+                param_values
+                    .get("method")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0)
+                    .clamp(0, 1),
+            )
+        } else {
+            None
+        };
         let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
             Some(
                 param_values
@@ -446,6 +460,15 @@ impl NodeGraphState {
                         | (0, "smooth_k")
                         | (0, "shell_radius") => continue,
                         (1, "close_radius") => continue,
+                        _ => {}
+                    }
+                }
+            }
+            if node_name == "Splat Cluster" {
+                if let Some(method) = splat_cluster_method {
+                    match (method, key.as_str()) {
+                        (0, "eps") | (0, "min_pts") => continue,
+                        (1, "cell_size") => continue,
                         _ => {}
                     }
                 }

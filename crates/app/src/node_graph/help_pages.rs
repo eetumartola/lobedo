@@ -379,6 +379,42 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("blur_iters", "Density blur iterations."),
             ],
         }),
+        "Splat Outlier" => Some(NodeHelpPage {
+            name: "Splat Outlier",
+            description: &[
+                "Removes stray splats by clustering in position space and discarding noise.",
+                "The node runs a DBSCAN-style density pass and deletes splats that do not have enough neighbors.",
+                "Optionally remove very small clusters to clean floating fragments.",
+            ],
+            inputs: &["in: Splat geometry."],
+            outputs: &["out: Splats with outliers removed."],
+            parameters: &[
+                ("group", "Optional group to restrict outlier removal."),
+                ("group_type", "Group domain to use."),
+                ("eps", "Neighborhood radius for clustering (<= 0 uses auto spacing)."),
+                ("min_pts", "Minimum neighbors for a core splat."),
+                ("min_cluster_size", "Remove clusters smaller than this size (0 disables)."),
+            ],
+        }),
+        "Splat Cluster" => Some(NodeHelpPage {
+            name: "Splat Cluster",
+            description: &[
+                "Assigns a cluster id to each splat for selection and downstream editing.",
+                "Grid mode bins splats into spatial cells for fast, deterministic clustering.",
+                "DBSCAN mode groups splats by local density and labels noise as -1.",
+            ],
+            inputs: &["in: Splat geometry."],
+            outputs: &["out: Splats with a cluster attribute."],
+            parameters: &[
+                ("group", "Optional group to restrict clustering."),
+                ("group_type", "Group domain to use."),
+                ("method", "Clustering method: Grid or DBSCAN."),
+                ("attr", "Attribute name to store the cluster id."),
+                ("cell_size", "Grid cell size (<= 0 uses auto spacing)."),
+                ("eps", "DBSCAN radius (<= 0 uses auto spacing)."),
+                ("min_pts", "Minimum neighbors for a DBSCAN core."),
+            ],
+        }),
         "Splat Merge" => Some(NodeHelpPage {
             name: "Splat Merge",
             description: &[

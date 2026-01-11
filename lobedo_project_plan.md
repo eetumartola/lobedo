@@ -171,8 +171,7 @@ SH evaluation:
    - Splat-aware: transforms `P/R/S` and rotates SH coefficients when rotation is applied
 5. `Merge` (Mesh merge; Splat merge)
 6. `Group` (create named groups by box/sphere/plane or from existing groups)    
-7. `Filter by Mask` (for points/splats; mask source could be box/sphere/plane)  
-8. `FFD` (free-form deformation lattice for mesh/curve/splat geometry)
+7. `FFD` (free-form deformation lattice for mesh/curve/splat geometry) 
 
 ### Houdini utility nodes (pre-splat-specific)
 8. `Tube` (mesh source)
@@ -197,8 +196,8 @@ SH evaluation:
    - `Rotate SH` (explicit)
    - `Reduce SH Order` (e.g., L3->L1)
 19. `Splat Outlier` (remove stragglers by distance/scale/opacity thresholds)    
-20. `Splat Cluster` (cluster labeling with a `cluster` attribute)            
-21. `Splat Heal` (fill small holes by resplatting via voxel close / SDF patch)
+20. `Splat Cluster` (cluster labeling with a `cluster` attribute)
+21. `Splat Heal` (fill small holes by resplatting via voxel close / SDF patch)  
 
 ### Conversion
 19. `Splats -> Points`

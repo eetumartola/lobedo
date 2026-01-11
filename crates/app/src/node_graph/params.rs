@@ -172,6 +172,16 @@ pub(super) fn edit_param(
                     &[(0, "Voxel Close"), (1, "SDF Patch")],
                     "Voxel Close",
                 )
+            } else if label == "method" && node_name == "Splat Cluster" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Grid"), (1, "DBSCAN")],
+                    "Grid",
+                )
             } else if label == "method" {
                 combo_row_i32(
                     ui,
@@ -1041,6 +1051,25 @@ fn combo_row_string(
 }
 
 fn display_label(node_name: &str, key: &str) -> String {
+    if node_name == "Splat Cluster" {
+        return match key {
+            "cell_size" => "Cell Size",
+            "eps" => "Radius",
+            "min_pts" => "Min Points",
+            "attr" => "Attribute",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Splat Outlier" {
+        return match key {
+            "eps" => "Radius",
+            "min_pts" => "Min Points",
+            "min_cluster_size" => "Min Cluster Size",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Color" {
         return match key {
             "color_mode" => "Mode",
@@ -1357,6 +1386,8 @@ fn float_slider_range(
         "min_distance" => 0.0..=10.0,
         "scale_mul" => 0.1..=10.0,
         "opacity_mul" => 0.0..=2.0,
+        "cell_size" => 0.0..=10.0,
+        "eps" if node_name == "Splat Cluster" || node_name == "Splat Outlier" => 0.0..=10.0,
         "padding" => 0.0..=10.0,
         "density_scale" => 0.0..=10.0,
         "sdf_band" => 0.0..=10.0,
@@ -1395,6 +1426,8 @@ fn int_slider_range(
         "close_radius" => 0..=6,
         "fill_stride" => 1..=8,
         "max_new" => 0..=100_000,
+        "min_pts" => 1..=128,
+        "min_cluster_size" => 0..=100_000,
         "erosion_octaves" => 1..=8,
         "count" if node_name == "Scatter" => 0..=1000,
         "count" if node_name == "Copy/Transform" => 1..=100,

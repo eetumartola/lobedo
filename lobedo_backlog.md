@@ -80,6 +80,8 @@ Status: done | in progress | not started
 - **N19**: Scatter density attribute + attribute inheritance (done)
 - **N20**: Group by attribute range (done)
 - **N21**: Splat Heal (hole filling via voxel close + SDF patch) (done)
+- **N22**: Splat Outlier (remove sparse splats via density clustering) (done)
+- **N23**: Splat Cluster (assign cluster id attribute) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

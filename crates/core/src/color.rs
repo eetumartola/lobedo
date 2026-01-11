@@ -1,3 +1,4 @@
+#[allow(clippy::excessive_precision)]
 pub fn linear_srgb_to_oklab(rgb: [f32; 3]) -> [f32; 3] {
     let r = rgb[0];
     let g = rgb[1];
@@ -15,6 +16,7 @@ pub fn linear_srgb_to_oklab(rgb: [f32; 3]) -> [f32; 3] {
     ]
 }
 
+#[allow(clippy::excessive_precision)]
 pub fn oklab_to_linear_srgb(lab: [f32; 3]) -> [f32; 3] {
     let l = lab[0];
     let a = lab[1];

@@ -328,6 +328,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\splat_cluster.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\splat_deform.rs
 Description: TODO: add description.
 Functions: None
@@ -349,6 +353,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\splat_merge.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\splat_outlier.rs
 Description: TODO: add description.
 Functions: None
 

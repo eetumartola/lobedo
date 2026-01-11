@@ -27,6 +27,8 @@ pub enum BuiltinNodeKind {
     SplatDelight,
     SplatIntegrate,
     SplatHeal,
+    SplatOutlier,
+    SplatCluster,
     SplatMerge,
     VolumeFromGeometry,
     VolumeCombine,
@@ -295,6 +297,24 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_heal::definition,
         default_params: nodes::splat_heal::default_params,
         compute_mesh: nodes::splat_heal::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatOutlier,
+        name: nodes::splat_outlier::NAME,
+        aliases: &[],
+        definition: nodes::splat_outlier::definition,
+        default_params: nodes::splat_outlier::default_params,
+        compute_mesh: nodes::splat_outlier::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatCluster,
+        name: nodes::splat_cluster::NAME,
+        aliases: &[],
+        definition: nodes::splat_cluster::definition,
+        default_params: nodes::splat_cluster::default_params,
+        compute_mesh: nodes::splat_cluster::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -654,6 +674,8 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::SplatDelight => apply_splat_delight(params, inputs),
         BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::apply_to_geometry(params, inputs),
         BuiltinNodeKind::SplatHeal => apply_splat_heal(params, inputs),
+        BuiltinNodeKind::SplatOutlier => apply_splat_outlier(params, inputs),
+        BuiltinNodeKind::SplatCluster => apply_splat_cluster(params, inputs),
         BuiltinNodeKind::SplatMerge => nodes::splat_merge::apply_to_geometry(params, inputs),
         BuiltinNodeKind::VolumeFromGeometry => {
             nodes::volume_from_geo::apply_to_geometry(params, inputs)
@@ -876,6 +898,54 @@ fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
 
 fn apply_splat_heal(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     nodes::splat_heal::apply_to_geometry(params, inputs)
+}
+
+fn apply_splat_outlier(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::splat_outlier::apply_to_splats(params, splat));
+    }
+
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
+}
+
+fn apply_splat_cluster(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(nodes::splat_cluster::apply_to_splats(params, splat)?);
+    }
+
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
 }
 
 fn apply_splat_delight(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
