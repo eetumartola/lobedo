@@ -11,7 +11,7 @@ use std::sync::{Mutex, OnceLock};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
-use lobedo_core::{parse_color_gradient, ParamValue};
+use lobedo_core::{parse_color_gradient, ColorGradient, ParamValue};
 
 use super::help::{param_help, show_help_tooltip};
 
@@ -451,8 +451,8 @@ pub(super) fn edit_param(
         }
         ParamValue::String(mut v) => {
             let changed = if label == "gradient" {
-                param_row_with_label(ui, label, &display_label, help, |ui| {
-                    edit_gradient_field(ui, &mut v)
+                param_row_with_height_label(ui, label, &display_label, help, 112.0, |ui| {
+                    edit_gradient_field(ui, node_name, label, &mut v)
                 })
             } else if label == "mode"
                 && matches!(node_name, "Volume to Mesh" | "Volume from Geometry")
@@ -507,43 +507,229 @@ pub(super) fn edit_param(
     }
 }
 
-fn edit_gradient_field(ui: &mut Ui, value: &mut String) -> bool {
+fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
     let mut gradient = parse_color_gradient(value);
-    let (min_idx, max_idx) = gradient.endpoints();
-    let mut left = gradient
-        .stops
-        .get(min_idx)
-        .map(|stop| stop.color)
-        .unwrap_or([0.0, 0.0, 0.0]);
-    let mut right = gradient
-        .stops
-        .get(max_idx)
-        .map(|stop| stop.color)
-        .unwrap_or([1.0, 1.0, 1.0]);
-    let mut color_changed = false;
-    if ui.color_edit_button_rgb(&mut left).changed() {
-        color_changed = true;
+    if gradient.stops.is_empty() {
+        gradient = ColorGradient::default();
     }
-    ui.add_space(6.0);
-    if ui.color_edit_button_rgb(&mut right).changed() {
-        color_changed = true;
+    let mut stops = gradient.stops.clone();
+    if stops.is_empty() {
+        stops = ColorGradient::default().stops;
     }
-    ui.add_space(6.0);
+
+    let selected_id = ui.make_persistent_id((node_name, label, "gradient_selected"));
+    let drag_id = ui.make_persistent_id((node_name, label, "gradient_drag"));
+    let mut selected =
+        ui.data_mut(|d| d.get_temp::<usize>(selected_id).unwrap_or(0));
+    if selected >= stops.len() {
+        selected = stops.len().saturating_sub(1);
+    }
+    let mut dragging = ui.data_mut(|d| d.get_temp::<bool>(drag_id).unwrap_or(false));
+
+    let mut changed = false;
+    let width = ui.available_width().max(160.0);
+    let bar_total_height = 28.0;
+    let bar_height = 16.0;
+    let (bar_area, response) =
+        ui.allocate_exact_size(egui::vec2(width, bar_total_height), egui::Sense::click_and_drag());
+    let bar_rect = egui::Rect::from_min_size(bar_area.min, egui::vec2(width, bar_height));
+    let handle_y = bar_rect.max.y + 6.0;
+    let handle_radius = 6.0;
+
+    let painter = ui.painter();
+    let mut mesh = egui::Mesh::default();
+    if stops.len() >= 2 {
+        for stop in &stops {
+            let x = bar_rect.min.x + stop.pos.clamp(0.0, 1.0) * bar_rect.width();
+            let color = color32_from_rgb(stop.color);
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: egui::pos2(x, bar_rect.min.y),
+                uv: egui::Pos2::ZERO,
+                color,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: egui::pos2(x, bar_rect.max.y),
+                uv: egui::Pos2::ZERO,
+                color,
+            });
+        }
+        for i in 0..stops.len() - 1 {
+            let i0 = (i * 2) as u32;
+            let i1 = i0 + 1;
+            let i2 = i0 + 2;
+            let i3 = i0 + 3;
+            mesh.indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+        }
+        painter.add(egui::Shape::mesh(mesh));
+    } else if let Some(stop) = stops.first() {
+        painter.rect_filled(bar_rect, 2.0, color32_from_rgb(stop.color));
+    }
+    painter.rect_stroke(
+        bar_rect,
+        2.0,
+        egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 60, 60)),
+        egui::StrokeKind::Inside,
+    );
+
+    let mut handle_hit = None;
+    for (idx, stop) in stops.iter().enumerate() {
+        let x = bar_rect.min.x + stop.pos.clamp(0.0, 1.0) * bar_rect.width();
+        let center = egui::pos2(x, handle_y);
+        let dist = response
+            .interact_pointer_pos()
+            .map(|pos| (pos - center).length())
+            .unwrap_or(f32::INFINITY);
+        if dist <= handle_radius {
+            handle_hit = Some(idx);
+        }
+        let fill = color32_from_rgb(stop.color);
+        let outline = if idx == selected {
+            egui::Color32::from_rgb(255, 235, 170)
+        } else {
+            egui::Color32::from_rgb(20, 20, 20)
+        };
+        painter.circle_filled(center, handle_radius - 1.0, fill);
+        painter.circle_stroke(center, handle_radius, egui::Stroke::new(1.0, outline));
+    }
+
+    let pointer_pos = response.interact_pointer_pos();
+    if response.drag_started() {
+        if let Some(hit) = handle_hit {
+            selected = hit;
+            dragging = true;
+            changed = true;
+        }
+    }
+    if response.clicked() {
+        if let Some(hit) = handle_hit {
+            selected = hit;
+        } else if let Some(pos) = pointer_pos {
+            if bar_rect.contains(pos) {
+                let t = ((pos.x - bar_rect.min.x) / bar_rect.width()).clamp(0.0, 1.0);
+                let color = gradient.sample(t);
+                stops.push(lobedo_core::ColorStop { pos: t, color });
+                stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+                selected = find_stop_index(&stops, t);
+                changed = true;
+            }
+        }
+    }
+    if response.dragged() && dragging {
+        if let Some(pos) = pointer_pos {
+            if let Some(stop) = stops.get_mut(selected) {
+                stop.pos = ((pos.x - bar_rect.min.x) / bar_rect.width()).clamp(0.0, 1.0);
+                let pos_marker = stop.pos;
+                stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+                selected = find_stop_index(&stops, pos_marker);
+                changed = true;
+            }
+        }
+    }
+    if response.drag_stopped() {
+        dragging = false;
+    }
+
+    ui.add_space(4.0);
+    if let Some(stop) = stops.get(selected).copied() {
+        let mut stop_color = stop.color;
+        let mut stop_pos = stop.pos;
+        let mut delete_stop = false;
+        ui.horizontal(|ui| {
+            if ui.color_edit_button_rgb(&mut stop_color).changed() {
+                changed = true;
+            }
+            ui.add_space(6.0);
+            ui.label("Pos");
+            if ui
+                .add(
+                    egui::DragValue::new(&mut stop_pos)
+                        .speed(0.01)
+                        .range(0.0..=1.0)
+                        .update_while_editing(false),
+                )
+                .changed()
+            {
+                stop_pos = stop_pos.clamp(0.0, 1.0);
+                changed = true;
+            }
+            if ui.button("Delete").clicked() {
+                delete_stop = true;
+            }
+        });
+        if delete_stop {
+            let (min_idx, max_idx) = endpoints_for(&stops);
+            if stops.len() > 2 && selected != min_idx && selected != max_idx {
+                stops.remove(selected);
+                selected = selected.saturating_sub(1).min(stops.len().saturating_sub(1));
+                changed = true;
+            }
+        } else if let Some(stop) = stops.get_mut(selected) {
+            stop.color = stop_color;
+            stop.pos = stop_pos.clamp(0.0, 1.0);
+            let pos_marker = stop.pos;
+            stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+            selected = find_stop_index(&stops, pos_marker);
+        }
+    }
+
+    ui.add_space(4.0);
     let height = ui.spacing().interact_size.y;
     let text_width = ui.available_width().max(140.0);
     let text_changed = ui
         .add_sized([text_width, height], egui::TextEdit::singleline(value))
         .changed();
-    if color_changed {
-        if let Some(stop) = gradient.stops.get_mut(min_idx) {
-            stop.color = left;
-        }
-        if let Some(stop) = gradient.stops.get_mut(max_idx) {
-            stop.color = right;
-        }
+
+    if changed {
+        let gradient = ColorGradient { stops };
         *value = gradient.to_string();
     }
-    color_changed || text_changed
+
+    ui.data_mut(|d| d.insert_temp(selected_id, selected));
+    ui.data_mut(|d| d.insert_temp(drag_id, dragging));
+
+    changed || text_changed
+}
+
+fn endpoints_for(stops: &[lobedo_core::ColorStop]) -> (usize, usize) {
+    if stops.is_empty() {
+        return (0, 0);
+    }
+    let mut min_idx = 0usize;
+    let mut max_idx = 0usize;
+    let mut min_pos = stops[0].pos;
+    let mut max_pos = stops[0].pos;
+    for (idx, stop) in stops.iter().enumerate().skip(1) {
+        if stop.pos < min_pos {
+            min_pos = stop.pos;
+            min_idx = idx;
+        }
+        if stop.pos > max_pos {
+            max_pos = stop.pos;
+            max_idx = idx;
+        }
+    }
+    (min_idx, max_idx)
+}
+
+fn find_stop_index(stops: &[lobedo_core::ColorStop], pos: f32) -> usize {
+    let mut best_idx = 0usize;
+    let mut best_dist = f32::INFINITY;
+    for (idx, stop) in stops.iter().enumerate() {
+        let dist = (stop.pos - pos).abs();
+        if dist < best_dist {
+            best_dist = dist;
+            best_idx = idx;
+        }
+    }
+    best_idx
+}
+
+fn color32_from_rgb(color: [f32; 3]) -> egui::Color32 {
+    egui::Color32::from_rgb(
+        (color[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+        (color[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+        (color[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+    )
 }
 
 fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
