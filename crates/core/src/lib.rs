@@ -1,5 +1,6 @@
 mod attributes;
 mod eval;
+mod color;
 mod gradient;
 mod curve;
 mod geometry;
@@ -33,6 +34,7 @@ pub use eval::{
     evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
     EvalNodeReport, EvalReport, EvalState,
 };
+pub use color::{lerp_oklab, linear_srgb_to_oklab, oklab_to_linear_srgb};
 pub use gradient::{parse_color_gradient, ColorGradient, ColorStop};
 pub use curve::{encode_curve_points, parse_curve_points, sample_catmull_rom, Curve};
 pub use geometry::{merge_splats, Geometry};

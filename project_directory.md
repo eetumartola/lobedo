@@ -136,6 +136,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\color.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\curve.rs
 Description: TODO: add description.
 Functions: None

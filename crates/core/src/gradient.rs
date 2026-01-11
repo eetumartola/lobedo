@@ -61,11 +61,8 @@ impl ColorGradient {
             if t <= stop.pos {
                 let denom = (stop.pos - prev.pos).max(1.0e-6);
                 let u = ((t - prev.pos) / denom).clamp(0.0, 1.0);
-                return [
-                    lerp(prev.color[0], stop.color[0], u),
-                    lerp(prev.color[1], stop.color[1], u),
-                    lerp(prev.color[2], stop.color[2], u),
-                ];
+                let color = crate::color::lerp_oklab(prev.color, stop.color, u);
+                return clamp_color(color);
             }
             prev = *stop;
         }
@@ -187,7 +184,4 @@ fn clamp_color(color: [f32; 3]) -> [f32; 3] {
     ]
 }
 
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
 use std::fmt;
