@@ -470,6 +470,31 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("pivot", "Pivot point."),
             ],
         }),
+        "FFD" => Some(NodeHelpPage {
+            name: "FFD",
+            description: &[
+                "Free-form deformation (FFD) warps geometry through a 3D lattice of control points.",
+                "Supply a lattice point cloud to the second input with res_x * res_y * res_z points; those points act as the cage.",
+                "If no lattice input is provided, the node builds a regular lattice from the bounds, resulting in an identity deformation.",
+            ],
+            inputs: &[
+                "in: Geometry to deform.",
+                "lattice: Optional lattice point cloud (res_x * res_y * res_z points).",
+            ],
+            outputs: &["out: Deformed geometry."],
+            parameters: &[
+                ("group", "Optional group to restrict deformation."),
+                ("group_type", "Group domain to use."),
+                ("res_x", "Control points along X (lattice resolution)."),
+                ("res_y", "Control points along Y (lattice resolution)."),
+                ("res_z", "Control points along Z (lattice resolution)."),
+                ("use_input_bounds", "Use input geometry bounds to define the lattice."),
+                ("center", "Lattice center when not using input bounds."),
+                ("size", "Lattice size when not using input bounds."),
+                ("padding", "Expand lattice bounds by this amount."),
+                ("extrapolate", "Allow extrapolation outside the lattice bounds."),
+            ],
+        }),
         "Copy/Transform" => Some(NodeHelpPage {
             name: "Copy/Transform",
             description: &[

@@ -11,6 +11,7 @@ pub mod copy_to_points;
 pub mod copy_transform;
 pub mod curve;
 pub mod erosion_noise;
+pub mod ffd;
 pub mod file;
 pub mod gltf_output;
 pub mod group;

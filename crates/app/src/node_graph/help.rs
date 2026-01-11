@@ -5,8 +5,9 @@ use egui::{
     ScrollArea, Vec2,
 };
 
+#[path = "help_pages.rs"]
 mod help_pages;
-pub use help_pages::{node_help_page, NodeHelpPage};
+pub use help_pages::node_help_page;
 
 pub fn node_help(node_name: &str) -> Option<&'static str> {
     match node_name {
@@ -34,6 +35,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
         "Volume to Mesh" => Some("Extracts a mesh surface from a volume."),
         "Group" => Some("Creates a named group by shape or viewport selection."),
         "Transform" => Some("Transforms geometry with translate/rotate/scale."),
+        "FFD" => Some("Deforms geometry using a lattice of control points."),
         "Copy/Transform" => Some("Creates multiple copies with incremental transforms."),
         "Merge" => Some("Merges all input geometry."),
         "Copy to Points" => Some("Copies source geometry onto template points."),
@@ -200,6 +202,14 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Transform", "pivot") => Some("Pivot point."),
         ("Transform", "group") => Some("Optional group to restrict transform."),
         ("Transform", "group_type") => Some("Group domain to use."),
+        ("FFD", "res_x") => Some("Control points along X (lattice resolution)."),
+        ("FFD", "res_y") => Some("Control points along Y (lattice resolution)."),
+        ("FFD", "res_z") => Some("Control points along Z (lattice resolution)."),
+        ("FFD", "use_input_bounds") => Some("Use input geometry bounds for the lattice."),
+        ("FFD", "center") => Some("Lattice center when not using input bounds."),
+        ("FFD", "size") => Some("Lattice size when not using input bounds."),
+        ("FFD", "padding") => Some("Expand lattice bounds by this amount."),
+        ("FFD", "extrapolate") => Some("Allow extrapolation outside the lattice."),
         ("Copy/Transform", "count") => Some("Number of copies."),
         ("Copy/Transform", "translate") => Some("Base translation for the first copy."),
         ("Copy/Transform", "rotate_deg") => Some("Base rotation for the first copy (degrees)."),

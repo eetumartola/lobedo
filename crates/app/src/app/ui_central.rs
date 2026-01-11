@@ -276,6 +276,13 @@ impl LobedoApp {
                 toggle_curve_edit,
             ));
         }
+        if node.name == "FFD" {
+            actions.push((
+                "Edit Lattice",
+                self.ffd_edit_active(node_id),
+                toggle_ffd_edit,
+            ));
+        }
         let mut footer = None;
         if node.name == "Group" {
             let shape = node.params.get_string("shape", "box").to_lowercase();
@@ -740,6 +747,14 @@ fn toggle_curve_edit(app: &mut LobedoApp, node_id: NodeId) {
         app.deactivate_curve_edit();
     } else {
         app.activate_curve_edit(node_id);
+    }
+}
+
+fn toggle_ffd_edit(app: &mut LobedoApp, node_id: NodeId) {
+    if app.ffd_edit_active(node_id) {
+        app.deactivate_ffd_edit();
+    } else {
+        app.activate_ffd_edit(node_id);
     }
 }
 

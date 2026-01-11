@@ -42,7 +42,7 @@ impl NodeGraphState {
             }
             let available = ui.available_width();
             ui.allocate_ui_with_layout(
-                available,
+                egui::vec2(available, 0.0),
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
                     if ui.button("Help").clicked() {
@@ -262,6 +262,23 @@ impl NodeGraphState {
             let Some(value) = param_values.get(&key).cloned() else {
                 continue;
             };
+            if node_name == "FFD" {
+                if key == "lattice_points" {
+                    continue;
+                }
+                if matches!(key.as_str(), "center" | "size") {
+                    let use_input_bounds = param_values
+                        .get("use_input_bounds")
+                        .and_then(|value| match value {
+                            ParamValue::Bool(value) => Some(*value),
+                            _ => None,
+                        })
+                        .unwrap_or(true);
+                    if use_input_bounds {
+                        continue;
+                    }
+                }
+            }
             if matches!(node_name.as_str(), "Group" | "Delete") {
                 if key == "selection" {
                     continue;

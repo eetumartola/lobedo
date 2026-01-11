@@ -938,6 +938,18 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "FFD" {
+        return match key {
+            "res_x" => "Res X",
+            "res_y" => "Res Y",
+            "res_z" => "Res Z",
+            "use_input_bounds" => "Use Input Bounds",
+            "padding" => "Padding",
+            "extrapolate" => "Extrapolate",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Splat to Mesh" {
         return match key {
             "output" => "Output",
@@ -1144,6 +1156,7 @@ fn int_slider_range(
         "domain" => 0..=3,
         "op" => 0..=3,
         "rows" | "cols" => 2..=64,
+        "res_x" | "res_y" | "res_z" => 2..=8,
         "subdivs" => 1..=64,
         "segments" => 3..=256,
         "iterations" => 0..=20,
