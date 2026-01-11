@@ -30,6 +30,7 @@ pub mod regularize;
 pub mod splat_to_mesh;
 pub mod splat_deform;
 pub mod splat_delight;
+pub mod splat_lighting_utils;
 pub mod splat_integrate;
 pub mod splat_heal;
 pub mod splat_cluster;

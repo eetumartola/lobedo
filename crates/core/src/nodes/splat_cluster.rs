@@ -8,9 +8,8 @@ use crate::mesh::Mesh;
 use crate::nodes::{
     geometry_in,
     geometry_out,
-    group_utils::{mask_has_any, splat_group_mask},
     require_mesh_input,
-    splat_utils::splat_cell_key,
+    splat_utils::{split_splats_by_group, splat_cell_key, SpatialHash},
 };
 use crate::splat::SplatGeo;
 
@@ -58,24 +57,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
         return Ok(splats.clone());
     }
 
-    let mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if !mask_has_any(mask.as_deref()) {
+    let Some((selected, _unselected)) =
+        split_splats_by_group(splats, params, AttributeDomain::Point)
+    else {
         return Ok(splats.clone());
-    }
-
-    let mut selected = Vec::new();
-    for idx in 0..splats.len() {
-        let selected_here = mask
-            .as_ref()
-            .map(|mask| mask.get(idx).copied().unwrap_or(false))
-            .unwrap_or(true);
-        if selected_here {
-            selected.push(idx);
-        }
-    }
-    if selected.is_empty() {
-        return Ok(splats.clone());
-    }
+    };
 
     let mut positions = Vec::with_capacity(selected.len());
     for &idx in &selected {
@@ -240,71 +226,6 @@ pub(crate) fn dbscan_labels(positions: &[[f32; 3]], eps: f32, min_pts: usize) ->
     }
 
     labels
-}
-
-struct SpatialHash {
-    min: Vec3,
-    inv_cell: f32,
-    cells: HashMap<(i32, i32, i32), Vec<usize>>,
-}
-
-impl SpatialHash {
-    fn build(positions: &[[f32; 3]], cell_size: f32) -> Option<Self> {
-        if positions.is_empty() || !cell_size.is_finite() || cell_size <= 1.0e-6 {
-            return None;
-        }
-        let mut min = Vec3::from(positions[0]);
-        for pos in positions.iter().skip(1) {
-            min = min.min(Vec3::from(*pos));
-        }
-        let inv_cell = 1.0 / cell_size;
-        let mut cells: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
-        for (idx, pos) in positions.iter().enumerate() {
-            let key = splat_cell_key(Vec3::from(*pos), min, inv_cell);
-            cells.entry(key).or_default().push(idx);
-        }
-        Some(Self {
-            min,
-            inv_cell,
-            cells,
-        })
-    }
-
-    fn neighbors_in_radius(
-        &self,
-        positions: &[[f32; 3]],
-        idx: usize,
-        radius: f32,
-        out: &mut Vec<usize>,
-    ) {
-        out.clear();
-        if radius <= 1.0e-6 {
-            return;
-        }
-        let pos = Vec3::from(positions[idx]);
-        let base = splat_cell_key(pos, self.min, self.inv_cell);
-        let range = (radius * self.inv_cell).ceil() as i32;
-        let r2 = radius * radius;
-        for dz in -range..=range {
-            for dy in -range..=range {
-                for dx in -range..=range {
-                    let key = (base.0 + dx, base.1 + dy, base.2 + dz);
-                    let Some(list) = self.cells.get(&key) else {
-                        continue;
-                    };
-                    for &other in list {
-                        if other == idx {
-                            continue;
-                        }
-                        let delta = Vec3::from(positions[other]) - pos;
-                        if delta.length_squared() <= r2 {
-                            out.push(other);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]

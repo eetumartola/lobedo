@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use glam::{Quat, Vec3};
 
@@ -6,7 +6,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
-use crate::nodes::splat_utils::splat_cell_key;
+use crate::nodes::splat_utils::SpatialHash;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::splat::SplatGeo;
 
@@ -420,7 +420,7 @@ fn nearest_distances(
     };
     for (idx, pos) in positions.iter().enumerate() {
         let pos = Vec3::from(*pos);
-        if let Some((hit_idx, dist)) = hash.nearest(pos, other_positions, max_dist) {
+        if let Some((hit_idx, dist)) = hash.nearest(other_positions, pos, max_dist) {
             dists[idx] = dist;
             hits[idx] = Some(NearestHit {
                 index: hit_idx,
@@ -429,67 +429,6 @@ fn nearest_distances(
         }
     }
     (dists, hits)
-}
-
-struct SpatialHash {
-    min: Vec3,
-    inv_cell: f32,
-    cells: HashMap<(i32, i32, i32), Vec<usize>>,
-}
-
-impl SpatialHash {
-    fn build(positions: &[[f32; 3]], cell_size: f32) -> Option<Self> {
-        if positions.is_empty() || !cell_size.is_finite() || cell_size <= 0.0 {
-            return None;
-        }
-        let mut iter = positions.iter();
-        let first = Vec3::from(*iter.next()?);
-        let mut min = first;
-        for pos in iter {
-            min = min.min(Vec3::from(*pos));
-        }
-        let inv_cell = 1.0 / cell_size;
-        let mut cells: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
-        for (idx, pos) in positions.iter().enumerate() {
-            let key = splat_cell_key(Vec3::from(*pos), min, inv_cell);
-            cells.entry(key).or_default().push(idx);
-        }
-        Some(Self { min, inv_cell, cells })
-    }
-
-    fn nearest(
-        &self,
-        position: Vec3,
-        positions: &[[f32; 3]],
-        max_dist: f32,
-    ) -> Option<(usize, f32)> {
-        let max_dist = if max_dist.is_finite() && max_dist > 0.0 {
-            max_dist
-        } else {
-            f32::INFINITY
-        };
-        let max_dist_sq = max_dist * max_dist;
-        let base = splat_cell_key(position, self.min, self.inv_cell);
-        let mut best = None;
-        let mut best_dist = max_dist_sq;
-        for dz in -1..=1 {
-            for dy in -1..=1 {
-                for dx in -1..=1 {
-                    let key = (base.0 + dx, base.1 + dy, base.2 + dz);
-                    let Some(list) = self.cells.get(&key) else { continue };
-                    for &idx in list {
-                        let pos = Vec3::from(positions[idx]);
-                        let dist_sq = position.distance_squared(pos);
-                        if dist_sq < best_dist {
-                            best_dist = dist_sq;
-                            best = Some(idx);
-                        }
-                    }
-                }
-            }
-        }
-        best.map(|idx| (idx, best_dist.sqrt()))
-    }
 }
 
 fn splat_rest_coeff(splats: &SplatGeo, index: usize, coeff: usize) -> [f32; 3] {

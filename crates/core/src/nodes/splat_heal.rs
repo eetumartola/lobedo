@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use glam::Vec3;
 
@@ -6,9 +6,8 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::group_utils::{mask_has_any, splat_group_mask};
 use crate::nodes::splat_to_mesh::{build_splat_grid, GridSpec, SplatOutputMode};
-use crate::nodes::splat_utils::splat_cell_key;
+use crate::nodes::splat_utils::{split_splats_by_group, SpatialHash};
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::parallel;
 use crate::splat::SplatGeo;
@@ -133,24 +132,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
         return Ok(splats.clone());
     }
 
-    let group_mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if !mask_has_any(group_mask.as_deref()) {
+    let Some((selected, _unselected)) =
+        split_splats_by_group(splats, params, AttributeDomain::Point)
+    else {
         return Ok(splats.clone());
-    }
-
-    let mut selected = Vec::new();
-    for idx in 0..splats.len() {
-        let keep = group_mask
-            .as_ref()
-            .map(|mask| mask.get(idx).copied().unwrap_or(false))
-            .unwrap_or(true);
-        if keep {
-            selected.push(idx);
-        }
-    }
-    if selected.is_empty() {
-        return Ok(splats.clone());
-    }
+    };
 
     let source = if selected.len() == splats.len() {
         splats.clone()
@@ -467,7 +453,7 @@ fn collect_new_splats(
             spec.min.z + iz as f32 * spec.dx,
         );
         let pos_world = Vec3::new(pos_grid.x, -pos_grid.y, pos_grid.z);
-        if let Some((hit_idx, dist)) = hash.nearest(pos_world, &source.positions, search_radius)
+        if let Some((hit_idx, dist)) = hash.nearest(&source.positions, pos_world, search_radius)
         {
             if min_distance > 0.0 && dist < min_distance {
                 continue;
@@ -693,67 +679,6 @@ fn append_groups_from_source(output: &mut SplatGeo, source: &SplatGeo, mapping: 
                 values.extend(std::iter::repeat_n(false, mapping.len()));
             }
         }
-    }
-}
-
-struct SpatialHash {
-    min: Vec3,
-    inv_cell: f32,
-    cells: HashMap<(i32, i32, i32), Vec<usize>>,
-}
-
-impl SpatialHash {
-    fn build(positions: &[[f32; 3]], cell_size: f32) -> Option<Self> {
-        if positions.is_empty() || !cell_size.is_finite() || cell_size <= 0.0 {
-            return None;
-        }
-        let mut iter = positions.iter();
-        let first = Vec3::from(*iter.next()?);
-        let mut min = first;
-        for pos in iter {
-            min = min.min(Vec3::from(*pos));
-        }
-        let inv_cell = 1.0 / cell_size;
-        let mut cells: HashMap<(i32, i32, i32), Vec<usize>> = HashMap::new();
-        for (idx, pos) in positions.iter().enumerate() {
-            let key = splat_cell_key(Vec3::from(*pos), min, inv_cell);
-            cells.entry(key).or_default().push(idx);
-        }
-        Some(Self { min, inv_cell, cells })
-    }
-
-    fn nearest(
-        &self,
-        position: Vec3,
-        positions: &[[f32; 3]],
-        max_dist: f32,
-    ) -> Option<(usize, f32)> {
-        let max_dist = if max_dist.is_finite() && max_dist > 0.0 {
-            max_dist
-        } else {
-            f32::INFINITY
-        };
-        let max_dist_sq = max_dist * max_dist;
-        let base = splat_cell_key(position, self.min, self.inv_cell);
-        let mut best = None;
-        let mut best_dist = max_dist_sq;
-        for dz in -1..=1 {
-            for dy in -1..=1 {
-                for dx in -1..=1 {
-                    let key = (base.0 + dx, base.1 + dy, base.2 + dz);
-                    let Some(list) = self.cells.get(&key) else { continue };
-                    for &idx in list {
-                        let pos = Vec3::from(positions[idx]);
-                        let dist_sq = position.distance_squared(pos);
-                        if dist_sq < best_dist {
-                            best_dist = dist_sq;
-                            best = Some(idx);
-                        }
-                    }
-                }
-            }
-        }
-        best.map(|idx| (idx, best_dist.sqrt()))
     }
 }
 

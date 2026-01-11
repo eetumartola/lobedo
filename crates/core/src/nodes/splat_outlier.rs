@@ -6,8 +6,8 @@ use crate::mesh::Mesh;
 use crate::nodes::{
     geometry_in,
     geometry_out,
-    group_utils::{mask_has_any, splat_group_mask},
     require_mesh_input,
+    splat_utils::split_splats_by_group,
 };
 use crate::splat::SplatGeo;
 
@@ -52,21 +52,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     if splats.is_empty() {
         return splats.clone();
     }
-    let mask = splat_group_mask(splats, params, AttributeDomain::Point);
-    if !mask_has_any(mask.as_deref()) {
+    let Some((selected, _unselected)) =
+        split_splats_by_group(splats, params, AttributeDomain::Point)
+    else {
         return splats.clone();
-    }
-
-    let mut selected = Vec::new();
-    for idx in 0..splats.len() {
-        let selected_here = mask
-            .as_ref()
-            .map(|mask| mask.get(idx).copied().unwrap_or(false))
-            .unwrap_or(true);
-        if selected_here {
-            selected.push(idx);
-        }
-    }
+    };
     if selected.len() <= 1 {
         return splats.clone();
     }

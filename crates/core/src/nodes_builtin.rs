@@ -786,6 +786,43 @@ fn apply_mesh_unary(
     })
 }
 
+fn apply_splat_only<F>(
+    params: &NodeParams,
+    inputs: &[Geometry],
+    mut op: F,
+) -> Result<Geometry, String>
+where
+    F: FnMut(&NodeParams, &SplatGeo) -> Result<SplatGeo, String>,
+{
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(op(params, splat)?);
+    }
+
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
+
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
+}
+
 fn apply_attribute_transfer(
     params: &NodeParams,
     inputs: &[Geometry],
@@ -825,74 +862,20 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
 }
 
 fn apply_prune(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::prune::apply_to_splats(params, splat));
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        Ok(nodes::prune::apply_to_splats(params, splat))
     })
 }
 
 fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::regularize::apply_to_splats(params, splat));
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        Ok(nodes::regularize::apply_to_splats(params, splat))
     })
 }
 
 fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::splat_lod::apply_to_splats(params, splat));
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        Ok(nodes::splat_lod::apply_to_splats(params, splat))
     })
 }
 
@@ -901,74 +884,20 @@ fn apply_splat_heal(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
 }
 
 fn apply_splat_outlier(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::splat_outlier::apply_to_splats(params, splat));
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        Ok(nodes::splat_outlier::apply_to_splats(params, splat))
     })
 }
 
 fn apply_splat_cluster(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::splat_cluster::apply_to_splats(params, splat)?);
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        nodes::splat_cluster::apply_to_splats(params, splat)
     })
 }
 
 fn apply_splat_delight(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    let Some(input) = inputs.first() else {
-        return Ok(Geometry::default());
-    };
-
-    let mut meshes = Vec::new();
-    if let Some(mesh) = input.merged_mesh() {
-        meshes.push(mesh);
-    }
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(nodes::splat_delight::apply_to_splats(params, splat));
-    }
-
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
-    Ok(Geometry {
-        meshes,
-        splats,
-        curves,
-        volumes: input.volumes.clone(),
-        materials: input.materials.clone(),
+    apply_splat_only(params, inputs, |params, splat| {
+        Ok(nodes::splat_delight::apply_to_splats(params, splat))
     })
 }
 
