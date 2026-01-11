@@ -2075,26 +2075,13 @@ fn pick_selection_index(
             mouse,
             threshold,
         ),
-        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => pick_nearest_index(
-            mesh.indices
-                .chunks_exact(3)
-                .enumerate()
-                .filter_map(|(idx, tri)| {
-                    let p0 = mesh.positions.get(tri[0] as usize)?;
-                    let p1 = mesh.positions.get(tri[1] as usize)?;
-                    let p2 = mesh.positions.get(tri[2] as usize)?;
-                    let center = (Vec3::from(*p0) + Vec3::from(*p1) + Vec3::from(*p2)) / 3.0;
-                    if !allow_backface
-                        && !is_front_facing_primitive(Vec3::from(*p0), Vec3::from(*p1), Vec3::from(*p2), camera_pos)
-                    {
-                        return None;
-                    }
-                    Some((idx, center))
-                }),
+        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => pick_primitive_index(
+            mesh,
             view_proj,
             rect,
             mouse,
-            threshold,
+            camera_pos,
+            allow_backface,
         ),
         (SelectionSource::Splats(splats), _) => pick_nearest_index(
             splats
@@ -2179,17 +2166,25 @@ fn selection_indices_in_rect(
                     && !is_front_facing_primitive(
                         Vec3::from(*p0),
                         Vec3::from(*p1),
-                        Vec3::from(*p2),
-                        camera_pos,
-                    )
+                    Vec3::from(*p2),
+                    camera_pos,
+                )
                 {
                     continue;
                 }
-                let center = (Vec3::from(*p0) + Vec3::from(*p1) + Vec3::from(*p2)) / 3.0;
-                if let Some(screen) = project_world_to_screen(view_proj, rect, center) {
-                    if selection_rect.contains(screen) {
-                        out.insert(idx);
-                    }
+                let (Some(s0), Some(s1), Some(s2)) = (
+                    project_world_to_screen(view_proj, rect, Vec3::from(*p0)),
+                    project_world_to_screen(view_proj, rect, Vec3::from(*p1)),
+                    project_world_to_screen(view_proj, rect, Vec3::from(*p2)),
+                ) else {
+                    continue;
+                };
+                if selection_rect.contains(s0)
+                    || selection_rect.contains(s1)
+                    || selection_rect.contains(s2)
+                    || rect_corners_in_triangle(selection_rect, s0, s1, s2)
+                {
+                    out.insert(idx);
                 }
             }
         }
@@ -2232,6 +2227,119 @@ where
         }
     }
     best
+}
+
+fn pick_primitive_index(
+    mesh: &render::RenderMesh,
+    view_proj: Mat4,
+    rect: Rect,
+    mouse: Pos2,
+    camera_pos: Vec3,
+    allow_backface: bool,
+) -> Option<usize> {
+    let threshold = 12.0;
+    let mut best_idx = None;
+    let mut best_dist = threshold;
+    let mut best_depth = f32::INFINITY;
+    for (idx, tri) in mesh.indices.chunks_exact(3).enumerate() {
+        let (Some(p0), Some(p1), Some(p2)) = (
+            mesh.positions.get(tri[0] as usize),
+            mesh.positions.get(tri[1] as usize),
+            mesh.positions.get(tri[2] as usize),
+        ) else {
+            continue;
+        };
+        if !allow_backface
+            && !is_front_facing_primitive(
+                Vec3::from(*p0),
+                Vec3::from(*p1),
+                Vec3::from(*p2),
+                camera_pos,
+            )
+        {
+            continue;
+        }
+        let (s0, d0) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p0)) {
+            Some(value) => value,
+            None => continue,
+        };
+        let (s1, d1) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p1)) {
+            Some(value) => value,
+            None => continue,
+        };
+        let (s2, d2) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p2)) {
+            Some(value) => value,
+            None => continue,
+        };
+        let depth = (d0 + d1 + d2) / 3.0;
+        if point_in_triangle(mouse, s0, s1, s2, 0.5) {
+            if depth < best_depth {
+                best_depth = depth;
+                best_dist = 0.0;
+                best_idx = Some(idx);
+            }
+            continue;
+        }
+        let dist = distance_to_triangle_edges(mouse, s0, s1, s2);
+        if dist <= threshold && (dist < best_dist || (dist == best_dist && depth < best_depth)) {
+            best_dist = dist;
+            best_depth = depth;
+            best_idx = Some(idx);
+        }
+    }
+    best_idx
+}
+
+fn project_world_to_screen_with_depth(
+    view_proj: Mat4,
+    rect: Rect,
+    world: Vec3,
+) -> Option<(Pos2, f32)> {
+    let clip = view_proj * world.extend(1.0);
+    if clip.w.abs() <= 1.0e-6 {
+        return None;
+    }
+    let ndc = clip.truncate() / clip.w;
+    if !ndc.x.is_finite() || !ndc.y.is_finite() || !ndc.z.is_finite() {
+        return None;
+    }
+    let x = rect.min.x + (ndc.x * 0.5 + 0.5) * rect.width();
+    let y = rect.min.y + (0.5 - ndc.y * 0.5) * rect.height();
+    Some((Pos2::new(x, y), ndc.z))
+}
+
+fn point_in_triangle(p: Pos2, a: Pos2, b: Pos2, c: Pos2, tol: f32) -> bool {
+    let ab = b - a;
+    let bc = c - b;
+    let ca = a - c;
+    let ap = p - a;
+    let bp = p - b;
+    let cp = p - c;
+    let cross1 = ab.x * ap.y - ab.y * ap.x;
+    let cross2 = bc.x * bp.y - bc.y * bp.x;
+    let cross3 = ca.x * cp.y - ca.y * cp.x;
+    let has_neg = cross1 < -tol || cross2 < -tol || cross3 < -tol;
+    let has_pos = cross1 > tol || cross2 > tol || cross3 > tol;
+    !(has_neg && has_pos)
+}
+
+fn distance_to_triangle_edges(p: Pos2, a: Pos2, b: Pos2, c: Pos2) -> f32 {
+    let d0 = distance_to_segment(p, a, b);
+    let d1 = distance_to_segment(p, b, c);
+    let d2 = distance_to_segment(p, c, a);
+    d0.min(d1).min(d2)
+}
+
+fn rect_corners_in_triangle(rect: Rect, a: Pos2, b: Pos2, c: Pos2) -> bool {
+    let corners = [
+        rect.min,
+        Pos2::new(rect.max.x, rect.min.y),
+        rect.max,
+        Pos2::new(rect.min.x, rect.max.y),
+    ];
+    corners
+        .into_iter()
+        .any(|corner| point_in_triangle(corner, a, b, c, 0.0))
 }
 
 fn draw_group_selection_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node_id: NodeId) {
