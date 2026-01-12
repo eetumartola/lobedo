@@ -149,7 +149,7 @@ impl NodeGraphState {
                         _ => None,
                     })
                     .unwrap_or(1)
-                    .clamp(0, 2),
+                    .clamp(0, 3),
             )
         } else {
             None
@@ -400,6 +400,9 @@ impl NodeGraphState {
                         | (2, "neutral_color")
                         | (2, "ratio_min")
                         | (2, "ratio_max") => continue,
+                        (3, "source_env")
+                        | (3, "source_color")
+                        | (3, "albedo_max") => continue,
                         _ => {}
                     }
                 }
@@ -462,6 +465,9 @@ impl NodeGraphState {
                         (1, "close_radius") => continue,
                         _ => {}
                     }
+                }
+                if matches!(key.as_str(), "heal_center" | "heal_size") {
+                    continue;
                 }
             }
             if node_name == "Splat Cluster" {

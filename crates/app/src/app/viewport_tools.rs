@@ -752,6 +752,14 @@ impl LobedoApp {
                     None
                 }
             }
+            "Splat Heal" => {
+                let shape = node.params.get_string("heal_shape", "all").to_lowercase();
+                if matches!(shape.as_str(), "box" | "sphere") {
+                    Some(node_id)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -791,7 +799,7 @@ impl LobedoApp {
         false
     }
 
-    fn ensure_ffd_lattice_points(&mut self, node_id: NodeId) {
+    pub(super) fn ensure_ffd_lattice_points(&mut self, node_id: NodeId) {
         let params = {
             let Some(node) = self.project.graph.node(node_id) else {
                 return;
@@ -963,8 +971,17 @@ fn quat_to_euler_deg(quat: Quat) -> [f32; 3] {
 
 fn box_params(graph: &lobedo_core::Graph, node_id: NodeId) -> Option<BoxParams> {
     let node = graph.node(node_id)?;
-    let center = Vec3::from(node.params.get_vec3("center", [0.0, 0.0, 0.0]));
-    let size = Vec3::from(node.params.get_vec3("size", [1.0, 1.0, 1.0]));
+    let (center, size) = if node.name == "Splat Heal" {
+        (
+            Vec3::from(node.params.get_vec3("heal_center", [0.0, 0.0, 0.0])),
+            Vec3::from(node.params.get_vec3("heal_size", [1.0, 1.0, 1.0])),
+        )
+    } else {
+        (
+            Vec3::from(node.params.get_vec3("center", [0.0, 0.0, 0.0])),
+            Vec3::from(node.params.get_vec3("size", [1.0, 1.0, 1.0])),
+        )
+    };
     Some(BoxParams {
         center,
         size: size.abs(),
@@ -972,16 +989,44 @@ fn box_params(graph: &lobedo_core::Graph, node_id: NodeId) -> Option<BoxParams> 
 }
 
 fn set_box_params(app: &mut LobedoApp, node_id: NodeId, center: Vec3, size: Vec3) {
-    let _ = app.project.graph.set_param(
-        node_id,
-        "center".to_string(),
-        ParamValue::Vec3(center.to_array()),
-    );
-    let _ = app.project.graph.set_param(
-        node_id,
-        "size".to_string(),
-        ParamValue::Vec3(size.to_array()),
-    );
+    let mut size = size.abs();
+    let is_splat_heal = app
+        .project
+        .graph
+        .node(node_id)
+        .is_some_and(|node| node.name == "Splat Heal");
+    if is_splat_heal {
+        let shape = app
+            .project
+            .graph
+            .node(node_id)
+            .map(|node| node.params.get_string("heal_shape", "all").to_lowercase())
+            .unwrap_or_else(|| "all".to_string());
+        if shape == "sphere" {
+            size = Vec3::splat(size.max_element());
+        }
+        let _ = app.project.graph.set_param(
+            node_id,
+            "heal_center".to_string(),
+            ParamValue::Vec3(center.to_array()),
+        );
+        let _ = app.project.graph.set_param(
+            node_id,
+            "heal_size".to_string(),
+            ParamValue::Vec3(size.to_array()),
+        );
+    } else {
+        let _ = app.project.graph.set_param(
+            node_id,
+            "center".to_string(),
+            ParamValue::Vec3(center.to_array()),
+        );
+        let _ = app.project.graph.set_param(
+            node_id,
+            "size".to_string(),
+            ParamValue::Vec3(size.to_array()),
+        );
+    }
     app.mark_eval_dirty();
 }
 

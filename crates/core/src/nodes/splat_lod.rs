@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use glam::{Quat, Vec3, Vec4};
+use glam::{Mat3, Quat, Vec3, Vec4};
 
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
@@ -55,20 +55,19 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
     }
 
     let target_count = params.get_int("target_count", 0).max(0) as usize;
-    if target_count > 0 && target_count >= selected.len() {
-        return splats.clone();
-    }
 
     let (min, max) = splat_bounds_indices(splats, &selected);
     let mut voxel_size = params.get_float("voxel_size", 0.1);
-    if target_count > 0 {
+    if !voxel_size.is_finite() || voxel_size <= 1.0e-6 {
+        if target_count == 0 {
+            return splats.clone();
+        }
         let extent = max - min;
         let volume = extent.x * extent.y * extent.z;
         if volume.is_finite() && volume > 0.0 {
             voxel_size = (volume / target_count as f32).cbrt();
         }
     }
-
     if !voxel_size.is_finite() || voxel_size <= 1.0e-6 {
         return splats.clone();
     }
@@ -79,7 +78,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         return splats.clone();
     }
 
-    let cluster_sets: Vec<Vec<usize>> = clusters.values().cloned().collect();
+    let mut cluster_sets: Vec<Vec<usize>> = clusters.values().cloned().collect();
+    if target_count > 0 && cluster_sets.len() > target_count {
+        cluster_sets.sort_by(|a, b| b.len().cmp(&a.len()));
+        cluster_sets.truncate(target_count);
+    }
     let output_len = unselected.len() + cluster_sets.len();
 
     let mut positions = Vec::with_capacity(output_len);
@@ -109,30 +112,37 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
 
     for cluster in &cluster_sets {
         let count = cluster.len() as f32;
-        let mut pos_sum = Vec3::ZERO;
-        let mut sh0_sum = Vec3::ZERO;
-        let mut opacity_sum = 0.0;
-        let mut scale_sum = Vec3::ZERO;
-        let mut quat_ref: Option<Quat> = None;
-        let mut quat_sum = Vec4::ZERO;
-        let mut sh_rest_sum = vec![Vec3::ZERO; sh_coeffs];
+        let mut weights = Vec::with_capacity(cluster.len());
+        let mut weight_sum = 0.0f32;
+        let mut opacity_prod = 1.0f32;
 
         for &idx in cluster {
-            pos_sum += Vec3::from(splats.positions[idx]);
-            sh0_sum += Vec3::from(splats.sh0[idx]);
+            let mut w = sigmoid(splats.opacity[idx]);
+            if !w.is_finite() {
+                w = 0.0;
+            }
+            w = w.clamp(0.0, 1.0);
+            weight_sum += w;
+            opacity_prod *= 1.0 - w;
+            weights.push(w);
+        }
 
-            let linear_opacity = sigmoid(splats.opacity[idx]);
-            opacity_sum += linear_opacity;
+        let mut pos_sum = Vec3::ZERO;
+        let mut sh0_sum = Vec3::ZERO;
+        let mut sh_rest_sum = vec![Vec3::ZERO; sh_coeffs];
+        let mut quat_ref: Option<Quat> = None;
+        let mut quat_sum = Vec4::ZERO;
 
-            let scale = Vec3::from(splats.scales[idx]);
-            let scale = Vec3::new(
-                scale.x.clamp(-10.0, 10.0).exp(),
-                scale.y.clamp(-10.0, 10.0).exp(),
-                scale.z.clamp(-10.0, 10.0).exp(),
-            );
-            scale_sum += scale;
+        if weight_sum <= 1.0e-6 {
+            weights.fill(1.0);
+            weight_sum = count.max(1.0);
+        }
 
-            let mut quat = quat_from_rotation(splats.rotations[idx]);
+        for (idx, &weight) in cluster.iter().zip(weights.iter()) {
+            pos_sum += Vec3::from(splats.positions[*idx]) * weight;
+            sh0_sum += Vec3::from(splats.sh0[*idx]) * weight;
+
+            let mut quat = quat_from_rotation(splats.rotations[*idx]);
             if let Some(reference) = quat_ref {
                 if reference.dot(quat) < 0.0 {
                     quat = Quat::from_xyzw(-quat.x, -quat.y, -quat.z, -quat.w);
@@ -140,38 +150,27 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
             } else {
                 quat_ref = Some(quat);
             }
-            quat_sum += Vec4::new(quat.x, quat.y, quat.z, quat.w);
+            quat_sum += Vec4::new(quat.x, quat.y, quat.z, quat.w) * weight;
 
             if sh_coeffs > 0 {
-                let base = idx * sh_coeffs;
+                let base = *idx * sh_coeffs;
                 for (coeff, sum) in sh_rest_sum.iter_mut().enumerate() {
-                    *sum += Vec3::from(splats.sh_rest[base + coeff]);
+                    *sum += Vec3::from(splats.sh_rest[base + coeff]) * weight;
                 }
             }
         }
 
-        let inv_count = if count > 0.0 { 1.0 / count } else { 0.0 };
-        positions.push((pos_sum * inv_count).to_array());
-        sh0.push((sh0_sum * inv_count).to_array());
+        let inv_weight = 1.0 / weight_sum.max(1.0e-6);
+        let mean = pos_sum * inv_weight;
+        positions.push(mean.to_array());
+        sh0.push((sh0_sum * inv_weight).to_array());
 
-        let mut linear_opacity = opacity_sum * inv_count;
+        let mut linear_opacity = 1.0 - opacity_prod;
         if !linear_opacity.is_finite() {
             linear_opacity = 0.0;
         }
         let output_opacity = logit(linear_opacity);
         opacity.push(output_opacity);
-
-        let mut scale = scale_sum * inv_count;
-        if !scale.x.is_finite() || !scale.y.is_finite() || !scale.z.is_finite() {
-            scale = Vec3::splat(1.0e-6);
-        }
-        scale = Vec3::new(
-            scale.x.max(1.0e-6),
-            scale.y.max(1.0e-6),
-            scale.z.max(1.0e-6),
-        );
-        let scale_out = [scale.x.ln(), scale.y.ln(), scale.z.ln()];
-        scales.push(scale_out);
 
         let mut quat = Quat::from_xyzw(quat_sum.x, quat_sum.y, quat_sum.z, quat_sum.w);
         if quat.length_squared() > 0.0 {
@@ -181,9 +180,57 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         }
         rotations.push([quat.w, quat.x, quat.y, quat.z]);
 
+        let cluster_rot = Mat3::from_quat(quat);
+        let cluster_rot_t = cluster_rot.transpose();
+        let mut cov_sum = Mat3::ZERO;
+
+        for (idx, &weight) in cluster.iter().zip(weights.iter()) {
+            if weight <= 0.0 {
+                continue;
+            }
+            let pos = Vec3::from(splats.positions[*idx]);
+            let delta = pos - mean;
+            let delta_outer = Mat3::from_cols(delta * delta.x, delta * delta.y, delta * delta.z);
+
+            let mut log_scale = Vec3::from(splats.scales[*idx]);
+            log_scale = Vec3::new(
+                log_scale.x.clamp(-10.0, 10.0),
+                log_scale.y.clamp(-10.0, 10.0),
+                log_scale.z.clamp(-10.0, 10.0),
+            );
+            let scale = Vec3::new(
+                log_scale.x.exp(),
+                log_scale.y.exp(),
+                log_scale.z.exp(),
+            );
+            let rot = Mat3::from_quat(quat_from_rotation(splats.rotations[*idx]));
+            let cov_local = Mat3::from_diagonal(scale * scale);
+            let cov_world = rot * cov_local * rot.transpose();
+            let cov_world = cov_world + delta_outer;
+            let cov_cluster = cluster_rot_t * cov_world * cluster_rot;
+            cov_sum += cov_cluster * weight;
+        }
+
+        let cov = cov_sum * inv_weight;
+        let mut sigma = Vec3::new(cov.x_axis.x, cov.y_axis.y, cov.z_axis.z);
+        sigma = Vec3::new(
+            sigma.x.max(0.0).sqrt(),
+            sigma.y.max(0.0).sqrt(),
+            sigma.z.max(0.0).sqrt(),
+        );
+        if !sigma.x.is_finite() || !sigma.y.is_finite() || !sigma.z.is_finite() {
+            sigma = Vec3::splat(1.0e-6);
+        }
+        sigma = Vec3::new(
+            sigma.x.max(1.0e-6),
+            sigma.y.max(1.0e-6),
+            sigma.z.max(1.0e-6),
+        );
+        scales.push([sigma.x.ln(), sigma.y.ln(), sigma.z.ln()]);
+
         if sh_coeffs > 0 {
             for sum in &sh_rest_sum {
-                sh_rest.push((*sum * inv_count).to_array());
+                sh_rest.push((*sum * inv_weight).to_array());
             }
         }
     }

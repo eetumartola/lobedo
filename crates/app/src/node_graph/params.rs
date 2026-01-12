@@ -305,6 +305,7 @@ pub(super) fn edit_param(
                         (0, "Band 0 Only"),
                         (1, "SH Ratio"),
                         (2, "Irradiance Divide"),
+                        (3, "Env Splat"),
                     ],
                     "SH Ratio",
                 )
@@ -493,8 +494,8 @@ pub(super) fn edit_param(
                 };
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Box")
             } else if label == "heal_shape" {
-                let options = &[("none", "None"), ("box", "Box"), ("sphere", "Sphere")];
-                combo_row_string(ui, label, &display_label, help, &mut v, options, "None")
+                let options = &[("all", "All"), ("box", "Box"), ("sphere", "Sphere")];
+                combo_row_string(ui, label, &display_label, help, &mut v, options, "All")
             } else if label == "output" && node_name == "Circle" {
                 let options = &[("curve", "Curve"), ("mesh", "Mesh")];
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Curve")
@@ -1214,10 +1215,7 @@ fn display_label(node_name: &str, key: &str) -> String {
     }
     if node_name == "Splat Heal" {
         return match key {
-            "heal_shape" => "Heal Shape",
-            "heal_center" => "Heal Center",
-            "heal_size" => "Heal Size",
-            "heal_radius" => "Heal Radius",
+            "heal_shape" => "Heal Bounds",
             "method" => "Method",
             "voxel_size" => "Voxel Size",
             "voxel_size_max" => "Max Voxel Dim",
@@ -1375,7 +1373,6 @@ fn float_slider_range(
         "density_min" | "density_max" => 0.0..=1.0,
         "value_f" => -10.0..=10.0,
         "radius" => 0.0..=1000.0,
-        "heal_radius" => 0.0..=1000.0,
         "max_distance" => 0.0..=1000.0,
         "voxel_size" => 0.0..=10.0,
         "n_sigma" => 0.0..=6.0,

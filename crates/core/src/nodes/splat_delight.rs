@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use glam::Vec3;
 
 use crate::attributes::AttributeDomain;
+use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
@@ -37,7 +38,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("splats")],
+        inputs: vec![geometry_in("splats"), geometry_in("env")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -73,31 +74,72 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(input)
 }
 
-pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
+pub fn apply_to_splats_with_env(
+    params: &NodeParams,
+    splats: &SplatGeo,
+    env_splats: Option<&SplatGeo>,
+) -> SplatGeo {
     if splats.is_empty() {
         return splats.clone();
     }
     let mut output = splats.clone();
-    apply_to_splats_in_place(params, &mut output);
+    apply_to_splats_in_place(params, &mut output, env_splats);
     output
 }
 
-fn apply_to_splats_in_place(params: &NodeParams, splats: &mut SplatGeo) {
-    let Some(mask) = splat_group_mask(splats, params, AttributeDomain::Point) else {
-        apply_to_splats_internal(params, splats, None);
-        return;
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
     };
-    apply_to_splats_internal(params, splats, Some(&mask));
+    let env_splats = inputs.get(1).and_then(|geo| geo.merged_splats());
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(mesh);
+    }
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        splats.push(apply_to_splats_with_env(params, splat, env_splats.as_ref()));
+    }
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
 }
 
-fn apply_to_splats_internal(params: &NodeParams, splats: &mut SplatGeo, mask: Option<&[bool]>) {
+fn apply_to_splats_in_place(
+    params: &NodeParams,
+    splats: &mut SplatGeo,
+    env_splats: Option<&SplatGeo>,
+) {
+    let Some(mask) = splat_group_mask(splats, params, AttributeDomain::Point) else {
+        apply_to_splats_internal(params, splats, None, env_splats);
+        return;
+    };
+    apply_to_splats_internal(params, splats, Some(&mask), env_splats);
+}
+
+fn apply_to_splats_internal(
+    params: &NodeParams,
+    splats: &mut SplatGeo,
+    mask: Option<&[bool]>,
+    env_splats: Option<&SplatGeo>,
+) {
     let sh_coeffs = splats.sh_coeffs;
     let count = splats.len();
     if count == 0 {
         return;
     }
 
-    let mode = params.get_int("delight_mode", 1).clamp(0, 2);
+    let mode = params.get_int("delight_mode", 1).clamp(0, 3);
     let output_order = params.get_int("output_sh_order", 3).clamp(0, 3);
     let max_coeffs = sh_coeffs_for_order(output_order).min(sh_coeffs);
     let high_band_gain = params.get_float("high_band_gain", 0.25).clamp(0.0, 1.0);
@@ -138,7 +180,7 @@ fn apply_to_splats_internal(params: &NodeParams, splats: &mut SplatGeo, mask: Op
                 clamp_sh_order_slice(rest, max_coeffs);
             });
         }
-        _ => {
+        2 => {
             let source_env = build_env_coeffs(params, splats, mask, EnvSource::Source);
             let env_l2 = env_l2_from_coeffs(&source_env);
             let eps = eps_from_env(&env_l2, eps_scale);
@@ -157,6 +199,33 @@ fn apply_to_splats_internal(params: &NodeParams, splats: &mut SplatGeo, mask: Op
                 if rest.is_empty() {
                     return;
                 }
+                apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
+                clamp_sh_order_slice(rest, max_coeffs);
+            });
+        }
+        _ => {
+            let source_env = env_splats
+                .filter(|env| !env.is_empty())
+                .map(|env| average_env_coeffs(env, None))
+                .unwrap_or_else(|| build_env_coeffs(params, splats, mask, EnvSource::Source));
+            let source_env = match_env_coeffs(source_env, sh_coeffs);
+            let neutral_env = build_env_coeffs(params, splats, mask, EnvSource::Neutral);
+            let eps = eps_from_env(&source_env, eps_scale);
+            let (ratio_min, ratio_max) = ratio_bounds(params);
+            let ratios = build_ratio_table(&source_env, &neutral_env, eps, ratio_min, ratio_max);
+
+            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
+                if !selected(mask, idx) {
+                    return;
+                }
+                if rest.is_empty() {
+                    let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
+                    sh0[0] *= ratio[0];
+                    sh0[1] *= ratio[1];
+                    sh0[2] *= ratio[2];
+                    return;
+                }
+                apply_ratio_to_arrays(sh0, rest, &ratios);
                 apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
                 clamp_sh_order_slice(rest, max_coeffs);
             });
@@ -319,6 +388,20 @@ fn build_env_coeffs(
     }
 }
 
+fn match_env_coeffs(env: Vec<[f32; 3]>, target_coeffs: usize) -> Vec<[f32; 3]> {
+    let target_len = 1 + target_coeffs;
+    if env.len() == target_len {
+        return env;
+    }
+    let mut out = vec![[0.0, 0.0, 0.0]; target_len];
+    for (idx, slot) in out.iter_mut().enumerate() {
+        if let Some(value) = env.get(idx) {
+            *slot = *value;
+        }
+    }
+    out
+}
+
 fn uniform_env_coeffs(color: [f32; 3], sh_coeffs: usize) -> Vec<[f32; 3]> {
     let mut coeffs = vec![[0.0, 0.0, 0.0]; 1 + sh_coeffs];
     coeffs[0] = if sh_coeffs > 0 {
@@ -442,7 +525,7 @@ mod tests {
     use crate::graph::{NodeParams, ParamValue};
     use crate::splat::SplatGeo;
 
-    use super::{apply_to_splats, SH_C0};
+    use super::{apply_to_splats_with_env, SH_C0};
 
     #[test]
     fn band0_only_clears_sh_rest() {
@@ -454,7 +537,7 @@ mod tests {
         let params = NodeParams {
             values: BTreeMap::from([("delight_mode".to_string(), ParamValue::Int(0))]),
         };
-        let out = apply_to_splats(&params, &splats);
+        let out = apply_to_splats_with_env(&params, &splats, None);
         assert_eq!(out.sh_rest[0], [0.0, 0.0, 0.0]);
         assert_eq!(out.sh_rest[1], [0.0, 0.0, 0.0]);
         assert_eq!(out.sh_rest[2], [0.0, 0.0, 0.0]);
@@ -470,7 +553,7 @@ mod tests {
                 ("source_env".to_string(), ParamValue::Int(1)),
             ]),
         };
-        let out = apply_to_splats(&params, &splats);
+        let out = apply_to_splats_with_env(&params, &splats, None);
         assert!(out.sh0[0][0].is_finite());
     }
 }

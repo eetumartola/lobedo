@@ -75,6 +75,10 @@ impl LobedoApp {
                 }
             }
         } else if fit_pressed {
+            let block_fit = ctx.input(|i| i.modifiers.alt || i.pointer.primary_down());
+            if block_fit {
+                return;
+            }
             if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
                 if let Some(rect) = self.last_viewport_rect {
                     if rect.contains(pos) {

@@ -33,10 +33,99 @@ impl LobedoApp {
         let pan_speed = 0.0025 * camera.distance.max(0.1);
         let zoom_speed = 0.1;
 
+        let alt_down = response.ctx.input(|i| i.modifiers.alt);
+        let primary_down = response.ctx.input(|i| i.pointer.primary_down());
+        if primary_down && !alt_down && !response.ctx.wants_keyboard_input() {
+            let w = response.ctx.input(|i| i.key_down(egui::Key::W));
+            let a = response.ctx.input(|i| i.key_down(egui::Key::A));
+            let s = response.ctx.input(|i| i.key_down(egui::Key::S));
+            let d = response.ctx.input(|i| i.key_down(egui::Key::D));
+            if w || a || s || d {
+                let pitch = camera.pitch.clamp(-1.54, 1.54);
+                let yaw = camera.yaw;
+                let cos_pitch = pitch.cos();
+                let sin_pitch = pitch.sin();
+                let cos_yaw = yaw.cos();
+                let sin_yaw = yaw.sin();
+                let dir = [
+                    cos_pitch * cos_yaw,
+                    sin_pitch,
+                    cos_pitch * sin_yaw,
+                ];
+                let forward = normalize([-dir[0], -dir[1], -dir[2]]);
+                let world_up = [0.0f32, 1.0f32, 0.0f32];
+                let right = normalize(cross(forward, world_up));
+                let dt = response.ctx.input(|i| i.stable_dt).max(0.0) as f32;
+                let step = camera.distance.max(0.1) * 0.6 * dt;
+                let mut delta = [0.0f32, 0.0f32, 0.0f32];
+                if w {
+                    delta[0] += forward[0] * step;
+                    delta[1] += forward[1] * step;
+                    delta[2] += forward[2] * step;
+                }
+                if s {
+                    delta[0] -= forward[0] * step;
+                    delta[1] -= forward[1] * step;
+                    delta[2] -= forward[2] * step;
+                }
+                if d {
+                    delta[0] += right[0] * step;
+                    delta[1] += right[1] * step;
+                    delta[2] += right[2] * step;
+                }
+                if a {
+                    delta[0] -= right[0] * step;
+                    delta[1] -= right[1] * step;
+                    delta[2] -= right[2] * step;
+                }
+                if delta[0] != 0.0 || delta[1] != 0.0 || delta[2] != 0.0 {
+                    camera.target[0] += delta[0];
+                    camera.target[1] += delta[1];
+                    camera.target[2] += delta[2];
+                }
+            }
+        }
+
         if response.dragged_by(egui::PointerButton::Primary) {
             let delta = response.drag_motion();
-            camera.yaw += delta.x * orbit_speed;
-            camera.pitch = (camera.pitch + delta.y * orbit_speed).clamp(-1.54, 1.54);
+            if alt_down {
+                camera.yaw += delta.x * orbit_speed;
+                camera.pitch = (camera.pitch + delta.y * orbit_speed).clamp(-1.54, 1.54);
+            } else {
+                let pitch = camera.pitch.clamp(-1.54, 1.54);
+                let yaw = camera.yaw;
+                let cos_pitch = pitch.cos();
+                let sin_pitch = pitch.sin();
+                let cos_yaw = yaw.cos();
+                let sin_yaw = yaw.sin();
+                let dir_old = [
+                    cos_pitch * cos_yaw,
+                    sin_pitch,
+                    cos_pitch * sin_yaw,
+                ];
+                let camera_pos = [
+                    camera.target[0] + dir_old[0] * camera.distance,
+                    camera.target[1] + dir_old[1] * camera.distance,
+                    camera.target[2] + dir_old[2] * camera.distance,
+                ];
+
+                let new_yaw = yaw + delta.x * orbit_speed;
+                let new_pitch = (pitch + delta.y * orbit_speed).clamp(-1.54, 1.54);
+                let cos_pitch = new_pitch.cos();
+                let sin_pitch = new_pitch.sin();
+                let cos_yaw = new_yaw.cos();
+                let sin_yaw = new_yaw.sin();
+                let dir_new = [
+                    cos_pitch * cos_yaw,
+                    sin_pitch,
+                    cos_pitch * sin_yaw,
+                ];
+                camera.yaw = new_yaw;
+                camera.pitch = new_pitch;
+                camera.target[0] = camera_pos[0] - dir_new[0] * camera.distance;
+                camera.target[1] = camera_pos[1] - dir_new[1] * camera.distance;
+                camera.target[2] = camera_pos[2] - dir_new[2] * camera.distance;
+            }
         }
 
         if response.dragged_by(egui::PointerButton::Middle) {

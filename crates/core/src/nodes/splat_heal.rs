@@ -34,10 +34,9 @@ const DEFAULT_MAX_M2: f32 = 3.0;
 const DEFAULT_SMOOTH_K: f32 = 0.1;
 const DEFAULT_SHELL_RADIUS: f32 = 1.0;
 const DEFAULT_BLUR_ITERS: i32 = 1;
-const DEFAULT_HEAL_SHAPE: &str = "none";
+const DEFAULT_HEAL_SHAPE: &str = "all";
 const DEFAULT_HEAL_CENTER: [f32; 3] = [0.0, 0.0, 0.0];
 const DEFAULT_HEAL_SIZE: [f32; 3] = [1.0, 1.0, 1.0];
-const DEFAULT_HEAL_RADIUS: f32 = 1.0;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -59,7 +58,6 @@ pub fn default_params() -> NodeParams {
             ),
             ("heal_center".to_string(), ParamValue::Vec3(DEFAULT_HEAL_CENTER)),
             ("heal_size".to_string(), ParamValue::Vec3(DEFAULT_HEAL_SIZE)),
-            ("heal_radius".to_string(), ParamValue::Float(DEFAULT_HEAL_RADIUS)),
             ("method".to_string(), ParamValue::Int(DEFAULT_METHOD)),
             ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
             (
@@ -498,7 +496,8 @@ fn heal_bounds_contains(params: &NodeParams, position: Vec3) -> bool {
         }
         "sphere" => {
             let center = Vec3::from(params.get_vec3("heal_center", DEFAULT_HEAL_CENTER));
-            let radius = params.get_float("heal_radius", DEFAULT_HEAL_RADIUS).max(0.0);
+            let size = Vec3::from(params.get_vec3("heal_size", DEFAULT_HEAL_SIZE)).abs();
+            let radius = 0.5 * size.max_element();
             (position - center).length_squared() <= radius * radius
         }
         _ => true,

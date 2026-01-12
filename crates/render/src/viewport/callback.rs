@@ -461,6 +461,7 @@ impl CallbackTrait for ViewportCallback {
                         .min(u32::MAX as u64)
                         .max(1) as usize;
                     let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
+                    let near_clip = (self.camera.distance * 0.01).clamp(0.02, 0.5);
                     let allow_tile_binning =
                         self.debug.splat_tile_binning && !cfg!(target_arch = "wasm32");
                     let use_tile_binning = allow_tile_binning
@@ -480,6 +481,7 @@ impl CallbackTrait for ViewportCallback {
                             viewport: [width as f32, height as f32],
                             fov_y: 45_f32.to_radians(),
                             world_transform,
+                            near_clip,
                         });
                         let mut depths = Vec::with_capacity(billboards.len());
                         for billboard in &billboards {
@@ -621,6 +623,7 @@ impl CallbackTrait for ViewportCallback {
                                 viewport: [width as f32, height as f32],
                                 fov_y: 45_f32.to_radians(),
                                 world_transform,
+                                near_clip,
                             });
                             let count = splat_vertices.len() as u32;
                             if count == 0 {

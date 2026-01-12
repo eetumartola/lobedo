@@ -261,11 +261,25 @@ impl LobedoApp {
         let Some(node_id) = self.node_graph.selected_node_id() else {
             return;
         };
-        let Some(node) = self.project.graph.node(node_id) else {
-            return;
+        let (node_name, group_shape, group_selection) = {
+            let Some(node) = self.project.graph.node(node_id) else {
+                return;
+            };
+            let name = node.name.clone();
+            let shape = if name == "Group" {
+                Some(node.params.get_string("shape", "box").to_lowercase())
+            } else {
+                None
+            };
+            let selection = if name == "Group" {
+                Some(node.params.get_string("selection", "").to_string())
+            } else {
+                None
+            };
+            (name, shape, selection)
         };
         let mut actions: Vec<ViewportAction> = Vec::new();
-        if node.name == "Curve" {
+        if node_name == "Curve" {
             actions.push((
                 "Add Curve",
                 self.curve_draw_active(node_id),
@@ -277,7 +291,7 @@ impl LobedoApp {
                 toggle_curve_edit,
             ));
         }
-        if node.name == "FFD" {
+        if node_name == "FFD" {
             if input_node_for(&self.project.graph, node_id, 1).is_none() {
                 self.ensure_ffd_lattice_points(node_id);
             }
@@ -288,12 +302,10 @@ impl LobedoApp {
             ));
         }
         let mut footer = None;
-        if node.name == "Group" {
-            let shape = node.params.get_string("shape", "box").to_lowercase();
-            if shape == "selection" {
+        if node_name == "Group" {
+            if group_shape.as_deref() == Some("selection") {
                 actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
-                let selection = node.params.get_string("selection", "");
-                let count = selection_count(selection);
+                let count = selection_count(group_selection.as_deref().unwrap_or(""));
                 footer = Some(format!("Selected: {}", count));
             }
         }

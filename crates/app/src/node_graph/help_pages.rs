@@ -249,7 +249,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Reduced splats."],
             parameters: &[
                 ("voxel_size", "Voxel size for clustering."),
-                ("target_count", "Optional target count (0 disables)."),
+                ("target_count", "Optional cap on cluster count after voxel clustering."),
             ],
         }),
         "Splat to Mesh" => Some(NodeHelpPage {
@@ -295,13 +295,17 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             name: "Splat Delight",
             description: &[
                 "Removes baked lighting from splat SH coefficients using lighting operators.",
-                "SH Ratio and Irradiance Divide estimate lighting and neutralize it; Band 0 Only flattens to DC.",
+                "SH Ratio and Irradiance Divide estimate lighting and neutralize it; Env Splat uses a second splat input as the lighting environment.",
+                "Band 0 Only flattens to DC when you want a quick neutralization.",
                 "Use it when you want consistent albedo-like splats before relighting.",
             ],
-            inputs: &["in: Splat geometry."],
+            inputs: &[
+                "in: Splat geometry.",
+                "env: Optional environment splats for Env Splat mode.",
+            ],
             outputs: &["out: Delit splats."],
             parameters: &[
-                ("delight_mode", "Mode: Band 0 Only, SH Ratio, or Irradiance Divide."),
+                ("delight_mode", "Mode: Band 0 Only, SH Ratio, Irradiance Divide, or Env Splat."),
                 ("source_env", "Lighting source: From Splats, Uniform White, or Custom."),
                 ("neutral_env", "Neutral target: Uniform White or Custom."),
                 ("source_color", "Custom source lighting color (DC)."),
@@ -357,10 +361,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             parameters: &[
                 ("group", "Optional group to restrict healing."),
                 ("group_type", "Group domain to use."),
-                ("heal_shape", "Optional bounds for healing (None/Box/Sphere)."),
-                ("heal_center", "Center of the heal bounds."),
-                ("heal_size", "Size of the heal box."),
-                ("heal_radius", "Radius of the heal sphere."),
+                ("heal_shape", "Heal bounds: All, Box, or Sphere."),
                 ("method", "Method: Voxel Close or SDF Patch."),
                 ("voxel_size", "Voxel size for the density grid."),
                 ("voxel_size_max", "Maximum voxel dimension (safety clamp)."),

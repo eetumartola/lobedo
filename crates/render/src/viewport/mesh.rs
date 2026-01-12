@@ -57,6 +57,7 @@ pub(crate) struct SplatBillboardInputs<'a> {
     pub(crate) viewport: [f32; 2],
     pub(crate) fov_y: f32,
     pub(crate) world_transform: Mat3,
+    pub(crate) near_clip: f32,
 }
 
 const SPLAT_BILLBOARD_RADIUS: f32 = 3.0;
@@ -335,7 +336,7 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
         let center = inputs.world_transform * Vec3::from(*pos);
         let pos_view = inputs.view.transform_point3(center);
         let pos_cam = Vec3::new(pos_view.x, pos_view.y, -pos_view.z);
-        if pos_cam.z <= 1.0e-6 || !pos_cam.z.is_finite() {
+        if pos_cam.z <= inputs.near_clip.max(1.0e-6) || !pos_cam.z.is_finite() {
             continue;
         }
         let scale = inputs

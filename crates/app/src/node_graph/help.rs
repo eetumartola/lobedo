@@ -121,7 +121,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Regularize", "normalize_rotation") => Some("Normalize/repair rotations."),
         ("Splat Regularize", "remove_invalid") => Some("Drop splats with NaN/Inf."),
         ("Splat LOD", "voxel_size") => Some("Voxel size for clustering."),
-        ("Splat LOD", "target_count") => Some("Optional target count (0 = disabled)."),
+        ("Splat LOD", "target_count") => Some("Optional cap on cluster count (0 = disabled)."),
         ("Splat to Mesh", "output") => Some("Output type (mesh or SDF volume)."),
         ("Splat to Mesh", "algorithm") => Some("Conversion method."),
         ("Splat to Mesh", "voxel_size") => Some("Voxel size for density grid."),
@@ -137,7 +137,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat to Mesh", "blur_iters") => Some("Density blur iterations."),
         ("Splat Deform", "allow_new") => Some("Allow creation of new splats."),
         ("Splat Deform", "derive_rot_scale") => Some("Infer rotation/scale from deformation."),
-        ("Splat Delight", "delight_mode") => Some("Delighting method to apply."),
+        ("Splat Delight", "delight_mode") => Some("Delighting method to apply (Band 0, SH Ratio, Irradiance, Env Splat)."),
         ("Splat Delight", "source_env") => Some("Source lighting estimate used for ratios or irradiance."),
         ("Splat Delight", "neutral_env") => Some("Target neutral lighting for ratio-based delighting."),
         ("Splat Delight", "source_color") => Some("Custom source lighting color (DC)."),
@@ -165,12 +165,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Integrate", "group") => Some("Optional group to restrict integration."),
         ("Splat Integrate", "group_type") => Some("Group domain to use."),
         ("Splat Heal", "method") => Some("Healing method to apply."),
-        ("Splat Heal", "heal_shape") => {
-            Some("Optional region shape for constraining healing (None/Box/Sphere).")
-        }
-        ("Splat Heal", "heal_center") => Some("Center of the heal bounds."),
-        ("Splat Heal", "heal_size") => Some("Size of the heal box."),
-        ("Splat Heal", "heal_radius") => Some("Radius of the heal sphere."),
+        ("Splat Heal", "heal_shape") => Some("Heal bounds: All, Box, or Sphere."),
         ("Splat Heal", "voxel_size") => Some("Voxel size for the density grid."),
         ("Splat Heal", "voxel_size_max") => Some("Max voxel dimension (safety clamp)."),
         ("Splat Heal", "n_sigma") => Some("Gaussian support radius in sigmas."),

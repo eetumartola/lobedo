@@ -279,7 +279,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::splat_delight::definition,
         default_params: nodes::splat_delight::default_params,
         compute_mesh: nodes::splat_delight::compute,
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatIntegrate,
@@ -896,9 +896,7 @@ fn apply_splat_cluster(params: &NodeParams, inputs: &[Geometry]) -> Result<Geome
 }
 
 fn apply_splat_delight(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
-    apply_splat_only(params, inputs, |params, splat| {
-        Ok(nodes::splat_delight::apply_to_splats(params, splat))
-    })
+    nodes::splat_delight::apply_to_geometry(params, inputs)
 }
 
 fn filter_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {

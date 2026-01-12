@@ -1,6 +1,6 @@
 use egui_wgpu::wgpu::util::DeviceExt as _;
 
-use crate::scene::RenderScene;
+use crate::scene::{RenderDrawable, RenderScene, RenderSplats};
 
 use super::mesh::{
     bounds_from_positions, bounds_vertices, build_vertices, curve_vertices,
@@ -58,7 +58,7 @@ pub(super) fn apply_scene_to_pipeline(
         curve_positions.extend(curve.points.iter().copied());
     }
 
-    if let Some(splats) = scene.splats() {
+    if let Some(splats) = merged_scene_splats(scene) {
         pipeline.splat_positions = splats.positions.clone();
         pipeline.splat_sh0 = splats.sh0.clone();
         pipeline.splat_sh_coeffs = splats.sh_coeffs;
@@ -193,6 +193,75 @@ pub(super) fn apply_scene_to_pipeline(
     }
 
     apply_materials_to_pipeline(device, queue, pipeline, scene);
+}
+
+fn merged_scene_splats(scene: &RenderScene) -> Option<RenderSplats> {
+    let splats: Vec<&RenderSplats> = scene
+        .drawables
+        .iter()
+        .filter_map(|drawable| match drawable {
+            RenderDrawable::Splats(splats) => Some(splats),
+            _ => None,
+        })
+        .collect();
+    if splats.is_empty() {
+        return None;
+    }
+    if splats.len() == 1 {
+        return Some(splats[0].clone());
+    }
+
+    let total: usize = splats.iter().map(|s| s.positions.len()).sum();
+    let max_coeffs = splats
+        .iter()
+        .map(|s| s.sh_coeffs)
+        .max()
+        .unwrap_or(0);
+    let sh0_is_coeff = splats.iter().any(|s| s.sh0_is_coeff || s.sh_coeffs > 0);
+
+    let mut merged = RenderSplats {
+        positions: Vec::with_capacity(total),
+        sh0: Vec::with_capacity(total),
+        sh_coeffs: max_coeffs,
+        sh_rest: Vec::with_capacity(total * max_coeffs),
+        sh0_is_coeff,
+        opacity: Vec::with_capacity(total),
+        scales: Vec::with_capacity(total),
+        rotations: Vec::with_capacity(total),
+    };
+
+    for splat in splats {
+        let count = splat.positions.len();
+        merged.positions.extend_from_slice(&splat.positions);
+        merged.sh0.extend_from_slice(&splat.sh0);
+        merged.opacity.extend_from_slice(&splat.opacity);
+        merged.scales.extend_from_slice(&splat.scales);
+        merged.rotations.extend_from_slice(&splat.rotations);
+
+        if max_coeffs == 0 {
+            continue;
+        }
+        let coeffs = splat.sh_coeffs;
+        if coeffs == 0 {
+            merged
+                .sh_rest
+                .extend(std::iter::repeat_n([0.0, 0.0, 0.0], count * max_coeffs));
+        } else {
+            for i in 0..count {
+                let base = i * coeffs;
+                for c in 0..max_coeffs {
+                    let value = if c < coeffs {
+                        splat.sh_rest[base + c]
+                    } else {
+                        [0.0, 0.0, 0.0]
+                    };
+                    merged.sh_rest.push(value);
+                }
+            }
+        }
+    }
+
+    Some(merged)
 }
 
 fn apply_materials_to_pipeline(
