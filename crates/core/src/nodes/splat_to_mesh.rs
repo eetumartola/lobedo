@@ -355,8 +355,6 @@ impl ColorGrid {
 }
 
 fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
-    // Keep splat extraction aligned with the viewport's splat flip.
-    let world_transform = Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0));
     let use_sh0_colors = splats.sh0.iter().any(|value| {
         value
             .iter()
@@ -364,7 +362,7 @@ fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
     });
     let mut samples = vec![SplatSample::default(); splats.len()];
     parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
-        let position = world_transform * Vec3::from(splats.positions[idx]);
+        let position = Vec3::from(splats.positions[idx]);
         let rotation = splats.rotations[idx];
         let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
         if quat.length_squared() > 0.0 {
@@ -373,7 +371,7 @@ fn build_samples(splats: &SplatGeo) -> Vec<SplatSample> {
             quat = Quat::IDENTITY;
         }
         let rot = Mat3::from_quat(quat);
-        let rt = rot.transpose() * world_transform;
+        let rt = rot.transpose();
         let log_scale = splats.scales[idx];
         let mut sigma = Vec3::new(log_scale[0].exp(), log_scale[1].exp(), log_scale[2].exp());
         sigma = sigma.max(Vec3::splat(1.0e-5));

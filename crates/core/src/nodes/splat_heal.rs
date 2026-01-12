@@ -463,7 +463,7 @@ fn collect_new_splats(
             spec.min.y + iy as f32 * spec.dx,
             spec.min.z + iz as f32 * spec.dx,
         );
-        let pos_world = Vec3::new(pos_grid.x, -pos_grid.y, pos_grid.z);
+        let pos_world = pos_grid;
         if !heal_bounds_contains(params, pos_world) {
             continue;
         }

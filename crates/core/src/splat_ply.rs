@@ -91,7 +91,8 @@ pub fn save_splat_ply_with_format(
 ) -> Result<(), String> {
     use std::io::{BufWriter, Write};
 
-    let normalized = splats.normalized_for_save();
+    let mut normalized = splats.normalized_for_save();
+    normalized.flip_y_axis();
     normalized.validate()?;
     let file = std::fs::File::create(path).map_err(|err| err.to_string())?;
     let mut file = BufWriter::new(file);
@@ -393,6 +394,7 @@ fn parse_ascii_vertices(
     }
 
     splats.normalize_on_load();
+    splats.flip_y_axis();
     splats.validate()?;
     Ok(splats)
 }
@@ -421,6 +423,7 @@ fn parse_binary_vertices(
     }
 
     splats.normalize_on_load();
+    splats.flip_y_axis();
     splats.validate()?;
     Ok(splats)
 }
@@ -691,7 +694,7 @@ end_header
 
         let splats = parse_splat_ply_bytes(&data).expect("parse");
         assert_eq!(splats.len(), 1);
-        assert_eq!(splats.positions[0], [1.0, 2.0, 3.0]);
+        assert_eq!(splats.positions[0], [1.0, -2.0, 3.0]);
         assert!((splats.opacity[0] - 0.25).abs() < 1.0e-6);
     }
 

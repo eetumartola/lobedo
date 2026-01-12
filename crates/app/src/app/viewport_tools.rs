@@ -1805,7 +1805,7 @@ fn geometry_bounds(geometry: &lobedo_core::Geometry) -> Option<(Vec3, Vec3)> {
     }
 }
 
-fn input_node_for(
+pub(super) fn input_node_for(
     graph: &lobedo_core::Graph,
     node_id: NodeId,
     input_index: usize,
@@ -2341,6 +2341,7 @@ fn rect_corners_in_triangle(rect: Rect, a: Pos2, b: Pos2, c: Pos2) -> bool {
         .into_iter()
         .any(|corner| point_in_triangle(corner, a, b, c, 0.0))
 }
+
 
 fn draw_group_selection_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node_id: NodeId) {
     let Some(scene) = app.last_scene.as_ref() else {

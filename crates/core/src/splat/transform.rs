@@ -325,6 +325,14 @@ impl SplatGeo {
 
         output
     }
+
+    pub fn flip_y_axis(&mut self) {
+        if self.positions.is_empty() {
+            return;
+        }
+        let matrix = Mat4::from_scale(Vec3::new(1.0, -1.0, 1.0));
+        self.transform(matrix);
+    }
 }
 
 fn filter_attribute_storage(storage: &AttributeStorage, indices: &[usize]) -> AttributeStorage {

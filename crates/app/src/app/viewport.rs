@@ -64,6 +64,15 @@ impl LobedoApp {
             camera.target[2] += right[2] * pan_x + up[2] * pan_y;
         }
 
+        if response.dragged_by(egui::PointerButton::Secondary) {
+            let delta = response.drag_motion();
+            if delta.y.abs() > 0.0 {
+                let zoom_delta = -delta.y * 3.0;
+                let zoom = 1.0 - (zoom_delta * zoom_speed / 100.0);
+                camera.distance = (camera.distance * zoom).clamp(0.1, 1000.0);
+            }
+        }
+
         let scroll_delta = response.ctx.input(|i| i.raw_scroll_delta.y);
         if scroll_delta.abs() > 0.0 {
             let zoom = 1.0 - (scroll_delta * zoom_speed / 100.0);

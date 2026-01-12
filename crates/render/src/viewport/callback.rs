@@ -417,8 +417,7 @@ impl CallbackTrait for ViewportCallback {
                 let interval = 1.0 / SPLAT_REBUILD_MAX_FPS.max(1.0);
                 let allow_rebuild = scene_changed || viewport_changed || elapsed >= interval;
                 if needs_rebuild && allow_rebuild {
-                    let world_transform =
-                        Mat3::from_diagonal(Vec3::new(1.0, -1.0, 1.0));
+                    let world_transform = Mat3::IDENTITY;
                     let use_full_sh = matches!(
                         self.debug.splat_shading_mode,
                         ViewportSplatShadingMode::FullSh
@@ -440,8 +439,8 @@ impl CallbackTrait for ViewportCallback {
                             &[]
                         };
                         let view_dir = if use_full_sh && sh0_is_coeff {
-                            let center = world_transform * Vec3::from(*pos);
-                            world_transform.transpose() * (camera_pos - center)
+                            let center = Vec3::from(*pos);
+                            camera_pos - center
                         } else {
                             Vec3::Z
                         };

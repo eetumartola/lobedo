@@ -2,6 +2,7 @@ use eframe::egui;
 use lobedo_core::NodeId;
 
 use super::spreadsheet::show_spreadsheet;
+use super::viewport_tools::input_node_for;
 use super::LobedoApp;
 
 type ViewportAction = (&'static str, bool, fn(&mut LobedoApp, NodeId));
@@ -277,6 +278,9 @@ impl LobedoApp {
             ));
         }
         if node.name == "FFD" {
+            if input_node_for(&self.project.graph, node_id, 1).is_none() {
+                self.ensure_ffd_lattice_points(node_id);
+            }
             actions.push((
                 "Edit Lattice",
                 self.ffd_edit_active(node_id),
@@ -551,6 +555,18 @@ impl LobedoApp {
                     if graph_rect.contains(pos) {
                         self.node_graph.zoom_at(pos, scroll_delta);
                         ui.input_mut(|i| i.raw_scroll_delta = egui::Vec2::ZERO);
+                    }
+                }
+            }
+            let rmb_down = ui.input(|i| i.pointer.button_down(egui::PointerButton::Secondary));
+            if rmb_down {
+                if let Some(pos) = ui.input(|i| i.pointer.latest_pos()) {
+                    if graph_rect.contains(pos) {
+                        let delta = ui.input(|i| i.pointer.delta());
+                        if delta.y.abs() > 0.0 {
+                            let zoom_delta = -delta.y * 3.0;
+                            self.node_graph.zoom_at(pos, zoom_delta);
+                        }
                     }
                 }
             }
