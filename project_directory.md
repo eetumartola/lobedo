@@ -316,6 +316,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\resample.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\scatter.rs
 Description: TODO: add description.
 Functions: None

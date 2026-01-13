@@ -46,6 +46,7 @@ pub enum BuiltinNodeKind {
     Noise,
     ErosionNoise,
     Smooth,
+    Resample,
     UvTexture,
     UvUnwrap,
     UvView,
@@ -471,6 +472,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::Resample,
+        name: nodes::resample::NAME,
+        aliases: &[],
+        definition: nodes::resample::definition,
+        default_params: nodes::resample::default_params,
+        compute_mesh: nodes::resample::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::UvTexture,
         name: nodes::uv_texture::NAME,
         aliases: &[],
@@ -690,6 +700,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Ray => nodes::ray::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Material => nodes::material::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Scatter => nodes::scatter::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::Resample => nodes::resample::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Normal
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise

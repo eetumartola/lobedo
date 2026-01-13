@@ -181,11 +181,12 @@ SH evaluation:
 12. `Smooth` (space-delimited attribute names, default P; splat-aware where possible)
 13. `Ray` (normal/direction/closest; max distance; hit group + attribute import; optional no-transform)
 14. `Wrangle` (implicit @ptnum/@vtxnum/@primnum; point/vertex/prim/splat attribute queries across inputs 0/1)
+15. `Resample` (volume resample, curve decimate, mesh poly reduce)
 
 ### Materials & UV (MVP)
-15. `UV Texture` (basic projections; writes vertex `uv`)
-16. `UV Unwrap` (basic unwrap for meshes)
-17. `Material` (named PBR params + diffuse texture; assigns primitive material attribute)
+16. `UV Texture` (basic projections; writes vertex `uv`)
+17. `UV Unwrap` (basic unwrap for meshes)
+18. `Material` (named PBR params + diffuse texture; assigns primitive material attribute)
 
 ### Splat-native ops
 14. `Crop` (box/sphere/plane)

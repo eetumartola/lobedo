@@ -1130,6 +1130,15 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
+    if node_name == "Resample" {
+        return match key {
+            "curve_points" => "Curve Points",
+            "mesh_ratio" => "Mesh Ratio",
+            "volume_max_dim" => "Max Volume Dim",
+            _ => key,
+        }
+        .to_string();
+    }
     if node_name == "Erosion Noise" {
         return match key {
             "erosion_strength" => "Erosion Strength",
@@ -1397,6 +1406,7 @@ fn float_slider_range(
         "eps" if node_name == "Splat Cluster" || node_name == "Splat Outlier" => 0.0..=10.0,
         "padding" => 0.0..=10.0,
         "density_scale" => 0.0..=10.0,
+        "mesh_ratio" => 0.0..=1.0,
         "sdf_band" => 0.0..=10.0,
         "metallic" | "roughness" => 0.0..=1.0,
         "erosion_strength" => 0.0..=1.0,
@@ -1430,6 +1440,8 @@ fn int_slider_range(
         "blur_iters" => 0..=6,
         "voxel_size_max" => 8..=2048,
         "max_dim" => 8..=512,
+        "curve_points" => 2..=512,
+        "volume_max_dim" => 8..=512,
         "close_radius" => 0..=6,
         "fill_stride" => 1..=8,
         "max_new" => 0..=100_000,

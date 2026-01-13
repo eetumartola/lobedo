@@ -759,6 +759,22 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
+        "Resample" => Some(NodeHelpPage {
+            name: "Resample",
+            description: &[
+                "Resamples geometry based on primitive type.",
+                "Meshes are reduced with a simple voxel clustering pass to approximate the target triangle ratio.",
+                "Curves are resampled to a fixed point count along arc length.",
+                "Volumes are resampled to a new grid resolution while preserving world size.",
+            ],
+            inputs: &["in: Geometry to resample."],
+            outputs: &["out: Resampled geometry."],
+            parameters: &[
+                ("curve_points", "Target number of points per curve."),
+                ("mesh_ratio", "Target mesh triangle ratio (0-1)."),
+                ("volume_max_dim", "Maximum voxel dimension for volume resampling."),
+            ],
+        }),
         "UV Texture" => Some(NodeHelpPage {
             name: "UV Texture",
             description: &[
