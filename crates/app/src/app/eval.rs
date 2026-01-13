@@ -9,8 +9,9 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    evaluate_geometry_graph, Mesh, SceneCurve, SceneDrawable, SceneSnapshot, SceneSplats,
-    SceneVolume, ShadingMode, SplatShadingMode, VolumeKind,
+    build_skirt_preview_mesh, evaluate_geometry_graph, Mesh, NodeId, SceneCurve,
+    SceneDrawable, SceneSnapshot, SceneSplats, SceneVolume, ShadingMode, SplatShadingMode,
+    VolumeKind,
 };
 use render::{
     RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
@@ -18,7 +19,7 @@ use render::{
     ViewportShadingMode, ViewportSplatShadingMode,
 };
 
-use super::{DisplayState, LobedoApp};
+use super::{viewport_tools::input_node_for, DisplayState, LobedoApp};
 
 impl LobedoApp {
     pub(super) fn mark_eval_dirty(&mut self) {
@@ -65,6 +66,7 @@ impl LobedoApp {
                 self.pending_scene = None;
                 self.node_graph
                     .set_error_state(HashSet::new(), HashMap::new());
+                self.last_template_mesh = None;
                 return;
             }
             Some(node) => node,
@@ -85,15 +87,23 @@ impl LobedoApp {
                 if let Some(geometry) = result.output {
                     let snapshot = SceneSnapshot::from_geometry(&geometry, [0.7, 0.72, 0.75]);
                     let template_mesh = if output_valid {
-                        collect_template_meshes(
+                        let templates = collect_template_meshes(
                             &self.project.graph,
                             display_node,
                             &template_nodes,
                             &mut self.eval_state,
                             &mut error_nodes,
                             &mut error_messages,
-                        )
+                        );
+                        self.last_template_mesh = templates.clone();
+                        let preview = splat_merge_preview_mesh(
+                            &self.project.graph,
+                            self.node_graph.selected_node_id(),
+                            &mut self.eval_state,
+                        );
+                        merge_optional_meshes(templates, preview)
                     } else {
+                        self.last_template_mesh = None;
                         None
                     };
                     let selection_shape =
@@ -110,6 +120,7 @@ impl LobedoApp {
                     }
                     self.pending_scene = None;
                     self.last_scene = None;
+                    self.last_template_mesh = None;
                 }
 
                 if !output_valid {
@@ -118,6 +129,7 @@ impl LobedoApp {
                     }
                     self.pending_scene = None;
                     self.last_scene = None;
+                    self.last_template_mesh = None;
                 }
                 self.node_graph.set_error_state(error_nodes, error_messages);
             }
@@ -141,6 +153,7 @@ impl LobedoApp {
     pub(super) fn sync_selection_overlay(&mut self) {
         let Some(scene) = self.last_scene.clone() else {
             self.last_selection_key = None;
+            self.last_preview_key = None;
             return;
         };
         let selection = selection_shape_for_node(
@@ -151,16 +164,30 @@ impl LobedoApp {
             .node_graph
             .selected_node_id()
             .and_then(|node_id| self.project.graph.node(node_id).map(|node| (node_id, node.param_version)));
-        if selection_key == self.last_selection_key
-            && selection == scene.selection_shape
-        {
-            return;
+        let mut scene = scene;
+        let mut changed = false;
+
+        if selection_key != self.last_selection_key || selection != scene.selection_shape {
+            self.last_selection_key = selection_key;
+            scene.selection_shape = selection;
+            changed = true;
         }
 
-        self.last_selection_key = selection_key;
-        let mut scene = scene;
-        scene.selection_shape = selection;
-        self.apply_scene(scene);
+        if selection_key != self.last_preview_key {
+            let preview = splat_merge_preview_mesh(
+                &self.project.graph,
+                self.node_graph.selected_node_id(),
+                &mut self.eval_state,
+            );
+            let merged_template = merge_optional_meshes(self.last_template_mesh.clone(), preview);
+            scene.template_mesh = merged_template.as_ref().map(render_mesh_from_mesh);
+            self.last_preview_key = selection_key;
+            changed = true;
+        }
+
+        if changed {
+            self.apply_scene(scene);
+        }
     }
 
     pub(super) fn viewport_debug(&self) -> ViewportDebug {
@@ -459,6 +486,42 @@ fn collect_template_meshes(
     }
 }
 
+fn splat_merge_preview_mesh(
+    graph: &lobedo_core::Graph,
+    selected_node: Option<NodeId>,
+    state: &mut lobedo_core::GeometryEvalState,
+) -> Option<Mesh> {
+    let node_id = selected_node?;
+    let node = graph.node(node_id)?;
+    if node.name != "Splat Merge" {
+        return None;
+    }
+    let preview = node.params.get_bool("preview_skirt", false);
+    if !preview {
+        return None;
+    }
+    let method = node.params.get_int("method", 0).clamp(0, 1);
+    if method != 1 {
+        return None;
+    }
+    let input_a = input_node_for(graph, node_id, 0)?;
+    let input_b = input_node_for(graph, node_id, 1)?;
+    let geo_a = evaluate_geometry_graph(graph, input_a, state).ok()?.output?;
+    let geo_b = evaluate_geometry_graph(graph, input_b, state).ok()?.output?;
+    let splats_a = geo_a.merged_splats()?;
+    let splats_b = geo_b.merged_splats()?;
+    build_skirt_preview_mesh(&node.params, &splats_a, &splats_b)
+}
+
+fn merge_optional_meshes(a: Option<Mesh>, b: Option<Mesh>) -> Option<Mesh> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(Mesh::merge(&[a, b])),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
 fn merge_error_state(
     report: &lobedo_core::EvalReport,
     nodes: &mut HashSet<lobedo_core::NodeId>,
@@ -491,11 +554,27 @@ fn selection_shape_for_node(
     let node = graph.node(node_id)?;
     match node.name.as_str() {
         "Box" => {
-            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
+            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);       
             let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
             Some(SelectionShape::Box { center, size })
         }
         "Group" | "Delete" => selection_shape_from_params(&node.params),
+        "Splat Heal" => {
+            let shape = node.params.get_string("heal_shape", "all").to_lowercase();
+            match shape.as_str() {
+                "box" => {
+                    let center = node.params.get_vec3("heal_center", [0.0, 0.0, 0.0]);
+                    let size = node.params.get_vec3("heal_size", [1.0, 1.0, 1.0]);
+                    Some(SelectionShape::Box { center, size })
+                }
+                "sphere" => {
+                    let center = node.params.get_vec3("heal_center", [0.0, 0.0, 0.0]);
+                    let size = node.params.get_vec3("heal_size", [1.0, 1.0, 1.0]);
+                    Some(SelectionShape::Sphere { center, size })
+                }
+                _ => None,
+            }
+        }
         _ => None,
     }
 }

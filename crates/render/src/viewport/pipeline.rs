@@ -522,7 +522,7 @@ impl PipelineState {
                 fragment: None,
                 primitive: egui_wgpu::wgpu::PrimitiveState {
                     topology: egui_wgpu::wgpu::PrimitiveTopology::TriangleList,
-                    cull_mode: Some(egui_wgpu::wgpu::Face::Front),
+                    cull_mode: Some(egui_wgpu::wgpu::Face::Back),
                     ..Default::default()
                 },
                 depth_stencil: Some(egui_wgpu::wgpu::DepthStencilState {

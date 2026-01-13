@@ -37,6 +37,7 @@ const DEFAULT_BLUR_ITERS: i32 = 1;
 const DEFAULT_HEAL_SHAPE: &str = "all";
 const DEFAULT_HEAL_CENTER: [f32; 3] = [0.0, 0.0, 0.0];
 const DEFAULT_HEAL_SIZE: [f32; 3] = [1.0, 1.0, 1.0];
+const DEFAULT_PREVIEW_SURFACE: bool = false;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -59,6 +60,10 @@ pub fn default_params() -> NodeParams {
             ("heal_center".to_string(), ParamValue::Vec3(DEFAULT_HEAL_CENTER)),
             ("heal_size".to_string(), ParamValue::Vec3(DEFAULT_HEAL_SIZE)),
             ("method".to_string(), ParamValue::Int(DEFAULT_METHOD)),
+            (
+                "preview_surface".to_string(),
+                ParamValue::Bool(DEFAULT_PREVIEW_SURFACE),
+            ),
             ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
             (
                 "voxel_size_max".to_string(),
@@ -120,6 +125,14 @@ pub fn apply_to_geometry(
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
         splats.push(apply_to_splats(params, splat)?);
+    }
+
+    if params.get_bool("preview_surface", DEFAULT_PREVIEW_SURFACE) {
+        if let Some(splat) = input.merged_splats() {
+            if let Ok(Some(preview)) = build_preview_surface(params, &splat) {
+                meshes.push(preview);
+            }
+        }
     }
 
     let curves = if meshes.is_empty() {
@@ -195,9 +208,28 @@ fn heal_voxel_close(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSpl
     parallel::for_each_indexed_mut(&mut candidates, |idx, slot| {
         let filled = closed.get(idx).copied().unwrap_or(0) != 0;
         let was_inside = occ.get(idx).copied().unwrap_or(0) != 0;
-        *slot = if filled && !was_inside { 1 } else { 0 };
+        if filled && !was_inside && is_surface_voxel(&closed, &grid.spec, idx) {
+            *slot = 1;
+        } else {
+            *slot = 0;
+        }
     });
-    Ok(collect_new_splats(params, source, &grid.spec, &candidates))
+    let closed_values: Vec<f32> = closed
+        .iter()
+        .map(|value| if *value != 0 { 1.0 } else { 0.0 })
+        .collect();
+    let surface = SurfaceGrid {
+        values: &closed_values,
+        iso: 0.5,
+        inside_is_greater: true,
+    };
+    Ok(collect_new_splats(
+        params,
+        source,
+        &grid.spec,
+        &candidates,
+        Some(&surface),
+    ))
 }
 
 fn heal_sdf_patch(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSplat>, String> {
@@ -235,7 +267,63 @@ fn heal_sdf_patch(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSplat
         sdf_val -= sdf_close;
         *slot = if sdf_val.abs() <= band { 1 } else { 0 };
     });
-    Ok(collect_new_splats(params, source, &density.spec, &candidates))
+    let surface = SurfaceGrid {
+        values: &sdf.values,
+        iso: sdf.iso,
+        inside_is_greater: sdf.inside_is_greater,
+    };
+    Ok(collect_new_splats(
+        params,
+        source,
+        &density.spec,
+        &candidates,
+        Some(&surface),
+    ))
+}
+
+fn build_preview_surface(
+    params: &NodeParams,
+    splats: &SplatGeo,
+) -> Result<Option<Mesh>, String> {
+    if splats.is_empty() {
+        return Ok(None);
+    }
+    let method = params.get_int("method", DEFAULT_METHOD).clamp(0, 1);
+    match method {
+        1 => {
+            let sdf = build_sdf_grid(params, splats)?;
+            if sdf.values.is_empty() {
+                return Ok(None);
+            }
+            let mesh = crate::nodes::splat_to_mesh::marching_cubes(
+                &sdf.values,
+                &sdf.spec,
+                sdf.iso,
+                sdf.inside_is_greater,
+            )?;
+            Ok(Some(mesh))
+        }
+        _ => {
+            let density = build_density_grid(params, splats)?;
+            if density.values.is_empty() {
+                return Ok(None);
+            }
+            let occ = occupancy_from_grid(&density.values, density.iso, density.inside_is_greater);
+            let close_radius = params.get_int("close_radius", DEFAULT_CLOSE_RADIUS);
+            let closed = close_occupancy(&occ, &density.spec, close_radius);
+            let values: Vec<f32> = closed
+                .iter()
+                .map(|value| if *value != 0 { 1.0 } else { 0.0 })
+                .collect();
+            let mesh = crate::nodes::splat_to_mesh::marching_cubes(
+                &values,
+                &density.spec,
+                0.5,
+                true,
+            )?;
+            Ok(Some(mesh))
+        }
+    }
 }
 
 fn build_density_grid(params: &NodeParams, source: &SplatGeo) -> Result<crate::nodes::splat_to_mesh::SplatGrid, String> {
@@ -420,6 +508,7 @@ fn collect_new_splats(
     source: &SplatGeo,
     spec: &GridSpec,
     candidates: &[u8],
+    surface: Option<&SurfaceGrid<'_>>,
 ) -> Vec<NewSplat> {
     let max_new = params.get_int("max_new", DEFAULT_MAX_NEW).max(0) as usize;
     if max_new == 0 || candidates.is_empty() {
@@ -456,11 +545,14 @@ fn collect_new_splats(
         if fill_stride > 1 && !(ix + iy + iz).is_multiple_of(fill_stride) {
             continue;
         }
-        let pos_grid = Vec3::new(
+        let mut pos_grid = Vec3::new(
             spec.min.x + ix as f32 * spec.dx,
             spec.min.y + iy as f32 * spec.dx,
             spec.min.z + iz as f32 * spec.dx,
         );
+        if let Some(surface) = surface {
+            pos_grid = project_to_surface(surface, spec, ix, iy, iz, pos_grid);
+        }
         let pos_world = pos_grid;
         if !heal_bounds_contains(params, pos_world) {
             continue;
@@ -480,6 +572,97 @@ fn collect_new_splats(
         }
     }
     new_splats
+}
+
+struct SurfaceGrid<'a> {
+    values: &'a [f32],
+    iso: f32,
+    inside_is_greater: bool,
+}
+
+fn project_to_surface(
+    surface: &SurfaceGrid<'_>,
+    spec: &GridSpec,
+    ix: usize,
+    iy: usize,
+    iz: usize,
+    pos: Vec3,
+) -> Vec3 {
+    let idx = grid_index(spec, ix, iy, iz);
+    let value = surface.values.get(idx).copied().unwrap_or(surface.iso);
+    let signed = if surface.inside_is_greater {
+        value - surface.iso
+    } else {
+        surface.iso - value
+    };
+    let grad = grid_gradient(surface.values, spec, ix, iy, iz);
+    let grad_len2 = grad.length_squared();
+    if grad_len2 > 1.0e-8 && signed.is_finite() {
+        pos - grad * (signed / grad_len2)
+    } else {
+        pos
+    }
+}
+
+fn grid_index(spec: &GridSpec, ix: usize, iy: usize, iz: usize) -> usize {
+    ix + spec.nx * (iy + spec.ny * iz)
+}
+
+fn grid_sample(values: &[f32], spec: &GridSpec, ix: isize, iy: isize, iz: isize) -> f32 {
+    let x = ix.clamp(0, spec.nx.saturating_sub(1) as isize) as usize;
+    let y = iy.clamp(0, spec.ny.saturating_sub(1) as isize) as usize;
+    let z = iz.clamp(0, spec.nz.saturating_sub(1) as isize) as usize;
+    let idx = grid_index(spec, x, y, z);
+    values.get(idx).copied().unwrap_or(0.0)
+}
+
+fn grid_gradient(values: &[f32], spec: &GridSpec, ix: usize, iy: usize, iz: usize) -> Vec3 {
+    let ix = ix as isize;
+    let iy = iy as isize;
+    let iz = iz as isize;
+    let dx = spec.dx.max(1.0e-6);
+    let fx1 = grid_sample(values, spec, ix + 1, iy, iz);
+    let fx0 = grid_sample(values, spec, ix - 1, iy, iz);
+    let fy1 = grid_sample(values, spec, ix, iy + 1, iz);
+    let fy0 = grid_sample(values, spec, ix, iy - 1, iz);
+    let fz1 = grid_sample(values, spec, ix, iy, iz + 1);
+    let fz0 = grid_sample(values, spec, ix, iy, iz - 1);
+    Vec3::new(fx1 - fx0, fy1 - fy0, fz1 - fz0) * (0.5 / dx)
+}
+
+fn is_surface_voxel(filled: &[u8], spec: &GridSpec, idx: usize) -> bool {
+    if filled.get(idx).copied().unwrap_or(0) == 0 {
+        return false;
+    }
+    let nx = spec.nx as isize;
+    let ny = spec.ny as isize;
+    let nz = spec.nz as isize;
+    let slice = (spec.nx * spec.ny) as isize;
+    let idx = idx as isize;
+    let iz = idx / slice;
+    let rem = idx - iz * slice;
+    let iy = rem / spec.nx as isize;
+    let ix = rem - iy * spec.nx as isize;
+    for (dx, dy, dz) in [
+        (-1, 0, 0),
+        (1, 0, 0),
+        (0, -1, 0),
+        (0, 1, 0),
+        (0, 0, -1),
+        (0, 0, 1),
+    ] {
+        let x = ix + dx;
+        let y = iy + dy;
+        let z = iz + dz;
+        if x < 0 || y < 0 || z < 0 || x >= nx || y >= ny || z >= nz {
+            return true;
+        }
+        let nidx = (x + nx * (y + ny * z)) as usize;
+        if filled.get(nidx).copied().unwrap_or(0) == 0 {
+            return true;
+        }
+    }
+    false
 }
 
 fn heal_bounds_contains(params: &NodeParams, position: Vec3) -> bool {

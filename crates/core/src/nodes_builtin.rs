@@ -1056,21 +1056,54 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
 fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let mut output = Geometry::default();
     if let Some(input) = inputs.first() {
-        output.splats = input.splats.clone();
         output.curves = Vec::new();
         output.volumes = input.volumes.clone();
+        output.materials = input.materials.clone();
     }
 
-    let source = inputs
-        .first()
-        .and_then(|geo| geo.merged_mesh());
-    let template = inputs
-        .get(1)
-        .and_then(|geo| geo.merged_mesh());
+    let source_mesh = inputs.first().and_then(|geo| geo.merged_mesh());
+    let source_splats = inputs.first().and_then(|geo| geo.merged_splats());
 
-    if let (Some(source), Some(template)) = (source, template) {
-        let mesh = nodes::copy_to_points::compute(params, &[source, template])?;
-        output.meshes.push(mesh);
+    let template_mesh = inputs
+        .get(1)
+        .and_then(|geo| geo.merged_mesh())
+        .filter(|mesh| !mesh.positions.is_empty());
+    let template_splats = inputs
+        .get(1)
+        .and_then(|geo| geo.merged_splats())
+        .filter(|splats| !splats.positions.is_empty());
+
+    if let Some(source) = source_mesh.as_ref() {
+        if let Some(template) = template_mesh.as_ref() {
+            let mesh =
+                nodes::copy_to_points::compute(params, &[source.clone(), template.clone()])?;
+            output.meshes.push(mesh);
+        } else if let Some(template) = template_splats.as_ref() {
+            let mesh = nodes::copy_to_points::compute_mesh_from_splats(params, source, template)?;
+            output.meshes.push(mesh);
+        }
+    }
+
+    if let Some(source) = source_splats.as_ref() {
+        if let Some(template) = template_mesh.as_ref() {
+            output
+                .splats
+                .push(nodes::copy_to_points::compute_splats_from_mesh(
+                    params,
+                    source,
+                    template,
+                )?);
+        } else if let Some(template) = template_splats.as_ref() {
+            output
+                .splats
+                .push(nodes::copy_to_points::compute_splats_from_splats(
+                    params,
+                    source,
+                    template,
+                )?);
+        } else if let Some(input) = inputs.first() {
+            output.splats = input.splats.clone();
+        }
     }
 
     Ok(output)

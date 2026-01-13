@@ -5,12 +5,15 @@ use glam::{EulerRot, Mat4, Quat, Vec3};
 use crate::attributes::{
     AttributeDomain, AttributeRef, AttributeStorage, StringTableAttribute,
 };
+use crate::geometry::merge_splats;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::parse_attribute_list, geometry_in, geometry_out,
-    group_utils::mesh_group_mask, require_mesh_input,
+    group_utils::{mesh_group_mask, splat_group_mask},
+    require_mesh_input,
 };
+use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Copy to Points";
 
@@ -42,69 +45,184 @@ pub fn default_params() -> NodeParams {
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let source = require_mesh_input(inputs, 0, "Copy to Points requires a source mesh")?;
     let template = require_mesh_input(inputs, 1, "Copy to Points requires a template mesh")?;
+    let align_to_normals = params.get_bool("align_to_normals", true);
+    let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
+    let template = template_from_mesh(params, &template, align_to_normals, &inherit)?;
+    compute_mesh_from_template(params, source, template)
+}
 
+pub fn compute_mesh_from_splats(
+    params: &NodeParams,
+    source: &Mesh,
+    template: &SplatGeo,
+) -> Result<Mesh, String> {
+    let align_to_normals = params.get_bool("align_to_normals", true);
+    let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
+    let template = template_from_splats(params, template, align_to_normals, &inherit)?;
+    compute_mesh_from_template(params, source, template)
+}
+
+pub fn compute_splats_from_mesh(
+    params: &NodeParams,
+    source: &SplatGeo,
+    template: &Mesh,
+) -> Result<SplatGeo, String> {
+    let align_to_normals = params.get_bool("align_to_normals", true);
+    let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
+    let template = template_from_mesh(params, template, align_to_normals, &inherit)?;
+    compute_splats_from_template(params, source, template)
+}
+
+pub fn compute_splats_from_splats(
+    params: &NodeParams,
+    source: &SplatGeo,
+    template: &SplatGeo,
+) -> Result<SplatGeo, String> {
+    let align_to_normals = params.get_bool("align_to_normals", true);
+    let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
+    let template = template_from_splats(params, template, align_to_normals, &inherit)?;
+    compute_splats_from_template(params, source, template)
+}
+
+struct TemplateData<'a> {
+    positions: &'a [[f32; 3]],
+    normals: Option<Vec<[f32; 3]>>,
+    selected: Vec<usize>,
+    pscale_point: Option<AttributeRef<'a>>,
+    pscale_detail: Option<AttributeRef<'a>>,
+    inherit_sources: Vec<InheritSource<'a>>,
+}
+
+struct CopySettings {
+    align_to_normals: bool,
+    user_quat: Quat,
+    base_scale: Vec3,
+    translate: Vec3,
+}
+
+fn copy_settings(params: &NodeParams) -> CopySettings {
+    let rot = Vec3::from(params.get_vec3("rotate_deg", [0.0, 0.0, 0.0]))
+        * std::f32::consts::PI
+        / 180.0;
+    CopySettings {
+        align_to_normals: params.get_bool("align_to_normals", true),
+        user_quat: Quat::from_euler(EulerRot::XYZ, rot.x, rot.y, rot.z),
+        base_scale: Vec3::from(params.get_vec3("scale", [1.0, 1.0, 1.0])),
+        translate: Vec3::from(params.get_vec3("translate", [0.0, 0.0, 0.0])),
+    }
+}
+
+fn copy_attr_info(params: &NodeParams) -> (String, AttributeDomain) {
+    let copy_attr = params.get_string("copy_attr", "copynr");
+    let copy_attr = copy_attr.trim().to_string();
+    let copy_attr_domain = copy_attr_domain(params.get_int("copy_attr_class", 0));
+    (copy_attr, copy_attr_domain)
+}
+
+fn template_from_mesh<'a>(
+    params: &NodeParams,
+    template: &'a Mesh,
+    align_to_normals: bool,
+    inherit: &[String],
+) -> Result<TemplateData<'a>, String> {
     if template.positions.is_empty() {
         return Err("Copy to Points requires template points".to_string());
     }
 
-    let align_to_normals = params.get_bool("align_to_normals", true);
-    let translate = params.get_vec3("translate", [0.0, 0.0, 0.0]);
-    let rotate_deg = params.get_vec3("rotate_deg", [0.0, 0.0, 0.0]);
-    let scale = params.get_vec3("scale", [1.0, 1.0, 1.0]);
-    let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
-    let copy_attr = params.get_string("copy_attr", "copynr");
-    let copy_attr = copy_attr.trim().to_string();
-    let copy_attr_domain = copy_attr_domain(params.get_int("copy_attr_class", 0));
+    let mask = mesh_group_mask(template, params, AttributeDomain::Point);
+    let selected = selected_indices(template.positions.len(), mask.as_deref());
+    let mut normals = None;
+    if align_to_normals {
+        let mut values = template.normals.clone().unwrap_or_default();
+        if values.len() != template.positions.len() {
+            let mut temp = template.clone();
+            if temp.normals.is_none() {
+                temp.compute_normals();
+            }
+            values = temp.normals.unwrap_or_default();
+        }
+        if values.len() == template.positions.len() {
+            normals = Some(values);
+        }
+    }
+    Ok(TemplateData {
+        positions: template.positions.as_slice(),
+        normals,
+        selected,
+        pscale_point: template.attribute(AttributeDomain::Point, "pscale"),
+        pscale_detail: template.attribute(AttributeDomain::Detail, "pscale"),
+        inherit_sources: build_inherit_sources(template, inherit),
+    })
+}
 
-    let mask = mesh_group_mask(&template, params, AttributeDomain::Point);
-    let selected: Vec<usize> = if let Some(mask) = &mask {
+fn template_from_splats<'a>(
+    params: &NodeParams,
+    template: &'a SplatGeo,
+    align_to_normals: bool,
+    inherit: &[String],
+) -> Result<TemplateData<'a>, String> {
+    if template.positions.is_empty() {
+        return Err("Copy to Points requires template points".to_string());
+    }
+
+    let mask = splat_group_mask(template, params, AttributeDomain::Point);
+    let selected = selected_indices(template.positions.len(), mask.as_deref());
+    let normals = if align_to_normals {
+        match template.attribute(AttributeDomain::Point, "N") {
+            Some(AttributeRef::Vec3(values)) if values.len() == template.positions.len() => {
+                Some(values.to_vec())
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    Ok(TemplateData {
+        positions: template.positions.as_slice(),
+        normals,
+        selected,
+        pscale_point: template.attribute(AttributeDomain::Point, "pscale"),
+        pscale_detail: template.attribute(AttributeDomain::Detail, "pscale"),
+        inherit_sources: build_inherit_sources_splats(template, inherit),
+    })
+}
+
+fn selected_indices(len: usize, mask: Option<&[bool]>) -> Vec<usize> {
+    if let Some(mask) = mask {
         mask.iter()
             .enumerate()
             .filter_map(|(idx, value)| if *value { Some(idx) } else { None })
             .collect()
     } else {
-        (0..template.positions.len()).collect()
-    };
-    if selected.is_empty() {
+        (0..len).collect()
+    }
+}
+
+fn compute_mesh_from_template(
+    params: &NodeParams,
+    source: &Mesh,
+    template: TemplateData<'_>,
+) -> Result<Mesh, String> {
+    if template.selected.is_empty() {
         return Ok(Mesh::default());
     }
 
-    let mut normals = template.normals.clone().unwrap_or_default();
-    if align_to_normals && normals.len() != template.positions.len() {
-        let mut temp = template.clone();
-        if temp.normals.is_none() {
-            temp.compute_normals();
-        }
-        normals = temp.normals.unwrap_or_default();
-    }
-
-    let rot = Vec3::from(rotate_deg) * std::f32::consts::PI / 180.0;
-    let user_quat = Quat::from_euler(EulerRot::XYZ, rot.x, rot.y, rot.z);
-    let base_scale = Vec3::from(scale);
-    let translate = Vec3::from(translate);
-    let inherit_sources = build_inherit_sources(&template, &inherit);
-    let pscale_attr = template.attribute(AttributeDomain::Point, "pscale");
-    let pscale_detail = template.attribute(AttributeDomain::Detail, "pscale");
-
-    let mut copies = Vec::with_capacity(selected.len());
-    for (copy_idx, idx) in selected.into_iter().enumerate() {
-        let pos = template.positions.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
-        let mut rotation = user_quat;
-        if align_to_normals {
-            let normal = normals.get(idx).copied().unwrap_or([0.0, 1.0, 0.0]);
-            let normal = Vec3::from(normal);
-            if normal.length_squared() > 0.0001 {
-                let align = Quat::from_rotation_arc(Vec3::Y, normal.normalize());
-                rotation = align * user_quat;
-            }
-        }
-        let pscale = sample_pscale(idx, pscale_attr, pscale_detail);
-        let scale = base_scale * pscale;
-        let matrix =
-            Mat4::from_scale_rotation_translation(scale, rotation, Vec3::from(pos) + translate);
+    let settings = copy_settings(params);
+    let (copy_attr, copy_attr_domain) = copy_attr_info(params);
+    let mut copies = Vec::with_capacity(template.selected.len());
+    for (copy_idx, idx) in template.selected.into_iter().enumerate() {
+        let matrix = build_copy_matrix(
+            &settings,
+            template.positions,
+            template.normals.as_deref(),
+            idx,
+            template.pscale_point.as_ref(),
+            template.pscale_detail.as_ref(),
+        );
         let mut mesh = source.clone();
         mesh.transform(matrix);
-        apply_inherit_attributes(&mut mesh, &inherit_sources, idx)?;
+        apply_inherit_attributes(&mut mesh, &template.inherit_sources, idx)?;
         if !copy_attr.is_empty() {
             apply_copy_index_attribute(&mut mesh, &copy_attr, copy_attr_domain, copy_idx)?;
         }
@@ -113,6 +231,67 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(Mesh::merge(&copies))
 }
 
+fn compute_splats_from_template(
+    params: &NodeParams,
+    source: &SplatGeo,
+    template: TemplateData<'_>,
+) -> Result<SplatGeo, String> {
+    if template.selected.is_empty() {
+        return Ok(SplatGeo::default());
+    }
+
+    let settings = copy_settings(params);
+    let (copy_attr, copy_attr_domain) = copy_attr_info(params);
+    let mut copies = Vec::with_capacity(template.selected.len());
+    for (copy_idx, idx) in template.selected.into_iter().enumerate() {
+        let matrix = build_copy_matrix(
+            &settings,
+            template.positions,
+            template.normals.as_deref(),
+            idx,
+            template.pscale_point.as_ref(),
+            template.pscale_detail.as_ref(),
+        );
+        let mut splats = source.clone();
+        splats.transform(matrix);
+        apply_inherit_attributes_splats(&mut splats, &template.inherit_sources, idx)?;
+        if !copy_attr.is_empty() {
+            apply_copy_index_attribute_splats(
+                &mut splats,
+                &copy_attr,
+                copy_attr_domain,
+                copy_idx,
+            )?;
+        }
+        copies.push(splats);
+    }
+    Ok(merge_splats(&copies))
+}
+
+fn build_copy_matrix(
+    settings: &CopySettings,
+    positions: &[[f32; 3]],
+    normals: Option<&[[f32; 3]]>,
+    idx: usize,
+    pscale_point: Option<&AttributeRef<'_>>,
+    pscale_detail: Option<&AttributeRef<'_>>,
+) -> Mat4 {
+    let pos = positions.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
+    let mut rotation = settings.user_quat;
+    if settings.align_to_normals {
+        let normal = normals
+            .and_then(|values| values.get(idx).copied())
+            .unwrap_or([0.0, 1.0, 0.0]);
+        let normal = Vec3::from(normal);
+        if normal.length_squared() > 0.0001 {
+            let align = Quat::from_rotation_arc(Vec3::Y, normal.normalize());
+            rotation = align * settings.user_quat;
+        }
+    }
+    let pscale = sample_pscale(idx, pscale_point, pscale_detail);
+    let scale = settings.base_scale * pscale;
+    Mat4::from_scale_rotation_translation(scale, rotation, Vec3::from(pos) + settings.translate)
+}
 #[derive(Clone)]
 struct InheritSource<'a> {
     name: String,
@@ -141,6 +320,27 @@ fn build_inherit_sources<'a>(mesh: &'a Mesh, names: &[String]) -> Vec<InheritSou
     let mut sources = Vec::new();
     for name in names {
         let Some((domain, attr)) = mesh.attribute_with_precedence(name) else {
+            continue;
+        };
+        if attr.is_empty() {
+            continue;
+        }
+        sources.push(InheritSource {
+            name: name.clone(),
+            domain,
+            attr,
+        });
+    }
+    sources
+}
+
+fn build_inherit_sources_splats<'a>(
+    splats: &'a SplatGeo,
+    names: &[String],
+) -> Vec<InheritSource<'a>> {
+    let mut sources = Vec::new();
+    for name in names {
+        let Some((domain, attr)) = splats.attribute_with_precedence(name) else {
             continue;
         };
         if attr.is_empty() {
@@ -259,6 +459,79 @@ fn apply_inherit_attributes(
     Ok(())
 }
 
+fn apply_inherit_attributes_splats(
+    splats: &mut SplatGeo,
+    sources: &[InheritSource<'_>],
+    point_index: usize,
+) -> Result<(), String> {
+    let point_count = splats.attribute_domain_len(AttributeDomain::Point);
+    for source in sources {
+        let Some(value) = sample_inherit_value(source, point_index) else {
+            continue;
+        };
+        match value {
+            InheritValue::Float(value) => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::Float(vec![value; point_count]),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+            InheritValue::Int(value) => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::Int(vec![value; point_count]),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+            InheritValue::Vec2(value) => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::Vec2(vec![value; point_count]),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+            InheritValue::Vec3(value) => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::Vec3(vec![value; point_count]),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+            InheritValue::Vec4(value) => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::Vec4(vec![value; point_count]),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+            InheritValue::StringTable { values, index } => {
+                splats
+                    .set_attribute(
+                        AttributeDomain::Point,
+                        source.name.clone(),
+                        AttributeStorage::StringTable(StringTableAttribute::new(
+                            values,
+                            vec![index; point_count],
+                        )),
+                    )
+                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn apply_copy_index_attribute(
     mesh: &mut Mesh,
     name: &str,
@@ -275,10 +548,32 @@ fn apply_copy_index_attribute(
     Ok(())
 }
 
+fn apply_copy_index_attribute_splats(
+    splats: &mut SplatGeo,
+    name: &str,
+    domain: AttributeDomain,
+    copy_idx: usize,
+) -> Result<(), String> {
+    let domain = if domain == AttributeDomain::Vertex {
+        AttributeDomain::Point
+    } else {
+        domain
+    };
+    let count = splats.attribute_domain_len(domain);
+    if count == 0 {
+        return Ok(());
+    }
+    let values = vec![copy_idx as i32; count];
+    splats
+        .set_attribute(domain, name, AttributeStorage::Int(values))
+        .map_err(|err| format!("Copy to Points attribute error: {:?}", err))?;
+    Ok(())
+}
+
 fn sample_pscale(
     point_index: usize,
-    point_attr: Option<AttributeRef<'_>>,
-    detail_attr: Option<AttributeRef<'_>>,
+    point_attr: Option<&AttributeRef<'_>>,
+    detail_attr: Option<&AttributeRef<'_>>,
 ) -> f32 {
     if let Some(AttributeRef::Float(values)) = point_attr {
         if let Some(value) = values.get(point_index) {
@@ -292,5 +587,6 @@ fn sample_pscale(
     }
     1.0
 }
+
 
 

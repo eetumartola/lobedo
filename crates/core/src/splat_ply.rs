@@ -1,6 +1,9 @@
 use crate::splat::SplatGeo;
 use crate::assets;
 
+#[allow(clippy::excessive_precision)]
+const SH_C0: f32 = 0.28209479177387814;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplatLoadMode {
     Full,
@@ -541,7 +544,15 @@ fn fill_splat_from_values(
     }
 
     if let (Some(c0), Some(c1), Some(c2)) = (indices.sh0[0], indices.sh0[1], indices.sh0[2]) {
-        splats.sh0[read] = [values[c0], values[c1], values[c2]];
+        let mut sh0 = [values[c0], values[c1], values[c2]];
+        if indices.sh0_is_coeff && splats.sh_coeffs == 0 {
+            sh0 = [
+                sh0[0] * SH_C0 + 0.5,
+                sh0[1] * SH_C0 + 0.5,
+                sh0[2] * SH_C0 + 0.5,
+            ];
+        }
+        splats.sh0[read] = sh0;
     } else if let (Some(r), Some(g), Some(b)) = (indices.color[0], indices.color[1], indices.color[2])
     {
         let mut color = [values[r], values[g], values[b]];
@@ -579,6 +590,7 @@ struct SplatPropertyIndices {
     sh0: [Option<usize>; 3],
     color: [Option<usize>; 3],
     sh_rest: Vec<Option<usize>>,
+    sh0_is_coeff: bool,
 }
 
 impl SplatPropertyIndices {
@@ -599,9 +611,18 @@ impl SplatPropertyIndices {
                 "rot_1" | "rotation_1" | "q_x" => indices.rot[1] = Some(idx),
                 "rot_2" | "rotation_2" | "q_y" => indices.rot[2] = Some(idx),
                 "rot_3" | "rotation_3" | "q_z" => indices.rot[3] = Some(idx),
-                "f_dc_0" | "sh0_0" => indices.sh0[0] = Some(idx),
-                "f_dc_1" | "sh0_1" => indices.sh0[1] = Some(idx),
-                "f_dc_2" | "sh0_2" => indices.sh0[2] = Some(idx),
+                "f_dc_0" | "sh0_0" => {
+                    indices.sh0[0] = Some(idx);
+                    indices.sh0_is_coeff = true;
+                }
+                "f_dc_1" | "sh0_1" => {
+                    indices.sh0[1] = Some(idx);
+                    indices.sh0_is_coeff = true;
+                }
+                "f_dc_2" | "sh0_2" => {
+                    indices.sh0[2] = Some(idx);
+                    indices.sh0_is_coeff = true;
+                }
                 "red" | "r" => indices.color[0] = Some(idx),
                 "green" | "g" => indices.color[1] = Some(idx),
                 "blue" | "b" => indices.color[2] = Some(idx),

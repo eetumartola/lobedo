@@ -62,6 +62,8 @@ pub(crate) struct LobedoApp {
     viewport_tools: ViewportToolState,
     last_selected_node: Option<lobedo_core::NodeId>,
     last_selection_key: Option<(lobedo_core::NodeId, u64)>,
+    last_preview_key: Option<(lobedo_core::NodeId, u64)>,
+    last_template_mesh: Option<lobedo_core::Mesh>,
     show_preferences: bool,
     info_panel: Option<NodeInfoPanel>,
     held_info_panel: Option<NodeInfoPanel>,
@@ -108,6 +110,8 @@ impl LobedoApp {
             viewport_tools: ViewportToolState::default(),
             last_selected_node: None,
             last_selection_key: None,
+            last_preview_key: None,
+            last_template_mesh: None,
             show_preferences: false,
             info_panel: None,
             held_info_panel: None,
@@ -160,6 +164,8 @@ impl LobedoApp {
             .restore_layout(&self.project.graph, &snapshot.layout);
         self.last_selected_node = snapshot.layout.selected;
         self.last_selection_key = None;
+        self.last_preview_key = None;
+        self.last_template_mesh = None;
         self.pending_scene = None;
         self.last_scene = None;
         self.last_eval_report = None;

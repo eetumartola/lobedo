@@ -51,6 +51,7 @@ pub use nodes_builtin::{
     compute_splat_node, default_params, node_definition, node_specs, BuiltinNodeKind, NodeSpec,
 };
 pub use nodes::obj_output::write_obj;
+pub use nodes::splat_merge::build_skirt_preview_mesh;
 pub use gltf_io::write_gltf;
 pub use project::{
     CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,

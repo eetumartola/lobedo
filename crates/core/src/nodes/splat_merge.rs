@@ -21,6 +21,7 @@ const DEFAULT_SKIRT_MAX_NEW: i32 = 4;
 const DEFAULT_SEAM_ALPHA: f32 = 0.5;
 const DEFAULT_SEAM_SCALE: f32 = 1.0;
 const DEFAULT_SEAM_DC_ONLY: bool = true;
+const DEFAULT_PREVIEW_SKIRT: bool = false;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -43,6 +44,7 @@ pub fn default_params() -> NodeParams {
             ("seam_alpha".to_string(), ParamValue::Float(DEFAULT_SEAM_ALPHA)),
             ("seam_scale".to_string(), ParamValue::Float(DEFAULT_SEAM_SCALE)),
             ("seam_dc_only".to_string(), ParamValue::Bool(DEFAULT_SEAM_DC_ONLY)),
+            ("preview_skirt".to_string(), ParamValue::Bool(DEFAULT_PREVIEW_SKIRT)),
         ]),
     }
 }
@@ -153,6 +155,71 @@ fn merge_skirt(params: &NodeParams, a: &SplatGeo, b: &SplatGeo) -> SplatGeo {
     let mut merged = crate::geometry::merge_splats(&[a_scaled, b_scaled]);
     append_seam_splats(&mut merged, &seam);
     merged
+}
+
+pub fn build_skirt_preview_mesh(
+    params: &NodeParams,
+    a: &SplatGeo,
+    b: &SplatGeo,
+) -> Option<Mesh> {
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+    let max_dist = params
+        .get_float("skirt_max_dist", DEFAULT_SKIRT_MAX_DIST)
+        .max(0.0);
+    let step = params
+        .get_float("skirt_step", DEFAULT_SKIRT_STEP)
+        .max(1.0e-4);
+    let max_new = params
+        .get_int("skirt_max_new", DEFAULT_SKIRT_MAX_NEW)
+        .max(0) as usize;
+    if max_dist <= 0.0 || max_new == 0 {
+        return None;
+    }
+
+    let (_, nearest) = nearest_distances(&a.positions, &b.positions, max_dist);
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+    for (idx, hit) in nearest.iter().enumerate() {
+        let Some(hit) = hit else { continue };
+        if hit.dist > max_dist {
+            continue;
+        }
+        let segments = ((hit.dist / step).ceil() as i32 - 1).max(0) as usize;
+        let count = segments.min(max_new);
+        if count == 0 {
+            continue;
+        }
+        let pos_a = Vec3::from(a.positions[idx]);
+        let pos_b = Vec3::from(b.positions[hit.index]);
+        let mut prev = pos_a;
+        for step_idx in 0..count {
+            let t = (step_idx + 1) as f32 / (count + 1) as f32;
+            let pos = pos_a.lerp(pos_b, t);
+            push_preview_segment(&mut positions, &mut indices, prev, pos);
+            prev = pos;
+        }
+        push_preview_segment(&mut positions, &mut indices, prev, pos_b);
+    }
+
+    if positions.is_empty() {
+        None
+    } else {
+        Some(Mesh::with_positions_indices(positions, indices))
+    }
+}
+
+fn push_preview_segment(
+    positions: &mut Vec<[f32; 3]>,
+    indices: &mut Vec<u32>,
+    a: Vec3,
+    b: Vec3,
+) {
+    let base = positions.len() as u32;
+    positions.push(a.to_array());
+    positions.push(b.to_array());
+    indices.extend_from_slice(&[base, base + 1, base + 1]);
 }
 
 fn build_skirt_splats(

@@ -450,7 +450,8 @@ impl NodeGraphState {
                         | (0, "skirt_max_new")
                         | (0, "seam_alpha")
                         | (0, "seam_scale")
-                        | (0, "seam_dc_only") => continue,
+                        | (0, "seam_dc_only")
+                        | (0, "preview_skirt") => continue,
                         _ => {}
                     }
                 }

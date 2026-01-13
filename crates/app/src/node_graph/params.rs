@@ -1209,6 +1209,7 @@ fn display_label(node_name: &str, key: &str) -> String {
             "seam_alpha" => "Seam Alpha",
             "seam_scale" => "Seam Scale",
             "seam_dc_only" => "Seam DC Only",
+            "preview_skirt" => "Preview Skirt",
             _ => key,
         }
         .to_string();
@@ -1217,6 +1218,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         return match key {
             "heal_shape" => "Heal Bounds",
             "method" => "Method",
+            "preview_surface" => "Preview Surface",
             "voxel_size" => "Voxel Size",
             "voxel_size_max" => "Max Voxel Dim",
             "n_sigma" => "Support Sigma",

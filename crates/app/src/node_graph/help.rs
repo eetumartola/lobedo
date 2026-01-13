@@ -41,7 +41,7 @@ pub fn node_help(node_name: &str) -> Option<&'static str> {
         "FFD" => Some("Deforms geometry using a lattice of control points."),
         "Copy/Transform" => Some("Creates multiple copies with incremental transforms."),
         "Merge" => Some("Merges all input geometry."),
-        "Copy to Points" => Some("Copies source geometry onto template points."),
+        "Copy to Points" => Some("Copies source meshes or splats onto template points."),
         "Scatter" => Some("Scatters random points over surfaces, curves, or volumes."),
         "Sweep" => Some("Sweeps a profile curve or polygon along a path curve to form a surface."),
         "Normal" => Some("Computes normals."),
@@ -185,6 +185,8 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Heal", "scale_mul") => Some("Scale multiplier for new splats."),
         ("Splat Heal", "opacity_mul") => Some("Opacity multiplier for new splats."),
         ("Splat Heal", "copy_sh") => Some("Copy full SH coefficients (else DC only)."),
+        ("Splat Heal", "preview_surface") =>
+            Some("Preview the healed surface as a mesh in the viewport."),
         ("Splat Heal", "max_m2") => Some("Exponent clamp for SDF method."),
         ("Splat Heal", "smooth_k") => Some("Smooth-min blend sharpness for SDF method."),
         ("Splat Heal", "shell_radius") => Some("Ellipsoid shell radius for SDF method."),
@@ -212,6 +214,8 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Splat Merge", "seam_alpha") => Some("Opacity for seam splats."),
         ("Splat Merge", "seam_scale") => Some("Scale multiplier for seam splats."),
         ("Splat Merge", "seam_dc_only") => Some("Use DC-only SH for seam splats."),
+        ("Splat Merge", "preview_skirt") =>
+            Some("Preview skirt geometry as a wireframe when selected."),
         ("Volume from Geometry", "mode") => Some("Volume type to generate (density or SDF)."),
         ("Volume from Geometry", "max_dim") => Some("Largest voxel dimension (grid resolution)."),
         ("Volume from Geometry", "padding") => Some("Padding around the bounds."),

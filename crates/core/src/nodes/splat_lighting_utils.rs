@@ -11,28 +11,34 @@ pub fn selected(mask: Option<&[bool]>, idx: usize) -> bool {
 pub fn average_env_coeffs(splats: &SplatGeo, mask: Option<&[bool]>) -> Vec<[f32; 3]> {
     let sh_coeffs = splats.sh_coeffs;
     let mut sum = vec![[0.0, 0.0, 0.0]; 1 + sh_coeffs];
-    let mut count = 0u32;
+    let mut weight_sum = 0.0f32;
     for idx in 0..splats.len() {
         if !selected(mask, idx) {
             continue;
         }
-        sum[0][0] += splats.sh0[idx][0];
-        sum[0][1] += splats.sh0[idx][1];
-        sum[0][2] += splats.sh0[idx][2];
+        let mut weight = splats.opacity.get(idx).copied().unwrap_or(0.0);
+        weight = 1.0 / (1.0 + (-weight).exp());
+        if !weight.is_finite() {
+            weight = 0.0;
+        }
+        weight = weight.clamp(0.0, 1.0);
+        sum[0][0] += splats.sh0[idx][0] * weight;
+        sum[0][1] += splats.sh0[idx][1] * weight;
+        sum[0][2] += splats.sh0[idx][2] * weight;
         let base = idx * sh_coeffs;
         for coeff in 0..sh_coeffs {
             if let Some(slot) = splats.sh_rest.get(base + coeff) {
-                sum[coeff + 1][0] += slot[0];
-                sum[coeff + 1][1] += slot[1];
-                sum[coeff + 1][2] += slot[2];
+                sum[coeff + 1][0] += slot[0] * weight;
+                sum[coeff + 1][1] += slot[1] * weight;
+                sum[coeff + 1][2] += slot[2] * weight;
             }
         }
-        count += 1;
+        weight_sum += weight;
     }
-    if count == 0 {
+    if weight_sum <= 1.0e-6 {
         return sum;
     }
-    let inv = 1.0 / count as f32;
+    let inv = 1.0 / weight_sum;
     for coeff in &mut sum {
         coeff[0] *= inv;
         coeff[1] *= inv;
