@@ -8,6 +8,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
+use crate::nodes::volume_to_mesh::volume_to_mesh;
 use crate::volume::{Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
@@ -65,6 +66,42 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         let mut mesh = clip_mesh_with_sdf(&mesh_a, volume, op)?;
         let source = SourceMesh::new(&mesh_a)?;
         transfer_attributes_from_sources(&mut mesh, &[source]);
+        let mesh = if op == 1 || op == 2 {
+            let mut combined = mesh;
+            let base_prims = combined.face_count();
+            if let Some(inner) = cutter_inner_surface(volume, &mesh_a, op) {
+                let inner_prims = inner.face_count();
+                append_mesh_with_defaults(&mut combined, &inner);
+                let total = combined.face_count();
+                if total == base_prims + inner_prims && total > 0 {
+                    let mut outside = vec![false; total];
+                    let mut inside = vec![false; total];
+                    for value in &mut outside[..base_prims] {
+                        *value = true;
+                    }
+                    for value in &mut inside[base_prims..] {
+                        *value = true;
+                    }
+                    combined
+                        .groups
+                        .map_mut(AttributeDomain::Primitive)
+                        .insert("outside".to_string(), outside);
+                    combined
+                        .groups
+                        .map_mut(AttributeDomain::Primitive)
+                        .insert("inside".to_string(), inside);
+                }
+            } else if base_prims > 0 {
+                combined
+                    .groups
+                    .map_mut(AttributeDomain::Primitive)
+                    .insert("outside".to_string(), vec![true; base_prims]);
+            }
+            recompute_mesh_normals(&mut combined);
+            combined
+        } else {
+            mesh
+        };
         mesh
     } else {
         let Some(mesh_b) = input_b.merged_mesh() else {
@@ -79,6 +116,43 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         vec![mesh]
     };
     Ok(output)
+}
+
+fn cutter_inner_surface(volume: &Volume, mesh_a: &Mesh, op: i32) -> Option<Mesh> {
+    if volume.kind != VolumeKind::Sdf {
+        return None;
+    }
+    let mut cutter = volume_to_mesh(volume, 0.0, false).ok()?;
+    if cutter.indices.is_empty() || cutter.positions.is_empty() {
+        return None;
+    }
+    if mesh_a.indices.is_empty() || mesh_a.positions.is_empty() {
+        return None;
+    }
+
+    let triangles_a = build_triangle_list(mesh_a);
+    if triangles_a.is_empty() {
+        return None;
+    }
+    let mut kept_indices = Vec::new();
+    for tri in cutter.indices.chunks_exact(3) {
+        let a = Vec3::from(cutter.positions[tri[0] as usize]);
+        let b = Vec3::from(cutter.positions[tri[1] as usize]);
+        let c = Vec3::from(cutter.positions[tri[2] as usize]);
+        let centroid = (a + b + c) / 3.0;
+        if is_inside_mesh(centroid, &triangles_a) {
+            if op == 1 {
+                kept_indices.extend_from_slice(&[tri[0], tri[2], tri[1]]);
+            } else {
+                kept_indices.extend_from_slice(tri);
+            }
+        }
+    }
+    cutter.indices = kept_indices;
+    if cutter.indices.is_empty() {
+        return None;
+    }
+    Some(cutter)
 }
 
 fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Result<Mesh, String> {
@@ -159,66 +233,279 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
     let sampler = VolumeSampler::new(volume);
     let mut out_positions = Vec::new();
     let mut out_indices = Vec::new();
+    let mut out_face_counts = Vec::new();
+    let mut point_map: HashMap<usize, u32> = HashMap::new();
     let target_len = volume.voxel_size.max(1.0e-4);
-    let max_depth = 6;
 
-    for tri in mesh.indices.chunks_exact(3) {
-        let p0 = Vec3::from(mesh.positions[tri[0] as usize]);
-        let p1 = Vec3::from(mesh.positions[tri[1] as usize]);
-        let p2 = Vec3::from(mesh.positions[tri[2] as usize]);
+    let face_counts = if mesh.face_counts.is_empty() {
+        if mesh.indices.len().is_multiple_of(3) {
+            vec![3u32; mesh.indices.len() / 3]
+        } else {
+            vec![mesh.indices.len() as u32]
+        }
+    } else {
+        mesh.face_counts.clone()
+    };
 
-        let mut stack = Vec::new();
-        stack.push(SdfTri::new(&sampler, p0, p1, p2, 0));
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 3 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
+        }
 
-        while let Some(tri) = stack.pop() {
-            let max_len = tri.max_edge_len();
-            if tri.depth < max_depth && max_len > target_len {
-                let (a, b, c, d) = tri.subdivide(&sampler);
-                stack.push(a);
-                stack.push(b);
-                stack.push(c);
-                stack.push(d);
-                continue;
+        let mut polygon = Vec::new();
+        for i in 0..count {
+            let idx0 = mesh.indices[cursor + i] as usize;
+            let idx1 = mesh.indices[cursor + (i + 1) % count] as usize;
+            let p0 = Vec3::from(*mesh.positions.get(idx0).unwrap_or(&[0.0, 0.0, 0.0]));
+            let p1 = Vec3::from(*mesh.positions.get(idx1).unwrap_or(&[0.0, 0.0, 0.0]));
+            let mut d0 = sampler.sample_world(p0);
+            if !d0.is_finite() {
+                d0 = 1.0e6;
             }
+            polygon.push(ClipVertex { pos: p0, dist: d0 });
 
-            let poly = clip_polygon(
-                &[
-                    ClipVertex {
-                        pos: tri.p0,
-                        dist: tri.d0,
-                    },
-                    ClipVertex {
-                        pos: tri.p1,
-                        dist: tri.d1,
-                    },
-                    ClipVertex {
-                        pos: tri.p2,
-                        dist: tri.d2,
-                    },
-                ],
-                keep_inside,
-            );
-            if poly.len() < 3 {
-                continue;
-            }
-
-            let base = out_positions.len() as u32;
-            for vertex in &poly {
-                out_positions.push(vertex.pos.to_array());
-            }
-            if poly.len() == 3 {
-                out_indices.extend_from_slice(&[base, base + 1, base + 2]);
-            } else if poly.len() == 4 {
-                out_indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-            } else {
-                for i in 1..(poly.len() - 1) {
-                    out_indices.extend_from_slice(&[base, base + i as u32, base + i as u32 + 1]);
+            let edge = p1 - p0;
+            let length = edge.length();
+            if length > target_len && target_len > 1.0e-6 {
+                let steps = (length / target_len).ceil().max(1.0) as usize;
+                if steps > 1 {
+                    let inv = 1.0 / steps as f32;
+                    for step in 1..steps {
+                        let t = step as f32 * inv;
+                        if t >= 1.0 {
+                            break;
+                        }
+                        let p = p0 + edge * t;
+                        let mut d = sampler.sample_world(p);
+                        if !d.is_finite() {
+                            d = 1.0e6;
+                        }
+                        polygon.push(ClipVertex { pos: p, dist: d });
+                    }
                 }
             }
         }
+
+        let mut any_keep = false;
+        let mut any_drop = false;
+        for vertex in &polygon {
+            let keep = if keep_inside { vertex.dist <= 0.0 } else { vertex.dist >= 0.0 };
+            if keep {
+                any_keep = true;
+            } else {
+                any_drop = true;
+            }
+        }
+
+        if !any_drop {
+            let mut face_indices = Vec::with_capacity(count);
+            for i in 0..count {
+                let src_idx = mesh.indices[cursor + i] as usize;
+                let out_idx = if let Some(existing) = point_map.get(&src_idx) {
+                    *existing
+                } else {
+                    let pos = mesh.positions.get(src_idx).copied().unwrap_or([0.0, 0.0, 0.0]);
+                    out_positions.push(pos);
+                    let idx = (out_positions.len() - 1) as u32;
+                    point_map.insert(src_idx, idx);
+                    idx
+                };
+                face_indices.push(out_idx);
+            }
+            out_indices.extend(face_indices);
+            out_face_counts.push(count as u32);
+            cursor += count;
+            continue;
+        }
+
+        if !any_keep {
+            cursor += count;
+            continue;
+        }
+
+        let clipped = clip_polygon(&polygon, keep_inside);
+        if clipped.len() < 3 {
+            cursor += count;
+            continue;
+        }
+
+        let base = out_positions.len() as u32;
+        for vertex in &clipped {
+            out_positions.push(vertex.pos.to_array());
+        }
+        out_indices.extend((0..clipped.len()).map(|i| base + i as u32));
+        out_face_counts.push(clipped.len() as u32);
+        cursor += count;
     }
 
-    Ok(Mesh::with_positions_indices(out_positions, out_indices))
+    Ok(Mesh::with_positions_faces(
+        out_positions,
+        out_indices,
+        out_face_counts,
+    ))
+}
+
+fn append_mesh_with_defaults(dst: &mut Mesh, src: &Mesh) {
+    dst.ensure_face_counts();
+    let base = dst.positions.len() as u32;
+    let src_points = src.positions.len();
+    let src_corners = src.indices.len();
+    let src_face_counts = if src.face_counts.is_empty() {
+        if src.indices.len().is_multiple_of(3) {
+            vec![3u32; src.indices.len() / 3]
+        } else if src.indices.is_empty() {
+            Vec::new()
+        } else {
+            vec![src.indices.len() as u32]
+        }
+    } else {
+        src.face_counts.clone()
+    };
+    let src_prims = src_face_counts.len();
+
+    dst.positions.extend_from_slice(&src.positions);
+    dst.indices
+        .extend(src.indices.iter().map(|idx| idx + base));
+    dst.face_counts.extend(src_face_counts);
+
+    if let Some(uvs) = &mut dst.uvs {
+        if let Some(src_uvs) = &src.uvs {
+            uvs.extend_from_slice(src_uvs);
+        } else {
+            uvs.extend(std::iter::repeat_n([0.0, 0.0], src_points));
+        }
+    }
+
+    let point_names = dst
+        .attributes
+        .map(AttributeDomain::Point)
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    for name in point_names {
+        if let Some(storage) = dst.attributes.map_mut(AttributeDomain::Point).get_mut(&name) {
+            extend_attribute_storage(storage, src_points);
+        }
+    }
+
+    let vertex_names = dst
+        .attributes
+        .map(AttributeDomain::Vertex)
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    for name in vertex_names {
+        if let Some(storage) = dst
+            .attributes
+            .map_mut(AttributeDomain::Vertex)
+            .get_mut(&name)
+        {
+            extend_attribute_storage(storage, src_corners);
+        }
+    }
+
+    let prim_names = dst
+        .attributes
+        .map(AttributeDomain::Primitive)
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    for name in prim_names {
+        if let Some(storage) = dst
+            .attributes
+            .map_mut(AttributeDomain::Primitive)
+            .get_mut(&name)
+        {
+            extend_attribute_storage(storage, src_prims);
+        }
+    }
+
+    for group in dst.groups.map_mut(AttributeDomain::Point).values_mut() {
+        group.extend(std::iter::repeat_n(false, src_points));
+    }
+    for group in dst.groups.map_mut(AttributeDomain::Vertex).values_mut() {
+        group.extend(std::iter::repeat_n(false, src_corners));
+    }
+    for group in dst.groups.map_mut(AttributeDomain::Primitive).values_mut() {
+        group.extend(std::iter::repeat_n(false, src_prims));
+    }
+}
+
+fn extend_attribute_storage(storage: &mut AttributeStorage, extra: usize) {
+    match storage {
+        AttributeStorage::Float(values) => {
+            values.extend(std::iter::repeat_n(0.0, extra));
+        }
+        AttributeStorage::Int(values) => {
+            values.extend(std::iter::repeat_n(0, extra));
+        }
+        AttributeStorage::Vec2(values) => {
+            values.extend(std::iter::repeat_n([0.0, 0.0], extra));
+        }
+        AttributeStorage::Vec3(values) => {
+            values.extend(std::iter::repeat_n([0.0, 0.0, 0.0], extra));
+        }
+        AttributeStorage::Vec4(values) => {
+            values.extend(std::iter::repeat_n([0.0, 0.0, 0.0, 0.0], extra));
+        }
+        AttributeStorage::StringTable(values) => {
+            if values.values.is_empty() {
+                values.values.push(String::new());
+            }
+            values.indices.extend(std::iter::repeat_n(0, extra));
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MeshTriangle {
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+}
+
+fn build_triangle_list(mesh: &Mesh) -> Vec<MeshTriangle> {
+    let mut tris = Vec::new();
+    let triangulation = mesh.triangulate();
+    for tri in triangulation.indices.chunks_exact(3) {
+        let a = Vec3::from(mesh.positions[tri[0] as usize]);
+        let b = Vec3::from(mesh.positions[tri[1] as usize]);
+        let c = Vec3::from(mesh.positions[tri[2] as usize]);
+        tris.push(MeshTriangle { a, b, c });
+    }
+    tris
+}
+
+fn is_inside_mesh(point: Vec3, triangles: &[MeshTriangle]) -> bool {
+    if triangles.is_empty() {
+        return false;
+    }
+    winding_number(point, triangles).abs() >= 0.5
+}
+
+fn winding_number(point: Vec3, triangles: &[MeshTriangle]) -> f32 {
+    let mut total = 0.0f32;
+    for tri in triangles {
+        let a = tri.a - point;
+        let b = tri.b - point;
+        let c = tri.c - point;
+        let la = a.length();
+        let lb = b.length();
+        let lc = c.length();
+        if la < 1.0e-8 || lb < 1.0e-8 || lc < 1.0e-8 {
+            continue;
+        }
+        let numerator = a.dot(b.cross(c));
+        let denom = la * lb * lc + a.dot(b) * lc + b.dot(c) * la + c.dot(a) * lb;
+        if denom.abs() < 1.0e-12 {
+            continue;
+        }
+        total += 2.0 * numerator.atan2(denom);
+    }
+    total / (4.0 * std::f32::consts::PI)
 }
 
 #[derive(Clone, Copy)]
@@ -264,80 +551,37 @@ fn clip_intersection(a: ClipVertex, b: ClipVertex) -> Option<ClipVertex> {
     Some(ClipVertex { pos, dist: 0.0 })
 }
 
-#[derive(Clone, Copy)]
-struct SdfTri {
-    p0: Vec3,
-    p1: Vec3,
-    p2: Vec3,
-    d0: f32,
-    d1: f32,
-    d2: f32,
-    depth: u8,
-}
-
-impl SdfTri {
-    fn new(sampler: &VolumeSampler<'_>, p0: Vec3, p1: Vec3, p2: Vec3, depth: u8) -> Self {
-        let mut d0 = sampler.sample_world(p0);
-        let mut d1 = sampler.sample_world(p1);
-        let mut d2 = sampler.sample_world(p2);
-        if !d0.is_finite() {
-            d0 = 1.0e6;
-        }
-        if !d1.is_finite() {
-            d1 = 1.0e6;
-        }
-        if !d2.is_finite() {
-            d2 = 1.0e6;
-        }
-        Self {
-            p0,
-            p1,
-            p2,
-            d0,
-            d1,
-            d2,
-            depth,
-        }
-    }
-
-    fn max_edge_len(&self) -> f32 {
-        let l01 = (self.p1 - self.p0).length();
-        let l12 = (self.p2 - self.p1).length();
-        let l20 = (self.p0 - self.p2).length();
-        l01.max(l12).max(l20)
-    }
-
-    fn subdivide(&self, sampler: &VolumeSampler<'_>) -> (Self, Self, Self, Self) {
-        let m01 = (self.p0 + self.p1) * 0.5;
-        let m12 = (self.p1 + self.p2) * 0.5;
-        let m20 = (self.p2 + self.p0) * 0.5;
-        let depth = self.depth + 1;
-        let t0 = Self::new(sampler, self.p0, m01, m20, depth);
-        let t1 = Self::new(sampler, m01, self.p1, m12, depth);
-        let t2 = Self::new(sampler, m20, m12, self.p2, depth);
-        let t3 = Self::new(sampler, m01, m12, m20, depth);
-        (t0, t1, t2, t3)
-    }
-}
-
 #[derive(Clone)]
 struct SourceMesh<'a> {
     mesh: &'a Mesh,
     positions: Vec<Vec3>,
     triangles: Vec<[u32; 3]>,
     tri_bounds: Vec<[Vec3; 2]>,
+    tri_to_face: Vec<usize>,
+    tri_corner_indices: Vec<[usize; 3]>,
     point_uvs: Option<Vec<[f32; 2]>>,
     vertex_uvs: Option<Vec<[f32; 2]>>,
 }
 
 impl<'a> SourceMesh<'a> {
     fn new(mesh: &'a Mesh) -> Result<Self, String> {
-        ensure_triangle_mesh(mesh, "Boolean Geo requires triangle mesh inputs")?;
+        let triangulation = mesh.triangulate();
+        if triangulation.indices.is_empty() {
+            return Err("Boolean Geo requires mesh inputs".to_string());
+        }
         let positions = mesh.positions.iter().copied().map(Vec3::from).collect::<Vec<_>>();
         let mut triangles = Vec::new();
         let mut tri_bounds = Vec::new();
-        for tri in mesh.indices.chunks_exact(3) {
-            let tri_idx = [tri[0], tri[1], tri[2]];
+        let mut tri_to_face = Vec::new();
+        let mut tri_corner_indices = Vec::new();
+        let tri_count = triangulation.indices.len() / 3;
+        for tri_index in 0..tri_count {
+            let base = tri_index * 3;
+            let tri_idx = [
+                *triangulation.indices.get(base).unwrap_or(&0),
+                *triangulation.indices.get(base + 1).unwrap_or(&0),
+                *triangulation.indices.get(base + 2).unwrap_or(&0),
+            ];
             let a = positions[tri_idx[0] as usize];
             let b = positions[tri_idx[1] as usize];
             let c = positions[tri_idx[2] as usize];
@@ -345,6 +589,12 @@ impl<'a> SourceMesh<'a> {
             let max = a.max(b).max(c);
             triangles.push(tri_idx);
             tri_bounds.push([min, max]);
+            tri_to_face.push(*triangulation.tri_to_face.get(tri_index).unwrap_or(&tri_index));
+            tri_corner_indices.push([
+                *triangulation.corner_indices.get(base).unwrap_or(&base),
+                *triangulation.corner_indices.get(base + 1).unwrap_or(&(base + 1)),
+                *triangulation.corner_indices.get(base + 2).unwrap_or(&(base + 2)),
+            ]);
         }
         let point_uvs = mesh.uvs.as_ref().and_then(|uvs| {
             if uvs.len() == mesh.positions.len() {
@@ -367,6 +617,8 @@ impl<'a> SourceMesh<'a> {
             positions,
             triangles,
             tri_bounds,
+            tri_to_face,
+            tri_corner_indices,
             point_uvs,
             vertex_uvs,
         })
@@ -388,6 +640,7 @@ fn transfer_attributes_from_sources(output: &mut Mesh, sources: &[SourceMesh<'_>
     let point_samples = build_point_samples(output, sources);
     let corner_samples = build_corner_samples(output, sources);
     let prim_samples = build_prim_samples(output, sources);
+    let prim_count = output.face_count();
 
     let mut attributes = MeshAttributes::default();
     let mut groups = MeshGroups::default();
@@ -407,7 +660,7 @@ fn transfer_attributes_from_sources(output: &mut Mesh, sources: &[SourceMesh<'_>
         &mut attributes,
     );
     transfer_domain_attributes(
-        output.indices.len() / 3,
+        prim_count,
         AttributeDomain::Primitive,
         sources,
         &prim_samples,
@@ -430,7 +683,7 @@ fn transfer_attributes_from_sources(output: &mut Mesh, sources: &[SourceMesh<'_>
         &mut groups,
     );
     transfer_groups(
-        output.indices.len() / 3,
+        prim_count,
         AttributeDomain::Primitive,
         sources,
         &prim_samples,
@@ -469,15 +722,13 @@ fn build_corner_samples(output: &Mesh, sources: &[SourceMesh<'_>]) -> Vec<Option
 }
 
 fn build_prim_samples(output: &Mesh, sources: &[SourceMesh<'_>]) -> Vec<Option<SampleRef>> {
-    output
-        .indices
-        .chunks_exact(3)
-        .map(|tri| {
-            let a = Vec3::from(output.positions[tri[0] as usize]);
-            let b = Vec3::from(output.positions[tri[1] as usize]);
-            let c = Vec3::from(output.positions[tri[2] as usize]);
-            nearest_triangle((a + b + c) / 3.0, sources)
-        })
+    let prim_positions = crate::nodes::attribute_utils::mesh_positions_for_domain(
+        output,
+        AttributeDomain::Primitive,
+    );
+    prim_positions
+        .iter()
+        .map(|pos| nearest_triangle(*pos, sources))
         .collect()
 }
 
@@ -714,7 +965,10 @@ fn sample_float(
                 let indices = mesh_attribute_indices(source, domain, sample.tri_index)?;
                 lerp_f32(values, indices, sample.barycentric)
             }
-            AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.get(face_index).copied()
+            }
             AttributeDomain::Detail => values.first().copied(),
         },
         _ => None,
@@ -737,7 +991,10 @@ fn sample_int(
                 let corner = indices.get(idx)?;
                 values.get(*corner).copied()
             }
-            AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.get(face_index).copied()
+            }
             AttributeDomain::Detail => values.first().copied(),
         },
         _ => None,
@@ -772,7 +1029,10 @@ fn sample_vec2(
                 let indices = mesh_attribute_indices(source, domain, sample.tri_index)?;
                 lerp_vec2(values, indices, sample.barycentric)
             }
-            AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.get(face_index).copied()
+            }
             AttributeDomain::Detail => values.first().copied(),
         },
         _ => None,
@@ -793,7 +1053,10 @@ fn sample_vec3(
                 let indices = mesh_attribute_indices(source, domain, sample.tri_index)?;
                 lerp_vec3(values, indices, sample.barycentric)
             }
-            AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.get(face_index).copied()
+            }
             AttributeDomain::Detail => values.first().copied(),
         },
         _ => None,
@@ -814,7 +1077,10 @@ fn sample_vec4(
                 let indices = mesh_attribute_indices(source, domain, sample.tri_index)?;
                 lerp_vec4(values, indices, sample.barycentric)
             }
-            AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.get(face_index).copied()
+            }
             AttributeDomain::Detail => values.first().copied(),
         },
         _ => None,
@@ -837,7 +1103,10 @@ fn sample_string(
                 let corner = *indices.get(idx)?;
                 values.value(corner).map(|v| v.to_string())
             }
-            AttributeDomain::Primitive => values.value(sample.tri_index).map(|v| v.to_string()),
+            AttributeDomain::Primitive => {
+                let face_index = sample_face_index(source, sample.tri_index);
+                values.value(face_index).map(|v| v.to_string())
+            }
             AttributeDomain::Detail => values.value(0).map(|v| v.to_string()),
         },
         _ => None,
@@ -889,7 +1158,10 @@ fn sample_group(
             let corner = *indices.get(idx)?;
             values.get(corner).copied()
         }
-        AttributeDomain::Primitive => values.get(sample.tri_index).copied(),
+        AttributeDomain::Primitive => {
+            let face_index = sample_face_index(source, sample.tri_index);
+            values.get(face_index).copied()
+        }
         AttributeDomain::Detail => None,
     }
 }
@@ -909,11 +1181,15 @@ fn mesh_attribute_indices(
             ])
         }
         AttributeDomain::Vertex => {
-            let base = tri_index * 3;
-            Some([base, base + 1, base + 2])
+            let corners = source.tri_corner_indices.get(tri_index)?;
+            Some(*corners)
         }
         _ => None,
     }
+}
+
+fn sample_face_index(source: &SourceMesh<'_>, tri_index: usize) -> usize {
+    *source.tri_to_face.get(tri_index).unwrap_or(&tri_index)
 }
 
 fn barycentric_max_index(barycentric: [f32; 3]) -> usize {

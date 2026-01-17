@@ -15,10 +15,20 @@ pub struct Aabb {
     pub max: [f32; 3],
 }
 
+#[derive(Debug, Clone)]
+pub struct Triangulation {
+    pub indices: Vec<u32>,
+    pub tri_to_face: Vec<usize>,
+    pub corner_indices: Vec<usize>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Mesh {
     pub positions: Vec<[f32; 3]>,
+    /// Polygon vertex indices in winding order. Use `face_counts` to split into primitives.
     pub indices: Vec<u32>,
+    /// Vertex counts for each polygon primitive.
+    pub face_counts: Vec<u32>,
     pub normals: Option<Vec<[f32; 3]>>,
     pub corner_normals: Option<Vec<[f32; 3]>>,
     pub uvs: Option<Vec<[f32; 2]>>,
@@ -59,9 +69,17 @@ impl Mesh {
     }
 
     pub fn with_positions_indices(positions: Vec<[f32; 3]>, indices: Vec<u32>) -> Self {
+        let face_counts = if indices.len().is_multiple_of(3) {
+            vec![3; indices.len() / 3]
+        } else if indices.is_empty() {
+            Vec::new()
+        } else {
+            vec![indices.len() as u32]
+        };
         Self {
             positions,
             indices,
+            face_counts,
             normals: None,
             corner_normals: None,
             uvs: None,
@@ -70,11 +88,112 @@ impl Mesh {
         }
     }
 
+    pub fn with_positions_faces(
+        positions: Vec<[f32; 3]>,
+        indices: Vec<u32>,
+        face_counts: Vec<u32>,
+    ) -> Self {
+        let mut mesh = Self {
+            positions,
+            indices,
+            face_counts,
+            normals: None,
+            corner_normals: None,
+            uvs: None,
+            attributes: MeshAttributes::default(),
+            groups: MeshGroups::default(),
+        };
+        mesh.ensure_face_counts();
+        mesh
+    }
+
+    pub fn ensure_face_counts(&mut self) {
+        if !self.face_counts.is_empty() || self.indices.is_empty() {
+            return;
+        }
+        if self.indices.len().is_multiple_of(3) {
+            self.face_counts = vec![3; self.indices.len() / 3];
+        } else {
+            self.face_counts = vec![self.indices.len() as u32];
+        }
+    }
+
+    pub fn face_count(&self) -> usize {
+        if !self.face_counts.is_empty() {
+            self.face_counts.len()
+        } else {
+            self.indices.len() / 3
+        }
+    }
+
+    pub fn triangle_count(&self) -> usize {
+        if self.indices.is_empty() {
+            return 0;
+        }
+        if self.face_counts.is_empty() {
+            return self.indices.len() / 3;
+        }
+        let mut tri_count = 0usize;
+        for &count in &self.face_counts {
+            if count >= 3 {
+                tri_count += (count as usize).saturating_sub(2);
+            }
+        }
+        tri_count
+    }
+
+    pub fn triangulate(&self) -> Triangulation {
+        if self.indices.is_empty() {
+            return Triangulation {
+                indices: Vec::new(),
+                tri_to_face: Vec::new(),
+                corner_indices: Vec::new(),
+            };
+        }
+        if self.face_counts.is_empty() || self.face_counts.iter().all(|&c| c == 3) {
+            let tri_count = self.indices.len() / 3;
+            let tri_to_face = (0..tri_count).collect::<Vec<_>>();
+            return Triangulation {
+                indices: self.indices.clone(),
+                tri_to_face,
+                corner_indices: (0..self.indices.len()).collect(),
+            };
+        }
+
+        let mut tri_indices = Vec::new();
+        let mut tri_faces = Vec::new();
+        let mut tri_corners = Vec::new();
+        let mut cursor = 0usize;
+        for (face_idx, &count) in self.face_counts.iter().enumerate() {
+            let count = count as usize;
+            if count < 3 || cursor + count > self.indices.len() {
+                cursor = cursor.saturating_add(count);
+                continue;
+            }
+            let first = self.indices[cursor];
+            for i in 1..(count - 1) {
+                tri_indices.push(first);
+                tri_indices.push(self.indices[cursor + i]);
+                tri_indices.push(self.indices[cursor + i + 1]);
+                tri_faces.push(face_idx);
+                tri_corners.push(cursor);
+                tri_corners.push(cursor + i);
+                tri_corners.push(cursor + i + 1);
+            }
+            cursor += count;
+        }
+        Triangulation {
+            indices: tri_indices,
+            tri_to_face: tri_faces,
+            corner_indices: tri_corners,
+        }
+    }
+
     pub fn attribute_domain_len(&self, domain: AttributeDomain) -> usize {
         match domain {
             AttributeDomain::Point => self.positions.len(),
             AttributeDomain::Vertex => self.indices.len(),
-            AttributeDomain::Primitive => self.indices.len() / 3,
+            AttributeDomain::Primitive => self.face_count(),
             AttributeDomain::Detail => 1,
         }
     }
@@ -264,13 +383,17 @@ impl Mesh {
     }
 
     pub fn compute_normals(&mut self) -> bool {
-        if !self.indices.len().is_multiple_of(3) || self.positions.is_empty() {
+        if self.indices.is_empty() || self.positions.is_empty() {
             return false;
         }
 
         let mut accum = vec![Vec3::ZERO; self.positions.len()];
 
-        for tri in self.indices.chunks_exact(3) {
+        let triangulation = self.triangulate();
+        if triangulation.indices.len() < 3 {
+            return false;
+        }
+        for tri in triangulation.indices.chunks_exact(3) {
             let i0 = tri[0] as usize;
             let i1 = tri[1] as usize;
             let i2 = tri[2] as usize;
@@ -308,7 +431,7 @@ impl Mesh {
     }
 
     pub fn compute_normals_with_threshold(&mut self, threshold_degrees: f32) -> bool {
-        if !self.indices.len().is_multiple_of(3) || self.positions.is_empty() {
+        if self.indices.is_empty() || self.positions.is_empty() {
             return false;
         }
 
@@ -318,31 +441,78 @@ impl Mesh {
         }
 
         let cos_threshold = threshold.to_radians().cos();
-        let tri_count = self.indices.len() / 3;
-        let mut face_normals = Vec::with_capacity(tri_count);
-        let mut face_indices = Vec::with_capacity(tri_count);
-
-        for tri in self.indices.chunks_exact(3) {
-            let i0 = tri[0] as usize;
-            let i1 = tri[1] as usize;
-            let i2 = tri[2] as usize;
-            if i0 >= self.positions.len()
-                || i1 >= self.positions.len()
-                || i2 >= self.positions.len()
-            {
-                return false;
+        let mut face_normals = Vec::with_capacity(self.face_count());
+        let mut face_indices = Vec::with_capacity(self.face_count());
+        let mut cursor = 0usize;
+        let face_counts = if self.face_counts.is_empty() {
+            if self.indices.len().is_multiple_of(3) {
+                vec![3u32; self.indices.len() / 3]
+            } else if !self.indices.is_empty() {
+                vec![self.indices.len() as u32]
+            } else {
+                Vec::new()
             }
-            let p0 = Vec3::from(self.positions[i0]);
-            let p1 = Vec3::from(self.positions[i1]);
-            let p2 = Vec3::from(self.positions[i2]);
-            let normal = (p1 - p0).cross(p2 - p0);
+        } else {
+            self.face_counts.clone()
+        };
+
+        for &count in &face_counts {
+            let count = count as usize;
+            if count < 3 || cursor + count > self.indices.len() {
+                cursor = cursor.saturating_add(count);
+                continue;
+            }
+            let mut indices = Vec::with_capacity(count);
+            for i in 0..count {
+                indices.push(self.indices[cursor + i] as usize);
+            }
+            let mut normal = Vec3::ZERO;
+            for i in 0..count {
+                let p0 = Vec3::from(
+                    *self
+                        .positions
+                        .get(indices[i])
+                        .unwrap_or(&[0.0, 0.0, 0.0]),
+                );
+                let p1 = Vec3::from(
+                    *self
+                        .positions
+                        .get(indices[(i + 1) % count])
+                        .unwrap_or(&[0.0, 0.0, 0.0]),
+                );
+                normal.x += (p0.y - p1.y) * (p0.z + p1.z);
+                normal.y += (p0.z - p1.z) * (p0.x + p1.x);
+                normal.z += (p0.x - p1.x) * (p0.y + p1.y);
+            }
+            if normal.length_squared() <= 0.0 && count >= 3 {
+                let p0 = Vec3::from(
+                    *self
+                        .positions
+                        .get(indices[0])
+                        .unwrap_or(&[0.0, 0.0, 0.0]),
+                );
+                let p1 = Vec3::from(
+                    *self
+                        .positions
+                        .get(indices[1])
+                        .unwrap_or(&[0.0, 0.0, 0.0]),
+                );
+                let p2 = Vec3::from(
+                    *self
+                        .positions
+                        .get(indices[2])
+                        .unwrap_or(&[0.0, 0.0, 0.0]),
+                );
+                normal = (p1 - p0).cross(p2 - p0);
+            }
             let normal = if normal.length_squared() > 0.0 {
                 normal.normalize()
             } else {
                 Vec3::Y
             };
             face_normals.push(normal);
-            face_indices.push([i0, i1, i2]);
+            face_indices.push(indices);
+            cursor += count;
         }
 
         let mut groups = std::collections::HashMap::new();
@@ -383,6 +553,12 @@ impl Mesh {
                 };
                 corner_normals.push(sum.to_array());
             }
+        }
+
+        if corner_normals.len() != self.indices.len() {
+            let _ = self.compute_normals();
+            self.corner_normals = None;
+            return false;
         }
 
         let _ = self.compute_normals();
@@ -441,6 +617,17 @@ impl Mesh {
             merged
                 .indices
                 .extend(mesh.indices.iter().map(|i| i + vertex_offset));
+            if mesh.face_counts.is_empty() {
+                if mesh.indices.len().is_multiple_of(3) {
+                    merged
+                        .face_counts
+                        .extend(std::iter::repeat_n(3u32, mesh.indices.len() / 3));
+                } else if !mesh.indices.is_empty() {
+                    merged.face_counts.push(mesh.indices.len() as u32);
+                }
+            } else {
+                merged.face_counts.extend_from_slice(&mesh.face_counts);
+            }
             vertex_offset += mesh.positions.len() as u32;
         }
 

@@ -135,6 +135,17 @@ fn map_group_mask(
     }
 
     let mut out = vec![false; target_len];
+    let face_counts = if mesh.face_counts.is_empty() {
+        if mesh.indices.len().is_multiple_of(3) {
+            vec![3u32; mesh.indices.len() / 3]
+        } else if mesh.indices.is_empty() {
+            Vec::new()
+        } else {
+            vec![mesh.indices.len() as u32]
+        }
+    } else {
+        mesh.face_counts.clone()
+    };
     match (source_domain, target_domain) {
         (AttributeDomain::Point, AttributeDomain::Vertex) => {
             for (vertex_index, point_index) in mesh.indices.iter().enumerate() {
@@ -146,18 +157,24 @@ fn map_group_mask(
             }
         }
         (AttributeDomain::Point, AttributeDomain::Primitive) => {
-            for (prim_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
-                let a = tri[0] as usize;
-                let b = tri[1] as usize;
-                let c = tri[2] as usize;
-                if mask.get(a).copied().unwrap_or(false)
-                    || mask.get(b).copied().unwrap_or(false)
-                    || mask.get(c).copied().unwrap_or(false)
-                {
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
+                let mut hit = false;
+                for i in 0..count {
+                    if let Some(idx) = mesh.indices.get(cursor + i) {
+                        if mask.get(*idx as usize).copied().unwrap_or(false) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+                if hit {
                     if let Some(slot) = out.get_mut(prim_index) {
                         *slot = true;
                     }
                 }
+                cursor += count;
             }
         }
         (AttributeDomain::Vertex, AttributeDomain::Point) => {
@@ -170,43 +187,52 @@ fn map_group_mask(
             }
         }
         (AttributeDomain::Vertex, AttributeDomain::Primitive) => {
-            for (prim_index, _tri) in mesh.indices.chunks_exact(3).enumerate() {
-                let base = prim_index * 3;
-                if mask.get(base).copied().unwrap_or(false)
-                    || mask.get(base + 1).copied().unwrap_or(false)
-                    || mask.get(base + 2).copied().unwrap_or(false)
-                {
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
+                let mut hit = false;
+                for i in 0..count {
+                    if mask.get(cursor + i).copied().unwrap_or(false) {
+                        hit = true;
+                        break;
+                    }
+                }
+                if hit {
                     if let Some(slot) = out.get_mut(prim_index) {
                         *slot = true;
                     }
                 }
+                cursor += count;
             }
         }
         (AttributeDomain::Primitive, AttributeDomain::Point) => {
-            for (prim_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
                 if mask.get(prim_index).copied().unwrap_or(false) {
-                    for &idx in tri {
-                        if let Some(slot) = out.get_mut(idx as usize) {
+                    for i in 0..count {
+                        if let Some(idx) = mesh.indices.get(cursor + i) {
+                            if let Some(slot) = out.get_mut(*idx as usize) {
+                                *slot = true;
+                            }
+                        }
+                    }
+                }
+                cursor += count;
+            }
+        }
+        (AttributeDomain::Primitive, AttributeDomain::Vertex) => {
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
+                if mask.get(prim_index).copied().unwrap_or(false) {
+                    for i in 0..count {
+                        if let Some(slot) = out.get_mut(cursor + i) {
                             *slot = true;
                         }
                     }
                 }
-            }
-        }
-        (AttributeDomain::Primitive, AttributeDomain::Vertex) => {
-            for (prim_index, _tri) in mesh.indices.chunks_exact(3).enumerate() {
-                if mask.get(prim_index).copied().unwrap_or(false) {
-                    let base = prim_index * 3;
-                    if let Some(slot) = out.get_mut(base) {
-                        *slot = true;
-                    }
-                    if let Some(slot) = out.get_mut(base + 1) {
-                        *slot = true;
-                    }
-                    if let Some(slot) = out.get_mut(base + 2) {
-                        *slot = true;
-                    }
-                }
+                cursor += count;
             }
         }
         _ => {}

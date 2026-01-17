@@ -304,6 +304,6 @@ mod tests {
         apply_to_mesh(&params, &mut mesh).expect("group");
         let group = mesh.groups.map(AttributeDomain::Primitive).get("keep").unwrap();
         let count = group.iter().filter(|v| **v).count();
-        assert_eq!(count, mesh.indices.len() / 3);
+        assert_eq!(count, mesh.face_count());
     }
 }

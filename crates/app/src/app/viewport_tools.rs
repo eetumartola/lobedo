@@ -2113,7 +2113,12 @@ fn pick_selection_index(
                     {
                         return None;
                     }
-                    Some((idx, Vec3::from(world)))
+                    let corner = mesh
+                        .corner_indices
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(idx as u32) as usize;
+                    Some((corner, Vec3::from(world)))
                 }),
             view_proj,
             rect,
@@ -2192,7 +2197,12 @@ fn selection_indices_in_rect(
                         project_world_to_screen(view_proj, rect, Vec3::from(*world))
                     {
                         if selection_rect.contains(screen) {
-                            out.insert(idx);
+                            let corner = mesh
+                                .corner_indices
+                                .get(idx)
+                                .copied()
+                                .unwrap_or(idx as u32) as usize;
+                            out.insert(corner);
                         }
                     }
                 }
@@ -2229,7 +2239,12 @@ fn selection_indices_in_rect(
                     || selection_rect.contains(s2)
                     || rect_corners_in_triangle(selection_rect, s0, s1, s2)
                 {
-                    out.insert(idx);
+                    let face = mesh
+                        .tri_to_face
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(idx as u32) as usize;
+                    out.insert(face);
                 }
             }
         }
@@ -2317,11 +2332,16 @@ fn pick_primitive_index(
             None => continue,
         };
         let depth = (d0 + d1 + d2) / 3.0;
+        let face = mesh
+            .tri_to_face
+            .get(idx)
+            .copied()
+            .unwrap_or(idx as u32) as usize;
         if point_in_triangle(mouse, s0, s1, s2, 0.5) {
             if depth < best_depth {
                 best_depth = depth;
                 best_dist = 0.0;
-                best_idx = Some(idx);
+                best_idx = Some(face);
             }
             continue;
         }
@@ -2329,7 +2349,7 @@ fn pick_primitive_index(
         if dist <= threshold && (dist < best_dist || (dist == best_dist && depth < best_depth)) {
             best_dist = dist;
             best_depth = depth;
-            best_idx = Some(idx);
+            best_idx = Some(face);
         }
     }
     best_idx
@@ -2423,8 +2443,11 @@ fn draw_group_selection_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node
                 }
             }
             AttributeDomain::Vertex => {
-                for idx in selection {
-                    let Some(point_index) = mesh.indices.get(idx).copied() else {
+                for (tri_corner_idx, corner_idx) in mesh.corner_indices.iter().enumerate() {
+                    if !selection.contains(&(*corner_idx as usize)) {
+                        continue;
+                    }
+                    let Some(point_index) = mesh.indices.get(tri_corner_idx).copied() else {
                         continue;
                     };
                     let Some(pos) = mesh.positions.get(point_index as usize) else {
@@ -2438,32 +2461,78 @@ fn draw_group_selection_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node
                 }
             }
             AttributeDomain::Primitive => {
-                for idx in selection {
-                    let tri = match mesh.indices.get(idx * 3..idx * 3 + 3) {
-                        Some(tri) => tri,
-                        None => continue,
-                    };
-                    let Some(p0) = mesh.positions.get(tri[0] as usize) else {
-                        continue;
-                    };
-                    let Some(p1) = mesh.positions.get(tri[1] as usize) else {
-                        continue;
-                    };
-                    let Some(p2) = mesh.positions.get(tri[2] as usize) else {
-                        continue;
-                    };
-                    let Some(s0) = project_world_to_screen(view_proj, rect, Vec3::from(*p0)) else {
-                        continue;
-                    };
-                    let Some(s1) = project_world_to_screen(view_proj, rect, Vec3::from(*p1)) else {
-                        continue;
-                    };
-                    let Some(s2) = project_world_to_screen(view_proj, rect, Vec3::from(*p2)) else {
-                        continue;
-                    };
-                    painter.line_segment([s0, s1], stroke);
-                    painter.line_segment([s1, s2], stroke);
-                    painter.line_segment([s2, s0], stroke);
+                if !mesh.poly_face_counts.is_empty() && !mesh.poly_indices.is_empty() {
+                    let mut cursor = 0usize;
+                    for (face_idx, count) in mesh.poly_face_counts.iter().enumerate() {
+                        let count = *count as usize;
+                        if count < 2 || cursor + count > mesh.poly_indices.len() {
+                            cursor = cursor.saturating_add(count);
+                            continue;
+                        }
+                        if !selection.contains(&face_idx) {
+                            cursor += count;
+                            continue;
+                        }
+                        for i in 0..count {
+                            let a = mesh.poly_indices[cursor + i] as usize;
+                            let b = mesh.poly_indices[cursor + (i + 1) % count] as usize;
+                            let (Some(p0), Some(p1)) =
+                                (mesh.positions.get(a), mesh.positions.get(b))
+                            else {
+                                continue;
+                            };
+                            let Some(s0) =
+                                project_world_to_screen(view_proj, rect, Vec3::from(*p0))
+                            else {
+                                continue;
+                            };
+                            let Some(s1) =
+                                project_world_to_screen(view_proj, rect, Vec3::from(*p1))
+                            else {
+                                continue;
+                            };
+                            painter.line_segment([s0, s1], stroke);
+                        }
+                        cursor += count;
+                    }
+                } else {
+                    for (tri_idx, tri) in mesh.indices.chunks_exact(3).enumerate() {
+                        let face_idx = mesh
+                            .tri_to_face
+                            .get(tri_idx)
+                            .copied()
+                            .unwrap_or(tri_idx as u32) as usize;
+                        if !selection.contains(&face_idx) {
+                            continue;
+                        }
+                        let Some(p0) = mesh.positions.get(tri[0] as usize) else {
+                            continue;
+                        };
+                        let Some(p1) = mesh.positions.get(tri[1] as usize) else {
+                            continue;
+                        };
+                        let Some(p2) = mesh.positions.get(tri[2] as usize) else {
+                            continue;
+                        };
+                        let Some(s0) =
+                            project_world_to_screen(view_proj, rect, Vec3::from(*p0))
+                        else {
+                            continue;
+                        };
+                        let Some(s1) =
+                            project_world_to_screen(view_proj, rect, Vec3::from(*p1))
+                        else {
+                            continue;
+                        };
+                        let Some(s2) =
+                            project_world_to_screen(view_proj, rect, Vec3::from(*p2))
+                        else {
+                            continue;
+                        };
+                        painter.line_segment([s0, s1], stroke);
+                        painter.line_segment([s1, s2], stroke);
+                        painter.line_segment([s2, s0], stroke);
+                    }
                 }
             }
             _ => {}

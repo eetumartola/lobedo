@@ -73,9 +73,8 @@ fn build_circle_mesh(params: &NodeParams) -> Mesh {
         .clamp(3, 10_000) as usize;
     let center = Vec3::from(params.get_vec3("center", [0.0, 0.0, 0.0]));
 
-    let mut positions = Vec::with_capacity(segments + 1);
-    let mut indices = Vec::with_capacity(segments * 3);
-    positions.push([0.0, 0.0, 0.0]);
+    let mut positions = Vec::with_capacity(segments);
+    let mut indices = Vec::with_capacity(segments);
     for i in 0..segments {
         let t = i as f32 / segments as f32;
         let angle = std::f32::consts::TAU * t;
@@ -84,18 +83,9 @@ fn build_circle_mesh(params: &NodeParams) -> Mesh {
         positions.push([x, 0.0, z]);
     }
 
-    for i in 0..segments {
-        let a = 0u32;
-        let b = (i + 1) as u32;
-        let c = if i + 1 < segments {
-            (i + 2) as u32
-        } else {
-            1u32
-        };
-        indices.extend_from_slice(&[a, b, c]);
-    }
+    indices.extend((0..segments).map(|i| i as u32));
 
-    let mut mesh = Mesh::with_positions_indices(positions, indices);
+    let mut mesh = Mesh::with_positions_faces(positions, indices, vec![segments as u32]);
     mesh.transform(Mat4::from_translation(center));
     if mesh.normals.is_none() {
         mesh.compute_normals();

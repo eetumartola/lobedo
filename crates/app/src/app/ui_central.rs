@@ -659,7 +659,7 @@ impl LobedoApp {
             return;
         }
 
-        ui.label(format!("Triangles: {}", mesh.indices.len() / 3));
+        ui.label(format!("Triangles: {}", mesh.triangle_count()));
         ui.add_space(6.0);
         let height = 240.0;
         let width = ui.available_width().max(160.0);

@@ -81,10 +81,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
 
     let merged_mesh = input.merged_mesh();
     if let Some(mesh) = merged_mesh.as_ref() {
-        if !mesh.positions.is_empty()
-            && mesh.indices.len() >= 3
-            && mesh.indices.len().is_multiple_of(3)
-        {
+        if !mesh.positions.is_empty() && mesh.triangle_count() > 0 {
             let mask = mesh_group_mask(mesh, params, AttributeDomain::Primitive);
             let mesh = scatter_points(
                 mesh,
@@ -146,9 +143,17 @@ fn scatter_points(
     if count == 0 {
         return Ok(Mesh::default());
     }
-    if !input.indices.len().is_multiple_of(3) || input.positions.is_empty() {
-        return Err("Scatter requires a triangle mesh input".to_string());
+    if input.positions.is_empty() || input.triangle_count() == 0 {
+        return Err("Scatter requires a polygon mesh input".to_string());
     }
+
+    let triangulation = input.triangulate();
+    if triangulation.indices.is_empty() {
+        return Err("Scatter requires a polygon mesh input".to_string());
+    }
+    let tri_indices = triangulation.indices;
+    let tri_faces = triangulation.tri_to_face;
+    let tri_corners = triangulation.corner_indices;
 
     let density_source: Option<DensitySource<'_>> =
         density_attr.and_then(|name| mesh_density_source(input, name));
@@ -157,17 +162,20 @@ fn scatter_points(
 
     let mut areas = Vec::new();
     let mut total = 0.0f32;
-    for (prim_index, tri) in input.indices.chunks_exact(3).enumerate() {
+    let tri_count = tri_indices.len() / 3;
+    for tri_index in 0..tri_count {
+        let base = tri_index * 3;
+        let face_index = *tri_faces.get(tri_index).unwrap_or(&tri_index);
         if mask
             .as_ref()
-            .is_some_and(|mask| !mask.get(prim_index).copied().unwrap_or(false))
+            .is_some_and(|mask| !mask.get(face_index).copied().unwrap_or(false))
         {
             areas.push(total);
             continue;
         }
-        let i0 = tri[0] as usize;
-        let i1 = tri[1] as usize;
-        let i2 = tri[2] as usize;
+        let i0 = *tri_indices.get(base).unwrap_or(&0) as usize;
+        let i1 = *tri_indices.get(base + 1).unwrap_or(&0) as usize;
+        let i2 = *tri_indices.get(base + 2).unwrap_or(&0) as usize;
         if i0 >= input.positions.len() || i1 >= input.positions.len() || i2 >= input.positions.len()
         {
             areas.push(total);
@@ -177,10 +185,19 @@ fn scatter_points(
         let p1 = Vec3::from(input.positions[i1]);
         let p2 = Vec3::from(input.positions[i2]);
         let area = 0.5 * (p1 - p0).cross(p2 - p0).length();
+        let corner_indices = [
+            *tri_corners.get(base).unwrap_or(&base),
+            *tri_corners.get(base + 1).unwrap_or(&(base + 1)),
+            *tri_corners.get(base + 2).unwrap_or(&(base + 2)),
+        ];
         let density = density_source
             .as_ref()
             .map(|source| {
-                map_density_value(source.sample(prim_index, i0, i1, i2), density_min, density_max)
+                map_density_value(
+                    source.sample(face_index, corner_indices, [i0, i1, i2]),
+                    density_min,
+                    density_max,
+                )
             })
             .unwrap_or(1.0);
         let weight = area.max(0.0) * density.max(0.0);
@@ -203,13 +220,16 @@ fn scatter_points(
     for _ in 0..count {
         let sample = rng.next_f32() * total;
         let tri_index = find_area_index(&areas, sample);
-        let tri = input
-            .indices
-            .get(tri_index * 3..tri_index * 3 + 3)
-            .ok_or_else(|| "scatter triangle index out of range".to_string())?;
-        let i0 = tri[0] as usize;
-        let i1 = tri[1] as usize;
-        let i2 = tri[2] as usize;
+        let base = tri_index * 3;
+        let i0 = *tri_indices
+            .get(base)
+            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
+        let i1 = *tri_indices
+            .get(base + 1)
+            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
+        let i2 = *tri_indices
+            .get(base + 2)
+            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
         let p0 = Vec3::from(input.positions[i0]);
         let p1 = Vec3::from(input.positions[i1]);
         let p2 = Vec3::from(input.positions[i2]);
@@ -235,21 +255,19 @@ fn scatter_points(
         apply_mesh_inherit(
             &inherit_sources,
             &mut inherit_buffers,
-            tri_index,
+            *tri_faces.get(tri_index).unwrap_or(&tri_index),
+            [
+                *tri_corners.get(base).unwrap_or(&base),
+                *tri_corners.get(base + 1).unwrap_or(&(base + 1)),
+                *tri_corners.get(base + 2).unwrap_or(&(base + 2)),
+            ],
             [i0, i1, i2],
             weights,
         );
     }
 
-    let mut mesh = Mesh {
-        positions,
-        indices: Vec::new(),
-        normals: Some(normals),
-        corner_normals: None,
-        uvs: None,
-        attributes: Default::default(),
-        groups: Default::default(),
-    };
+    let mut mesh = Mesh::with_positions_indices(positions, Vec::new());
+    mesh.normals = Some(normals);
     apply_inherit_buffers(&mut mesh, inherit_buffers)?;
     Ok(mesh)
 }
@@ -333,15 +351,8 @@ fn scatter_curves(
         );
     }
 
-    let mut mesh = Mesh {
-        positions: out_positions,
-        indices: Vec::new(),
-        normals: Some(normals),
-        corner_normals: None,
-        uvs: None,
-        attributes: Default::default(),
-        groups: Default::default(),
-    };
+    let mut mesh = Mesh::with_positions_indices(out_positions, Vec::new());
+    mesh.normals = Some(normals);
     apply_inherit_buffers(&mut mesh, inherit_buffers)?;
     Ok(mesh)
 }
@@ -389,15 +400,9 @@ fn scatter_volume(volume: &Volume, count: usize, seed: u32) -> Result<Mesh, Stri
         }
     }
 
-    Ok(Mesh {
-        positions: out_positions,
-        indices: Vec::new(),
-        normals: Some(normals),
-        corner_normals: None,
-        uvs: None,
-        attributes: Default::default(),
-        groups: Default::default(),
-    })
+    let mut mesh = Mesh::with_positions_indices(out_positions, Vec::new());
+    mesh.normals = Some(normals);
+    Ok(mesh)
 }
 
 fn find_area_index(cumulative: &[f32], sample: f32) -> usize {
@@ -428,14 +433,16 @@ struct DensitySource<'a> {
 }
 
 impl<'a> DensitySource<'a> {
-    fn sample(&self, prim_index: usize, i0: usize, i1: usize, i2: usize) -> f32 {
+    fn sample(
+        &self,
+        face_index: usize,
+        corner_indices: [usize; 3],
+        point_indices: [usize; 3],
+    ) -> f32 {
         match self.domain {
-            AttributeDomain::Point => sample_numeric_point(self.attr, [i0, i1, i2]),
-            AttributeDomain::Vertex => {
-                let base = prim_index * 3;
-                sample_numeric_point(self.attr, [base, base + 1, base + 2])
-            }
-            AttributeDomain::Primitive => sample_numeric_single(self.attr, prim_index),
+            AttributeDomain::Point => sample_numeric_point(self.attr, point_indices),
+            AttributeDomain::Vertex => sample_numeric_point(self.attr, corner_indices),
+            AttributeDomain::Primitive => sample_numeric_single(self.attr, face_index),
             AttributeDomain::Detail => sample_numeric_single(self.attr, 0),
         }
     }
@@ -584,7 +591,8 @@ fn build_inherit_buffers(sources: &[InheritSource<'_>], count: usize) -> Vec<Inh
 fn apply_mesh_inherit(
     sources: &[InheritSource<'_>],
     buffers: &mut [InheritBuffer],
-    prim_index: usize,
+    face_index: usize,
+    corner_indices: [usize; 3],
     point_indices: [usize; 3],
     weights: [f32; 3],
 ) {
@@ -594,11 +602,10 @@ fn apply_mesh_inherit(
                 values.push(sample_numeric_weighted(*attr, point_indices, weights));
             }
             (AttributeDomain::Vertex, attr, InheritBuffer::Float { values, .. }) => {
-                let base = prim_index * 3;
-                values.push(sample_numeric_weighted(*attr, [base, base + 1, base + 2], weights));
+                values.push(sample_numeric_weighted(*attr, corner_indices, weights));
             }
             (AttributeDomain::Primitive, attr, InheritBuffer::Float { values, .. }) => {
-                values.push(sample_numeric_single(*attr, prim_index));
+                values.push(sample_numeric_single(*attr, face_index));
             }
             (AttributeDomain::Detail, attr, InheritBuffer::Float { values, .. }) => {
                 values.push(sample_numeric_single(*attr, 0));
@@ -607,11 +614,10 @@ fn apply_mesh_inherit(
                 values.push(sample_int_weighted(*attr, point_indices, weights));
             }
             (AttributeDomain::Vertex, attr, InheritBuffer::Int { values, .. }) => {
-                let base = prim_index * 3;
-                values.push(sample_int_weighted(*attr, [base, base + 1, base + 2], weights));
+                values.push(sample_int_weighted(*attr, corner_indices, weights));
             }
             (AttributeDomain::Primitive, attr, InheritBuffer::Int { values, .. }) => {
-                values.push(sample_int_single(*attr, prim_index));
+                values.push(sample_int_single(*attr, face_index));
             }
             (AttributeDomain::Detail, attr, InheritBuffer::Int { values, .. }) => {
                 values.push(sample_int_single(*attr, 0));
@@ -620,11 +626,10 @@ fn apply_mesh_inherit(
                 values.push(sample_vec2_weighted(*attr, point_indices, weights));
             }
             (AttributeDomain::Vertex, attr, InheritBuffer::Vec2 { values, .. }) => {
-                let base = prim_index * 3;
-                values.push(sample_vec2_weighted(*attr, [base, base + 1, base + 2], weights));
+                values.push(sample_vec2_weighted(*attr, corner_indices, weights));
             }
             (AttributeDomain::Primitive, attr, InheritBuffer::Vec2 { values, .. }) => {
-                values.push(sample_vec2_single(*attr, prim_index));
+                values.push(sample_vec2_single(*attr, face_index));
             }
             (AttributeDomain::Detail, attr, InheritBuffer::Vec2 { values, .. }) => {
                 values.push(sample_vec2_single(*attr, 0));
@@ -633,11 +638,10 @@ fn apply_mesh_inherit(
                 values.push(sample_vec3_weighted(*attr, point_indices, weights));
             }
             (AttributeDomain::Vertex, attr, InheritBuffer::Vec3 { values, .. }) => {
-                let base = prim_index * 3;
-                values.push(sample_vec3_weighted(*attr, [base, base + 1, base + 2], weights));
+                values.push(sample_vec3_weighted(*attr, corner_indices, weights));
             }
             (AttributeDomain::Primitive, attr, InheritBuffer::Vec3 { values, .. }) => {
-                values.push(sample_vec3_single(*attr, prim_index));
+                values.push(sample_vec3_single(*attr, face_index));
             }
             (AttributeDomain::Detail, attr, InheritBuffer::Vec3 { values, .. }) => {
                 values.push(sample_vec3_single(*attr, 0));
@@ -646,11 +650,10 @@ fn apply_mesh_inherit(
                 values.push(sample_vec4_weighted(*attr, point_indices, weights));
             }
             (AttributeDomain::Vertex, attr, InheritBuffer::Vec4 { values, .. }) => {
-                let base = prim_index * 3;
-                values.push(sample_vec4_weighted(*attr, [base, base + 1, base + 2], weights));
+                values.push(sample_vec4_weighted(*attr, corner_indices, weights));
             }
             (AttributeDomain::Primitive, attr, InheritBuffer::Vec4 { values, .. }) => {
-                values.push(sample_vec4_single(*attr, prim_index));
+                values.push(sample_vec4_single(*attr, face_index));
             }
             (AttributeDomain::Detail, attr, InheritBuffer::Vec4 { values, .. }) => {
                 values.push(sample_vec4_single(*attr, 0));
@@ -660,12 +663,11 @@ fn apply_mesh_inherit(
                 indices.push(idx);
             }
             (AttributeDomain::Vertex, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
-                let base = prim_index * 3;
-                let idx = select_string_index(values, [base, base + 1, base + 2], weights);
+                let idx = select_string_index(values, corner_indices, weights);
                 indices.push(idx);
             }
             (AttributeDomain::Primitive, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
-                indices.push(select_string_single(values, prim_index));
+                indices.push(select_string_single(values, face_index));
             }
             (AttributeDomain::Detail, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
                 indices.push(select_string_single(values, 0));

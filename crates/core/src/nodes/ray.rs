@@ -118,7 +118,9 @@ struct HitInfo {
 enum HitSource {
     Mesh {
         mesh_index: usize,
-        tri_index: usize,
+        face_index: usize,
+        point_indices: [usize; 3],
+        corner_indices: [usize; 3],
         barycentric: [f32; 3],
     },
     Splat {
@@ -594,14 +596,23 @@ fn find_ray_hit(
 }
 
 fn closest_hit_mesh(origin: Vec3, mesh: &Mesh, mesh_index: usize) -> Option<HitInfo> {
-    if mesh.indices.len() < 3 {
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.len() < 3 {
         return None;
     }
+    let tri_indices = &triangulation.indices;
+    let tri_corners = &triangulation.corner_indices;
+    let tri_faces = &triangulation.tri_to_face;
+    let tri_count = tri_indices.len() / 3;
     let mut best: Option<HitInfo> = None;
-    for (tri_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
-        let a = Vec3::from(*mesh.positions.get(tri[0] as usize)?);
-        let b = Vec3::from(*mesh.positions.get(tri[1] as usize)?);
-        let c = Vec3::from(*mesh.positions.get(tri[2] as usize)?);
+    for tri_index in 0..tri_count {
+        let base = tri_index * 3;
+        let a_idx = *tri_indices.get(base)? as usize;
+        let b_idx = *tri_indices.get(base + 1)? as usize;
+        let c_idx = *tri_indices.get(base + 2)? as usize;
+        let a = Vec3::from(*mesh.positions.get(a_idx)?);
+        let b = Vec3::from(*mesh.positions.get(b_idx)?);
+        let c = Vec3::from(*mesh.positions.get(c_idx)?);
         let (closest, bary) = closest_point_on_triangle(origin, a, b, c);
         if !closest.is_finite() {
             continue;
@@ -611,13 +622,21 @@ fn closest_hit_mesh(origin: Vec3, mesh: &Mesh, mesh_index: usize) -> Option<HitI
         if !distance.is_finite() {
             continue;
         }
+        let face_index = *tri_faces.get(tri_index).unwrap_or(&tri_index);
+        let corner_indices = [
+            *tri_corners.get(base).unwrap_or(&base),
+            *tri_corners.get(base + 1).unwrap_or(&(base + 1)),
+            *tri_corners.get(base + 2).unwrap_or(&(base + 2)),
+        ];
         let hit = HitInfo {
             position: closest,
             normal,
             distance,
             source: HitSource::Mesh {
                 mesh_index,
-                tri_index,
+                face_index,
+                point_indices: [a_idx, b_idx, c_idx],
+                corner_indices,
                 barycentric: bary,
             },
         };
@@ -635,14 +654,23 @@ fn ray_hit_mesh(
     mesh: &Mesh,
     mesh_index: usize,
 ) -> Option<HitInfo> {
-    if mesh.indices.len() < 3 {
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.len() < 3 {
         return None;
     }
+    let tri_indices = &triangulation.indices;
+    let tri_corners = &triangulation.corner_indices;
+    let tri_faces = &triangulation.tri_to_face;
+    let tri_count = tri_indices.len() / 3;
     let mut best: Option<HitInfo> = None;
-    for (tri_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
-        let a = Vec3::from(*mesh.positions.get(tri[0] as usize)?);
-        let b = Vec3::from(*mesh.positions.get(tri[1] as usize)?);
-        let c = Vec3::from(*mesh.positions.get(tri[2] as usize)?);
+    for tri_index in 0..tri_count {
+        let base = tri_index * 3;
+        let a_idx = *tri_indices.get(base)? as usize;
+        let b_idx = *tri_indices.get(base + 1)? as usize;
+        let c_idx = *tri_indices.get(base + 2)? as usize;
+        let a = Vec3::from(*mesh.positions.get(a_idx)?);
+        let b = Vec3::from(*mesh.positions.get(b_idx)?);
+        let c = Vec3::from(*mesh.positions.get(c_idx)?);
         let Some((t, bary)) = ray_triangle_intersect(origin, dir, a, b, c) else {
             continue;
         };
@@ -654,13 +682,21 @@ fn ray_hit_mesh(
         }
         let position = origin + dir * t;
         let normal = triangle_normal(a, b, c);
+        let face_index = *tri_faces.get(tri_index).unwrap_or(&tri_index);
+        let corner_indices = [
+            *tri_corners.get(base).unwrap_or(&base),
+            *tri_corners.get(base + 1).unwrap_or(&(base + 1)),
+            *tri_corners.get(base + 2).unwrap_or(&(base + 2)),
+        ];
         let hit = HitInfo {
             position,
             normal,
             distance: t,
             source: HitSource::Mesh {
                 mesh_index,
-                tri_index,
+                face_index,
+                point_indices: [a_idx, b_idx, c_idx],
+                corner_indices,
                 barycentric: bary,
             },
         };
@@ -881,7 +917,8 @@ fn mesh_point_normals(mesh: &Mesh) -> Option<Vec<Vec3>> {
         return None;
     }
     let mut normals = vec![Vec3::ZERO; mesh.positions.len()];
-    for tri in mesh.indices.chunks_exact(3) {
+    let triangulation = mesh.triangulate();
+    for tri in triangulation.indices.chunks_exact(3) {
         let a = Vec3::from(mesh.positions[tri[0] as usize]);
         let b = Vec3::from(mesh.positions[tri[1] as usize]);
         let c = Vec3::from(mesh.positions[tri[2] as usize]);
@@ -947,11 +984,22 @@ fn sample_hit_value(
     match hit.source {
         HitSource::Mesh {
             mesh_index,
-            tri_index,
+            face_index,
+            point_indices,
+            corner_indices,
             barycentric,
         } => {
             let mesh = target_meshes.get(mesh_index)?;
-            sample_mesh_attribute(mesh, name, tri_index, barycentric, hit.position, hit.normal)
+            sample_mesh_attribute(
+                mesh,
+                name,
+                face_index,
+                point_indices,
+                corner_indices,
+                barycentric,
+                hit.position,
+                hit.normal,
+            )
         }
         HitSource::Splat {
             splat_set,
@@ -963,10 +1011,13 @@ fn sample_hit_value(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn sample_mesh_attribute(
     mesh: &Mesh,
     name: &str,
-    tri_index: usize,
+    face_index: usize,
+    point_indices: [usize; 3],
+    corner_indices: [usize; 3],
     barycentric: [f32; 3],
     hit_pos: Vec3,
     hit_normal: Vec3,
@@ -981,61 +1032,81 @@ fn sample_mesh_attribute(
     match attr {
         AttributeRef::Float(values) => match domain {
             AttributeDomain::Point | AttributeDomain::Vertex => {
-                let (a, b, c) = mesh_attribute_triangle_indices(mesh, domain, tri_index)?;
-                let value = lerp_f32(values, [a, b, c], barycentric)?;
+                let indices = match domain {
+                    AttributeDomain::Point => point_indices,
+                    AttributeDomain::Vertex => corner_indices,
+                    _ => point_indices,
+                };
+                let value = lerp_f32(values, indices, barycentric)?;
                 Some(AttributeValue::Float(value))
             }
             AttributeDomain::Primitive => {
-                let value = values.get(tri_index).copied()?;
+                let value = values.get(face_index).copied()?;
                 Some(AttributeValue::Float(value))
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Float),
         },
         AttributeRef::Int(values) => match domain {
             AttributeDomain::Point | AttributeDomain::Vertex => {
-                let (a, b, c) = mesh_attribute_triangle_indices(mesh, domain, tri_index)?;
+                let indices = match domain {
+                    AttributeDomain::Point => point_indices,
+                    AttributeDomain::Vertex => corner_indices,
+                    _ => point_indices,
+                };
                 let idx = barycentric_max_index(barycentric);
-                let value = *[a, b, c].get(idx).and_then(|i| values.get(*i))?;
+                let value = *indices.get(idx).and_then(|i| values.get(*i))?;
                 Some(AttributeValue::Int(value))
             }
             AttributeDomain::Primitive => {
-                let value = values.get(tri_index).copied()?;
+                let value = values.get(face_index).copied()?;
                 Some(AttributeValue::Int(value))
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Int),
         },
         AttributeRef::Vec2(values) => match domain {
             AttributeDomain::Point | AttributeDomain::Vertex => {
-                let (a, b, c) = mesh_attribute_triangle_indices(mesh, domain, tri_index)?;
-                let value = lerp_vec2(values, [a, b, c], barycentric)?;
+                let indices = match domain {
+                    AttributeDomain::Point => point_indices,
+                    AttributeDomain::Vertex => corner_indices,
+                    _ => point_indices,
+                };
+                let value = lerp_vec2(values, indices, barycentric)?;
                 Some(AttributeValue::Vec2(value))
             }
             AttributeDomain::Primitive => {
-                let value = values.get(tri_index).copied()?;
+                let value = values.get(face_index).copied()?;
                 Some(AttributeValue::Vec2(value))
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Vec2),
         },
         AttributeRef::Vec3(values) => match domain {
             AttributeDomain::Point | AttributeDomain::Vertex => {
-                let (a, b, c) = mesh_attribute_triangle_indices(mesh, domain, tri_index)?;
-                let value = lerp_vec3(values, [a, b, c], barycentric)?;
+                let indices = match domain {
+                    AttributeDomain::Point => point_indices,
+                    AttributeDomain::Vertex => corner_indices,
+                    _ => point_indices,
+                };
+                let value = lerp_vec3(values, indices, barycentric)?;
                 Some(AttributeValue::Vec3(value))
             }
             AttributeDomain::Primitive => {
-                let value = values.get(tri_index).copied()?;
+                let value = values.get(face_index).copied()?;
                 Some(AttributeValue::Vec3(value))
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Vec3),
         },
         AttributeRef::Vec4(values) => match domain {
             AttributeDomain::Point | AttributeDomain::Vertex => {
-                let (a, b, c) = mesh_attribute_triangle_indices(mesh, domain, tri_index)?;
-                let value = lerp_vec4(values, [a, b, c], barycentric)?;
+                let indices = match domain {
+                    AttributeDomain::Point => point_indices,
+                    AttributeDomain::Vertex => corner_indices,
+                    _ => point_indices,
+                };
+                let value = lerp_vec4(values, indices, barycentric)?;
                 Some(AttributeValue::Vec4(value))
             }
             AttributeDomain::Primitive => {
-                let value = values.get(tri_index).copied()?;
+                let value = values.get(face_index).copied()?;
                 Some(AttributeValue::Vec4(value))
             }
             AttributeDomain::Detail => values.first().copied().map(AttributeValue::Vec4),
@@ -1095,27 +1166,6 @@ fn sample_splat_attribute(
             AttributeDomain::Vertex => None,
         },
         AttributeRef::StringTable(_) => None,
-    }
-}
-
-fn mesh_attribute_triangle_indices(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    tri_index: usize,
-) -> Option<(usize, usize, usize)> {
-    match domain {
-        AttributeDomain::Point => {
-            let base = tri_index * 3;
-            let a = *mesh.indices.get(base)? as usize;
-            let b = *mesh.indices.get(base + 1)? as usize;
-            let c = *mesh.indices.get(base + 2)? as usize;
-            Some((a, b, c))
-        }
-        AttributeDomain::Vertex => {
-            let base = tri_index * 3;
-            Some((base, base + 1, base + 2))
-        }
-        _ => None,
     }
 }
 

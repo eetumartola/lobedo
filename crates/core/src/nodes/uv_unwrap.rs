@@ -34,18 +34,24 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
 }
 
 fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
-    if mesh.indices.len() < 3 || mesh.positions.is_empty() {
+    if mesh.positions.is_empty() {
         return;
     }
 
     let padding = params.get_float("padding", 0.02).max(0.0);
     let threshold_deg = params.get_float("normal_threshold", 45.0).clamp(0.0, 180.0);
     let cos_threshold = threshold_deg.to_radians().cos();
-    let tri_count = mesh.indices.len() / 3;
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.len() < 3 {
+        return;
+    }
+    let tri_indices = triangulation.indices;
+    let tri_corners = triangulation.corner_indices;
+    let tri_count = tri_indices.len() / 3;
 
     let mut tri_normals = Vec::with_capacity(tri_count);
     let mut tri_areas = Vec::with_capacity(tri_count);
-    for tri in mesh.indices.chunks_exact(3) {
+    for tri in tri_indices.chunks_exact(3) {
         let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
         let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
         let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
@@ -56,7 +62,7 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
         tri_areas.push(area);
     }
 
-    let islands = build_islands(mesh, &tri_normals, cos_threshold);
+    let islands = build_islands(&tri_indices, &tri_normals, cos_threshold);
     let mut island_uvs = Vec::with_capacity(islands.len());
     let mut total_area = 0.0f32;
     for island in islands.iter() {
@@ -80,7 +86,7 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
         let mut uv_list = Vec::with_capacity(island.tris.len());
         for &tri_idx in &island.tris {
             let base = tri_idx * 3;
-            let tri = &mesh.indices[base..base + 3];
+            let tri = &tri_indices[base..base + 3];
             let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
             let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
             let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
@@ -144,9 +150,18 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
     for island in &island_uvs {
         for (tri_idx, tri_uvs) in island.tris.iter().zip(island.uvs.iter()) {
             let base = tri_idx * 3;
-            corner_uvs[base] = tri_uvs[0];
-            corner_uvs[base + 1] = tri_uvs[1];
-            corner_uvs[base + 2] = tri_uvs[2];
+            let c0 = *tri_corners.get(base).unwrap_or(&base);
+            let c1 = *tri_corners.get(base + 1).unwrap_or(&(base + 1));
+            let c2 = *tri_corners.get(base + 2).unwrap_or(&(base + 2));
+            if let Some(slot) = corner_uvs.get_mut(c0) {
+                *slot = tri_uvs[0];
+            }
+            if let Some(slot) = corner_uvs.get_mut(c1) {
+                *slot = tri_uvs[1];
+            }
+            if let Some(slot) = corner_uvs.get_mut(c2) {
+                *slot = tri_uvs[2];
+            }
         }
     }
 
@@ -203,14 +218,14 @@ fn triangle_area_uv(uvs: &[[f32; 2]; 3]) -> f32 {
     (ab.x * ac.y - ab.y * ac.x).abs() * 0.5
 }
 
-fn build_islands(mesh: &Mesh, normals: &[Vec3], cos_threshold: f32) -> Vec<Island> {
-    let tri_count = mesh.indices.len() / 3;
+fn build_islands(tri_indices: &[u32], normals: &[Vec3], cos_threshold: f32) -> Vec<Island> {
+    let tri_count = tri_indices.len() / 3;
     let mut parent: Vec<usize> = (0..tri_count).collect();
     let mut rank = vec![0u8; tri_count];
     let mut edge_map: std::collections::HashMap<(u32, u32), Vec<usize>> =
         std::collections::HashMap::new();
 
-    for (tri_idx, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    for (tri_idx, tri) in tri_indices.chunks_exact(3).enumerate() {
         let edges = [
             (tri[0], tri[1]),
             (tri[1], tri[2]),

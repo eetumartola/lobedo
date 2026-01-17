@@ -104,44 +104,84 @@ pub fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
     }
 
     if !mesh.indices.is_empty() {
+        let face_counts = if mesh.face_counts.is_empty() {
+            if mesh.indices.len().is_multiple_of(3) {
+                vec![3u32; mesh.indices.len() / 3]
+            } else {
+                vec![mesh.indices.len() as u32]
+            }
+        } else {
+            mesh.face_counts.clone()
+        };
         let mut corner_uv_index = 1u32;
-        for tri in mesh.indices.chunks_exact(3) {
-            let a = tri[0] + 1;
-            let b = tri[1] + 1;
-            let c = tri[2] + 1;
+        let mut cursor = 0usize;
+        for count in face_counts {
+            let count = count as usize;
+            if count == 0 || cursor + count > mesh.indices.len() {
+                cursor = cursor.saturating_add(count);
+                continue;
+            }
+            let face = &mesh.indices[cursor..cursor + count];
             match (&uv_mode, has_normals) {
                 (UvMode::PerCorner(_), true) => {
-                    let ta = corner_uv_index;
-                    let tb = corner_uv_index + 1;
-                    let tc = corner_uv_index + 2;
-                    writeln!(file, "f {a}/{ta}/{a} {b}/{tb}/{b} {c}/{tc}/{c}")
-                        .map_err(|err| err.to_string())?;
-                    corner_uv_index += 3;
+                    let mut parts = Vec::with_capacity(count);
+                    for (offset, idx) in face.iter().enumerate() {
+                        let v = idx + 1;
+                        let t = corner_uv_index + offset as u32;
+                        parts.push(format!("{v}/{t}/{v}"));
+                    }
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
+                    corner_uv_index += count as u32;
                 }
                 (UvMode::PerCorner(_), false) => {
-                    let ta = corner_uv_index;
-                    let tb = corner_uv_index + 1;
-                    let tc = corner_uv_index + 2;
-                    writeln!(file, "f {a}/{ta} {b}/{tb} {c}/{tc}")
-                        .map_err(|err| err.to_string())?;
-                    corner_uv_index += 3;
+                    let mut parts = Vec::with_capacity(count);
+                    for (offset, idx) in face.iter().enumerate() {
+                        let v = idx + 1;
+                        let t = corner_uv_index + offset as u32;
+                        parts.push(format!("{v}/{t}"));
+                    }
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
+                    corner_uv_index += count as u32;
                 }
                 (UvMode::PerVertex(_), true) => {
-                    writeln!(file, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}")
-                        .map_err(|err| err.to_string())?;
+                    let parts: Vec<String> = face
+                        .iter()
+                        .map(|idx| {
+                            let v = idx + 1;
+                            format!("{v}/{v}/{v}")
+                        })
+                        .collect();
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
                 (UvMode::PerVertex(_), false) => {
-                    writeln!(file, "f {a}/{a} {b}/{b} {c}/{c}")
-                        .map_err(|err| err.to_string())?;
+                    let parts: Vec<String> = face
+                        .iter()
+                        .map(|idx| {
+                            let v = idx + 1;
+                            format!("{v}/{v}")
+                        })
+                        .collect();
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
                 (UvMode::None, true) => {
-                    writeln!(file, "f {a}//{a} {b}//{b} {c}//{c}")
-                        .map_err(|err| err.to_string())?;
+                    let parts: Vec<String> = face
+                        .iter()
+                        .map(|idx| {
+                            let v = idx + 1;
+                            format!("{v}//{v}")
+                        })
+                        .collect();
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
                 (UvMode::None, false) => {
-                    writeln!(file, "f {a} {b} {c}").map_err(|err| err.to_string())?;
+                    let parts: Vec<String> = face
+                        .iter()
+                        .map(|idx| format!("{}", idx + 1))
+                        .collect();
+                    writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
             }
+            cursor += count;
         }
     }
     Ok(())

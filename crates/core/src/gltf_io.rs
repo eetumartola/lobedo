@@ -207,34 +207,62 @@ fn build_export_mesh(mesh: &Mesh) -> Result<ExportMesh, String> {
     let needs_expand =
         corner_normals.is_some() || vertex_uvs.is_some() || vertex_colors.is_some();
 
+    let (tri_indices, tri_corners) = if mesh.indices.is_empty() {
+        if !mesh.positions.len().is_multiple_of(3) {
+            return Err("Mesh has no indices and non-triangular vertex count".to_string());
+        }
+        let indices = (0..mesh.positions.len() as u32).collect::<Vec<_>>();
+        let corners = (0..mesh.positions.len()).collect::<Vec<_>>();
+        (indices, corners)
+    } else {
+        let triangulation = mesh.triangulate();
+        if triangulation.indices.is_empty() {
+            return Err("Mesh has no triangles to export".to_string());
+        }
+        (triangulation.indices, triangulation.corner_indices)
+    };
+
     if needs_expand {
-        let mut positions = Vec::with_capacity(mesh.indices.len());
-        let mut indices = Vec::with_capacity(mesh.indices.len());
+        let mut positions = Vec::with_capacity(tri_indices.len());
+        let mut indices = Vec::with_capacity(tri_indices.len());
         let mut normals = Vec::new();
         let mut uvs = Vec::new();
         let mut colors = Vec::new();
 
-        for (corner_idx, &idx) in mesh.indices.iter().enumerate() {
+        for (corner_idx, &idx) in tri_indices.iter().enumerate() {
             let pos = mesh
                 .positions
                 .get(idx as usize)
                 .copied()
                 .unwrap_or([0.0, 0.0, 0.0]);
             positions.push(pos);
-            if let Some(corner) = corner_normals {
-                normals.push(corner[corner_idx]);
+            let corner = *tri_corners.get(corner_idx).unwrap_or(&corner_idx);
+            if let Some(corner_normals) = corner_normals {
+                if let Some(normal) = corner_normals.get(corner) {
+                    normals.push(*normal);
+                }
             } else if let Some(point) = point_normals {
-                normals.push(point[idx as usize]);
+                if let Some(normal) = point.get(idx as usize) {
+                    normals.push(*normal);
+                }
             }
             if let Some(uvs_corner) = &vertex_uvs {
-                uvs.push(uvs_corner[corner_idx]);
+                if let Some(uv) = uvs_corner.get(corner) {
+                    uvs.push(*uv);
+                }
             } else if let Some(uvs_point) = &point_uvs {
-                uvs.push(uvs_point[idx as usize]);
+                if let Some(uv) = uvs_point.get(idx as usize) {
+                    uvs.push(*uv);
+                }
             }
             if let Some(colors_corner) = &vertex_colors {
-                colors.push(colors_corner[corner_idx]);
+                if let Some(color) = colors_corner.get(corner) {
+                    colors.push(*color);
+                }
             } else if let Some(colors_point) = &point_colors {
-                colors.push(colors_point[idx as usize]);
+                if let Some(color) = colors_point.get(idx as usize) {
+                    colors.push(*color);
+                }
             }
             indices.push(corner_idx as u32);
         }
@@ -247,17 +275,9 @@ fn build_export_mesh(mesh: &Mesh) -> Result<ExportMesh, String> {
             colors: if colors.is_empty() { None } else { Some(colors) },
         })
     } else {
-        let indices = if mesh.indices.is_empty() {
-            if !mesh.positions.len().is_multiple_of(3) {
-                return Err("Mesh has no indices and non-triangular vertex count".to_string());
-            }
-            (0..mesh.positions.len() as u32).collect()
-        } else {
-            mesh.indices.clone()
-        };
         Ok(ExportMesh {
             positions: mesh.positions.clone(),
-            indices,
+            indices: tri_indices,
             normals: point_normals.cloned(),
             uvs: point_uvs,
             colors: point_colors,

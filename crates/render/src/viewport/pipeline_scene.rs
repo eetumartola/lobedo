@@ -5,7 +5,7 @@ use crate::scene::{RenderDrawable, RenderScene, RenderSplats};
 use super::mesh::{
     bounds_from_positions, bounds_vertices, build_vertices, curve_vertices,
     normals_vertices, point_cross_vertices_with_colors, selection_shape_vertices,
-    wireframe_vertices,
+    wireframe_vertices, wireframe_vertices_ngon,
 };
 use super::pipeline::{MaterialGpu, PipelineState, VolumeParams};
 use glam::Vec3;
@@ -147,7 +147,13 @@ pub(super) fn apply_scene_to_pipeline(
     pipeline.bounds_count = bounds_vertices.len() as u32;
 
     let template_lines = if let Some(template) = &scene.template_mesh {
-        if !template.indices.is_empty() {
+        if !template.poly_indices.is_empty() {
+            wireframe_vertices_ngon(
+                &template.positions,
+                &template.poly_indices,
+                &template.poly_face_counts,
+            )
+        } else if !template.indices.is_empty() {
             wireframe_vertices(&template.positions, &template.indices)
         } else if !template.positions.is_empty() {
             let (min, max) = bounds_from_positions(&template.positions);

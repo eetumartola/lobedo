@@ -216,8 +216,9 @@ fn gather_geometry(input: &Geometry) -> Result<GatheredGeometry, String> {
             }
             found = true;
         }
-        if mesh.indices.len() >= 3 {
-            for tri in mesh.indices.chunks_exact(3) {
+        let triangulation = mesh.triangulate();
+        if triangulation.indices.len() >= 3 {
+            for tri in triangulation.indices.chunks_exact(3) {
                 let a = Vec3::from(mesh.positions[tri[0] as usize]);
                 let b = Vec3::from(mesh.positions[tri[1] as usize]);
                 let c = Vec3::from(mesh.positions[tri[2] as usize]);

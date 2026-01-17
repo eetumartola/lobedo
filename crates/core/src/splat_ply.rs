@@ -666,7 +666,7 @@ fn parse_sh_rest_index(name: &str) -> Option<usize> {
 mod tests {
     use crate::splat::SplatGeo;
 
-    use super::{load_splat_ply, parse_splat_ply_bytes, save_splat_ply};
+    use super::{load_splat_ply, parse_splat_ply_bytes, save_splat_ply, SH_C0};
 
     #[test]
     fn parse_ascii_ply_positions_and_sh0() {
@@ -692,7 +692,12 @@ end_header
         let splats = parse_splat_ply_bytes(data.as_bytes()).expect("parse");
         assert_eq!(splats.len(), 2);
         assert!((splats.opacity[0] - 0.5).abs() < 1.0e-6);
-        assert_eq!(splats.sh0[1], [0.4, 0.5, 0.6]);
+        let expected = [
+            0.4 * SH_C0 + 0.5,
+            0.5 * SH_C0 + 0.5,
+            0.6 * SH_C0 + 0.5,
+        ];
+        assert_eq!(splats.sh0[1], expected);
     }
 
     #[test]
@@ -744,8 +749,8 @@ end_header
         let splats = parse_splat_ply_bytes(data.as_bytes()).expect("parse");
         assert_eq!(splats.sh_coeffs, 3);
         assert_eq!(splats.sh_rest.len(), 3);
-        assert_eq!(splats.sh_rest[0], [1.0, 4.0, 7.0]);
-        assert_eq!(splats.sh_rest[1], [2.0, 5.0, 8.0]);
+        assert_eq!(splats.sh_rest[0], [-1.0, -4.0, -7.0]);
+        assert_eq!(splats.sh_rest[1], [-2.0, -5.0, -8.0]);
         assert_eq!(splats.sh_rest[2], [3.0, 6.0, 9.0]);
     }
 

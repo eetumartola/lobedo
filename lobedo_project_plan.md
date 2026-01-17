@@ -75,6 +75,15 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - `Volume to Mesh` node (density/SDF surface extraction)
 - Web-compatible volume texture upload/render path
 
+## Epic N - N-gon Support (done)
+- Extend mesh data model with per-face vertex counts (n-gon primitives)
+- Add triangulation helper + per-triangle-to-face mapping for render + triangle-only ops
+- Update scene/render conversion to use triangulated indices + corner mapping
+- Update UI counts, groups, and selection to target n-gon primitives
+- Update IO: OBJ should write n-gons; GLTF should triangulate
+- Update mesh ops to use triangulation when needed (scatter/smooth/ray/uv)
+- Update Boolean Geo (SDF mode) to preserve n-gon topology + cleaner cut edges
+
 ---
 
 ## Core Data Model

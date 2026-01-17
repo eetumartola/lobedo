@@ -202,7 +202,7 @@ impl LobedoApp {
                 ui,
                 "Primitive",
                 mesh.groups.map(AttributeDomain::Primitive),
-                mesh.indices.len() / 3,
+                mesh.face_count(),
             );
         }
 
@@ -253,7 +253,7 @@ impl LobedoApp {
         let mesh_vertex_count = mesh.as_ref().map(|m| m.indices.len()).unwrap_or(0);
         let mesh_prim_count = mesh
             .as_ref()
-            .map(|m| m.indices.len() / 3)
+            .map(|m| m.face_count())
             .unwrap_or(0);
         let curve_vertex_count: usize = geometry.curves.iter().map(|c| c.indices.len()).sum();
         let curve_prim_count = geometry.curves.len();

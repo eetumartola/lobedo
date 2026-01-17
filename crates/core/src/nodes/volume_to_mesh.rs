@@ -90,7 +90,11 @@ pub fn apply_to_geometry(
     })
 }
 
-fn volume_to_mesh(volume: &Volume, iso: f32, inside_is_greater: bool) -> Result<Mesh, String> {
+pub(crate) fn volume_to_mesh(
+    volume: &Volume,
+    iso: f32,
+    inside_is_greater: bool,
+) -> Result<Mesh, String> {
     let dims = volume.dims;
     if dims[0] < 2 || dims[1] < 2 || dims[2] < 2 {
         return Ok(Mesh::default());

@@ -138,6 +138,7 @@ fn sweep_points(
     }
 
     let mut indices = Vec::new();
+    let mut face_counts = Vec::new();
     let profile_segments = if profile_closed { ring_len } else { ring_len.saturating_sub(1) };
     let path_segments = if path_closed { path_len } else { path_len.saturating_sub(1) };
 
@@ -149,11 +150,12 @@ fn sweep_points(
             let b = (next_path * ring_len + seg) as u32;
             let c = (next_path * ring_len + next_seg) as u32;
             let d = (path_idx * ring_len + next_seg) as u32;
-            indices.extend_from_slice(&[a, b, c, a, c, d]);
+            indices.extend_from_slice(&[a, b, c, d]);
+            face_counts.push(4);
         }
     }
 
-    let mut mesh = Mesh::with_positions_indices(positions, indices);
+    let mut mesh = Mesh::with_positions_faces(positions, indices, face_counts);
     let _ = mesh.compute_normals();
     mesh
 }

@@ -19,15 +19,16 @@ pub fn make_box(size: [f32; 3]) -> Mesh {
     ];
 
     let indices = vec![
-        0, 2, 1, 0, 3, 2, // -Z
-        4, 5, 6, 4, 6, 7, // +Z
-        0, 1, 5, 0, 5, 4, // -Y
-        2, 3, 7, 2, 7, 6, // +Y
-        1, 2, 6, 1, 6, 5, // +X
-        3, 0, 4, 3, 4, 7, // -X
+        0, 3, 2, 1, // -Z
+        4, 5, 6, 7, // +Z
+        0, 1, 5, 4, // -Y
+        3, 7, 6, 2, // +Y
+        1, 2, 6, 5, // +X
+        0, 4, 7, 3, // -X
     ];
+    let face_counts = vec![4; 6];
 
-    Mesh::with_positions_indices(positions, indices)
+    Mesh::with_positions_faces(positions, indices, face_counts)
 }
 
 pub fn make_grid(size: [f32; 2], divisions: [u32; 2]) -> Mesh {
@@ -53,6 +54,7 @@ pub fn make_grid(size: [f32; 2], divisions: [u32; 2]) -> Mesh {
     }
 
     let mut indices = Vec::new();
+    let mut face_counts = Vec::new();
     let stride = div_x + 1;
     for z in 0..div_z {
         for x in 0..div_x {
@@ -60,12 +62,12 @@ pub fn make_grid(size: [f32; 2], divisions: [u32; 2]) -> Mesh {
             let i1 = i0 + 1;
             let i2 = i0 + stride;
             let i3 = i2 + 1;
-
-            indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+            indices.extend_from_slice(&[i0, i2, i3, i1]);
+            face_counts.push(4);
         }
     }
 
-    Mesh::with_positions_indices(positions, indices)
+    Mesh::with_positions_faces(positions, indices, face_counts)
 }
 
 pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
@@ -73,6 +75,7 @@ pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
     let cols = cols.max(3);
     let mut positions = Vec::new();
     let mut indices = Vec::new();
+    let mut face_counts = Vec::new();
 
     for r in 0..=rows {
         let v = r as f32 / rows as f32;
@@ -100,7 +103,8 @@ pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
             let i1 = i0 + 1;
             let i2 = i0 + stride;
             let i3 = i2 + 1;
-            indices.extend_from_slice(&[i0, i1, i2, i1, i3, i2]);
+            indices.extend_from_slice(&[i0, i1, i3, i2]);
+            face_counts.push(4);
         }
     }
 
@@ -117,7 +121,7 @@ pub fn make_uv_sphere(radius: f32, rows: u32, cols: u32) -> Mesh {
         })
         .collect();
 
-    let mut mesh = Mesh::with_positions_indices(positions, indices);
+    let mut mesh = Mesh::with_positions_faces(positions, indices, face_counts);
     mesh.normals = Some(normals);
     mesh
 }
@@ -130,6 +134,7 @@ pub fn make_tube(radius: f32, height: f32, rows: u32, cols: u32, capped: bool) -
 
     let mut positions = Vec::new();
     let mut indices = Vec::new();
+    let mut face_counts = Vec::new();
 
     let half = height * 0.5;
     let stride = cols + 1;
@@ -151,32 +156,34 @@ pub fn make_tube(radius: f32, height: f32, rows: u32, cols: u32, capped: bool) -
             let i1 = i0 + 1;
             let i2 = i0 + stride;
             let i3 = i2 + 1;
-            indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+            indices.extend_from_slice(&[i0, i2, i3, i1]);
+            face_counts.push(4);
         }
     }
 
     if capped && radius > 0.0 {
-        let top_center = positions.len() as u32;
-        positions.push([0.0, half, 0.0]);
-        let bottom_center = positions.len() as u32;
-        positions.push([0.0, -half, 0.0]);
-
         let top_ring_start = rows * stride;
+        let mut top_indices = Vec::with_capacity(cols as usize);
         for c in 0..cols {
-            let i0 = top_ring_start + c;
-            let i1 = top_ring_start + c + 1;
-            indices.extend_from_slice(&[top_center, i0, i1]);
+            top_indices.push(top_ring_start + c);
+        }
+        let bottom_ring_start = 0;
+        let mut bottom_indices = Vec::with_capacity(cols as usize);
+        for c in (0..cols).rev() {
+            bottom_indices.push(bottom_ring_start + c);
         }
 
-        let bottom_ring_start = 0;
-        for c in 0..cols {
-            let i0 = bottom_ring_start + c;
-            let i1 = bottom_ring_start + c + 1;
-            indices.extend_from_slice(&[bottom_center, i1, i0]);
+        if !top_indices.is_empty() {
+            indices.extend_from_slice(&top_indices);
+            face_counts.push(cols);
+        }
+        if !bottom_indices.is_empty() {
+            indices.extend_from_slice(&bottom_indices);
+            face_counts.push(cols);
         }
     }
 
-    Mesh::with_positions_indices(positions, indices)
+    Mesh::with_positions_faces(positions, indices, face_counts)
 }
 
 #[cfg(test)]
@@ -187,27 +194,31 @@ mod tests {
     fn box_has_expected_counts() {
         let mesh = make_box([2.0, 2.0, 2.0]);
         assert_eq!(mesh.positions.len(), 8);
-        assert_eq!(mesh.indices.len(), 36);
+        assert_eq!(mesh.indices.len(), 24);
+        assert_eq!(mesh.face_counts.len(), 6);
     }
 
     #[test]
     fn grid_has_expected_counts() {
         let mesh = make_grid([2.0, 2.0], [2, 3]);
         assert_eq!(mesh.positions.len(), (2 + 1) * (3 + 1));
-        assert_eq!(mesh.indices.len(), 2 * 3 * 6);
+        assert_eq!(mesh.indices.len(), 2 * 3 * 4);
+        assert_eq!(mesh.face_counts.len(), 2 * 3);
     }
 
     #[test]
     fn sphere_has_expected_counts() {
         let mesh = make_uv_sphere(1.0, 4, 8);
         assert_eq!(mesh.positions.len(), (4 + 1) * (8 + 1));
-        assert_eq!(mesh.indices.len(), 4 * 8 * 6);
+        assert_eq!(mesh.indices.len(), 4 * 8 * 4);
+        assert_eq!(mesh.face_counts.len(), 4 * 8);
     }
 
     #[test]
     fn tube_has_expected_counts() {
         let mesh = make_tube(1.0, 2.0, 2, 8, true);
-        assert_eq!(mesh.positions.len(), (2 + 1) * (8 + 1) + 2);
-        assert_eq!(mesh.indices.len(), 2 * 8 * 6 + 2 * 8 * 3);
+        assert_eq!(mesh.positions.len(), (2 + 1) * (8 + 1));
+        assert_eq!(mesh.indices.len(), 2 * 8 * 4 + 2 * 8);
+        assert_eq!(mesh.face_counts.len(), 2 * 8 + 2);
     }
 }

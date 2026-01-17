@@ -38,16 +38,36 @@ pub fn mesh_sample_position(mesh: &Mesh, domain: AttributeDomain, index: usize) 
             .map(Vec3::from)
             .unwrap_or(Vec3::ZERO),
         AttributeDomain::Primitive => {
-            let base = index * 3;
-            let tri = mesh.indices.get(base..base + 3);
-            if let Some(tri) = tri {
-                let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0; 3]);
-                let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0; 3]);
-                let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0; 3]);
-                (Vec3::from(p0) + Vec3::from(p1) + Vec3::from(p2)) / 3.0
+            let face_counts = if mesh.face_counts.is_empty() {
+                if mesh.indices.len().is_multiple_of(3) {
+                    vec![3u32; mesh.indices.len() / 3]
+                } else if mesh.indices.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![mesh.indices.len() as u32]
+                }
             } else {
-                Vec3::ZERO
+                mesh.face_counts.clone()
+            };
+            let mut cursor = 0usize;
+            for (face_idx, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
+                if face_idx != index {
+                    cursor += count;
+                    continue;
+                }
+                if count < 3 || cursor + count > mesh.indices.len() {
+                    return Vec3::ZERO;
+                }
+                let mut center = Vec3::ZERO;
+                for i in 0..count {
+                    let idx = mesh.indices[cursor + i] as usize;
+                    let p = mesh.positions.get(idx).copied().unwrap_or([0.0; 3]);
+                    center += Vec3::from(p);
+                }
+                return center / count as f32;
             }
+            Vec3::ZERO
         }
         AttributeDomain::Detail => mesh
             .bounds()
@@ -86,13 +106,35 @@ pub fn mesh_positions_for_domain(mesh: &Mesh, domain: AttributeDomain) -> Vec<Ve
             .map(Vec3::from)
             .collect(),
         AttributeDomain::Primitive => {
-            let mut positions = Vec::with_capacity(mesh.indices.len() / 3);
-            for tri in mesh.indices.chunks_exact(3) {
-                let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0; 3]);
-                let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0; 3]);
-                let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0; 3]);
-                let center = (Vec3::from(p0) + Vec3::from(p1) + Vec3::from(p2)) / 3.0;
+            let face_counts = if mesh.face_counts.is_empty() {
+                if mesh.indices.len().is_multiple_of(3) {
+                    vec![3u32; mesh.indices.len() / 3]
+                } else if mesh.indices.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![mesh.indices.len() as u32]
+                }
+            } else {
+                mesh.face_counts.clone()
+            };
+            let mut positions = Vec::with_capacity(face_counts.len());
+            let mut cursor = 0usize;
+            for &count in &face_counts {
+                let count = count as usize;
+                if count < 3 || cursor + count > mesh.indices.len() {
+                    positions.push(Vec3::ZERO);
+                    cursor = cursor.saturating_add(count);
+                    continue;
+                }
+                let mut center = Vec3::ZERO;
+                for i in 0..count {
+                    let idx = mesh.indices[cursor + i] as usize;
+                    let p = mesh.positions.get(idx).copied().unwrap_or([0.0; 3]);
+                    center += Vec3::from(p);
+                }
+                center /= count as f32;
                 positions.push(center);
+                cursor += count;
             }
             positions
         }

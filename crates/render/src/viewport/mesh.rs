@@ -563,6 +563,46 @@ pub(crate) fn wireframe_vertices(positions: &[[f32; 3]], indices: &[u32]) -> Vec
     lines
 }
 
+pub(crate) fn wireframe_vertices_ngon(
+    positions: &[[f32; 3]],
+    indices: &[u32],
+    face_counts: &[u32],
+) -> Vec<LineVertex> {
+    if positions.is_empty() || indices.len() < 2 {
+        return Vec::new();
+    }
+    if face_counts.is_empty() {
+        return wireframe_vertices(positions, indices);
+    }
+    let mut lines = Vec::new();
+    let color = [0.3, 0.75, 0.95];
+    let mut cursor = 0usize;
+    for &count in face_counts {
+        let count = count as usize;
+        if count < 2 || cursor + count > indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
+        }
+        for i in 0..count {
+            let a = indices[cursor + i] as usize;
+            let b = indices[cursor + (i + 1) % count] as usize;
+            let (Some(pa), Some(pb)) = (positions.get(a), positions.get(b)) else {
+                continue;
+            };
+            lines.push(LineVertex {
+                position: *pa,
+                color,
+            });
+            lines.push(LineVertex {
+                position: *pb,
+                color,
+            });
+        }
+        cursor += count;
+    }
+    lines
+}
+
 pub(crate) fn curve_vertices(points: &[[f32; 3]], closed: bool) -> Vec<LineVertex> {
     if points.len() < 2 {
         return Vec::new();

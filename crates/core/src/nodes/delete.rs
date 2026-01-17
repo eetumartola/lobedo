@@ -138,15 +138,12 @@ fn delete_mesh_with_mapping(params: &NodeParams, mesh: &Mesh) -> DeleteResult {
     let new_attributes = filter_mesh_attributes(mesh, &kept_points_indices, &kept_tris, &new_indices);
     let new_groups = filter_mesh_groups(mesh, &kept_points_indices, &kept_tris, &new_indices);
 
-    let result = Mesh {
-        positions: new_positions,
-        indices: new_indices,
-        normals: new_normals,
-        corner_normals: new_corner_normals,
-        uvs: new_uvs,
-        attributes: new_attributes,
-        groups: new_groups,
-    };
+    let mut result = Mesh::with_positions_indices(new_positions, new_indices);
+    result.normals = new_normals;
+    result.corner_normals = new_corner_normals;
+    result.uvs = new_uvs;
+    result.attributes = new_attributes;
+    result.groups = new_groups;
 
     DeleteResult {
         mesh: result,
@@ -181,15 +178,13 @@ fn filter_point_cloud(mesh: &Mesh, keep_points: &[bool]) -> Mesh {
     let new_attributes = filter_mesh_attributes(mesh, &kept_points, &[], &[]);
     let new_groups = filter_mesh_groups(mesh, &kept_points, &[], &[]);
 
-    Mesh {
-        positions: new_positions,
-        indices: Vec::new(),
-        normals: new_normals,
-        corner_normals: None,
-        uvs: new_uvs,
-        attributes: new_attributes,
-        groups: new_groups,
-    }
+    let mut mesh = Mesh::with_positions_indices(new_positions, Vec::new());
+    mesh.normals = new_normals;
+    mesh.corner_normals = None;
+    mesh.uvs = new_uvs;
+    mesh.attributes = new_attributes;
+    mesh.groups = new_groups;
+    mesh
 }
 
 fn filter_mesh_attributes(

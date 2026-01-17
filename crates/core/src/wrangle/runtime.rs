@@ -150,24 +150,62 @@ impl<'a> MeshQueryCache<'a> {
                 .collect()
         };
 
-        let mut prim_centers = Vec::new();
-        let mut prim_normals = Vec::new();
-        for tri in mesh.indices.chunks_exact(3) {
-            let i0 = tri[0] as usize;
-            let i1 = tri[1] as usize;
-            let i2 = tri[2] as usize;
-            let p0 = Vec3::from(mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
-            let p1 = Vec3::from(mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
-            let p2 = Vec3::from(mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
-            let center = (p0 + p1 + p2) / 3.0;
-            prim_centers.push(center.to_array());
-            let n = (p1 - p0).cross(p2 - p0);
-            let n = if n.length_squared() > 0.0 {
-                n.normalize().to_array()
+        let mut prim_centers = Vec::with_capacity(mesh.face_count());
+        let mut prim_normals = Vec::with_capacity(mesh.face_count());
+        let face_counts = if mesh.face_counts.is_empty() {
+            if mesh.indices.len().is_multiple_of(3) {
+                vec![3u32; mesh.indices.len() / 3]
+            } else if mesh.indices.is_empty() {
+                Vec::new()
+            } else {
+                vec![mesh.indices.len() as u32]
+            }
+        } else {
+            mesh.face_counts.clone()
+        };
+        let mut cursor = 0usize;
+        for &count in &face_counts {
+            let count = count as usize;
+            if count < 3 || cursor + count > mesh.indices.len() {
+                prim_centers.push([0.0; 3]);
+                prim_normals.push([0.0, 1.0, 0.0]);
+                cursor = cursor.saturating_add(count);
+                continue;
+            }
+            let mut center = Vec3::ZERO;
+            let mut normal = Vec3::ZERO;
+            for i in 0..count {
+                let idx = mesh.indices[cursor + i] as usize;
+                let p0 = Vec3::from(mesh.positions.get(idx).copied().unwrap_or([0.0; 3]));
+                let p1 = Vec3::from(
+                    mesh.positions
+                        .get(mesh.indices[cursor + (i + 1) % count] as usize)
+                        .copied()
+                        .unwrap_or([0.0; 3]),
+                );
+                center += p0;
+                normal.x += (p0.y - p1.y) * (p0.z + p1.z);
+                normal.y += (p0.z - p1.z) * (p0.x + p1.x);
+                normal.z += (p0.x - p1.x) * (p0.y + p1.y);
+            }
+            center /= count as f32;
+            if normal.length_squared() <= 0.0 && count >= 3 {
+                let i0 = mesh.indices[cursor] as usize;
+                let i1 = mesh.indices[cursor + 1] as usize;
+                let i2 = mesh.indices[cursor + 2] as usize;
+                let p0 = Vec3::from(mesh.positions.get(i0).copied().unwrap_or([0.0; 3]));
+                let p1 = Vec3::from(mesh.positions.get(i1).copied().unwrap_or([0.0; 3]));
+                let p2 = Vec3::from(mesh.positions.get(i2).copied().unwrap_or([0.0; 3]));
+                normal = (p1 - p0).cross(p2 - p0);
+            }
+            let normal = if normal.length_squared() > 0.0 {
+                normal.normalize().to_array()
             } else {
                 [0.0, 1.0, 0.0]
             };
-            prim_normals.push(n);
+            prim_centers.push(center.to_array());
+            prim_normals.push(normal);
+            cursor += count;
         }
 
         let detail_center = mesh
@@ -193,18 +231,38 @@ impl<'a> MeshQueryCache<'a> {
 
         let mut first_vertex = vec![usize::MAX; mesh.positions.len()];
         let mut first_prim = vec![usize::MAX; mesh.positions.len()];
-        for (vertex_index, point_index) in mesh.indices.iter().enumerate() {
-            let point_index = *point_index as usize;
-            if let Some(slot) = first_vertex.get_mut(point_index) {
-                if *slot == usize::MAX {
-                    *slot = vertex_index;
+        let face_counts = if mesh.face_counts.is_empty() {
+            if mesh.indices.len().is_multiple_of(3) {
+                vec![3u32; mesh.indices.len() / 3]
+            } else if mesh.indices.is_empty() {
+                Vec::new()
+            } else {
+                vec![mesh.indices.len() as u32]
+            }
+        } else {
+            mesh.face_counts.clone()
+        };
+        let mut cursor = 0usize;
+        for (face_index, &count) in face_counts.iter().enumerate() {
+            let count = count as usize;
+            for local in 0..count {
+                let corner_index = cursor + local;
+                if corner_index >= mesh.indices.len() {
+                    break;
+                }
+                let point_index = mesh.indices[corner_index] as usize;
+                if let Some(slot) = first_vertex.get_mut(point_index) {
+                    if *slot == usize::MAX {
+                        *slot = corner_index;
+                    }
+                }
+                if let Some(slot) = first_prim.get_mut(point_index) {
+                    if *slot == usize::MAX {
+                        *slot = face_index;
+                    }
                 }
             }
-            if let Some(slot) = first_prim.get_mut(point_index) {
-                if *slot == usize::MAX {
-                    *slot = vertex_index / 3;
-                }
-            }
+            cursor += count;
         }
 
         Self {
@@ -683,7 +741,7 @@ impl<'a> WrangleContext<'a> {
             "primnum" => Some(Value::Float(self.current_primnum(idx) as f32)),
             "numpt" => Some(Value::Float(self.mesh.positions.len() as f32)),
             "numvtx" => Some(Value::Float(self.mesh.indices.len() as f32)),
-            "numprim" => Some(Value::Float((self.mesh.indices.len() / 3) as f32)),
+            "numprim" => Some(Value::Float(self.mesh.face_count() as f32)),
             _ => None,
         }
     }
@@ -1481,11 +1539,12 @@ fn apply_written_splats(
 }
 
 fn compute_point_normals(mesh: &Mesh) -> Vec<[f32; 3]> {
-    if !mesh.indices.len().is_multiple_of(3) || mesh.positions.is_empty() {
+    if mesh.indices.is_empty() || mesh.positions.is_empty() {
         return vec![];
     }
     let mut accum = vec![Vec3::ZERO; mesh.positions.len()];
-    for tri in mesh.indices.chunks_exact(3) {
+    let triangulation = mesh.triangulate();
+    for tri in triangulation.indices.chunks_exact(3) {
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;

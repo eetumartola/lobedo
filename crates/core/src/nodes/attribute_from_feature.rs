@@ -109,17 +109,34 @@ fn apply_area_mesh(
     match domain {
         AttributeDomain::Point => {
             let mut accum = vec![0.0f32; mesh.positions.len()];
-            for (prim_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
+            let face_counts = if mesh.face_counts.is_empty() {
+                if mesh.indices.len().is_multiple_of(3) {
+                    vec![3u32; mesh.indices.len() / 3]
+                } else if mesh.indices.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![mesh.indices.len() as u32]
+                }
+            } else {
+                mesh.face_counts.clone()
+            };
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
                 let area = areas.get(prim_index).copied().unwrap_or(0.0);
-                if area <= 0.0 {
+                if area <= 0.0 || count == 0 {
+                    cursor = cursor.saturating_add(count);
                     continue;
                 }
-                let share = area / 3.0;
-                for &idx in tri {
-                    if let Some(slot) = accum.get_mut(idx as usize) {
-                        *slot += share;
+                let share = area / count as f32;
+                for i in 0..count {
+                    if let Some(idx) = mesh.indices.get(cursor + i) {
+                        if let Some(slot) = accum.get_mut(*idx as usize) {
+                            *slot += share;
+                        }
                     }
                 }
+                cursor += count;
             }
             for (idx, value) in accum.iter().enumerate() {
                 if mask
@@ -134,12 +151,24 @@ fn apply_area_mesh(
             }
         }
         AttributeDomain::Vertex => {
-            for (prim_index, _tri) in mesh.indices.chunks_exact(3).enumerate() {
+            let face_counts = if mesh.face_counts.is_empty() {
+                if mesh.indices.len().is_multiple_of(3) {
+                    vec![3u32; mesh.indices.len() / 3]
+                } else if mesh.indices.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![mesh.indices.len() as u32]
+                }
+            } else {
+                mesh.face_counts.clone()
+            };
+            let mut cursor = 0usize;
+            for (prim_index, &count) in face_counts.iter().enumerate() {
+                let count = count as usize;
                 let area = areas.get(prim_index).copied().unwrap_or(0.0);
-                let share = area / 3.0;
-                let base = prim_index * 3;
-                for corner in 0..3 {
-                    let idx = base + corner;
+                let share = if count > 0 { area / count as f32 } else { 0.0 };
+                for i in 0..count {
+                    let idx = cursor + i;
                     if mask
                         .as_ref()
                         .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
@@ -150,6 +179,7 @@ fn apply_area_mesh(
                         *slot = share;
                     }
                 }
+                cursor += count;
             }
         }
         AttributeDomain::Primitive => {
@@ -218,14 +248,27 @@ fn apply_gradient_mesh(
                 normals
             } else {
                 let prim_normals = primitive_normals(mesh)?;
+                let face_counts = if mesh.face_counts.is_empty() {
+                    if mesh.indices.len().is_multiple_of(3) {
+                        vec![3u32; mesh.indices.len() / 3]
+                    } else if mesh.indices.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![mesh.indices.len() as u32]
+                    }
+                } else {
+                    mesh.face_counts.clone()
+                };
                 let mut corner_normals = vec![[0.0, 1.0, 0.0]; mesh.indices.len()];
+                let mut cursor = 0usize;
                 for (prim_index, normal) in prim_normals.iter().enumerate() {
-                    let base = prim_index * 3;
-                    for corner in 0..3 {
-                        if let Some(slot) = corner_normals.get_mut(base + corner) {
+                    let count = face_counts.get(prim_index).copied().unwrap_or(0) as usize;
+                    for corner in 0..count {
+                        if let Some(slot) = corner_normals.get_mut(cursor + corner) {
                             *slot = normal.to_array();
                         }
                     }
+                    cursor += count;
                 }
                 mesh.corner_normals = Some(corner_normals);
                 mesh.corner_normals.as_ref().unwrap()
@@ -257,7 +300,7 @@ fn apply_gradient_mesh(
             }
         }
         AttributeDomain::Detail => {
-            let value = if mesh.indices.len().is_multiple_of(3) && !mesh.indices.is_empty() {
+            let value = if mesh.face_count() > 0 {
                 let normals = primitive_normals(mesh)?;
                 average_gradient(normals.iter().copied())
             } else if let Some(normals) = &mesh.normals {
@@ -392,12 +435,16 @@ fn apply_gradient_splats(
 }
 
 fn primitive_areas(mesh: &Mesh) -> Result<Vec<f32>, String> {
-    if !mesh.indices.len().is_multiple_of(3) {
-        return Err("Attribute from Feature requires triangle mesh input".to_string());
+    let face_count = mesh.face_count();
+    if face_count == 0 {
+        return Ok(Vec::new());
     }
-    let tri_count = mesh.indices.len() / 3;
-    let mut areas = Vec::with_capacity(tri_count);
-    for tri in mesh.indices.chunks_exact(3) {
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.len() < 3 {
+        return Err("Attribute from Feature requires polygon input".to_string());
+    }
+    let mut areas = vec![0.0f32; face_count];
+    for (tri_idx, tri) in triangulation.indices.chunks_exact(3).enumerate() {
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;
@@ -409,18 +456,29 @@ fn primitive_areas(mesh: &Mesh) -> Result<Vec<f32>, String> {
         let p1 = Vec3::from(mesh.positions[i1]);
         let p2 = Vec3::from(mesh.positions[i2]);
         let area = 0.5 * (p1 - p0).cross(p2 - p0).length();
-        areas.push(area.max(0.0));
+        let face = triangulation
+            .tri_to_face
+            .get(tri_idx)
+            .copied()
+            .unwrap_or(tri_idx);
+        if let Some(slot) = areas.get_mut(face) {
+            *slot += area.max(0.0);
+        }
     }
     Ok(areas)
 }
 
 fn primitive_normals(mesh: &Mesh) -> Result<Vec<Vec3>, String> {
-    if !mesh.indices.len().is_multiple_of(3) {
-        return Err("Attribute from Feature requires triangle mesh input".to_string());
+    let face_count = mesh.face_count();
+    if face_count == 0 {
+        return Ok(Vec::new());
     }
-    let tri_count = mesh.indices.len() / 3;
-    let mut normals = Vec::with_capacity(tri_count);
-    for tri in mesh.indices.chunks_exact(3) {
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.len() < 3 {
+        return Err("Attribute from Feature requires polygon input".to_string());
+    }
+    let mut accum = vec![Vec3::ZERO; face_count];
+    for (tri_idx, tri) in triangulation.indices.chunks_exact(3).enumerate() {
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;
@@ -432,13 +490,25 @@ fn primitive_normals(mesh: &Mesh) -> Result<Vec<Vec3>, String> {
         let p1 = Vec3::from(mesh.positions[i1]);
         let p2 = Vec3::from(mesh.positions[i2]);
         let normal = (p1 - p0).cross(p2 - p0);
-        let normal = if normal.length_squared() > 0.0 {
-            normal.normalize()
-        } else {
-            Vec3::Y
-        };
-        normals.push(normal);
+        let face = triangulation
+            .tri_to_face
+            .get(tri_idx)
+            .copied()
+            .unwrap_or(tri_idx);
+        if let Some(slot) = accum.get_mut(face) {
+            *slot += normal;
+        }
     }
+    let normals = accum
+        .into_iter()
+        .map(|normal| {
+            if normal.length_squared() > 0.0 {
+                normal.normalize()
+            } else {
+                Vec3::Y
+            }
+        })
+        .collect();
     Ok(normals)
 }
 

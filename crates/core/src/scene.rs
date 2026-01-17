@@ -11,6 +11,10 @@ pub struct SceneMesh {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
+    pub tri_to_face: Vec<u32>,
+    pub corner_indices: Vec<u32>,
+    pub poly_indices: Vec<u32>,
+    pub poly_face_counts: Vec<u32>,
     pub corner_normals: Option<Vec<[f32; 3]>>,
     pub colors: Option<Vec<[f32; 3]>>,
     pub corner_colors: Option<Vec<[f32; 3]>>,
@@ -74,6 +78,30 @@ impl SceneMesh {
         mesh: &Mesh,
         material_lookup: &std::collections::HashMap<String, u32>,
     ) -> Self {
+        let triangulation = mesh.triangulate();
+        let tri_indices = triangulation.indices;
+        let tri_to_face: Vec<u32> = triangulation
+            .tri_to_face
+            .iter()
+            .map(|&value| value as u32)
+            .collect();
+        let corner_indices: Vec<u32> = triangulation
+            .corner_indices
+            .iter()
+            .map(|&value| value as u32)
+            .collect();
+        let poly_indices = mesh.indices.clone();
+        let poly_face_counts = if mesh.face_counts.is_empty() {
+            if mesh.indices.len().is_multiple_of(3) {
+                vec![3u32; mesh.indices.len() / 3]
+            } else if mesh.indices.is_empty() {
+                Vec::new()
+            } else {
+                vec![mesh.indices.len() as u32]
+            }
+        } else {
+            mesh.face_counts.clone()
+        };
         let mut normals = fallback_normals(mesh);
         let mut corner_normals = mesh.corner_normals.clone();
         if let Some((domain, attr)) = mesh.attribute_with_precedence("N") {
@@ -81,7 +109,8 @@ impl SceneMesh {
                 match domain {
                     AttributeDomain::Vertex => {
                         if values.len() == mesh.indices.len() {
-                            corner_normals = Some(values);
+                            corner_normals =
+                                expand_corner_attribute(&values, &triangulation.corner_indices);
                         }
                     }
                     AttributeDomain::Point => {
@@ -91,17 +120,19 @@ impl SceneMesh {
                         }
                     }
                     AttributeDomain::Primitive => {
-                        if let Some(expanded) = expand_primitive_vec3(mesh, &values) {
+                        if let Some(expanded) =
+                            expand_primitive_vec3(mesh, &values, &triangulation.tri_to_face)
+                        {
                             corner_normals = Some(expanded);
                         }
                     }
                     AttributeDomain::Detail => {
                         if let Some(value) = values.first().copied() {
-                            if mesh.indices.is_empty() {
+                            if tri_indices.is_empty() {
                                 normals = vec![value; mesh.positions.len()];
                                 corner_normals = None;
                             } else {
-                                corner_normals = Some(vec![value; mesh.indices.len()]);
+                                corner_normals = Some(vec![value; tri_indices.len()]);
                             }
                         }
                     }
@@ -116,7 +147,8 @@ impl SceneMesh {
                 match domain {
                     AttributeDomain::Vertex => {
                         if values.len() == mesh.indices.len() {
-                            corner_colors = Some(values);
+                            corner_colors =
+                                expand_corner_attribute(&values, &triangulation.corner_indices);
                         }
                     }
                     AttributeDomain::Point => {
@@ -125,16 +157,18 @@ impl SceneMesh {
                         }
                     }
                     AttributeDomain::Primitive => {
-                        if let Some(expanded) = expand_primitive_vec3(mesh, &values) {
+                        if let Some(expanded) =
+                            expand_primitive_vec3(mesh, &values, &triangulation.tri_to_face)
+                        {
                             corner_colors = Some(expanded);
                         }
                     }
                     AttributeDomain::Detail => {
                         if let Some(value) = values.first().copied() {
-                            if mesh.indices.is_empty() {
+                            if tri_indices.is_empty() {
                                 colors = Some(vec![value; mesh.positions.len()]);
                             } else {
-                                corner_colors = Some(vec![value; mesh.indices.len()]);
+                                corner_colors = Some(vec![value; tri_indices.len()]);
                             }
                         }
                     }
@@ -142,13 +176,17 @@ impl SceneMesh {
             }
         }
 
-        let (uvs, corner_uvs) = mesh_uvs(mesh);
-        let corner_materials = mesh_materials(mesh, material_lookup);
+        let (uvs, corner_uvs) = mesh_uvs(mesh, &tri_indices, &triangulation.corner_indices);
+        let corner_materials = mesh_materials(mesh, material_lookup, &triangulation.tri_to_face);
 
         Self {
             positions: mesh.positions.clone(),
             normals,
-            indices: mesh.indices.clone(),
+            indices: tri_indices,
+            tri_to_face,
+            corner_indices,
+            poly_indices,
+            poly_face_counts,
             corner_normals,
             colors,
             corner_colors,
@@ -312,7 +350,7 @@ fn attr_vec2(attr: AttributeRef<'_>) -> Option<Vec<[f32; 2]>> {
     }
 }
 
-fn mesh_uvs(mesh: &Mesh) -> UvData {
+fn mesh_uvs(mesh: &Mesh, tri_indices: &[u32], corner_indices: &[usize]) -> UvData {
     let mut uvs = mesh.uvs.clone();
     if let Some(attr) = mesh.attribute(AttributeDomain::Point, "uv") {
         if let Some(values) = attr_vec2(attr) {
@@ -326,15 +364,15 @@ fn mesh_uvs(mesh: &Mesh) -> UvData {
     if let Some(attr) = mesh.attribute(AttributeDomain::Vertex, "uv") {
         if let Some(values) = attr_vec2(attr) {
             if values.len() == mesh.indices.len() {
-                corner_uvs = Some(values);
+                corner_uvs = expand_corner_attribute(&values, corner_indices);
             }
         }
     }
     if corner_uvs.is_none() {
         if let Some(uvs) = &uvs {
-            if uvs.len() == mesh.positions.len() && !mesh.indices.is_empty() {
-                let mut expanded = Vec::with_capacity(mesh.indices.len());
-                for &idx in &mesh.indices {
+            if uvs.len() == mesh.positions.len() && !tri_indices.is_empty() {
+                let mut expanded = Vec::with_capacity(tri_indices.len());
+                for &idx in tri_indices {
                     expanded.push(*uvs.get(idx as usize).unwrap_or(&[0.0, 0.0]));
                 }
                 corner_uvs = Some(expanded);
@@ -348,17 +386,19 @@ fn mesh_uvs(mesh: &Mesh) -> UvData {
 fn mesh_materials(
     mesh: &Mesh,
     material_lookup: &std::collections::HashMap<String, u32>,
+    tri_to_face: &[usize],
 ) -> Option<Vec<u32>> {
     let attr = mesh.attribute(AttributeDomain::Primitive, "material")?;
     let AttributeRef::StringTable(table) = attr else {
         return None;
     };
-    let tri_count = mesh.indices.len() / 3;
-    if tri_count == 0 || table.indices.len() != tri_count {
+    let face_count = mesh.face_count();
+    if face_count == 0 || table.indices.len() != face_count || tri_to_face.is_empty() {
         return None;
     }
-    let mut out = Vec::with_capacity(mesh.indices.len());
-    for &mat_idx in &table.indices {
+    let mut out = Vec::with_capacity(tri_to_face.len() * 3);
+    for &face_idx in tri_to_face {
+        let mat_idx = *table.indices.get(face_idx)?;
         let name = table
             .values
             .get(mat_idx as usize)
@@ -370,14 +410,33 @@ fn mesh_materials(
     Some(out)
 }
 
-fn expand_primitive_vec3(mesh: &Mesh, values: &[[f32; 3]]) -> Option<Vec<[f32; 3]>> {
-    let tri_count = mesh.indices.len() / 3;
-    if values.len() != tri_count {
+fn expand_primitive_vec3(
+    mesh: &Mesh,
+    values: &[[f32; 3]],
+    tri_to_face: &[usize],
+) -> Option<Vec<[f32; 3]>> {
+    let face_count = mesh.face_count();
+    if values.len() != face_count || tri_to_face.is_empty() {
         return None;
     }
-    let mut expanded = Vec::with_capacity(mesh.indices.len());
-    for value in values {
-        expanded.extend_from_slice(&[*value; 3]);
+    let mut expanded = Vec::with_capacity(tri_to_face.len() * 3);
+    for &face_idx in tri_to_face {
+        let value = *values.get(face_idx)?;
+        expanded.extend_from_slice(&[value; 3]);
     }
     Some(expanded)
+}
+
+fn expand_corner_attribute<T: Copy>(
+    values: &[T],
+    corner_indices: &[usize],
+) -> Option<Vec<T>> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut out = Vec::with_capacity(corner_indices.len());
+    for &idx in corner_indices {
+        out.push(*values.get(idx)?);
+    }
+    Some(out)
 }

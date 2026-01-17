@@ -262,17 +262,39 @@ fn surface_neighbors(mesh: &Mesh, domain: AttributeDomain, radius: f32) -> Vec<V
     neighbors
 }
 
+fn face_counts_for_mesh(mesh: &Mesh) -> Vec<u32> {
+    if !mesh.face_counts.is_empty() {
+        return mesh.face_counts.clone();
+    }
+    if mesh.indices.is_empty() {
+        return Vec::new();
+    }
+    if mesh.indices.len().is_multiple_of(3) {
+        vec![3; mesh.indices.len() / 3]
+    } else {
+        vec![mesh.indices.len() as u32]
+    }
+}
+
 fn point_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
     let mut neighbors = vec![Vec::new(); mesh.positions.len()];
-    for tri in mesh.indices.chunks_exact(3) {
-        let a = tri[0] as usize;
-        let b = tri[1] as usize;
-        let c = tri[2] as usize;
-        if a < neighbors.len() && b < neighbors.len() && c < neighbors.len() {
-            neighbors[a].extend([b, c]);
-            neighbors[b].extend([a, c]);
-            neighbors[c].extend([a, b]);
+    let face_counts = face_counts_for_mesh(mesh);
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 2 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
         }
+        for i in 0..count {
+            let a = mesh.indices[cursor + i] as usize;
+            let b = mesh.indices[cursor + (i + 1) % count] as usize;
+            if a < neighbors.len() && b < neighbors.len() {
+                neighbors[a].push(b);
+                neighbors[b].push(a);
+            }
+        }
+        cursor += count;
     }
     for list in &mut neighbors {
         list.sort_unstable();
@@ -283,16 +305,23 @@ fn point_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
 
 fn vertex_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
     let mut neighbors = vec![Vec::new(); mesh.indices.len()];
-    for tri_index in 0..mesh.indices.len() / 3 {
-        let base = tri_index * 3;
-        let a = base;
-        let b = base + 1;
-        let c = base + 2;
-        if c < neighbors.len() {
-            neighbors[a].extend([b, c]);
-            neighbors[b].extend([a, c]);
-            neighbors[c].extend([a, b]);
+    let face_counts = face_counts_for_mesh(mesh);
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 2 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
         }
+        for i in 0..count {
+            let a = cursor + i;
+            let b = cursor + (i + 1) % count;
+            if a < neighbors.len() && b < neighbors.len() {
+                neighbors[a].push(b);
+                neighbors[b].push(a);
+            }
+        }
+        cursor += count;
     }
     for list in &mut neighbors {
         list.sort_unstable();
@@ -302,49 +331,70 @@ fn vertex_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
 }
 
 fn primitive_neighbors(mesh: &Mesh) -> Vec<Vec<usize>> {
-    let tri_count = mesh.indices.len() / 3;
-    if tri_count == 0 {
+    let face_counts = face_counts_for_mesh(mesh);
+    let face_count = face_counts.len();
+    if face_count == 0 {
         return Vec::new();
     }
     let mut point_to_prims = vec![Vec::new(); mesh.positions.len()];
-    for (prim_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
-        for &idx in tri {
-            if let Some(list) = point_to_prims.get_mut(idx as usize) {
-                list.push(prim_index);
+    let mut cursor = 0usize;
+    for (face_index, &count) in face_counts.iter().enumerate() {
+        let count = count as usize;
+        if cursor + count > mesh.indices.len() {
+            break;
+        }
+        for i in 0..count {
+            let idx = mesh.indices[cursor + i] as usize;
+            if let Some(list) = point_to_prims.get_mut(idx) {
+                list.push(face_index);
             }
         }
+        cursor += count;
     }
 
-    let mut neighbors = vec![Vec::new(); tri_count];
-    for (prim_index, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    let mut neighbors = vec![Vec::new(); face_count];
+    cursor = 0usize;
+    for (face_index, &count) in face_counts.iter().enumerate() {
+        let count = count as usize;
+        if cursor + count > mesh.indices.len() {
+            break;
+        }
         let mut set = HashSet::new();
-        for &idx in tri {
-            if let Some(list) = point_to_prims.get(idx as usize) {
+        for i in 0..count {
+            let idx = mesh.indices[cursor + i] as usize;
+            if let Some(list) = point_to_prims.get(idx) {
                 for &other in list {
-                    if other != prim_index {
+                    if other != face_index {
                         set.insert(other);
                     }
                 }
             }
         }
-        neighbors[prim_index] = set.into_iter().collect();
-        neighbors[prim_index].sort_unstable();
+        let list = neighbors.get_mut(face_index).unwrap();
+        *list = set.into_iter().collect();
+        list.sort_unstable();
+        cursor += count;
     }
     neighbors
 }
 
 fn point_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
     let mut adjacency = vec![Vec::new(); positions.len()];
-    for tri in mesh.indices.chunks_exact(3) {
-        let a = tri[0] as usize;
-        let b = tri[1] as usize;
-        let c = tri[2] as usize;
-        push_edge(&mut adjacency, positions, a, b);
-        push_edge(&mut adjacency, positions, b, a);
-        push_edge(&mut adjacency, positions, b, c);
-        push_edge(&mut adjacency, positions, c, b);
-        push_edge(&mut adjacency, positions, c, a);
-        push_edge(&mut adjacency, positions, a, c);
+    let face_counts = face_counts_for_mesh(mesh);
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 2 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
+        }
+        for i in 0..count {
+            let a = mesh.indices[cursor + i] as usize;
+            let b = mesh.indices[cursor + (i + 1) % count] as usize;
+            push_edge(&mut adjacency, positions, a, b);
+            push_edge(&mut adjacency, positions, b, a);
+        }
+        cursor += count;
     }
     dedup_weighted_adjacency(&mut adjacency);
     adjacency
@@ -352,18 +402,21 @@ fn point_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
 
 fn vertex_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>> {
     let mut adjacency = vec![Vec::new(); positions.len()];
-    let tri_count = mesh.indices.len() / 3;
-    for tri_index in 0..tri_count {
-        let base = tri_index * 3;
-        let a = base;
-        let b = base + 1;
-        let c = base + 2;
-        push_edge(&mut adjacency, positions, a, b);
-        push_edge(&mut adjacency, positions, b, a);
-        push_edge(&mut adjacency, positions, b, c);
-        push_edge(&mut adjacency, positions, c, b);
-        push_edge(&mut adjacency, positions, c, a);
-        push_edge(&mut adjacency, positions, a, c);
+    let face_counts = face_counts_for_mesh(mesh);
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 2 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
+        }
+        for i in 0..count {
+            let a = cursor + i;
+            let b = cursor + (i + 1) % count;
+            push_edge(&mut adjacency, positions, a, b);
+            push_edge(&mut adjacency, positions, b, a);
+        }
+        cursor += count;
     }
     dedup_weighted_adjacency(&mut adjacency);
     adjacency
