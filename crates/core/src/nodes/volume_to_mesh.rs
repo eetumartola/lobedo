@@ -26,7 +26,7 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("mode".to_string(), ParamValue::String("density".to_string())),
+            ("mode".to_string(), ParamValue::String("sdf".to_string())),
             (
                 "density_iso".to_string(),
                 ParamValue::Float(DEFAULT_DENSITY_ISO),
@@ -50,7 +50,7 @@ pub fn apply_to_geometry(
         return Err("Volume to Mesh requires a volume input".to_string());
     };
 
-    let mode = params.get_string("mode", "density").to_lowercase();
+    let mode = params.get_string("mode", "sdf").to_lowercase();
     let is_density = !mode.contains("sdf");
     let iso = if is_density {
         params.get_float("density_iso", DEFAULT_DENSITY_ISO)

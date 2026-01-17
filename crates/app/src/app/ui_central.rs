@@ -404,19 +404,19 @@ impl LobedoApp {
             let header_height = 46.0;
             let padding = 40.0;
             let desired_height = header_height + rows as f32 * row_height + padding;
-            let max = right_rect.height() * 0.5;
+            let max = right_rect.height() * 0.85;
             let target = desired_height.clamp(min_params, max.max(min_params));
             if selected != self.last_selected_node
                 || (self.project.settings.node_params_split * right_rect.height()) < target
             {
                 let clamped = desired_height.clamp(min_params, max.max(min_params));
                 self.project.settings.node_params_split =
-                    (clamped / right_rect.height()).clamp(0.1, 0.5);
+                    (clamped / right_rect.height()).clamp(0.1, 0.85);
                 self.last_selected_node = selected;
             }
             params_height = (right_rect.height()
-                * self.project.settings.node_params_split.clamp(0.1, 0.5))
-            .clamp(min_params, right_rect.height() * 0.5);
+                * self.project.settings.node_params_split.clamp(0.1, 0.85))
+            .clamp(min_params, right_rect.height() * 0.85);
         }
         let params_ratio = if params_height > 0.0 { 1.0 } else { 0.0 };
         let params_rect = if params_ratio > 0.0 {
@@ -453,9 +453,9 @@ impl LobedoApp {
             if sep_response.dragged() {
                 if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
                     let local =
-                        (pos.y - right_rect.min.y).clamp(min_params, right_rect.height() * 0.5);
+                        (pos.y - right_rect.min.y).clamp(min_params, right_rect.height() * 0.85);
                     self.project.settings.node_params_split =
-                        (local / right_rect.height()).clamp(0.1, 0.5);
+                        (local / right_rect.height()).clamp(0.1, 0.85);
                 }
             }
             let stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(70, 70, 70));

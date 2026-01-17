@@ -28,7 +28,7 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("mode".to_string(), ParamValue::String("density".to_string())),
+            ("mode".to_string(), ParamValue::String("sdf".to_string())),
             ("max_dim".to_string(), ParamValue::Int(DEFAULT_MAX_DIM)),
             ("padding".to_string(), ParamValue::Float(DEFAULT_PADDING)),
             (
@@ -48,7 +48,7 @@ pub fn apply_to_geometry(
         return Ok(Geometry::default());
     };
 
-    let mode = params.get_string("mode", "density").to_lowercase();
+    let mode = params.get_string("mode", "sdf").to_lowercase();
     let kind = if mode.contains("sdf") {
         VolumeKind::Sdf
     } else {

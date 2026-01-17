@@ -14,7 +14,7 @@ use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Boolean Geo";
 const DEFAULT_MODE: &str = "auto";
-const DEFAULT_OP: i32 = 0;
+const DEFAULT_OP: i32 = 1;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -156,22 +156,16 @@ fn cutter_inner_surface(volume: &Volume, mesh_a: &Mesh, op: i32) -> Option<Mesh>
 }
 
 fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Result<Mesh, String> {
-    ensure_triangle_mesh(mesh_a, "Boolean Geo requires triangle mesh input A")?;
-    ensure_triangle_mesh(mesh_b, "Boolean Geo requires triangle mesh input B")?;
-
     let op = match params.get_int("op", DEFAULT_OP) {
         1 => OpType::Subtract,
         2 => OpType::Intersect,
         _ => OpType::Add,
     };
 
-    let pos_a = flatten_positions(mesh_a);
-    let pos_b = flatten_positions(mesh_b);
-    let idx_a = mesh_a.indices.iter().map(|i| *i as usize).collect::<Vec<_>>();
-    let idx_b = mesh_b.indices.iter().map(|i| *i as usize).collect::<Vec<_>>();
-
-    let manifold_a = Manifold::new(&pos_a, &idx_a)?;
-    let manifold_b = Manifold::new(&pos_b, &idx_b)?;
+    let manifold_a = manifold_from_mesh(mesh_a)
+        .map_err(|err| format!("Boolean Geo input A: {err}"))?;
+    let manifold_b = manifold_from_mesh(mesh_b)
+        .map_err(|err| format!("Boolean Geo input B: {err}"))?;
     let manifold = compute_boolean(&manifold_a, &manifold_b, op)?;
 
     let mut positions = Vec::with_capacity(manifold.ps.len());
@@ -188,16 +182,6 @@ fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Resul
     let sources = [SourceMesh::new(mesh_a)?, SourceMesh::new(mesh_b)?];
     transfer_attributes_from_sources(&mut mesh, &sources);
     Ok(mesh)
-}
-
-fn ensure_triangle_mesh(mesh: &Mesh, message: &str) -> Result<(), String> {
-    if mesh.positions.is_empty()
-        || mesh.indices.len() < 3
-        || !mesh.indices.len().is_multiple_of(3)
-    {
-        return Err(message.to_string());
-    }
-    Ok(())
 }
 
 fn flatten_positions(mesh: &Mesh) -> Vec<f64> {
@@ -231,11 +215,12 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
 
     let keep_inside = matches!(op, 2);
     let sampler = VolumeSampler::new(volume);
+    let voxel = volume.voxel_size.max(1.0e-4);
     let mut out_positions = Vec::new();
     let mut out_indices = Vec::new();
     let mut out_face_counts = Vec::new();
     let mut point_map: HashMap<usize, u32> = HashMap::new();
-    let target_len = volume.voxel_size.max(1.0e-4);
+    let max_edge_samples = 8usize;
 
     let face_counts = if mesh.face_counts.is_empty() {
         if mesh.indices.len().is_multiple_of(3) {
@@ -255,44 +240,23 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
             continue;
         }
 
-        let mut polygon = Vec::new();
+        let mut face_positions = Vec::with_capacity(count);
+        let mut face_dists = Vec::with_capacity(count);
         for i in 0..count {
-            let idx0 = mesh.indices[cursor + i] as usize;
-            let idx1 = mesh.indices[cursor + (i + 1) % count] as usize;
-            let p0 = Vec3::from(*mesh.positions.get(idx0).unwrap_or(&[0.0, 0.0, 0.0]));
-            let p1 = Vec3::from(*mesh.positions.get(idx1).unwrap_or(&[0.0, 0.0, 0.0]));
-            let mut d0 = sampler.sample_world(p0);
-            if !d0.is_finite() {
-                d0 = 1.0e6;
+            let idx = mesh.indices[cursor + i] as usize;
+            let pos = Vec3::from(*mesh.positions.get(idx).unwrap_or(&[0.0, 0.0, 0.0]));
+            let mut dist = sampler.sample_world(pos);
+            if !dist.is_finite() {
+                dist = 1.0e6;
             }
-            polygon.push(ClipVertex { pos: p0, dist: d0 });
-
-            let edge = p1 - p0;
-            let length = edge.length();
-            if length > target_len && target_len > 1.0e-6 {
-                let steps = (length / target_len).ceil().max(1.0) as usize;
-                if steps > 1 {
-                    let inv = 1.0 / steps as f32;
-                    for step in 1..steps {
-                        let t = step as f32 * inv;
-                        if t >= 1.0 {
-                            break;
-                        }
-                        let p = p0 + edge * t;
-                        let mut d = sampler.sample_world(p);
-                        if !d.is_finite() {
-                            d = 1.0e6;
-                        }
-                        polygon.push(ClipVertex { pos: p, dist: d });
-                    }
-                }
-            }
+            face_positions.push(pos);
+            face_dists.push(dist);
         }
 
         let mut any_keep = false;
         let mut any_drop = false;
-        for vertex in &polygon {
-            let keep = if keep_inside { vertex.dist <= 0.0 } else { vertex.dist >= 0.0 };
+        for &dist in &face_dists {
+            let keep = if keep_inside { dist <= 0.0 } else { dist >= 0.0 };
             if keep {
                 any_keep = true;
             } else {
@@ -300,7 +264,59 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
             }
         }
 
-        if !any_drop {
+        let all_keep = !any_drop;
+        let all_drop = !any_keep;
+        if all_keep || all_drop {
+            let boundary_keep = all_keep;
+            let v0 = face_positions[0];
+            let mut interior_cut = false;
+            for i in 1..(count - 1) {
+                let centroid = (v0 + face_positions[i] + face_positions[i + 1]) / 3.0;
+                let mut cd = sampler.sample_world(centroid);
+                if !cd.is_finite() {
+                    cd = 1.0e6;
+                }
+                let centroid_keep = if keep_inside { cd <= 0.0 } else { cd >= 0.0 };
+                if centroid_keep != boundary_keep {
+                    interior_cut = true;
+                    break;
+                }
+            }
+            if interior_cut {
+                for i in 1..(count - 1) {
+                    let tri = [
+                        ClipVertex {
+                            pos: v0,
+                            dist: face_dists[0],
+                        },
+                        ClipVertex {
+                            pos: face_positions[i],
+                            dist: face_dists[i],
+                        },
+                        ClipVertex {
+                            pos: face_positions[i + 1],
+                            dist: face_dists[i + 1],
+                        },
+                    ];
+                    let polygon =
+                        build_polygon_samples(&tri, &sampler, voxel, max_edge_samples);
+                    let clipped = clip_polygon(&polygon, keep_inside);
+                    if clipped.len() < 3 {
+                        continue;
+                    }
+                    let base = out_positions.len() as u32;
+                    for vertex in &clipped {
+                        out_positions.push(vertex.pos.to_array());
+                    }
+                    out_indices.extend((0..clipped.len()).map(|idx| base + idx as u32));
+                    out_face_counts.push(clipped.len() as u32);
+                }
+                cursor += count;
+                continue;
+            }
+        }
+
+        if all_keep {
             let mut face_indices = Vec::with_capacity(count);
             for i in 0..count {
                 let src_idx = mesh.indices[cursor + i] as usize;
@@ -321,11 +337,19 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
             continue;
         }
 
-        if !any_keep {
+        if all_drop {
             cursor += count;
             continue;
         }
 
+        let mut verts = Vec::with_capacity(count);
+        for i in 0..count {
+            verts.push(ClipVertex {
+                pos: face_positions[i],
+                dist: face_dists[i],
+            });
+        }
+        let polygon = build_polygon_samples(&verts, &sampler, voxel, max_edge_samples);
         let clipped = clip_polygon(&polygon, keep_inside);
         if clipped.len() < 3 {
             cursor += count;
@@ -346,6 +370,60 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
         out_indices,
         out_face_counts,
     ))
+}
+
+fn build_polygon_samples(
+    vertices: &[ClipVertex],
+    sampler: &VolumeSampler,
+    voxel: f32,
+    max_edge_samples: usize,
+) -> Vec<ClipVertex> {
+    let mut polygon = Vec::new();
+    if vertices.is_empty() {
+        return polygon;
+    }
+    let count = vertices.len();
+    for i in 0..count {
+        let curr = vertices[i];
+        let next = vertices[(i + 1) % count];
+        polygon.push(curr);
+        let edge = next.pos - curr.pos;
+        let length = edge.length();
+        let steps = ((length / (voxel * 2.0)).ceil() as usize).clamp(1, max_edge_samples);
+        if steps > 1 {
+            let inv = 1.0 / steps as f32;
+            for step in 1..steps {
+                let t = step as f32 * inv;
+                if t >= 1.0 {
+                    break;
+                }
+                let p = curr.pos + edge * t;
+                let mut d = sampler.sample_world(p);
+                if !d.is_finite() {
+                    d = 1.0e6;
+                }
+                polygon.push(ClipVertex { pos: p, dist: d });
+            }
+        }
+    }
+    polygon
+}
+
+fn manifold_from_mesh(mesh: &Mesh) -> Result<Manifold, String> {
+    if mesh.positions.is_empty() {
+        return Err("mesh has no points".to_string());
+    }
+    let triangulation = mesh.triangulate();
+    if triangulation.indices.is_empty() || !triangulation.indices.len().is_multiple_of(3) {
+        return Err("mesh has no triangles".to_string());
+    }
+    let positions = flatten_positions(mesh);
+    let indices = triangulation
+        .indices
+        .iter()
+        .map(|i| *i as usize)
+        .collect::<Vec<_>>();
+    Manifold::new(&positions, &indices).map_err(|err| err.to_string())
 }
 
 fn append_mesh_with_defaults(dst: &mut Mesh, src: &Mesh) {

@@ -14,7 +14,7 @@ use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Boolean SDF";
 const DEFAULT_MODE: &str = "auto";
-const DEFAULT_OP: i32 = 0;
+const DEFAULT_OP: i32 = 1;
 const DEFAULT_MAX_DIM: i32 = 64;
 const DEFAULT_PADDING: f32 = 0.1;
 const DEFAULT_SURFACE_ISO: f32 = 0.0;
