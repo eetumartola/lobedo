@@ -15,8 +15,19 @@ impl NodeGraphState {
         let pointer_down = ui.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
         if pressed {
             if let Some(pos) = ui.input(|i| i.pointer.press_origin()) {
-                if let Some(node) = self.node_at_pos(pos) {
-                    self.dragging_node = Some(node);
+                if self.is_pin_press(pos) {
+                    self.pin_drag_active = true;
+                    self.dragging_node = None;
+                } else {
+                    self.pin_drag_active = false;
+                    let graph_pos = if self.graph_transform.valid {
+                        self.graph_transform.to_global.inverse() * pos
+                    } else {
+                        pos
+                    };
+                    if let Some(node) = self.node_at_pos(graph_pos) {
+                        self.dragging_node = Some(node);
+                    }
                 }
             }
         }
@@ -27,9 +38,15 @@ impl NodeGraphState {
         } else if !ui.input(|i| i.pointer.any_released()) {
             self.dragging_node = None;
         }
+        if ui.input(|i| i.pointer.any_released()) {
+            self.pin_drag_active = false;
+        }
     }
 
     pub(super) fn handle_drop_on_wire(&mut self, ui: &Ui, graph: &mut Graph) -> bool {
+        if self.pin_drag_active {
+            return false;
+        }
         if !ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary)) {
             return false;
         }
@@ -88,6 +105,22 @@ impl NodeGraphState {
             }
         }
         best
+    }
+
+    fn is_pin_press(&self, pos: Pos2) -> bool {
+        const PIN_HIT_RADIUS: f32 = 14.0;
+        let radius_sq = PIN_HIT_RADIUS * PIN_HIT_RADIUS;
+        for pin_pos in self
+            .input_pin_positions
+            .borrow()
+            .values()
+            .chain(self.output_pin_positions.borrow().values())
+        {
+            if pin_pos.distance_sq(pos) <= radius_sq {
+                return true;
+            }
+        }
+        false
     }
 
     fn find_wire_hit_with_dist(
