@@ -5,6 +5,8 @@ pub mod attribute_from_volume;
 pub mod attribute_noise;
 pub mod attribute_transfer;
 pub mod box_node;
+pub mod boolean;
+pub mod boolean_geo;
 pub mod circle;
 pub mod color;
 pub mod copy_to_points;

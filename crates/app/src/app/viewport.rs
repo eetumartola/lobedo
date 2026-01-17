@@ -55,7 +55,7 @@ impl LobedoApp {
                 let forward = normalize([-dir[0], -dir[1], -dir[2]]);
                 let world_up = [0.0f32, 1.0f32, 0.0f32];
                 let right = normalize(cross(forward, world_up));
-                let dt = response.ctx.input(|i| i.stable_dt).max(0.0) as f32;
+                let dt = response.ctx.input(|i| i.stable_dt).max(0.0);
                 let step = camera.distance.max(0.1) * 0.6 * dt;
                 let mut delta = [0.0f32, 0.0f32, 0.0f32];
                 if w {

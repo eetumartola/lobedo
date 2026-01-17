@@ -106,9 +106,9 @@ pub fn apply_to_geometry(
         if z >= dim_z {
             return;
         }
-        let zf = min.z + (z as f32 + 0.5) * voxel_size;
-        let yf = min.y + (y as f32 + 0.5) * voxel_size;
-        let xf = min.x + (x as f32 + 0.5) * voxel_size;
+        let zf = min.z + z as f32 * voxel_size;
+        let yf = min.y + y as f32 * voxel_size;
+        let xf = min.x + x as f32 * voxel_size;
         let pos = Vec3::new(xf, yf, zf);
         let mut unsigned_dist = f32::INFINITY;
         let mut signed_dist = f32::INFINITY;
@@ -270,9 +270,9 @@ fn gather_geometry(input: &Geometry) -> Result<GatheredGeometry, String> {
 
 fn dims_from_size(size: Vec3, voxel_size: f32) -> [u32; 3] {
     [
-        (size.x / voxel_size).ceil().max(1.0) as u32,
-        (size.y / voxel_size).ceil().max(1.0) as u32,
-        (size.z / voxel_size).ceil().max(1.0) as u32,
+        ((size.x / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
+        ((size.y / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
+        ((size.z / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
     ]
 }
 

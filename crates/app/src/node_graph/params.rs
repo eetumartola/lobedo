@@ -172,7 +172,7 @@ pub(super) fn edit_param(
                     &[(0, "Voxel Close"), (1, "SDF Patch")],
                     "Voxel Close",
                 )
-            } else if label == "method" && node_name == "Splat Cluster" {
+            } else if label == "method" && node_name == "Splat Cluster" {       
                 combo_row_i32(
                     ui,
                     label,
@@ -181,6 +181,18 @@ pub(super) fn edit_param(
                     &mut v,
                     &[(0, "Grid"), (1, "DBSCAN")],
                     "Grid",
+                )
+            } else if label == "op"
+                && matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo")
+            {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Union"), (1, "Difference"), (2, "Intersect")],
+                    "Union",
                 )
             } else if label == "method" {
                 combo_row_i32(
@@ -478,8 +490,13 @@ pub(super) fn edit_param(
             } else if label == "mode"
                 && matches!(node_name, "Volume to Mesh" | "Volume from Geometry")
             {
-                let options = &[("density", "Density"), ("sdf", "SDF")];
+                let options = &[("density", "Density"), ("sdf", "SDF")];        
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Density")
+            } else if label == "mode"
+                && matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo")
+            {
+                let options = &[("auto", "Auto"), ("mesh_mesh", "Mesh-Mesh"), ("mesh_sdf", "Mesh-SDF")];
+                combo_row_string(ui, label, &display_label, help, &mut v, options, "Auto")
             } else if label == "shape" {
                 let options: &[(&str, &str)] = if node_name == "Group" {
                     &[
@@ -1088,6 +1105,17 @@ fn display_label(node_name: &str, key: &str) -> String {
             "points" => "Points",
             "subdivs" => "Subdivs",
             "closed" => "Closed",
+            _ => key,
+        }
+        .to_string();
+    }
+    if matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo") {
+        return match key {
+            "mode" => "Mode",
+            "op" => "Operation",
+            "max_dim" => "Max Dimension",
+            "padding" => "Padding",
+            "surface_iso" => "Surface Iso",
             _ => key,
         }
         .to_string();

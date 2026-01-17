@@ -48,7 +48,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let align_to_normals = params.get_bool("align_to_normals", true);
     let inherit = parse_attribute_list(params.get_string("inherit", "Cd"));
     let template = template_from_mesh(params, &template, align_to_normals, &inherit)?;
-    compute_mesh_from_template(params, source, template)
+    compute_mesh_from_template(params, &source, template)
 }
 
 pub fn compute_mesh_from_splats(

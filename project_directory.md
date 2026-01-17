@@ -216,6 +216,14 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\boolean.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\boolean_geo.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\box_node.rs
 Description: TODO: add description.
 Functions: None

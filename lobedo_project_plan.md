@@ -24,7 +24,7 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Perfect physically based relighting of captured splats
 - Unreal integration or `.uasset` authoring
 
-## Epic P - Polish (future)
+## Epic P - Polish (done)
 - Transient node info panel on middle mouse (dismiss on release)
 - Open app fullscreen by default
 - Pin hit area 2x radius of visual pin circle
@@ -37,26 +37,28 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Delete node reconnects upstream/downstream links
 - README refresh + GPL license switch
 
-## Epic V - Viewport Editing
+## Epic V - Viewport Editing (done)
 - Shared viewport tool framework (gizmos + draw tools)
-- Transform gizmo (move/rotate/scale) for Transform node
-- Curve node with viewport draw tool (workplane y=0)
+- Transform gizmo (move/rotate/scale) for Transform + Copy/Transform
+- Curve node with viewport draw + edit tools (workplane y=0)
+- Box/bounds gizmo for Box/Group/Delete/Splat Heal
+- Group selection mode (click/box, modifiers, backface toggle)
 
-## Epic C - Architecture cleanup
+## Epic C - Architecture cleanup (done)
 - Centralize built-in node registry metadata (definitions/defaults/compute/input policy)
 - Drive geometry eval inputs from the node input policy
-- Wrap mesh/splat eval around geometry eval to remove duplicate input logic
+- Wrap mesh/splat eval around geometry eval to remove duplicate input logic     
 - Reduce duplicate node lists in UI menu/state helpers
 
-## Epic T - Parallelism (future)
-- Add optional CPU parallelism (rayon) for heavy geometry loops with a single-thread fallback for web
-- Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering)
-- Target high-cost loops (Attribute Transfer, Smooth, Ray, Copy to Points) + CPU splat depth sorting
-- Parallelize per-primitive evaluation inside a node (mesh list, splat list, point list)
-- Explore parallel node evaluation for independent subgraphs (graph scheduling)
-- Add profiling-driven thresholds (only parallelize above a size/complexity cutoff)
+## Epic T - Parallelism
+- Add optional CPU parallelism (rayon) for heavy geometry loops with a single-thread fallback for web (done)
+- Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering) (in progress: LOD pending)
+- Target high-cost loops (Attribute Transfer, Smooth, Ray, Copy to Points) + CPU splat depth sorting (in progress: Ray/Copy to Points pending)
+- Parallelize per-primitive evaluation inside a node (mesh list, splat list, point list) (not started)
+- Explore parallel node evaluation for independent subgraphs (graph scheduling) (not started)
+- Add profiling-driven thresholds (only parallelize above a size/complexity cutoff) (in progress: size threshold, no profiling)
 
-## Epic U - Materials & Textures
+## Epic U - Materials & Textures (done)
 - Add string attributes with shared value tables (Houdini-style) for per-primitive material assignment
 - Ensure meshes carry UVs end-to-end (reader, nodes, renderer)
 - `UV Texture` node for basic projections (planar/box/cyl/sphere)
@@ -64,7 +66,7 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - `Material` node with named PBR parameters + diffuse texture path
 - Renderer support for UVs + diffuse texture sampling (MVP: diffuse only)       
 
-## Epic W - Volume Support
+## Epic W - Volume Support (done)
 - Add a new Volume primitive type (sparse-friendly core representation)
 - `Volume from Geometry` node (density + SDF modes)
 - Volume rendering in viewport (raymarching MVP)
@@ -159,60 +161,56 @@ SH evaluation:
 
 ---
 
-## Node Library (MVP)
+## Node Library (current)
 
 ### IO
-1. `Splat Read` (PLY + optional SPZ)
-2. `Splat Write` (PLY + optional SPZ)
-3. `Read Image` (for ML path)
+- `File` (OBJ/GLTF)
+- `Splat Read` (PLY)
+- `Splat Write` (PLY)
+- `OBJ Output`
+- `GLTF Output`
 
-### Shared transform / selection-like ops
-4. `Transform` (works on all supported primitives)
-   - Splat-aware: transforms `P/R/S` and rotates SH coefficients when rotation is applied
-5. `Merge` (Mesh merge; Splat merge)
-6. `Group` (create named groups by box/sphere/plane or from existing groups)    
-7. `FFD` (free-form deformation lattice for mesh/curve/splat geometry) 
+### Core geometry ops
+- `Transform`, `Merge`, `Delete`, `Group`, `FFD`, `Boolean SDF`, `Boolean Geo`
+- `Copy/Transform`, `Copy to Points`, `Scatter`, `Resample`
+- `Normal`, `Color`, `Noise/Mountain`, `Erosion Noise`, `Smooth`
+- `Ray`, `Sweep`, `Tube`, `Circle`, `Curve`, `Sphere`, `Grid`, `Box`
+- `Attribute Noise`, `Attribute from Feature`, `Attribute from Volume`, `Attribute Transfer`, `Attribute Math`, `Wrangle`
 
-### Houdini utility nodes (pre-splat-specific)
-8. `Tube` (mesh source)
-9. `Attribute Noise` (named attribute; float/vec2/vec3 + point/vertex/prim; shared noise library)
-10. `Attribute from Feature` (area + gradient features; Measure SOP + Heightfield Mask by Feature hybrid)
-11. `Attribute Transfer` (space-delimited attribute names; domain selector; splats as source at minimum)
-12. `Smooth` (space-delimited attribute names, default P; splat-aware where possible)
-13. `Ray` (normal/direction/closest; max distance; hit group + attribute import; optional no-transform)
-14. `Wrangle` (implicit @ptnum/@vtxnum/@primnum; point/vertex/prim/splat attribute queries across inputs 0/1)
-15. `Resample` (volume resample, curve decimate, mesh poly reduce)
+### Materials & UV
+- `UV Texture`, `UV Unwrap`, `UV View`
+- `Material`
 
-### Materials & UV (MVP)
-16. `UV Texture` (basic projections; writes vertex `uv`)
-17. `UV Unwrap` (basic unwrap for meshes)
-18. `Material` (named PBR params + diffuse texture; assigns primitive material attribute)
+### Volume
+- `Volume from Geometry`
+- `Volume Combine`
+- `Volume Blur`
+- `Volume to Mesh`
 
 ### Splat-native ops
-14. `Crop` (box/sphere/plane)
-15. `Splat Prune` (by opacity/scale/confidence/outlier heuristics)
-16. `Splat Regularize` (clamp scales, normalize opacity, remove invalid values)
-17. `LOD / Decimate` (voxel clustering or k-means-ish; preserve appearance)     
-18. `SH Tools` (utility)
-   - `Rotate SH` (explicit)
-   - `Reduce SH Order` (e.g., L3->L1)
-19. `Splat Outlier` (remove stragglers by distance/scale/opacity thresholds)    
-20. `Splat Cluster` (cluster labeling with a `cluster` attribute)
-21. `Splat Heal` (fill small holes by resplatting via voxel close / SDF patch, optional bounds)  
+- `Splat Prune`
+- `Splat Regularize`
+- `Splat LOD`
+- `Splat to Mesh` (mesh or SDF volume)
+- `Splat Deform`
+- `Splat Delight`
+- `Splat Integrate`
+- `Splat Heal`
+- `Splat Outlier`
+- `Splat Cluster`
+- `Splat Merge`
 
-### Conversion
-19. `Splats -> Points`
-20. `Splats -> Mesh (Density / Ellipsoid implicit)`
-21. `Points -> Splats (Fit)`
-22. `Mesh -> Splats (Sample Surface)` (optional in MVP, but high leverage)
+### Planned conversions
+- `Splats -> Points`
+- `Points -> Splats (Fit)`
+- `Mesh -> Splats (Sample Surface)`
 
-### ML (MVP)
-22. `Depth Estimation (Job)`
-23. `Backproject to Points`
-24. (Optional) `Points -> Splats` downstream
+### ML (future)
+- `Depth Estimation (Job)`
+- `Backproject to Points`
+- (Optional) `Points -> Splats` downstream
 
 ---
-
 ## ML Integration Architecture
 - Treat ML nodes as **jobs**:
   - async execution, progress, cancel
@@ -266,3 +264,5 @@ SH evaluation:
 - Backproject node
 - Fit splats node
 - End-to-end example: image + depth + points + splats + export
+
+

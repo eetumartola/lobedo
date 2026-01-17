@@ -104,6 +104,45 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("closed", "Close the curve loop."),
             ],
         }),
+        "Boolean" | "Boolean SDF" => Some(NodeHelpPage {
+            name: "Boolean SDF",
+            description: &[
+                "Combines meshes using signed distance fields (SDFs) and extracts a new surface.",
+                "Mesh-Mesh mode converts both inputs to SDFs and performs the boolean in volume space.",
+                "Mesh-SDF mode uses the SDF volume on input B as the cutting tool.",
+                "The result is a triangulated surface from the combined SDF, which is robust but not topology-preserving.",
+            ],
+            inputs: &[
+                "a: Mesh geometry to keep/modify.",
+                "b: Mesh or SDF volume used as the cutter.",
+            ],
+            outputs: &["out: Booleaned mesh (other primitives pass through)."],
+            parameters: &[
+                ("mode", "Auto picks Mesh-Mesh unless input B has an SDF volume; Mesh-SDF forces using an SDF volume."),
+                ("op", "Operation: Union, Difference (A - B), or Intersect."),
+                ("max_dim", "Maximum voxel dimension used for the SDF grid."),
+                ("padding", "Extra padding added around the combined bounds."),
+                ("surface_iso", "Isovalue used when extracting the mesh from the SDF."),
+            ],
+        }),
+        "Boolean Geo" => Some(NodeHelpPage {
+            name: "Boolean Geo",
+            description: &[
+                "Combines meshes using polygonal booleans and preserves the original surface geometry where possible.",
+                "Mesh-Mesh mode runs a manifold boolean and interpolates attributes from the source surfaces.",
+                "Mesh-SDF mode clips the mesh against an SDF volume while keeping the input mesh triangles (no remeshing).",
+                "Use it when you need attribute fidelity or topology that follows the original mesh.",
+            ],
+            inputs: &[
+                "a: Mesh geometry to keep/modify.",
+                "b: Mesh or SDF volume used as the cutter.",
+            ],
+            outputs: &["out: Booleaned mesh (other primitives pass through)."],
+            parameters: &[
+                ("mode", "Auto picks Mesh-Mesh unless input B has an SDF volume; Mesh-SDF forces using an SDF volume."),
+                ("op", "Operation: Union, Difference (A - B), or Intersect."),
+            ],
+        }),
         "Sweep" => Some(NodeHelpPage {
             name: "Sweep",
             description: &[

@@ -18,14 +18,14 @@ Status: done | in progress | not started
 - **C4**: Splat eval wraps geometry eval and derives splat outputs (done)
 - **C5**: Reduce duplicate node lists in the UI menu/state helpers (done)
 
-## Epic T - Parallelism (future)
-- **T1**: Add optional CPU parallelism (rayon) with single-thread fallback for web/wasm (not started)
-- **T2**: Parallelize attribute-heavy nodes (Wrangle, Attribute Noise/From Feature/Transfer/Math, Smooth) (not started)
-- **T3**: Parallelize splat ops (Prune, Regularize, LOD/Decimate) (not started)
+## Epic T - Parallelism
+- **T1**: Add optional CPU parallelism (rayon) with single-thread fallback for web/wasm (done)
+- **T2**: Parallelize attribute-heavy nodes (Wrangle, Attribute Noise/From Feature/Transfer/Math, Smooth) (done)
+- **T3**: Parallelize splat ops (Prune, Regularize, LOD/Decimate) (in progress)
 - **T4**: Parallelize mesh ops (Delete/Group, Copy to Points/Transform, Ray) (not started)
 - **T5**: Parallelize per-primitive evaluation inside Geometry nodes (mesh/splat lists) (not started)
 - **T6**: Explore parallel node evaluation for independent subgraphs (scheduler) (not started)
-- **T7**: Add profiling + size thresholds to guard parallel overhead (not started)
+- **T7**: Add profiling + size thresholds to guard parallel overhead (in progress)
 
 ## Epic U - Materials & Textures
 - **U1**: String attributes with value tables + index storage (mesh + splat) (done)
@@ -83,6 +83,8 @@ Status: done | in progress | not started
 - **N22**: Splat Outlier (remove sparse splats via density clustering) (done)   
 - **N23**: Splat Cluster (assign cluster id attribute) (done)
 - **N24**: Resample (volume resample, curve decimate, mesh poly reduce) (done)
+- **N25a**: Boolean SDF (mesh-mesh via SDF + mesh cut by SDF) (done)
+- **N25b**: Boolean Geo (polygon boolean + mesh-SDF clipping) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

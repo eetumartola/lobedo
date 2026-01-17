@@ -302,12 +302,10 @@ impl LobedoApp {
             ));
         }
         let mut footer = None;
-        if node_name == "Group" {
-            if group_shape.as_deref() == Some("selection") {
-                actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
-                let count = selection_count(group_selection.as_deref().unwrap_or(""));
-                footer = Some(format!("Selected: {}", count));
-            }
+        if node_name == "Group" && group_shape.as_deref() == Some("selection") {
+            actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
+            let count = selection_count(group_selection.as_deref().unwrap_or(""));
+            footer = Some(format!("Selected: {}", count));
         }
         if actions.is_empty() {
             return;

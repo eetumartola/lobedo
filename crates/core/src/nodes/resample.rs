@@ -335,35 +335,35 @@ fn extend_mesh_point_data(mesh: &mut Mesh, extra: usize) {
         return;
     }
     if let Some(normals) = &mut mesh.normals {
-        normals.extend(std::iter::repeat([0.0, 1.0, 0.0]).take(extra));
+        normals.extend(std::iter::repeat_n([0.0, 1.0, 0.0], extra));
     }
     if let Some(uvs) = &mut mesh.uvs {
-        uvs.extend(std::iter::repeat([0.0, 0.0]).take(extra));
+        uvs.extend(std::iter::repeat_n([0.0, 0.0], extra));
     }
     for storage in mesh.attributes.map_mut(AttributeDomain::Point).values_mut() {
         match storage {
             AttributeStorage::Float(values) => {
-                values.extend(std::iter::repeat(0.0).take(extra));
+                values.extend(std::iter::repeat_n(0.0, extra));
             }
             AttributeStorage::Int(values) => {
-                values.extend(std::iter::repeat(0).take(extra));
+                values.extend(std::iter::repeat_n(0, extra));
             }
             AttributeStorage::Vec2(values) => {
-                values.extend(std::iter::repeat([0.0, 0.0]).take(extra));
+                values.extend(std::iter::repeat_n([0.0, 0.0], extra));
             }
             AttributeStorage::Vec3(values) => {
-                values.extend(std::iter::repeat([0.0, 0.0, 0.0]).take(extra));
+                values.extend(std::iter::repeat_n([0.0, 0.0, 0.0], extra));
             }
             AttributeStorage::Vec4(values) => {
-                values.extend(std::iter::repeat([0.0, 0.0, 0.0, 0.0]).take(extra));
+                values.extend(std::iter::repeat_n([0.0, 0.0, 0.0, 0.0], extra));
             }
             AttributeStorage::StringTable(values) => {
-                values.indices.extend(std::iter::repeat(0).take(extra));
+                values.indices.extend(std::iter::repeat_n(0, extra));
             }
         }
     }
     for group in mesh.groups.map_mut(AttributeDomain::Point).values_mut() {
-        group.extend(std::iter::repeat(false).take(extra));
+        group.extend(std::iter::repeat_n(false, extra));
     }
 }
 
@@ -379,9 +379,9 @@ fn resample_volume(volume: &Volume, max_dim: u32) -> Volume {
 
     let voxel_size = volume.voxel_size.max(1.0e-6);
     let size = Vec3::new(
-        old_dims[0] as f32 * voxel_size,
-        old_dims[1] as f32 * voxel_size,
-        old_dims[2] as f32 * voxel_size,
+        old_dims[0].saturating_sub(1) as f32 * voxel_size,
+        old_dims[1].saturating_sub(1) as f32 * voxel_size,
+        old_dims[2].saturating_sub(1) as f32 * voxel_size,
     );
     let max_extent = size.x.max(size.y).max(size.z).max(1.0e-6);
     let new_voxel = max_extent / max_dim as f32;

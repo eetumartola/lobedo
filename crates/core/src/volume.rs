@@ -49,9 +49,9 @@ impl Volume {
     pub fn local_bounds(&self) -> (Vec3, Vec3) {
         let min = Vec3::from(self.origin);
         let size = Vec3::new(
-            self.dims[0] as f32 * self.voxel_size,
-            self.dims[1] as f32 * self.voxel_size,
-            self.dims[2] as f32 * self.voxel_size,
+            self.dims[0].saturating_sub(1) as f32 * self.voxel_size,
+            self.dims[1].saturating_sub(1) as f32 * self.voxel_size,
+            self.dims[2].saturating_sub(1) as f32 * self.voxel_size,
         );
         let max = min + size;
         (min, max)

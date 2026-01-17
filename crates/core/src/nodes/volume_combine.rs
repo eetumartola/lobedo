@@ -147,9 +147,9 @@ fn combine_scalar(op: i32, a: f32, b: f32) -> f32 {
 
 fn dims_from_size(size: Vec3, voxel_size: f32) -> [u32; 3] {
     [
-        (size.x / voxel_size).ceil().max(1.0) as u32,
-        (size.y / voxel_size).ceil().max(1.0) as u32,
-        (size.z / voxel_size).ceil().max(1.0) as u32,
+        ((size.x / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
+        ((size.y / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
+        ((size.z / voxel_size).ceil().max(1.0) as u32).saturating_add(1),
     ]
 }
 

@@ -18,6 +18,8 @@ pub enum BuiltinNodeKind {
     ReadSplats,
     WriteSplats,
     GltfOutput,
+    BooleanSdf,
+    BooleanGeo,
     Delete,
     Prune,
     Regularize,
@@ -217,6 +219,24 @@ static NODE_SPECS: &[NodeSpec] = &[
         definition: nodes::gltf_output::definition,
         default_params: nodes::gltf_output::default_params,
         compute_mesh: nodes::gltf_output::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::BooleanSdf,
+        name: nodes::boolean::NAME,
+        aliases: &["Boolean"],
+        definition: nodes::boolean::definition,
+        default_params: nodes::boolean::default_params,
+        compute_mesh: nodes::boolean::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::BooleanGeo,
+        name: nodes::boolean_geo::NAME,
+        aliases: &[],
+        definition: nodes::boolean_geo::definition,
+        default_params: nodes::boolean_geo::default_params,
+        compute_mesh: nodes::boolean_geo::compute,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
@@ -675,6 +695,8 @@ pub fn compute_geometry_node(
             Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
         }
         BuiltinNodeKind::WriteSplats => apply_write_splats(params, inputs),
+        BuiltinNodeKind::BooleanSdf => nodes::boolean::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::BooleanGeo => nodes::boolean_geo::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Delete => apply_delete(params, inputs),
         BuiltinNodeKind::Prune => apply_prune(params, inputs),
         BuiltinNodeKind::Regularize => apply_regularize(params, inputs),

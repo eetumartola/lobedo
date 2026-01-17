@@ -80,7 +80,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
 
     let mut cluster_sets: Vec<Vec<usize>> = clusters.values().cloned().collect();
     if target_count > 0 && cluster_sets.len() > target_count {
-        cluster_sets.sort_by(|a, b| b.len().cmp(&a.len()));
+        cluster_sets.sort_by_key(|set| std::cmp::Reverse(set.len()));
         cluster_sets.truncate(target_count);
     }
     let output_len = unselected.len() + cluster_sets.len();
