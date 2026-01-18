@@ -5,7 +5,7 @@ use tracing::warn;
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::attribute_utils::{domain_from_params, parse_attribute_list};
+use crate::nodes::attribute_utils::parse_attribute_list;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::splat::SplatGeo;
 
@@ -23,6 +23,12 @@ enum PromotionMethod {
     RootMeanSquare,
     First,
     Last,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum PieceKey {
+    Int(i32),
+    Str(String),
 }
 
 impl PromotionMethod {
@@ -58,9 +64,10 @@ pub fn default_params() -> NodeParams {
             ("attr".to_string(), ParamValue::String("Cd".to_string())),
             ("source_domain".to_string(), ParamValue::Int(0)),
             ("target_domain".to_string(), ParamValue::Int(2)),
+            ("piece_attr".to_string(), ParamValue::String(String::new())),
             ("promotion".to_string(), ParamValue::Int(2)),
             ("rename".to_string(), ParamValue::Bool(false)),
-            ("new_name".to_string(), ParamValue::String(String::new())),
+            ("new_name".to_string(), ParamValue::String(String::new())),        
             ("delete_original".to_string(), ParamValue::Bool(false)),
         ]),
     }
@@ -77,29 +84,37 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
     let attr_expr = params.get_string("attr", "");
     let source_domain = source_domain_from_params(params);
     let target_domain = target_domain_from_params(params);
-    if source_domain == target_domain {
-        return Err("Attribute Promote requires different source/target classes".to_string());
-    }
     let method = PromotionMethod::from_params(params);
     let delete_original = params.get_bool("delete_original", false);
     let rename = params.get_bool("rename", false);
     let new_name = params.get_string("new_name", "");
+    let piece_attr = params.get_string("piece_attr", "");
+    let has_piece = !piece_attr.trim().is_empty();
+
+    if source_domain == target_domain && !has_piece {
+        return Err("Attribute Promote requires different source/target classes".to_string());
+    }
 
     let attr_names = collect_attribute_names_mesh(mesh, source_domain, &attr_expr);
     if attr_names.is_empty() {
-        return Err("Attribute Promote requires an attribute name".to_string());
+        return Ok(());
     }
     let source_len = mesh.attribute_domain_len(source_domain);
     let target_len = mesh.attribute_domain_len(target_domain);
     if source_len == 0 || target_len == 0 {
         return Ok(());
     }
-    let mapping = build_mapping(mesh, source_domain, target_domain);
+    let mapping = if has_piece {
+        build_mapping_with_piece(mesh, source_domain, target_domain, &piece_attr)?
+    } else {
+        build_mapping(mesh, source_domain, target_domain)
+    };
     if mapping.is_empty() {
         return Ok(());
     }
 
-    for attr_name in attr_names {
+    let attr_total = attr_names.len();
+    for attr_name in &attr_names {
         let Some(attr_ref) = mesh.attribute(source_domain, &attr_name) else {
             warn!(
                 "Attribute Promote: '{}' not found on {:?}; skipping",
@@ -107,15 +122,18 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
             );
             continue;
         };
-        let out_name = resolve_output_name(&attr_name, &new_name, rename, mapping.len());
+        let out_name = resolve_output_name(attr_name, &new_name, rename, attr_total);
         let storage = promote_attribute(attr_ref, &mapping, method);
         if let Some(storage) = storage {
             mesh.set_attribute(target_domain, out_name, storage)
                 .map_err(|err| format!("Attribute Promote error: {:?}", err))?;
             if delete_original {
-                let _ = mesh.remove_attribute(source_domain, &attr_name);
+                let _ = mesh.remove_attribute(source_domain, attr_name);
             }
         }
+    }
+    if target_domain == AttributeDomain::Point && attr_names.iter().any(|name| name == "P") {
+        crate::nodes::recompute_mesh_normals(mesh);
     }
     Ok(())
 }
@@ -130,29 +148,44 @@ pub(crate) fn apply_to_splats(
     if source_domain == AttributeDomain::Vertex || target_domain == AttributeDomain::Vertex {
         return Err("Attribute Promote does not support vertex class for splats".to_string());
     }
-    if source_domain == target_domain {
-        return Err("Attribute Promote requires different source/target classes".to_string());
-    }
     let method = PromotionMethod::from_params(params);
     let delete_original = params.get_bool("delete_original", false);
     let rename = params.get_bool("rename", false);
     let new_name = params.get_string("new_name", "");
+    let piece_attr = params.get_string("piece_attr", "");
+    let has_piece = !piece_attr.trim().is_empty();
+
+    if source_domain == target_domain && !has_piece {
+        return Err("Attribute Promote requires different source/target classes".to_string());
+    }
 
     let attr_names = collect_attribute_names_splats(splats, source_domain, &attr_expr);
     if attr_names.is_empty() {
-        return Err("Attribute Promote requires an attribute name".to_string());
+        return Ok(());
     }
     let source_len = splats.attribute_domain_len(source_domain);
     let target_len = splats.attribute_domain_len(target_domain);
     if source_len == 0 || target_len == 0 {
         return Ok(());
     }
-    let mapping = build_mapping_splats(source_len, target_len, source_domain, target_domain);
+    let mapping = if has_piece {
+        build_mapping_with_piece_splats(
+            splats,
+            source_len,
+            target_len,
+            source_domain,
+            target_domain,
+            &piece_attr,
+        )?
+    } else {
+        build_mapping_splats(source_len, target_len, source_domain, target_domain)
+    };
     if mapping.is_empty() {
         return Ok(());
     }
 
-    for attr_name in attr_names {
+    let attr_total = attr_names.len();
+    for attr_name in &attr_names {
         let Some(attr_ref) = splats.attribute(source_domain, &attr_name) else {
             warn!(
                 "Attribute Promote: '{}' not found on {:?}; skipping",
@@ -160,14 +193,14 @@ pub(crate) fn apply_to_splats(
             );
             continue;
         };
-        let out_name = resolve_output_name(&attr_name, &new_name, rename, mapping.len());
+        let out_name = resolve_output_name(attr_name, &new_name, rename, attr_total);
         let storage = promote_attribute(attr_ref, &mapping, method);
         if let Some(storage) = storage {
             splats
                 .set_attribute(target_domain, out_name, storage)
                 .map_err(|err| format!("Attribute Promote error: {:?}", err))?;
             if delete_original {
-                let _ = splats.attributes.remove(source_domain, &attr_name);
+                let _ = splats.attributes.remove(source_domain, attr_name);
             }
         }
     }
@@ -295,12 +328,9 @@ fn promote_attribute(
             mapping,
             method,
         ))),
-        AttributeRef::StringTable(values) => {
-            let indices = promote_u32(values.indices.as_slice(), mapping, method);
-            Some(AttributeStorage::StringTable(
-                crate::attributes::StringTableAttribute::new(values.values.clone(), indices),
-            ))
-        }
+        AttributeRef::StringTable(values) => Some(AttributeStorage::StringTable(
+            promote_string_table(values, mapping, method),
+        )),
     }
 }
 
@@ -388,47 +418,92 @@ fn promote_i32(values: &[i32], mapping: &[Vec<usize>], method: PromotionMethod) 
     out
 }
 
-fn promote_u32(values: &[u32], mapping: &[Vec<usize>], method: PromotionMethod) -> Vec<u32> {
-    let mut out = vec![0; mapping.len()];
+fn promote_string_table(
+    values: &crate::attributes::StringTableAttribute,
+    mapping: &[Vec<usize>],
+    method: PromotionMethod,
+) -> crate::attributes::StringTableAttribute {
+    let mut out_values: Vec<String> = Vec::new();
+    let mut out_indices = vec![0u32; mapping.len()];
+    let mut lookup: HashMap<String, u32> = HashMap::new();
     for (i, sources) in mapping.iter().enumerate() {
         if sources.is_empty() {
             continue;
         }
-        let mut list = Vec::with_capacity(sources.len());
+        let mut list: Vec<&str> = Vec::with_capacity(sources.len());
         for &idx in sources {
-            if let Some(v) = values.get(idx).copied() {
-                list.push(v);
+            if let Some(value) = values.value(idx) {
+                list.push(value);
             }
         }
         if list.is_empty() {
             continue;
         }
-        out[i] = match method {
-            PromotionMethod::Max => *list.iter().max().unwrap_or(&0),
-            PromotionMethod::Min => *list.iter().min().unwrap_or(&0),
-            PromotionMethod::Average => {
-                let sum: u64 = list.iter().map(|v| *v as u64).sum();
-                ((sum as f32 / list.len() as f32).round() as i32).max(0) as u32
-            }
-            PromotionMethod::Mode => mode_u32(&list),
-            PromotionMethod::Median => median_u32(&mut list),
-            PromotionMethod::Sum => list.iter().map(|v| *v as u64).sum::<u64>() as u32,
-            PromotionMethod::SumSquares => list
-                .iter()
-                .map(|v| (*v as u64) * (*v as u64))
-                .sum::<u64>() as u32,
-            PromotionMethod::RootMeanSquare => {
-                let sum_sq = list
-                    .iter()
-                    .map(|v| (*v as f32) * (*v as f32))
-                    .sum::<f32>();
-                (sum_sq / list.len() as f32).sqrt().round() as u32
-            }
-            PromotionMethod::First => *list.first().unwrap_or(&0),
-            PromotionMethod::Last => *list.last().unwrap_or(&0),
+        let result = promote_string(&mut list, method);
+        let entry = if let Some(&idx) = lookup.get(&result) {
+            idx
+        } else {
+            let idx = out_values.len() as u32;
+            out_values.push(result.clone());
+            lookup.insert(result, idx);
+            idx
         };
+        if let Some(slot) = out_indices.get_mut(i) {
+            *slot = entry;
+        }
     }
-    out
+    if out_values.is_empty() && !out_indices.is_empty() {
+        out_values.push(String::new());
+        out_indices.fill(0);
+    }
+    crate::attributes::StringTableAttribute::new(out_values, out_indices)
+}
+
+fn promote_string(values: &mut Vec<&str>, method: PromotionMethod) -> String {
+    if values.is_empty() {
+        return String::new();
+    }
+    match method {
+        PromotionMethod::Sum => values.concat(),
+        PromotionMethod::Average | PromotionMethod::Median => median_string(values),
+        PromotionMethod::Mode => mode_string(values),
+        PromotionMethod::First => values.first().copied().unwrap_or_default().to_string(),
+        PromotionMethod::Last => values.last().copied().unwrap_or_default().to_string(),
+        PromotionMethod::Max
+        | PromotionMethod::Min
+        | PromotionMethod::SumSquares
+        | PromotionMethod::RootMeanSquare => {
+            values.first().copied().unwrap_or_default().to_string()
+        }
+    }
+}
+
+fn mode_string(values: &[&str]) -> String {
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for &value in values {
+        *counts.entry(value).or_insert(0) += 1;
+    }
+    let mut best = None;
+    for (value, count) in counts {
+        match best {
+            Some((best_count, best_value)) => {
+                if count > best_count || (count == best_count && value < best_value) {
+                    best = Some((count, value));
+                }
+            }
+            None => best = Some((count, value)),
+        }
+    }
+    best.map(|(_, value)| value.to_string()).unwrap_or_default()
+}
+
+fn median_string(values: &mut Vec<&str>) -> String {
+    values.sort_unstable();
+    values
+        .get(values.len() / 2)
+        .copied()
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn promote_vec2(
@@ -588,34 +663,7 @@ fn mode_i32(values: &[i32]) -> i32 {
     best.map(|(_, value)| value).unwrap_or(0)
 }
 
-fn mode_u32(values: &[u32]) -> u32 {
-    let mut counts: HashMap<u32, usize> = HashMap::new();
-    for &value in values {
-        *counts.entry(value).or_insert(0) += 1;
-    }
-    let mut best = None;
-    for (value, count) in counts {
-        match best {
-            Some((best_count, best_value)) => {
-                if count > best_count || (count == best_count && value < best_value) {
-                    best = Some((count, value));
-                }
-            }
-            None => best = Some((count, value)),
-        }
-    }
-    best.map(|(_, value)| value).unwrap_or(0)
-}
-
 fn median_i32(values: &mut Vec<i32>) -> i32 {
-    if values.is_empty() {
-        return 0;
-    }
-    values.sort_unstable();
-    values[values.len() / 2]
-}
-
-fn median_u32(values: &mut Vec<u32>) -> u32 {
     if values.is_empty() {
         return 0;
     }
@@ -729,14 +777,30 @@ fn build_mapping(mesh: &Mesh, source: AttributeDomain, target: AttributeDomain) 
         (AttributeDomain::Point, AttributeDomain::Point)
         | (AttributeDomain::Vertex, AttributeDomain::Vertex)
         | (AttributeDomain::Primitive, AttributeDomain::Primitive)
-        | (AttributeDomain::Detail, _) => {}
-        (AttributeDomain::Point, AttributeDomain::Detail)
+        | (AttributeDomain::Detail, _)
+        | (AttributeDomain::Point, AttributeDomain::Detail)
         | (AttributeDomain::Vertex, AttributeDomain::Detail)
-        | (AttributeDomain::Primitive, AttributeDomain::Detail)
-        | (AttributeDomain::Detail, AttributeDomain::Detail) => {}
-        _ => {}
+        | (AttributeDomain::Primitive, AttributeDomain::Detail) => {}
     }
     mapping
+}
+
+fn build_mapping_with_piece(
+    mesh: &Mesh,
+    source: AttributeDomain,
+    target: AttributeDomain,
+    piece_attr: &str,
+) -> Result<Vec<Vec<usize>>, String> {
+    let target_len = mesh.attribute_domain_len(target);
+    if target_len == 0 {
+        return Ok(Vec::new());
+    }
+    let keys = piece_keys_mesh(mesh, target, piece_attr)?;
+    if source == target {
+        return Ok(mapping_from_piece_keys(&keys));
+    }
+    let base = build_mapping(mesh, source, target);
+    Ok(apply_piece_to_mapping(&base, &keys))
 }
 
 fn build_mapping_splats(
@@ -768,6 +832,114 @@ fn build_mapping_splats(
         _ => {}
     }
     mapping
+}
+
+fn build_mapping_with_piece_splats(
+    splats: &SplatGeo,
+    source_len: usize,
+    target_len: usize,
+    source: AttributeDomain,
+    target: AttributeDomain,
+    piece_attr: &str,
+) -> Result<Vec<Vec<usize>>, String> {
+    if target_len == 0 {
+        return Ok(Vec::new());
+    }
+    let keys = piece_keys_splats(splats, target, piece_attr)?;
+    if source == target {
+        return Ok(mapping_from_piece_keys(&keys));
+    }
+    let base = build_mapping_splats(source_len, target_len, source, target);
+    Ok(apply_piece_to_mapping(&base, &keys))
+}
+
+fn piece_keys_mesh(
+    mesh: &Mesh,
+    domain: AttributeDomain,
+    piece_attr: &str,
+) -> Result<Vec<PieceKey>, String> {
+    let target_len = mesh.attribute_domain_len(domain);
+    let Some(attr) = mesh.attribute(domain, piece_attr) else {
+        return Err(format!(
+            "Attribute Promote: piece attribute '{}' not found on {:?}",
+            piece_attr, domain
+        ));
+    };
+    match attr {
+        AttributeRef::Int(values) => {
+            if values.len() != target_len {
+                return Err("Attribute Promote: piece attribute length mismatch".to_string());
+            }
+            Ok(values.iter().map(|v| PieceKey::Int(*v)).collect())
+        }
+        AttributeRef::StringTable(values) => {
+            if values.len() != target_len {
+                return Err("Attribute Promote: piece attribute length mismatch".to_string());
+            }
+            Ok((0..target_len)
+                .map(|idx| PieceKey::Str(values.value(idx).unwrap_or_default().to_string()))
+                .collect())
+        }
+        _ => Err("Attribute Promote: piece attribute must be int or string".to_string()),
+    }
+}
+
+fn piece_keys_splats(
+    splats: &SplatGeo,
+    domain: AttributeDomain,
+    piece_attr: &str,
+) -> Result<Vec<PieceKey>, String> {
+    let target_len = splats.attribute_domain_len(domain);
+    let Some(attr) = splats.attribute(domain, piece_attr) else {
+        return Err(format!(
+            "Attribute Promote: piece attribute '{}' not found on {:?}",
+            piece_attr, domain
+        ));
+    };
+    match attr {
+        AttributeRef::Int(values) => {
+            if values.len() != target_len {
+                return Err("Attribute Promote: piece attribute length mismatch".to_string());
+            }
+            Ok(values.iter().map(|v| PieceKey::Int(*v)).collect())
+        }
+        AttributeRef::StringTable(values) => {
+            if values.len() != target_len {
+                return Err("Attribute Promote: piece attribute length mismatch".to_string());
+            }
+            Ok((0..target_len)
+                .map(|idx| PieceKey::Str(values.value(idx).unwrap_or_default().to_string()))
+                .collect())
+        }
+        _ => Err("Attribute Promote: piece attribute must be int or string".to_string()),
+    }
+}
+
+fn mapping_from_piece_keys(keys: &[PieceKey]) -> Vec<Vec<usize>> {
+    let mut piece_sources: HashMap<PieceKey, Vec<usize>> = HashMap::new();
+    for (idx, key) in keys.iter().enumerate() {
+        piece_sources.entry(key.clone()).or_default().push(idx);
+    }
+    keys.iter()
+        .map(|key| piece_sources.get(key).cloned().unwrap_or_default())
+        .collect()
+}
+
+fn apply_piece_to_mapping(base: &[Vec<usize>], keys: &[PieceKey]) -> Vec<Vec<usize>> {
+    let mut piece_sources: HashMap<PieceKey, Vec<usize>> = HashMap::new();
+    for (target_idx, sources) in base.iter().enumerate() {
+        if let Some(key) = keys.get(target_idx) {
+            let entry = piece_sources.entry(key.clone()).or_default();
+            entry.extend(sources.iter().copied());
+        }
+    }
+    for sources in piece_sources.values_mut() {
+        sources.sort_unstable();
+        sources.dedup();
+    }
+    keys.iter()
+        .map(|key| piece_sources.get(key).cloned().unwrap_or_default())
+        .collect()
 }
 
 fn glob_match(pattern: &str, value: &str) -> bool {

@@ -88,6 +88,7 @@ Status: done | in progress | not started
 - **N25a**: Boolean SDF (mesh-mesh via SDF + mesh cut by SDF) (done)
 - **N25b**: Boolean Geo (polygon boolean + mesh-SDF clipping) (done)
 - **N26**: Fuse (merge points within radius + optional unfuse) (done)
+- **N27**: Attribute Promote (promote/demote attributes across classes) (done)
 
 ## Epic M - ML jobs
 - **M1**: Job framework (async, progress, cancel, cache) (not started)

@@ -949,6 +949,27 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("iterations", "Number of expansion steps."),
             ],
         }),
+        "Attribute Promote" => Some(NodeHelpPage {
+            name: "Attribute Promote",
+            description: &[
+                "Promotes or demotes attributes between classes (point/vertex/primitive/detail).",
+                "Use this to collapse data (point -> primitive) or distribute it (primitive -> point) using merge rules.",
+                "Optional piece attributes allow promoting per-piece so each piece keeps its own values and even allow same-class promotions.",
+                "For string attributes, Average behaves like Median and Sum concatenates; other numeric methods fall back to First.",
+            ],
+            inputs: &["in: Geometry with the source attribute."],
+            outputs: &["out: Geometry with the promoted attribute."],
+            parameters: &[
+                ("attr", "Original attribute name or pattern."),
+                ("source_domain", "Original class to read from."),
+                ("target_domain", "New class to write to."),
+                ("piece_attr", "Optional piece attribute (int or string) to promote per-piece."),
+                ("promotion", "Merge rule: Max/Min/Average/Mode/Median/Sum/Sum of Squares/RMS/First/Last."),
+                ("rename", "Enable renaming the promoted attribute."),
+                ("new_name", "New attribute name or pattern (* placeholder)."),
+                ("delete_original", "Remove the source attribute after promoting."),
+            ],
+        }),
         "Attribute from Feature" => Some(NodeHelpPage {
             name: "Attribute from Feature",
             description: &[

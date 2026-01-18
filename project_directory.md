@@ -212,6 +212,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\attribute_promote.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\attribute_transfer.rs
 Description: TODO: add description.
 Functions: None

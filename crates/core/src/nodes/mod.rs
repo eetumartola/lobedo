@@ -3,6 +3,7 @@ pub mod attribute_utils;
 pub mod attribute_from_feature;
 pub mod attribute_from_volume;
 pub mod attribute_noise;
+pub mod attribute_promote;
 pub mod attribute_transfer;
 pub mod attribute_expand;
 pub mod box_node;

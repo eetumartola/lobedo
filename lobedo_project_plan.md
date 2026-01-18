@@ -188,7 +188,7 @@ SH evaluation:
 - `Copy/Transform`, `Copy to Points`, `Scatter`, `Resample`
 - `Normal`, `Color`, `Noise/Mountain`, `Erosion Noise`, `Smooth`
 - `Ray`, `Sweep`, `Tube`, `Circle`, `Curve`, `Sphere`, `Grid`, `Box`
-- `Attribute Noise`, `Attribute Expand`, `Attribute from Feature`, `Attribute from Volume`, `Attribute Transfer`, `Attribute Math`, `Wrangle`
+- `Attribute Noise`, `Attribute Promote`, `Attribute Expand`, `Attribute from Feature`, `Attribute from Volume`, `Attribute Transfer`, `Attribute Math`, `Wrangle`
 
 ### Materials & UV
 - `UV Texture`, `UV Unwrap`, `UV View`

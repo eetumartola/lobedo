@@ -279,6 +279,19 @@ impl NodeGraphState {
         } else {
             None
         };
+        let attr_promote_rename = if node_name == "Attribute Promote" {
+            Some(
+                param_values
+                    .get("rename")
+                    .and_then(|value| match value {
+                        ParamValue::Bool(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(false),
+            )
+        } else {
+            None
+        };
 
         if param_keys.is_empty() {
             ui.label("No parameters.");
@@ -477,6 +490,13 @@ impl NodeGraphState {
                         (0, "eps") | (0, "min_pts") => continue,
                         (1, "cell_size") => continue,
                         _ => {}
+                    }
+                }
+            }
+            if node_name == "Attribute Promote" {
+                if let Some(rename) = attr_promote_rename {
+                    if !rename && key == "new_name" {
+                        continue;
                     }
                 }
             }

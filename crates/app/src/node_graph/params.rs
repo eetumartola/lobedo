@@ -77,6 +77,16 @@ pub(super) fn edit_param(
                     &[(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")],
                     "Point",
                 )
+            } else if label == "source_domain" || label == "target_domain" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
+                    "Point",
+                )
             } else if label == "group_type" {
                 combo_row_i32(
                     ui,
@@ -101,6 +111,27 @@ pub(super) fn edit_param(
                     &mut v,
                     &[(0, "Expand"), (1, "Contract")],
                     "Expand",
+                )
+            } else if label == "promotion" && node_name == "Attribute Promote" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[
+                        (0, "Maximum"),
+                        (1, "Minimum"),
+                        (2, "Average"),
+                        (3, "Mode"),
+                        (4, "Median"),
+                        (5, "Sum"),
+                        (6, "Sum of Squares"),
+                        (7, "Root Mean Square"),
+                        (8, "First"),
+                        (9, "Last"),
+                    ],
+                    "Average",
                 )
             } else if label == "copy_attr_class" {
                 combo_row_i32(
@@ -1350,6 +1381,20 @@ fn display_label(node_name: &str, key: &str) -> String {
         return match key {
             "attr" => "Attribute",
             "domain" => "Domain",
+            _ => key,
+        }
+        .to_string();
+    }
+    if node_name == "Attribute Promote" {
+        return match key {
+            "attr" => "Original Name",
+            "source_domain" => "Original Class",
+            "target_domain" => "New Class",
+            "piece_attr" => "Piece Attribute",
+            "promotion" => "Promotion Method",
+            "rename" => "Change New Name",
+            "new_name" => "New Name",
+            "delete_original" => "Delete Original",
             _ => key,
         }
         .to_string();

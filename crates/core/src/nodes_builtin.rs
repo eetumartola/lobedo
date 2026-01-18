@@ -57,6 +57,7 @@ pub enum BuiltinNodeKind {
     Material,
     Ray,
     AttributeNoise,
+    AttributePromote,
     AttributeExpand,
     AttributeFromFeature,
     AttributeFromVolume,
@@ -576,6 +577,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::AttributePromote,
+        name: nodes::attribute_promote::NAME,
+        aliases: &[],
+        definition: nodes::attribute_promote::definition,
+        default_params: nodes::attribute_promote::default_params,
+        compute_mesh: nodes::attribute_promote::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::AttributeExpand,
         name: nodes::attribute_expand::NAME,
         aliases: &[],
@@ -764,6 +774,7 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::UvUnwrap
         | BuiltinNodeKind::UvView
         | BuiltinNodeKind::AttributeNoise
+        | BuiltinNodeKind::AttributePromote
         | BuiltinNodeKind::AttributeExpand
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
@@ -822,6 +833,9 @@ fn apply_mesh_unary(
             }
             BuiltinNodeKind::AttributeNoise => {
                 nodes::attribute_noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::AttributePromote => {
+                nodes::attribute_promote::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::AttributeExpand => {
                 nodes::attribute_expand::apply_to_splats(params, &mut splat)?;
