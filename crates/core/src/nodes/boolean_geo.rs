@@ -156,17 +156,33 @@ fn cutter_inner_surface(volume: &Volume, mesh_a: &Mesh, op: i32) -> Option<Mesh>
 }
 
 fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Result<Mesh, String> {
-    let op = match params.get_int("op", DEFAULT_OP) {
+    let op_value = params.get_int("op", DEFAULT_OP);
+    let op = match op_value {
         1 => OpType::Subtract,
         2 => OpType::Intersect,
         _ => OpType::Add,
     };
 
+    if let Some(trivial) = try_trivial_boolean(mesh_a, mesh_b, op_value) {
+        return Ok(trivial);
+    }
+
     let manifold_a = manifold_from_mesh(mesh_a)
         .map_err(|err| format!("Boolean Geo input A: {err}"))?;
     let manifold_b = manifold_from_mesh(mesh_b)
         .map_err(|err| format!("Boolean Geo input B: {err}"))?;
-    let manifold = compute_boolean(&manifold_a, &manifold_b, op)?;
+    let manifold = match compute_boolean(&manifold_a, &manifold_b, op) {
+        Ok(manifold) => manifold,
+        Err(err) => {
+            let message = err.to_string();
+            if message.to_lowercase().contains("empty pos matrix") {
+                if let Some(trivial) = try_trivial_boolean(mesh_a, mesh_b, op_value) {
+                    return Ok(trivial);
+                }
+            }
+            return Err(message);
+        }
+    };
 
     let mut positions = Vec::with_capacity(manifold.ps.len());
     for p in &manifold.ps {
@@ -182,6 +198,69 @@ fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Resul
     let sources = [SourceMesh::new(mesh_a)?, SourceMesh::new(mesh_b)?];
     transfer_attributes_from_sources(&mut mesh, &sources);
     Ok(mesh)
+}
+
+fn try_trivial_boolean(mesh_a: &Mesh, mesh_b: &Mesh, op_value: i32) -> Option<Mesh> {
+    let triangles_a = build_triangle_list(mesh_a);
+    let triangles_b = build_triangle_list(mesh_b);
+    if triangles_a.is_empty() || triangles_b.is_empty() {
+        return None;
+    }
+
+    let (a_any, a_all) = containment_flags(&mesh_a.positions, &triangles_b);
+    let (b_any, b_all) = containment_flags(&mesh_b.positions, &triangles_a);
+
+    match op_value {
+        1 => {
+            if a_all {
+                Some(Mesh::default())
+            } else if !a_any && !b_any {
+                Some(mesh_a.clone())
+            } else {
+                None
+            }
+        }
+        2 => {
+            if !a_any && !b_any {
+                Some(Mesh::default())
+            } else if a_all {
+                Some(mesh_a.clone())
+            } else if b_all {
+                Some(mesh_b.clone())
+            } else {
+                None
+            }
+        }
+        _ => {
+            if !a_any && !b_any {
+                Some(Mesh::merge(&[mesh_a.clone(), mesh_b.clone()]))
+            } else if a_all {
+                Some(mesh_b.clone())
+            } else if b_all {
+                Some(mesh_a.clone())
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn containment_flags(points: &[[f32; 3]], triangles: &[MeshTriangle]) -> (bool, bool) {
+    if points.is_empty() {
+        return (false, false);
+    }
+    let mut any_inside = false;
+    let mut all_inside = true;
+    for point in points {
+        let inside = is_inside_mesh(Vec3::from(*point), triangles);
+        any_inside |= inside;
+        all_inside &= inside;
+        if any_inside && !all_inside {
+            // Early out once we know it's mixed.
+            break;
+        }
+    }
+    (any_inside, all_inside)
 }
 
 fn flatten_positions(mesh: &Mesh) -> Vec<f64> {
@@ -413,17 +492,128 @@ fn manifold_from_mesh(mesh: &Mesh) -> Result<Manifold, String> {
     if mesh.positions.is_empty() {
         return Err("mesh has no points".to_string());
     }
-    let triangulation = mesh.triangulate();
-    if triangulation.indices.is_empty() || !triangulation.indices.len().is_multiple_of(3) {
-        return Err("mesh has no triangles".to_string());
+    let weld_eps = 1.0e-5_f32;
+    let mut welded_positions: Vec<[f32; 3]> = Vec::new();
+    let mut welded_lookup: HashMap<(i64, i64, i64), usize> = HashMap::new();
+    let mut index_map: Vec<usize> = vec![0; mesh.positions.len()];
+    for (idx, pos) in mesh.positions.iter().enumerate() {
+        let key = quantize_position(*pos, weld_eps);
+        let welded = if let Some(&existing) = welded_lookup.get(&key) {
+            existing
+        } else {
+            let new_idx = welded_positions.len();
+            welded_positions.push(*pos);
+            welded_lookup.insert(key, new_idx);
+            new_idx
+        };
+        index_map[idx] = welded;
     }
-    let positions = flatten_positions(mesh);
-    let indices = triangulation
-        .indices
-        .iter()
-        .map(|i| *i as usize)
-        .collect::<Vec<_>>();
+
+    let mut indices = Vec::new();
+    let eps = 1.0e-10_f32;
+    let center = bounding_center(&welded_positions);
+
+    let face_counts = if mesh.face_counts.is_empty() {
+        if mesh.indices.len().is_multiple_of(3) {
+            vec![3u32; mesh.indices.len() / 3]
+        } else if !mesh.indices.is_empty() {
+            vec![mesh.indices.len() as u32]
+        } else {
+            Vec::new()
+        }
+    } else {
+        mesh.face_counts.clone()
+    };
+
+    let mut cursor = 0usize;
+    for &count in &face_counts {
+        let count = count as usize;
+        if count < 3 || cursor + count > mesh.indices.len() {
+            cursor = cursor.saturating_add(count);
+            continue;
+        }
+        let mut face = Vec::with_capacity(count);
+        for i in 0..count {
+            let src_idx = mesh.indices[cursor + i] as usize;
+            let welded = index_map[src_idx];
+            if face.last().copied() == Some(welded) {
+                continue;
+            }
+            face.push(welded);
+        }
+        if face.len() >= 2 && face.first() == face.last() {
+            face.pop();
+        }
+        if face.len() < 3 {
+            cursor += count;
+            continue;
+        }
+        let first = face[0];
+        for i in 1..(face.len() - 1) {
+            let i0 = first;
+            let i1 = face[i];
+            let i2 = face[i + 1];
+            if i0 == i1 || i0 == i2 || i1 == i2 {
+                continue;
+            }
+            let a = Vec3::from(welded_positions[i0]);
+            let b = Vec3::from(welded_positions[i1]);
+            let c = Vec3::from(welded_positions[i2]);
+            if (a - b).length_squared() <= eps
+                || (a - c).length_squared() <= eps
+                || (b - c).length_squared() <= eps
+            {
+                continue;
+            }
+            let area = (b - a).cross(c - a).length_squared();
+            if area <= eps {
+                continue;
+            }
+            let centroid = (a + b + c) / 3.0;
+            let n = (b - a).cross(c - a);
+            if n.length_squared() <= eps {
+                continue;
+            }
+            if n.dot(centroid - center) < 0.0 {
+                indices.push(i0);
+                indices.push(i2);
+                indices.push(i1);
+            } else {
+                indices.push(i0);
+                indices.push(i1);
+                indices.push(i2);
+            }
+        }
+        cursor += count;
+    }
+    if indices.is_empty() {
+        return Err("mesh has no non-degenerate triangles".to_string());
+    }
+    let positions = flatten_positions(&Mesh::with_positions_indices(welded_positions, Vec::new()));
     Manifold::new(&positions, &indices).map_err(|err| err.to_string())
+}
+
+fn quantize_position(pos: [f32; 3], eps: f32) -> (i64, i64, i64) {
+    let inv = 1.0 / eps;
+    (
+        (pos[0] * inv).round() as i64,
+        (pos[1] * inv).round() as i64,
+        (pos[2] * inv).round() as i64,
+    )
+}
+
+fn bounding_center(positions: &[[f32; 3]]) -> Vec3 {
+    if positions.is_empty() {
+        return Vec3::ZERO;
+    }
+    let mut min = Vec3::from(positions[0]);
+    let mut max = min;
+    for pos in &positions[1..] {
+        let p = Vec3::from(*pos);
+        min = min.min(p);
+        max = max.max(p);
+    }
+    (min + max) * 0.5
 }
 
 fn append_mesh_with_defaults(dst: &mut Mesh, src: &Mesh) {

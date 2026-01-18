@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
@@ -9,9 +12,10 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    build_skirt_preview_mesh, evaluate_geometry_graph, Mesh, NodeId, SceneCurve,
-    SceneDrawable, SceneSnapshot, SceneSplats, SceneVolume, ShadingMode, SplatShadingMode,
-    VolumeKind,
+    build_skirt_preview_mesh, evaluate_geometry_graph_with_progress,
+    Geometry, GeometryEvalState, Mesh, NodeId, ProgressSink, SceneCurve, SceneDrawable,
+    SceneSnapshot, SceneSplats, SceneVolume,
+    ShadingMode, SplatShadingMode, VolumeKind,
 };
 use render::{
     RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
@@ -21,13 +25,33 @@ use render::{
 
 use super::{viewport_tools::input_node_for, DisplayState, LobedoApp};
 
+pub(crate) struct EvalJob {
+    receiver: Receiver<EvalResult>,
+}
+
+struct EvalResult {
+    revision: u64,
+    display_node: NodeId,
+    eval_state: GeometryEvalState,
+    report: lobedo_core::EvalReport,
+    error_nodes: HashSet<NodeId>,
+    error_messages: HashMap<NodeId, String>,
+    template_mesh: Option<Mesh>,
+    scene: Option<RenderScene>,
+    last_eval_ms: Option<f32>,
+}
+
 impl LobedoApp {
     pub(super) fn mark_eval_dirty(&mut self) {
         self.eval_dirty = true;
         self.last_param_change = Some(Instant::now());
     }
 
-    pub(super) fn evaluate_if_needed(&mut self) {
+    pub(super) fn evaluate_if_needed(&mut self, ctx: &egui::Context) {
+        if self.poll_eval_job(ctx) {
+            return;
+        }
+
         if !self.eval_dirty {
             return;
         }
@@ -49,95 +73,140 @@ impl LobedoApp {
 
         self.eval_dirty = false;
         self.last_param_change = None;
-        self.evaluate_graph();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.start_eval_job(ctx);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.evaluate_graph();
+        }
     }
 
     pub(super) fn evaluate_graph(&mut self) {
-        let display_node = self.project.graph.display_node();
-        let display_node = match display_node {
-            None => {
-                if self.last_display_state != DisplayState::Missing {
-                    tracing::warn!("no display flag set; nothing to evaluate");
-                    self.last_display_state = DisplayState::Missing;
-                }
-                if let Some(renderer) = &self.viewport_renderer {
-                    renderer.clear_scene();
-                }
-                self.pending_scene = None;
-                self.node_graph
-                    .set_error_state(HashSet::new(), HashMap::new());
-                self.last_template_mesh = None;
-                return;
+        let Some(display_node) = self.project.graph.display_node() else {
+            if self.last_display_state != DisplayState::Missing {
+                tracing::warn!("no display flag set; nothing to evaluate");
+                self.last_display_state = DisplayState::Missing;
             }
-            Some(node) => node,
+            if let Some(renderer) = &self.viewport_renderer {
+                renderer.clear_scene();
+            }
+            self.pending_scene = None;
+            self.node_graph
+                .set_error_state(HashSet::new(), HashMap::new());
+            self.last_template_mesh = None;
+            return;
         };
         self.last_display_state = DisplayState::Ok;
-        let template_nodes = self.project.graph.template_nodes();
 
-        let start = Instant::now();
-        match evaluate_geometry_graph(&self.project.graph, display_node, &mut self.eval_state) {
+        let revision = self.project.graph.revision();
+        let graph = self.project.graph.clone();
+        let template_nodes = graph.template_nodes();
+        let selected_node = self.node_graph.selected_node_id();
+        let progress = Some(self.node_graph.progress_sink());
+        let eval_state = std::mem::take(&mut self.eval_state);
+        let result = run_eval_job(
+            graph,
+            display_node,
+            revision,
+            template_nodes,
+            selected_node,
+            eval_state,
+            progress,
+        );
+        self.apply_eval_result(result);
+    }
+
+    fn poll_eval_job(&mut self, ctx: &egui::Context) -> bool {
+        let Some(job) = &self.eval_job else {
+            return false;
+        };
+        match job.receiver.try_recv() {
             Ok(result) => {
-                self.last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
-                let output_valid = result.report.output_valid;
-                let mut error_nodes = HashSet::new();
-                let mut error_messages = HashMap::new();
-                merge_error_state(&result.report, &mut error_nodes, &mut error_messages);
-                self.last_eval_report = Some(result.report);
-
-                if let Some(geometry) = result.output {
-                    let snapshot = SceneSnapshot::from_geometry(&geometry, [0.7, 0.72, 0.75]);
-                    let template_mesh = if output_valid {
-                        let templates = collect_template_meshes(
-                            &self.project.graph,
-                            display_node,
-                            &template_nodes,
-                            &mut self.eval_state,
-                            &mut error_nodes,
-                            &mut error_messages,
-                        );
-                        self.last_template_mesh = templates.clone();
-                        let preview = splat_merge_preview_mesh(
-                            &self.project.graph,
-                            self.node_graph.selected_node_id(),
-                            &mut self.eval_state,
-                        );
-                        merge_optional_meshes(templates, preview)
-                    } else {
-                        self.last_template_mesh = None;
-                        None
-                    };
-                    let selection_shape =
-                        selection_shape_for_node(&self.project.graph, self.node_graph.selected_node_id());
-                    let scene = scene_to_render_with_template(
-                        &snapshot,
-                        template_mesh.as_ref(),
-                        selection_shape,
-                    );
-                    self.apply_scene(scene);
-                } else {
-                    if let Some(renderer) = &self.viewport_renderer {
-                        renderer.clear_scene();
-                    }
-                    self.pending_scene = None;
-                    self.last_scene = None;
-                    self.last_template_mesh = None;
-                }
-
-                if !output_valid {
-                    if let Some(renderer) = &self.viewport_renderer {
-                        renderer.clear_scene();
-                    }
-                    self.pending_scene = None;
-                    self.last_scene = None;
-                    self.last_template_mesh = None;
-                }
-                self.node_graph.set_error_state(error_nodes, error_messages);
+                self.eval_job = None;
+                self.apply_eval_result(result);
+                false
             }
-            Err(err) => {
-                tracing::error!("eval failed: {:?}", err);
-                self.node_graph
-                    .set_error_state(HashSet::new(), HashMap::new());
+            Err(TryRecvError::Empty) => {
+                ctx.request_repaint();
+                true
             }
+            Err(TryRecvError::Disconnected) => {
+                self.eval_job = None;
+                false
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn start_eval_job(&mut self, ctx: &egui::Context) {
+        let Some(display_node) = self.project.graph.display_node() else {
+            if self.last_display_state != DisplayState::Missing {
+                tracing::warn!("no display flag set; nothing to evaluate");
+                self.last_display_state = DisplayState::Missing;
+            }
+            if let Some(renderer) = &self.viewport_renderer {
+                renderer.clear_scene();
+            }
+            self.pending_scene = None;
+            self.node_graph
+                .set_error_state(HashSet::new(), HashMap::new());
+            self.last_template_mesh = None;
+            return;
+        };
+        self.last_display_state = DisplayState::Ok;
+
+        let revision = self.project.graph.revision();
+        let graph = self.project.graph.clone();
+        let template_nodes = graph.template_nodes();
+        let selected_node = self.node_graph.selected_node_id();
+        let progress = Some(self.node_graph.progress_sink());
+        let eval_state = std::mem::take(&mut self.eval_state);
+
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let result = run_eval_job(
+                graph,
+                display_node,
+                revision,
+                template_nodes,
+                selected_node,
+                eval_state,
+                progress,
+            );
+            let _ = sender.send(result);
+        });
+        self.eval_job = Some(EvalJob { receiver });
+        ctx.request_repaint();
+    }
+
+    fn apply_eval_result(&mut self, result: EvalResult) {
+        self.eval_state = result.eval_state;
+        if self.project.graph.revision() != result.revision
+            || self.project.graph.display_node() != Some(result.display_node)
+        {
+            self.eval_dirty = true;
+            return;
+        }
+
+        self.last_eval_report = Some(result.report);
+        self.last_eval_ms = result.last_eval_ms;
+        self.last_template_mesh = result.template_mesh.clone();
+        self.node_graph
+            .set_error_state(result.error_nodes, result.error_messages);
+
+        if let Some(scene) = result.scene {
+            self.apply_scene(scene);
+        } else {
+            if let Some(renderer) = &self.viewport_renderer {
+                renderer.clear_scene();
+            }
+            self.pending_scene = None;
+            self.last_scene = None;
+            self.last_template_mesh = None;
         }
     }
 
@@ -178,6 +247,7 @@ impl LobedoApp {
                 &self.project.graph,
                 self.node_graph.selected_node_id(),
                 &mut self.eval_state,
+                None,
             );
             let merged_template = merge_optional_meshes(self.last_template_mesh.clone(), preview);
             scene.template_mesh = merged_template.as_ref().map(render_mesh_from_mesh);
@@ -237,6 +307,85 @@ impl LobedoApp {
         } else {
             fps
         }
+    }
+}
+
+fn run_eval_job(
+    graph: lobedo_core::Graph,
+    display_node: NodeId,
+    revision: u64,
+    template_nodes: Vec<NodeId>,
+    selected_node: Option<NodeId>,
+    mut eval_state: GeometryEvalState,
+    progress: Option<ProgressSink>,
+) -> EvalResult {
+    let start = Instant::now();
+    let mut error_nodes = HashSet::new();
+    let mut error_messages = HashMap::new();
+    let mut report = lobedo_core::EvalReport::default();
+    let mut output: Option<Geometry> = None;
+    match evaluate_geometry_graph_with_progress(&graph, display_node, &mut eval_state, progress.clone())
+    {
+        Ok(result) => {
+            report = result.report;
+            merge_error_state(&report, &mut error_nodes, &mut error_messages);
+            output = result.output;
+        }
+        Err(err) => {
+            error_nodes.insert(display_node);
+            error_messages.insert(display_node, format!("Eval failed: {err:?}"));
+            report.output_valid = false;
+        }
+    }
+
+    let last_eval_ms = Some(start.elapsed().as_secs_f32() * 1000.0);
+    let mut template_mesh = None;
+    let mut scene = None;
+    let output_valid = report.output_valid;
+
+    if output_valid {
+        if let Some(geometry) = output.as_ref() {
+            let snapshot = SceneSnapshot::from_geometry(geometry, [0.7, 0.72, 0.75]);
+            template_mesh = collect_template_meshes(
+                &graph,
+                display_node,
+                &template_nodes,
+                &mut eval_state,
+                &mut error_nodes,
+                &mut error_messages,
+                progress.clone(),
+            );
+            let preview = splat_merge_preview_mesh(
+                &graph,
+                selected_node,
+                &mut eval_state,
+                progress.clone(),
+            );
+            let merged_template = merge_optional_meshes(template_mesh.clone(), preview);
+            let selection_shape = selection_shape_for_node(&graph, selected_node);
+            scene = Some(scene_to_render_with_template(
+                &snapshot,
+                merged_template.as_ref(),
+                selection_shape,
+            ));
+        }
+    }
+
+    if !output_valid {
+        template_mesh = None;
+        scene = None;
+    }
+
+    EvalResult {
+        revision,
+        display_node,
+        eval_state,
+        report,
+        error_nodes,
+        error_messages,
+        template_mesh,
+        scene,
+        last_eval_ms,
     }
 }
 
@@ -461,13 +610,14 @@ fn collect_template_meshes(
     state: &mut lobedo_core::GeometryEvalState,
     error_nodes: &mut HashSet<lobedo_core::NodeId>,
     error_messages: &mut HashMap<lobedo_core::NodeId, String>,
+    progress: Option<ProgressSink>,
 ) -> Option<Mesh> {
     let mut meshes = Vec::new();
     for node_id in template_nodes {
         if *node_id == display_node {
             continue;
         }
-        match evaluate_geometry_graph(graph, *node_id, state) {
+        match evaluate_geometry_graph_with_progress(graph, *node_id, state, progress.clone()) {
             Ok(result) => {
                 merge_error_state(&result.report, error_nodes, error_messages);
                 if result.report.output_valid {
@@ -494,6 +644,7 @@ fn splat_merge_preview_mesh(
     graph: &lobedo_core::Graph,
     selected_node: Option<NodeId>,
     state: &mut lobedo_core::GeometryEvalState,
+    progress: Option<ProgressSink>,
 ) -> Option<Mesh> {
     let node_id = selected_node?;
     let node = graph.node(node_id)?;
@@ -510,8 +661,11 @@ fn splat_merge_preview_mesh(
     }
     let input_a = input_node_for(graph, node_id, 0)?;
     let input_b = input_node_for(graph, node_id, 1)?;
-    let geo_a = evaluate_geometry_graph(graph, input_a, state).ok()?.output?;
-    let geo_b = evaluate_geometry_graph(graph, input_b, state).ok()?.output?;
+    let geo_a = evaluate_geometry_graph_with_progress(graph, input_a, state, progress.clone())
+        .ok()?
+        .output?;
+    let geo_b =
+        evaluate_geometry_graph_with_progress(graph, input_b, state, progress).ok()?.output?;
     let splats_a = geo_a.merged_splats()?;
     let splats_b = geo_b.merged_splats()?;
     build_skirt_preview_mesh(&node.params, &splats_a, &splats_b)

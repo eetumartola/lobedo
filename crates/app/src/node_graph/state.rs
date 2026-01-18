@@ -1,12 +1,17 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 use egui::{vec2, Color32, Frame, Pos2, Rect, Stroke, Ui};
 use egui_snarl::ui::{BackgroundPattern, SnarlStyle};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
-use lobedo_core::{Graph, NodeId};
+use lobedo_core::{Graph, NodeId, ProgressEvent, ProgressSink};
 
 use super::viewer::NodeGraphViewer;
 
@@ -47,6 +52,7 @@ pub struct NodeGraphState {
     pub(super) node_menu_screen_pos: Pos2,
     pub(super) node_menu_node: Option<NodeId>,
     pub(super) pending_write_request: Option<WriteRequest>,
+    pub(super) progress_state: Arc<Mutex<NodeProgressState>>,
     pub(super) last_changed: bool,
     pub(super) layout_changed: bool,
 }
@@ -114,6 +120,7 @@ impl Default for NodeGraphState {
             node_menu_screen_pos: Pos2::new(0.0, 0.0),
             node_menu_node: None,
             pending_write_request: None,
+            progress_state: Arc::new(Mutex::new(NodeProgressState::default())),
             last_changed: false,
             layout_changed: false,
         }
@@ -133,6 +140,25 @@ pub(super) struct HeaderButtonRects {
     pub(super) help: Option<Rect>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct NodeProgressView {
+    pub(super) fraction: f32,
+    pub(super) active: bool,
+}
+
+#[derive(Default)]
+pub(super) struct NodeProgressState {
+    entries: HashMap<NodeId, NodeProgressEntry>,
+}
+
+#[derive(Clone)]
+struct NodeProgressEntry {
+    fraction: f32,
+    started_at: Instant,
+    last_update: Instant,
+    finished_at: Option<Instant>,
+}
+
 #[derive(Clone, Default, PartialEq)]
 pub struct NodeGraphLayout {
     pub positions: HashMap<NodeId, Pos2>,
@@ -142,6 +168,10 @@ pub struct NodeGraphLayout {
 impl NodeGraphState {
     pub fn reset(&mut self) {
         *self = Self::default();
+    }
+
+    pub fn error_message(&self, node_id: NodeId) -> Option<&String> {
+        self.error_messages.get(&node_id)
     }
 
     pub fn take_write_request(&mut self) -> Option<WriteRequest> {
@@ -162,6 +192,10 @@ impl NodeGraphState {
         self.output_pin_positions.borrow_mut().clear();
         self.last_changed = false;
         self.layout_changed = false;
+        let progress_snapshot = self.progress_snapshot();
+        if !progress_snapshot.is_empty() {
+            ui.ctx().request_repaint();
+        }
 
         let mut viewer = NodeGraphViewer {
             graph,
@@ -171,6 +205,7 @@ impl NodeGraphState {
             selected_node: &mut self.selected_node,
             node_rects: &mut self.node_ui_rects,
             header_button_rects: &mut self.header_button_rects,
+            progress: &progress_snapshot,
             graph_transform: &mut self.graph_transform,
             pending_transform: &mut self.pending_transform,
             input_pin_positions: Rc::clone(&self.input_pin_positions),
@@ -368,6 +403,91 @@ impl NodeGraphState {
         let scale = scale_x.min(scale_y).clamp(0.1, 4.0);
         let translation = padded.center().to_vec2() - bounds.center().to_vec2() * scale;
         self.pending_transform = Some(egui::emath::TSTransform::new(translation, scale));
+    }
+
+    pub fn progress_sink(&self) -> ProgressSink {
+        let shared = Arc::clone(&self.progress_state);
+        Arc::new(move |event| {
+            if let Ok(mut state) = shared.lock() {
+                state.on_event(event);
+            }
+        })
+    }
+
+    fn progress_snapshot(&self) -> HashMap<NodeId, NodeProgressView> {
+        let now = Instant::now();
+        if let Ok(mut state) = self.progress_state.lock() {
+            state.snapshot(now)
+        } else {
+            HashMap::new()
+        }
+    }
+}
+
+impl NodeProgressState {
+    fn on_event(&mut self, event: ProgressEvent) {
+        let now = Instant::now();
+        match event {
+            ProgressEvent::Start { node } => {
+                self.entries.insert(
+                    node,
+                    NodeProgressEntry {
+                        fraction: 0.0,
+                        started_at: now,
+                        last_update: now,
+                        finished_at: None,
+                    },
+                );
+            }
+            ProgressEvent::Advance { node, fraction } => {
+                let entry = self.entries.entry(node).or_insert(NodeProgressEntry {
+                    fraction: 0.0,
+                    started_at: now,
+                    last_update: now,
+                    finished_at: None,
+                });
+                entry.fraction = fraction.clamp(0.0, 1.0);
+                entry.last_update = now;
+            }
+            ProgressEvent::Finish { node } => {
+                let entry = self.entries.entry(node).or_insert(NodeProgressEntry {
+                    fraction: 0.0,
+                    started_at: now,
+                    last_update: now,
+                    finished_at: None,
+                });
+                entry.fraction = 1.0;
+                entry.last_update = now;
+                entry.finished_at = Some(now);
+            }
+        }
+    }
+
+    fn snapshot(&mut self, now: Instant) -> HashMap<NodeId, NodeProgressView> {
+        const SHOW_DELAY_SECS: f32 = 1.0;
+        const SHOW_AFTER_FINISH_SECS: f32 = 0.6;
+        let mut result = HashMap::new();
+        self.entries.retain(|node_id, entry| {
+            let elapsed = now.duration_since(entry.started_at).as_secs_f32();
+            if elapsed < SHOW_DELAY_SECS {
+                return true;
+            }
+            let active = entry.finished_at.is_none();
+            if let Some(done_at) = entry.finished_at {
+                if now.duration_since(done_at).as_secs_f32() > SHOW_AFTER_FINISH_SECS {
+                    return false;
+                }
+            }
+            result.insert(
+                *node_id,
+                NodeProgressView {
+                    fraction: entry.fraction,
+                    active,
+                },
+            );
+            true
+        });
+        result
     }
 }
 

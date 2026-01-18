@@ -19,6 +19,8 @@ pub struct Graph {
     next_node_id: u64,
     next_pin_id: u64,
     next_link_id: u64,
+    #[serde(default)]
+    revision: u64,
 }
 
 impl Default for Graph {
@@ -30,6 +32,7 @@ impl Default for Graph {
             next_node_id: 1,
             next_pin_id: 1,
             next_link_id: 1,
+            revision: 0,
         }
     }
 }
@@ -41,6 +44,14 @@ impl Graph {
 
     pub fn node(&self, id: NodeId) -> Option<&Node> {
         self.nodes.get(&id)
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    fn bump_revision(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 
     pub fn display_node(&self) -> Option<NodeId> {
@@ -64,8 +75,16 @@ impl Graph {
                 return Err(GraphError::MissingNode(id));
             }
         }
+        let mut changed = false;
         for node in self.nodes.values_mut() {
-            node.display = Some(node.id) == node_id;
+            let next = Some(node.id) == node_id;
+            if node.display != next {
+                node.display = next;
+                changed = true;
+            }
+        }
+        if changed {
+            self.bump_revision();
         }
         Ok(())
     }
@@ -88,7 +107,10 @@ impl Graph {
             .nodes
             .get_mut(&node_id)
             .ok_or(GraphError::MissingNode(node_id))?;
-        node.template = enabled;
+        if node.template != enabled {
+            node.template = enabled;
+            self.bump_revision();
+        }
         Ok(())
     }
 
@@ -98,6 +120,7 @@ impl Graph {
             .get_mut(&node_id)
             .ok_or(GraphError::MissingNode(node_id))?;
         node.template = !node.template;
+        self.bump_revision();
         Ok(())
     }
 
@@ -109,6 +132,7 @@ impl Graph {
         if node.bypass != enabled {
             node.bypass = enabled;
             node.param_version = node.param_version.wrapping_add(1);
+            self.bump_revision();
         }
         Ok(())
     }
@@ -120,6 +144,7 @@ impl Graph {
             .ok_or(GraphError::MissingNode(node_id))?;
         node.bypass = !node.bypass;
         node.param_version = node.param_version.wrapping_add(1);
+        self.bump_revision();
         Ok(())
     }
 
@@ -178,6 +203,7 @@ impl Graph {
                 position: None,
             },
         );
+        self.bump_revision();
 
         node_id
     }
@@ -198,6 +224,7 @@ impl Graph {
             self.pins.remove(&pin_id);
         }
 
+        self.bump_revision();
         true
     }
 
@@ -246,11 +273,16 @@ impl Graph {
                 to,
             },
         );
+        self.bump_revision();
         Ok(link_id)
     }
 
     pub fn remove_link(&mut self, link_id: LinkId) -> bool {
-        self.links.remove(&link_id).is_some()
+        let removed = self.links.remove(&link_id).is_some();
+        if removed {
+            self.bump_revision();
+        }
+        removed
     }
 
     pub fn links(&self) -> impl Iterator<Item = &Link> {
@@ -266,14 +298,22 @@ impl Graph {
             }
         });
 
-        link_id.map(|id| self.links.remove(&id)).is_some()
+        let removed = link_id.map(|id| self.links.remove(&id)).is_some();
+        if removed {
+            self.bump_revision();
+        }
+        removed
     }
 
     pub fn remove_links_for_pin(&mut self, pin_id: PinId) -> usize {
         let before = self.links.len();
         self.links
             .retain(|_, link| link.from != pin_id && link.to != pin_id);
-        before - self.links.len()
+        let removed = before - self.links.len();
+        if removed > 0 {
+            self.bump_revision();
+        }
+        removed
     }
 
     pub fn set_param(
@@ -297,6 +337,7 @@ impl Graph {
         if changed {
             node.params.values.insert(key, value);
             node.param_version = node.param_version.wrapping_add(1);
+            self.bump_revision();
         }
 
         Ok(())

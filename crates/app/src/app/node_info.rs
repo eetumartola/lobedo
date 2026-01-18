@@ -38,10 +38,17 @@ impl LobedoApp {
             .default_pos(panel.screen_pos)
             .open(&mut open);
 
+        let error_message = self.node_graph.error_message(node_id).cloned();
         window.show(ctx, |ui| {
+            if let Some(message) = error_message.as_deref() {
+                ui.heading("Error");
+                ui.colored_label(egui::Color32::from_rgb(220, 60, 60), message);
+                ui.add_space(8.0);
+                ui.separator();
+            }
             if let Some(geometry) = self.eval_state.geometry_for_node(node_id) {
                 self.show_geometry_info(ui, geometry, node);
-            } else {
+            } else if error_message.is_none() {
                 ui.label("No geometry available for this node.");
             }
         });

@@ -9,7 +9,9 @@ use egui_snarl::{InPinId, OutPinId, Snarl};
 use lobedo_core::{BuiltinNodeKind, Graph, NodeId, PinId};
 
 use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
-use super::state::{GraphTransformState, HeaderButtonRects, PendingWire, SnarlNode};
+use super::state::{
+    GraphTransformState, HeaderButtonRects, NodeProgressView, PendingWire, SnarlNode,
+};
 use super::utils::{add_builtin_node_checked, core_input_pin, core_output_pin, pin_color};
 
 pub(super) struct NodeGraphViewer<'a> {
@@ -20,6 +22,7 @@ pub(super) struct NodeGraphViewer<'a> {
     pub(super) selected_node: &'a mut Option<NodeId>,
     pub(super) node_rects: &'a mut HashMap<egui_snarl::NodeId, Rect>,
     pub(super) header_button_rects: &'a mut HashMap<egui_snarl::NodeId, HeaderButtonRects>,
+    pub(super) progress: &'a HashMap<NodeId, NodeProgressView>,
     pub(super) graph_transform: &'a mut GraphTransformState,
     pub(super) pending_transform: &'a mut Option<egui::emath::TSTransform>,
     pub(super) input_pin_positions: Rc<RefCell<HashMap<InPinId, Pos2>>>,
@@ -508,6 +511,39 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             );
             if let Some(message) = self.error_messages.get(&core_id) {
                 badge_response.on_hover_text(message);
+            }
+        }
+
+        if let Some(progress) = self.progress.get(&core_id) {
+            let bar_height = 6.0;
+            let pad = 6.0;
+            if ui_rect.height() > bar_height + pad * 2.0 {
+                let bar_rect = Rect::from_min_max(
+                    Pos2::new(ui_rect.left() + pad, ui_rect.bottom() - pad - bar_height),
+                    Pos2::new(ui_rect.right() - pad, ui_rect.bottom() - pad),
+                );
+                let bg = Color32::from_black_alpha(160);
+                let fill = Color32::from_rgb(235, 200, 60);
+                ui.painter().rect_filled(bar_rect, 3.0, bg);
+                if bar_rect.width() > 1.0 {
+                    let frac = progress.fraction.clamp(0.0, 1.0);
+                    if progress.active && frac <= 0.0 {
+                        let t = (ui.ctx().input(|i| i.time) as f32 * 0.6).fract();
+                        let segment = bar_rect.width() * 0.25;
+                        let x = bar_rect.left() + (bar_rect.width() - segment) * t;
+                        let fill_rect = Rect::from_min_size(
+                            Pos2::new(x, bar_rect.top()),
+                            vec2(segment, bar_rect.height()),
+                        );
+                        ui.painter().rect_filled(fill_rect, 3.0, fill);
+                    } else {
+                        let fill_rect = Rect::from_min_max(
+                            bar_rect.min,
+                            Pos2::new(bar_rect.min.x + bar_rect.width() * frac, bar_rect.max.y),
+                        );
+                        ui.painter().rect_filled(fill_rect, 3.0, fill);
+                    }
+                }
             }
         }
 

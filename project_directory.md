@@ -264,6 +264,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\fuse.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\gltf_output.rs
 Description: TODO: add description.
 Functions: None
@@ -441,6 +445,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\parallel.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\progress.rs
 Description: TODO: add description.
 Functions: None
 

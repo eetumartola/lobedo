@@ -7,6 +7,7 @@ use std::time::Instant;
 use web_time::Instant;
 
 use crate::graph::{Graph, GraphError, NodeId, NodeParams};
+use crate::progress::{set_progress_context, ProgressEvent, ProgressSink};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct EvalCacheStats {
@@ -96,6 +97,19 @@ pub fn evaluate_from_with<F>(
     graph: &Graph,
     output: NodeId,
     state: &mut EvalState,
+    compute: F,
+) -> Result<EvalReport, GraphError>
+where
+    F: FnMut(NodeId, &NodeParams) -> Result<(), String>,
+{
+    evaluate_from_with_progress(graph, output, state, None, compute)
+}
+
+pub fn evaluate_from_with_progress<F>(
+    graph: &Graph,
+    output: NodeId,
+    state: &mut EvalState,
+    progress: Option<ProgressSink>,
     mut compute: F,
 ) -> Result<EvalReport, GraphError>
 where
@@ -192,7 +206,14 @@ where
         }
 
         let start = Instant::now();
+        if let Some(sink) = progress.as_ref() {
+            (sink)(ProgressEvent::Start { node: *node_id });
+        }
+        let _guard = set_progress_context(*node_id, progress.clone());
         let compute_result = compute(*node_id, &node.params);
+        if let Some(sink) = progress.as_ref() {
+            (sink)(ProgressEvent::Finish { node: *node_id });
+        }
         node_report.duration_ms = start.elapsed().as_secs_f32() * 1000.0;
 
         match compute_result {

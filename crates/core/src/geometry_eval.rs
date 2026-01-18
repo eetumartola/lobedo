@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
-use crate::eval::{evaluate_from_with, EvalReport, EvalState};
+use crate::eval::{evaluate_from_with_progress, EvalReport, EvalState};
 use crate::geometry::Geometry;
 use crate::graph::{Graph, GraphError, NodeId};
 use crate::nodes_builtin::{builtin_kind_from_name, compute_geometry_node, input_policy, InputPolicy};
+use crate::progress::ProgressSink;
 
 #[derive(Debug, Default)]
 pub struct GeometryEvalState {
@@ -32,8 +33,22 @@ pub fn evaluate_geometry_graph(
     output: NodeId,
     state: &mut GeometryEvalState,
 ) -> Result<GeometryEvalResult, GraphError> {
+    evaluate_geometry_graph_with_progress(graph, output, state, None)
+}
+
+pub fn evaluate_geometry_graph_with_progress(
+    graph: &Graph,
+    output: NodeId,
+    state: &mut GeometryEvalState,
+    progress: Option<ProgressSink>,
+) -> Result<GeometryEvalResult, GraphError> {
     let outputs = &mut state.outputs;
-    let report = evaluate_from_with(graph, output, &mut state.eval, |node_id, params| {
+    let report = evaluate_from_with_progress(
+        graph,
+        output,
+        &mut state.eval,
+        progress,
+        |node_id, params| {
         let node = graph
             .node(node_id)
             .ok_or_else(|| "missing node".to_string())?;
@@ -107,7 +122,8 @@ pub fn evaluate_geometry_graph(
         let geometry = compute_geometry_node(kind, params, &inputs)?;
         outputs.insert(node_id, geometry);
         Ok(())
-    })?;
+    },
+    )?;
 
     if !report.output_valid {
         for err in &report.errors {

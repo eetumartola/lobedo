@@ -14,6 +14,7 @@ pub mod copy_transform;
 pub mod curve;
 pub mod erosion_noise;
 pub mod ffd;
+pub mod fuse;
 pub mod file;
 pub mod gltf_output;
 pub mod group;

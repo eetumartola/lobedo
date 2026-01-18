@@ -23,6 +23,6 @@ impl eframe::App for LobedoApp {
         self.show_central_panel(ctx, pointer_down, &mut undo_pushed);
         self.sync_selection_overlay();
         self.handle_info_panels(ctx);
-        self.evaluate_if_needed();
+        self.evaluate_if_needed(ctx);
     }
 }

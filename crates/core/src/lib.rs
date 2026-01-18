@@ -16,6 +16,7 @@ mod noise;
 mod nodes;
 mod nodes_builtin;
 mod parallel;
+mod progress;
 mod project;
 mod scene;
 mod splat;
@@ -34,6 +35,7 @@ pub use eval::{
     evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
     EvalNodeReport, EvalReport, EvalState,
 };
+pub use progress::{report_progress, ProgressEvent, ProgressSink};
 pub use color::{lerp_oklab, linear_srgb_to_oklab, oklab_to_linear_srgb};
 pub use gradient::{parse_color_gradient, ColorGradient, ColorStop};
 pub use curve::{encode_curve_points, parse_curve_points, sample_catmull_rom, Curve};
@@ -45,7 +47,10 @@ pub use graph::{
 pub use mesh::{make_box, make_grid, make_tube, Aabb, Mesh};
 pub use material::{Material, MaterialLibrary};
 pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};
-pub use geometry_eval::{evaluate_geometry_graph, GeometryEvalResult, GeometryEvalState};
+pub use geometry_eval::{
+    evaluate_geometry_graph, evaluate_geometry_graph_with_progress, GeometryEvalResult,
+    GeometryEvalState,
+};
 pub use nodes_builtin::{
     builtin_definitions, builtin_kind_from_name, compute_geometry_node, compute_mesh_node,
     compute_splat_node, default_params, node_definition, node_specs, BuiltinNodeKind, NodeSpec,
