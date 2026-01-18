@@ -127,6 +127,7 @@ pub(super) struct NodeMenuRequest {
 
 #[derive(Clone, Copy)]
 pub(super) struct HeaderButtonRects {
+    pub(super) bypass: Rect,
     pub(super) display: Rect,
     pub(super) template: Rect,
     pub(super) help: Option<Rect>,

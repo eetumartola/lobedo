@@ -153,23 +153,30 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         let left_pad = 8.0;
         let min_title_width = 32.0;
         let core_id = self.core_node_id(snarl, node);
-        let (display_active, template_active, show_help) = core_id
+        let (display_active, template_active, bypass_active, show_help) = core_id
             .and_then(|id| self.graph.node(id))
-            .map(|node| (node.display, node.template, node.name == "Wrangle"))
-            .unwrap_or((false, false, false));
+            .map(|node| (node.display, node.template, node.bypass, node.name == "Wrangle"))
+            .unwrap_or((false, false, false, false));
 
         let button_count = if show_help { 3usize } else { 2usize };
         let button_width =
             icon_size * button_count as f32 + button_gap * (button_count.saturating_sub(1)) as f32;
+        let left_button_width = icon_size + button_gap;
         let desired_width =
-            (title_width.max(min_title_width) + left_pad + button_width + right_pad).max(24.0);
+            (title_width.max(min_title_width) + left_pad + left_button_width + button_width + right_pad)
+                .max(24.0);
         let width = ui.available_width().max(desired_width);
         let (rect, _response) =
             ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
         let right_min_x = (rect.right() - right_pad - button_width).max(rect.left());
-        let left_rect = Rect::from_min_max(rect.min, Pos2::new(right_min_x, rect.bottom()));
 
         let icon_y = rect.top() + (height - icon_size) * 0.5;
+        let bypass_rect = Rect::from_min_size(
+            Pos2::new(rect.left() + left_pad, icon_y),
+            egui::vec2(icon_size, icon_size),
+        );
+        let title_left = (bypass_rect.right() + button_gap).min(right_min_x);
+        let left_rect = Rect::from_min_max(Pos2::new(title_left, rect.top()), Pos2::new(right_min_x, rect.bottom()));
         let display_rect = Rect::from_min_size(
             Pos2::new(rect.right() - right_pad - icon_size, icon_y),
             egui::vec2(icon_size, icon_size),
@@ -189,12 +196,18 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         self.header_button_rects.insert(
             node,
             HeaderButtonRects {
+                bypass: bypass_rect,
                 display: display_rect,
                 template: template_rect,
                 help: help_rect,
             },
         );
 
+        let bypass_response = ui.interact(
+            bypass_rect,
+            ui.make_persistent_id(("node-bypass", node)),
+            egui::Sense::hover(),
+        );
         let display_response = ui.interact(
             display_rect,
             ui.make_persistent_id(("node-display", node)),
@@ -212,6 +225,7 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
                 egui::Sense::hover(),
             )
         });
+        bypass_response.on_hover_text("Bypass");
         display_response.on_hover_text("Display");
         template_response.on_hover_text("Template");
         if let Some(response) = help_response {
@@ -246,6 +260,11 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         let inactive_fill = Color32::from_rgb(70, 70, 70);
         let inactive_stroke = Color32::from_rgb(100, 100, 100);
         let inactive_text = Color32::from_rgb(230, 230, 230);
+        let bypass_fill = if bypass_active {
+            Color32::from_rgb(230, 200, 60)
+        } else {
+            inactive_fill
+        };
         let display_fill = if display_active {
             Color32::from_rgb(40, 140, 230)
         } else {
@@ -257,6 +276,11 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             inactive_fill
         };
         let help_fill = inactive_fill;
+        let bypass_text = if bypass_active {
+            Color32::from_rgb(30, 24, 10)
+        } else {
+            inactive_text
+        };
         let display_text = if display_active {
             Color32::WHITE
         } else {
@@ -267,6 +291,13 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         } else {
             inactive_text
         };
+        painter.rect_filled(bypass_rect, 3.0, bypass_fill);
+        painter.rect_stroke(
+            bypass_rect,
+            3.0,
+            egui::Stroke::new(1.0, inactive_stroke),
+            egui::StrokeKind::Inside,
+        );
         painter.rect_filled(display_rect, 3.0, display_fill);
         painter.rect_stroke(
             display_rect,
@@ -297,6 +328,13 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
                 inactive_text,
             );
         }
+        painter.text(
+            bypass_rect.center(),
+            Align2::CENTER_CENTER,
+            "B",
+            FontId::proportional(icon_size * 0.7),
+            bypass_text,
+        );
         painter.text(
             display_rect.center(),
             Align2::CENTER_CENTER,
@@ -489,6 +527,12 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             } else {
                 pos
             };
+            if buttons.bypass.contains(pos) {
+                if self.graph.toggle_bypass_node(core_id).is_ok() {
+                    self.changed = true;
+                }
+                return;
+            }
             if buttons.display.contains(pos) {
                 if self.graph.toggle_display_node(core_id).is_ok() {
                     self.changed = true;
@@ -519,7 +563,8 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             });
         let blocked = pointer_pos.is_some_and(|pos| {
             self.header_button_rects.get(&node).is_some_and(|buttons| {
-                buttons.display.contains(pos)
+                buttons.bypass.contains(pos)
+                    || buttons.display.contains(pos)
                     || buttons.template.contains(pos)
                     || buttons.help.is_some_and(|rect| rect.contains(pos))
             })

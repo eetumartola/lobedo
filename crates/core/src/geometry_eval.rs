@@ -63,6 +63,16 @@ pub fn evaluate_geometry_graph(
             input_geometries.push(geometry);
         }
 
+        if node.bypass {
+            let geometry = input_geometries
+                .get(0)
+                .cloned()
+                .flatten()
+                .unwrap_or_default();
+            outputs.insert(node_id, geometry);
+            return Ok(());
+        }
+
         let inputs = match input_policy(kind) {
             InputPolicy::None => Vec::new(),
             InputPolicy::RequireAll => {

@@ -101,6 +101,28 @@ impl Graph {
         Ok(())
     }
 
+    pub fn set_bypass_node(&mut self, node_id: NodeId, enabled: bool) -> Result<(), GraphError> {
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(GraphError::MissingNode(node_id))?;
+        if node.bypass != enabled {
+            node.bypass = enabled;
+            node.param_version = node.param_version.wrapping_add(1);
+        }
+        Ok(())
+    }
+
+    pub fn toggle_bypass_node(&mut self, node_id: NodeId) -> Result<(), GraphError> {
+        let node = self
+            .nodes
+            .get_mut(&node_id)
+            .ok_or(GraphError::MissingNode(node_id))?;
+        node.bypass = !node.bypass;
+        node.param_version = node.param_version.wrapping_add(1);
+        Ok(())
+    }
+
     pub fn pin(&self, id: PinId) -> Option<&Pin> {
         self.pins.get(&id)
     }
@@ -152,6 +174,7 @@ impl Graph {
                 param_version: 0,
                 display: false,
                 template: false,
+                bypass: false,
                 position: None,
             },
         );
@@ -424,6 +447,8 @@ pub struct Node {
     pub display: bool,
     #[serde(default)]
     pub template: bool,
+    #[serde(default)]
+    pub bypass: bool,
     #[serde(default)]
     pub position: Option<[f32; 2]>,
 }
