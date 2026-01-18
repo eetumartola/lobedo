@@ -585,6 +585,23 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("attr_max", "Maximum attribute value to include."),
             ],
         }),
+        "Group Expand" => Some(NodeHelpPage {
+            name: "Group Expand",
+            description: &[
+                "Expands or contracts an existing group by walking topological neighbors.",
+                "Expand adds adjacent elements; Contract removes boundary elements.",
+                "Use it to grow/shrink selections without recreating them.",
+            ],
+            inputs: &["in: Geometry with the source group."],
+            outputs: &["out: Geometry with the expanded group."],
+            parameters: &[
+                ("group", "Source group expression to expand/contract."),
+                ("out_group", "Output group name (leave empty to overwrite simple names)."),
+                ("group_type", "Group domain to use."),
+                ("expand_mode", "Expand or Contract."),
+                ("iterations", "Number of expansion steps."),
+            ],
+        }),
         "Transform" => Some(NodeHelpPage {
             name: "Transform",
             description: &[
@@ -912,6 +929,24 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("seed", "Noise seed."),
                 ("group", "Restrict to a group."),
                 ("group_type", "Group domain to use."),
+            ],
+        }),
+        "Attribute Expand" => Some(NodeHelpPage {
+            name: "Attribute Expand",
+            description: &[
+                "Expands or contracts attribute values across the mesh topology.",
+                "Expand behaves like a dilation (max of neighbors), while Contract is an erosion (min of neighbors).",
+                "Useful for growing masks, widening color regions, or shrinking scalar fields.",
+            ],
+            inputs: &["in: Geometry with the attribute to edit."],
+            outputs: &["out: Geometry with expanded/contracted attributes."],
+            parameters: &[
+                ("group", "Optional group to restrict edits."),
+                ("group_type", "Group domain to use."),
+                ("attr", "Attribute name to expand/contract."),
+                ("domain", "Attribute domain to operate on."),
+                ("expand_mode", "Expand or Contract."),
+                ("iterations", "Number of expansion steps."),
             ],
         }),
         "Attribute from Feature" => Some(NodeHelpPage {

@@ -78,6 +78,8 @@ Status: done | in progress | not started
 - **N17**: Attribute from Volume (sample volume into attribute) (done)
 - **N18**: Sweep (profile curve/polygon along a path curve to form a surface) (done)
 - **N19**: Scatter density attribute + attribute inheritance (done)
+- **N20**: Group Expand (expand/contract groups by topology) (done)
+- **N21**: Attribute Expand (expand/contract attribute values) (done)
 - **N20**: Group by attribute range (done)
 - **N21**: Splat Heal (hole filling via voxel close + SDF patch + optional bounds) (done)
 - **N22**: Splat Outlier (remove sparse splats via density clustering) (done)   

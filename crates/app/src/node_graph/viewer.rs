@@ -151,9 +151,10 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             .x;
         let icon_size = (base_height - 6.0).max(12.0) * 2.0;
         let height = (icon_size + 6.0).max(base_height);
-        let button_gap = 4.0;
-        let right_pad = 6.0;
-        let left_pad = 8.0;
+        let button_gap = 1.0;
+        let right_pad = 1.0;
+        let left_pad = -4.0;
+        let title_pad = 4.0;
         let min_title_width = 32.0;
         let core_id = self.core_node_id(snarl, node);
         let (display_active, template_active, bypass_active, show_help) = core_id
@@ -162,24 +163,32 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             .unwrap_or((false, false, false, false));
 
         let button_count = if show_help { 3usize } else { 2usize };
-        let button_width =
+        let right_button_width =
             icon_size * button_count as f32 + button_gap * (button_count.saturating_sub(1)) as f32;
-        let left_button_width = icon_size + button_gap;
-        let desired_width =
-            (title_width.max(min_title_width) + left_pad + left_button_width + button_width + right_pad)
-                .max(24.0);
+        let left_button_width = icon_size;
+        let desired_width = (title_width.max(min_title_width)
+            + left_pad
+            + left_button_width
+            + title_pad * 2.0
+            + right_button_width
+            + right_pad)
+            .max(24.0);
         let width = ui.available_width().max(desired_width);
         let (rect, _response) =
             ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
-        let right_min_x = (rect.right() - right_pad - button_width).max(rect.left());
+        let right_min_x = (rect.right() - right_pad - right_button_width).max(rect.left());
 
         let icon_y = rect.top() + (height - icon_size) * 0.5;
         let bypass_rect = Rect::from_min_size(
             Pos2::new(rect.left() + left_pad, icon_y),
             egui::vec2(icon_size, icon_size),
         );
-        let title_left = (bypass_rect.right() + button_gap).min(right_min_x);
-        let left_rect = Rect::from_min_max(Pos2::new(title_left, rect.top()), Pos2::new(right_min_x, rect.bottom()));
+        let title_left = (bypass_rect.right() + title_pad).min(right_min_x);
+        let title_right = (right_min_x - title_pad).max(title_left);
+        let left_rect = Rect::from_min_max(
+            Pos2::new(title_left, rect.top()),
+            Pos2::new(title_right, rect.bottom()),
+        );
         let display_rect = Rect::from_min_size(
             Pos2::new(rect.right() - right_pad - icon_size, icon_y),
             egui::vec2(icon_size, icon_size),
@@ -250,10 +259,10 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         }
 
         let title_color = Color32::from_rgb(60, 60, 60);
-        let text_pos = left_rect.left_center() + egui::vec2(4.0, 0.0);
+        let text_pos = left_rect.center();
         ui.painter().with_clip_rect(left_rect).text(
             text_pos,
-            Align2::LEFT_CENTER,
+            Align2::CENTER_CENTER,
             title,
             font_id,
             title_color,
@@ -512,6 +521,34 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
             if let Some(message) = self.error_messages.get(&core_id) {
                 badge_response.on_hover_text(message);
             }
+        }
+
+        if let Some(message) = self.error_messages.get(&core_id) {
+            let font_id = ui
+                .style()
+                .text_styles
+                .get(&TextStyle::Body)
+                .cloned()
+                .unwrap_or_else(|| FontId::proportional(14.0));
+            let text_color = Color32::from_rgb(220, 60, 60);
+            let galley = ui
+                .painter()
+                .layout_no_wrap(message.clone(), font_id.clone(), text_color);
+            let padding = vec2(6.0, 4.0);
+            let total_size = galley.size() + padding * 2.0;
+            let text_pos = Pos2::new(ui_rect.center().x - total_size.x * 0.5, ui_rect.top() - total_size.y - 4.0);
+            let bg_rect = Rect::from_min_size(text_pos, total_size);
+            ui.painter()
+                .rect_filled(bg_rect, 4.0, Color32::from_black_alpha(170));
+            ui.painter()
+                .rect_stroke(bg_rect, 4.0, egui::Stroke::new(1.0, text_color), egui::StrokeKind::Inside);
+            ui.painter().text(
+                bg_rect.center(),
+                Align2::CENTER_CENTER,
+                message,
+                font_id,
+                text_color,
+            );
         }
 
         if let Some(progress) = self.progress.get(&core_id) {

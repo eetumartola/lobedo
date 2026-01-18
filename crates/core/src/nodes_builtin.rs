@@ -37,6 +37,7 @@ pub enum BuiltinNodeKind {
     VolumeBlur,
     VolumeToMesh,
     Group,
+    GroupExpand,
     Transform,
     Fuse,
     Ffd,
@@ -56,6 +57,7 @@ pub enum BuiltinNodeKind {
     Material,
     Ray,
     AttributeNoise,
+    AttributeExpand,
     AttributeFromFeature,
     AttributeFromVolume,
     AttributeTransfer,
@@ -394,6 +396,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::GroupExpand,
+        name: nodes::group_expand::NAME,
+        aliases: &[],
+        definition: nodes::group_expand::definition,
+        default_params: nodes::group_expand::default_params,
+        compute_mesh: nodes::group_expand::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::Transform,
         name: nodes::transform::NAME,
         aliases: &[],
@@ -565,6 +576,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::AttributeExpand,
+        name: nodes::attribute_expand::NAME,
+        aliases: &[],
+        definition: nodes::attribute_expand::definition,
+        default_params: nodes::attribute_expand::default_params,
+        compute_mesh: nodes::attribute_expand::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::AttributeFromFeature,
         name: nodes::attribute_from_feature::NAME,
         aliases: &[],
@@ -726,6 +746,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::VolumeBlur => nodes::volume_blur::apply_to_geometry(params, inputs),
         BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Group => apply_group(params, inputs),
+        BuiltinNodeKind::GroupExpand => apply_group_expand(params, inputs),
         BuiltinNodeKind::Transform => apply_transform(params, inputs),
         BuiltinNodeKind::Fuse => nodes::fuse::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Ffd => nodes::ffd::apply_to_geometry(params, inputs),
@@ -743,6 +764,7 @@ pub fn compute_geometry_node(
         | BuiltinNodeKind::UvUnwrap
         | BuiltinNodeKind::UvView
         | BuiltinNodeKind::AttributeNoise
+        | BuiltinNodeKind::AttributeExpand
         | BuiltinNodeKind::AttributeFromFeature
         | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
         BuiltinNodeKind::Wrangle => nodes::wrangle::apply_to_geometry(params, inputs),
@@ -800,6 +822,9 @@ fn apply_mesh_unary(
             }
             BuiltinNodeKind::AttributeNoise => {
                 nodes::attribute_noise::apply_to_splats(params, &mut splat)?;
+            }
+            BuiltinNodeKind::AttributeExpand => {
+                nodes::attribute_expand::apply_to_splats(params, &mut splat)?;
             }
             BuiltinNodeKind::AttributeFromFeature => {
                 nodes::attribute_from_feature::apply_to_splats(params, &mut splat)?;
@@ -979,6 +1004,33 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
     for splat in &input.splats {
         let mut splat = splat.clone();
         nodes::group::apply_to_splats(params, &mut splat)?;
+        splats.push(splat);
+    }
+
+    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    Ok(Geometry {
+        meshes,
+        splats,
+        curves,
+        volumes: input.volumes.clone(),
+        materials: input.materials.clone(),
+    })
+}
+
+fn apply_group_expand(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    let Some(input) = inputs.first() else {
+        return Ok(Geometry::default());
+    };
+
+    let mut meshes = Vec::new();
+    if let Some(mesh) = input.merged_mesh() {
+        meshes.push(nodes::group_expand::compute(params, std::slice::from_ref(&mesh))?);
+    }
+
+    let mut splats = Vec::with_capacity(input.splats.len());
+    for splat in &input.splats {
+        let mut splat = splat.clone();
+        nodes::group_expand::apply_to_splats(params, &mut splat)?;
         splats.push(splat);
     }
 

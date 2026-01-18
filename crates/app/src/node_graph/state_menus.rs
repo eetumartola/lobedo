@@ -1,5 +1,6 @@
 use egui::{Frame, Pos2, Ui};
 
+use egui::{Color32, TextStyle};
 use lobedo_core::{BuiltinNodeKind, Graph, NodeId};
 
 use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
@@ -20,6 +21,20 @@ impl NodeGraphState {
             .anchor(egui::Align2::LEFT_TOP, self.node_menu_screen_pos.to_vec2())
             .frame(Frame::popup(ui.style()))
             .show(ui.ctx(), |ui| {
+                let font_id = TextStyle::Button.resolve(ui.style());
+                let node_info_width = ui
+                    .painter()
+                    .layout_no_wrap("Node info".to_string(), font_id.clone(), Color32::WHITE)
+                    .size()
+                    .x;
+                let delete_node_width = ui
+                    .painter()
+                    .layout_no_wrap("Delete node".to_string(), font_id, Color32::WHITE)
+                    .size()
+                    .x;
+                let min_label_width = node_info_width.max(delete_node_width).max(96.0);
+                let min_width = min_label_width + ui.spacing().button_padding.x * 2.0 + 8.0;
+                ui.set_min_width(min_width);
                 if ui.button("Node info").clicked() {
                     if let Some(node_id) = node_id {
                         self.info_request = Some(NodeInfoRequest {

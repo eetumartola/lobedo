@@ -192,6 +192,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\attribute_expand.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\attribute_from_feature.rs
 Description: TODO: add description.
 Functions: None
@@ -256,6 +260,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\expand_utils.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\ffd.rs
 Description: TODO: add description.
 Functions: None
@@ -277,6 +285,10 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\core\src\nodes\group.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\core\src\nodes\group_expand.rs
 Description: TODO: add description.
 Functions: None
 

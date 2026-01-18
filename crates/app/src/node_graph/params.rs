@@ -92,6 +92,16 @@ pub(super) fn edit_param(
                     ],
                     "Auto",
                 )
+            } else if label == "expand_mode" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "Expand"), (1, "Contract")],
+                    "Expand",
+                )
             } else if label == "copy_attr_class" {
                 combo_row_i32(
                     ui,

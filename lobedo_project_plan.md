@@ -58,6 +58,10 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Explore parallel node evaluation for independent subgraphs (graph scheduling) (not started)
 - Add profiling-driven thresholds (only parallelize above a size/complexity cutoff) (in progress: size threshold, no profiling)
 
+## Epic A - Automation & Scripting (future)
+- Embedded scripting console (REPL) with the same API usable in headless mode
+- Scripted graph creation + parameter edits + cook + export for automated testing
+
 ## Epic U - Materials & Textures (done)
 - Add string attributes with shared value tables (Houdini-style) for per-primitive material assignment
 - Ensure meshes carry UVs end-to-end (reader, nodes, renderer)
@@ -180,11 +184,11 @@ SH evaluation:
 - `GLTF Output`
 
 ### Core geometry ops
-- `Transform`, `Merge`, `Delete`, `Group`, `FFD`, `Boolean SDF`, `Boolean Geo`
+- `Transform`, `Merge`, `Delete`, `Group`, `Group Expand`, `FFD`, `Boolean SDF`, `Boolean Geo`  
 - `Copy/Transform`, `Copy to Points`, `Scatter`, `Resample`
 - `Normal`, `Color`, `Noise/Mountain`, `Erosion Noise`, `Smooth`
 - `Ray`, `Sweep`, `Tube`, `Circle`, `Curve`, `Sphere`, `Grid`, `Box`
-- `Attribute Noise`, `Attribute from Feature`, `Attribute from Volume`, `Attribute Transfer`, `Attribute Math`, `Wrangle`
+- `Attribute Noise`, `Attribute Expand`, `Attribute from Feature`, `Attribute from Volume`, `Attribute Transfer`, `Attribute Math`, `Wrangle`
 
 ### Materials & UV
 - `UV Texture`, `UV Unwrap`, `UV View`
