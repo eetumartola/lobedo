@@ -9,7 +9,7 @@ use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
 use crate::nodes::volume_from_geo;
 use crate::parallel;
-use crate::volume::{Volume, VolumeKind};
+use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Boolean SDF";
@@ -167,7 +167,7 @@ fn combine_sdf(a: &Volume, b: &Volume, op: i32, max_dim: u32) -> Result<Volume, 
 
     let sampler_a = VolumeSampler::new(a);
     let sampler_b = VolumeSampler::new(b);
-    let mut values = vec![0.0f32; total as usize];
+    let mut values = try_alloc_f32(total as usize, "Boolean SDF")?;
     let dim_x = dims[0] as usize;
     let dim_y = dims[1] as usize;
     let dim_z = dims[2] as usize;

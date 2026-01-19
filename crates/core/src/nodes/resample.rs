@@ -8,7 +8,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
-use crate::volume::Volume;
+use crate::volume::{try_alloc_f32, Volume};
 use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Resample";
@@ -88,7 +88,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         .volumes
         .iter()
         .map(|volume| resample_volume(volume, volume_max_dim))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Geometry {
         meshes,
@@ -367,14 +367,14 @@ fn extend_mesh_point_data(mesh: &mut Mesh, extra: usize) {
     }
 }
 
-fn resample_volume(volume: &Volume, max_dim: u32) -> Volume {
+fn resample_volume(volume: &Volume, max_dim: u32) -> Result<Volume, String> {
     if volume.is_empty() || max_dim == 0 {
-        return volume.clone();
+        return Ok(volume.clone());
     }
     let old_dims = volume.dims;
     let max_old = old_dims[0].max(old_dims[1]).max(old_dims[2]);
     if max_old == 0 || max_old == max_dim {
-        return volume.clone();
+        return Ok(volume.clone());
     }
 
     let voxel_size = volume.voxel_size.max(1.0e-6);
@@ -391,7 +391,8 @@ fn resample_volume(volume: &Volume, max_dim: u32) -> Volume {
         (size.z / new_voxel).round().max(1.0) as u32,
     ];
 
-    let mut values = vec![0.0f32; (new_dims[0] * new_dims[1] * new_dims[2]) as usize];
+    let total = (new_dims[0] * new_dims[1] * new_dims[2]) as usize;
+    let mut values = try_alloc_f32(total, "Volume Resample")?;
     let sampler = VolumeSampler::new(volume);
     let origin = Vec3::from(volume.origin);
     for z in 0..new_dims[2] {
@@ -412,5 +413,5 @@ fn resample_volume(volume: &Volume, max_dim: u32) -> Volume {
     out.voxel_size = new_voxel;
     out.values = values;
     out.sdf_band = new_voxel.max(1.0e-6) * 2.0;
-    out
+    Ok(out)
 }

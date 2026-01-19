@@ -6,7 +6,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
 use crate::parallel;
-use crate::volume::{Volume, VolumeKind};
+use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
 pub const NAME: &str = "Volume from Geometry";
 
@@ -91,7 +91,7 @@ pub fn apply_to_geometry(
         ));
     }
 
-    let mut values = vec![0.0f32; total as usize];
+    let mut values = try_alloc_f32(total as usize, "Volume from Geometry")?;
     let has_tris = !triangles.is_empty();
     let use_points = !has_tris;
     let dim_x = dims[0] as usize;

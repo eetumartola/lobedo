@@ -5,7 +5,7 @@ use glam::{Mat4, Vec3};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
-use crate::volume::{Volume, VolumeKind};
+use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Volume Combine";
@@ -102,7 +102,7 @@ fn combine_volumes(
         1.0
     };
 
-    let mut values = vec![0.0f32; total as usize];
+    let mut values = try_alloc_f32(total as usize, "Volume Combine")?;
     let mut idx = 0usize;
     for z in 0..dims[2] {
         let zf = min.z + (z as f32 + 0.5) * voxel_size;

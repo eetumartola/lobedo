@@ -85,3 +85,24 @@ impl Volume {
         (z * nx * ny + y * nx + x) as usize
     }
 }
+
+pub fn try_alloc_f32(count: usize, context: &str) -> Result<Vec<f32>, String> {
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+    let bytes = count
+        .checked_mul(std::mem::size_of::<f32>())
+        .ok_or_else(|| format!("{context}: volume grid too large"))?;
+    let mut values = Vec::new();
+    values
+        .try_reserve_exact(count)
+        .map_err(|_| {
+            let mb = bytes as f32 / (1024.0 * 1024.0);
+            format!(
+                "{context}: not enough memory for {} voxels (~{:.1} MB)",
+                count, mb
+            )
+        })?;
+    values.resize(count, 0.0);
+    Ok(values)
+}

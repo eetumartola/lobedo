@@ -7,7 +7,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
-use crate::volume::Volume;
+use crate::volume::{try_alloc_f32, Volume};
 
 pub const NAME: &str = "Volume to Mesh";
 
@@ -99,7 +99,10 @@ pub(crate) fn volume_to_mesh(
     if dims[0] < 2 || dims[1] < 2 || dims[2] < 2 {
         return Ok(Mesh::default());
     }
-    let mut grid = volume.values.clone();
+    let mut grid = try_alloc_f32(volume.values.len(), "Volume to Mesh")?;
+    if !grid.is_empty() {
+        grid.copy_from_slice(&volume.values);
+    }
     sanitize_grid(&mut grid, iso, inside_is_greater);
     let spec = GridSpec {
         min: Vec3::from(volume.origin),

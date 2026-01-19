@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
-use crate::volume::{Volume, VolumeKind};
+use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
 pub const NAME: &str = "Volume Blur";
 const DEFAULT_RADIUS: f32 = 1.0;
@@ -46,27 +46,28 @@ pub fn apply_to_geometry(
         .volumes
         .iter()
         .map(|volume| blur_volume(volume, radius, iterations))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(output)
 }
 
-fn blur_volume(volume: &Volume, radius: f32, iterations: i32) -> Volume {
+fn blur_volume(volume: &Volume, radius: f32, iterations: i32) -> Result<Volume, String> {
     if volume.is_empty() || iterations <= 0 || radius <= 0.0 {
-        return volume.clone();
+        return Ok(volume.clone());
     }
     let voxel_size = volume.voxel_size.max(1.0e-6);
     let radius_vox = (radius / voxel_size).max(0.0);
     let radius_i = radius_vox.ceil() as i32;
     if radius_i <= 0 {
-        return volume.clone();
+        return Ok(volume.clone());
     }
 
     let dims = volume.dims;
     let nx = dims[0] as i32;
     let ny = dims[1] as i32;
     let nz = dims[2] as i32;
-    let mut src = volume.values.clone();
-    let mut dst = vec![0.0f32; src.len()];
+    let mut src = try_alloc_f32(volume.values.len(), "Volume Blur")?;
+    src.copy_from_slice(&volume.values);
+    let mut dst = try_alloc_f32(src.len(), "Volume Blur")?;
     let radius_sq = radius_vox * radius_vox;
 
     for _ in 0..iterations {
@@ -120,5 +121,5 @@ fn blur_volume(volume: &Volume, radius: f32, iterations: i32) -> Volume {
 
     let mut out = volume.clone();
     out.values = src;
-    out
+    Ok(out)
 }
