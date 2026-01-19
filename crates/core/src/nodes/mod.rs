@@ -28,6 +28,7 @@ pub mod merge;
 pub mod material;
 pub mod noise;
 pub mod normal;
+pub mod polyframe;
 pub mod obj_output;
 pub mod output;
 pub mod prune;

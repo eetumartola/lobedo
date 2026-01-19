@@ -736,6 +736,28 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
+        "PolyFrame" => Some(NodeHelpPage {
+            name: "PolyFrame",
+            description: &[
+                "Builds a local frame (normal, tangent, bitangent) for points that belong to polygons or curves.",
+                "Tangents are estimated from polygon edges and polyline directions, while curvature (difference of incoming/outgoing directions) drives the bitangent.",
+                "The normal is computed as the cross product of tangent and bitangent, giving a stable frame along curves.",
+                "Unconnected points (no attached primitives) fall back to world axes, ensuring stable output for isolated points.",
+            ],
+            inputs: &["in: Mesh geometry."],
+            outputs: &["out: Mesh with frame attributes."],
+            parameters: &[
+                ("group", "Restrict frame computation to a point group."),
+                ("group_type", "Group domain to use."),
+                ("normal", "Name of the normal attribute to write."),
+                ("tangent", "Name of the tangent attribute to write."),
+                ("bitangent", "Name of the bitangent attribute to write."),
+                (
+                    "coherent",
+                    "Keep bitangent direction coherent along curves to avoid flips when curvature changes sign.",
+                ),
+            ],
+        }),
         "Color" => Some(NodeHelpPage {
             name: "Color",
             description: &[

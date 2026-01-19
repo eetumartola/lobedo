@@ -33,15 +33,31 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.point_size = -1.0;
         pipeline.mesh_bounds = bounds_from_positions(&mesh.positions);
 
-        let normals_vertices = normals_vertices(&pipeline.mesh_vertices, pipeline.normals_length);
-        pipeline.normals_buffer =
-            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
-                label: Some("lobedo_normals_vertices"),
-                contents: bytemuck::cast_slice(&normals_vertices),
-                usage: egui_wgpu::wgpu::BufferUsages::VERTEX
-                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-            });
-        pipeline.normals_count = normals_vertices.len() as u32;
+        let has_normals = mesh
+            .normals
+            .as_ref()
+            .map(|n| !n.is_empty())
+            .unwrap_or(false)
+            || mesh
+                .corner_normals
+                .as_ref()
+                .map(|n| !n.is_empty())
+                .unwrap_or(false);
+        pipeline.has_normals = has_normals;
+        if has_normals {
+            let normals_vertices =
+                normals_vertices(&pipeline.mesh_vertices, pipeline.normals_length);
+            pipeline.normals_buffer =
+                device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                    label: Some("lobedo_normals_vertices"),
+                    contents: bytemuck::cast_slice(&normals_vertices),
+                    usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                        | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+                });
+            pipeline.normals_count = normals_vertices.len() as u32;
+        } else {
+            pipeline.normals_count = 0;
+        }
     } else {
         pipeline.mesh_vertices.clear();
         pipeline.index_count = 0;
@@ -49,6 +65,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.point_count = 0;
         pipeline.point_size = -1.0;
         pipeline.normals_count = 0;
+        pipeline.has_normals = false;
     }
 
     let mut curve_lines = Vec::new();

@@ -46,6 +46,7 @@ pub enum BuiltinNodeKind {
     CopyToPoints,
     Scatter,
     Normal,
+    PolyFrame,
     Color,
     Noise,
     ErosionNoise,
@@ -478,6 +479,15 @@ static NODE_SPECS: &[NodeSpec] = &[
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
+        kind: BuiltinNodeKind::PolyFrame,
+        name: nodes::polyframe::NAME,
+        aliases: &[],
+        definition: nodes::polyframe::definition,
+        default_params: nodes::polyframe::default_params,
+        compute_mesh: nodes::polyframe::compute,
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
         kind: BuiltinNodeKind::Color,
         name: nodes::color::NAME,
         aliases: &[],
@@ -765,6 +775,7 @@ pub fn compute_geometry_node(
         BuiltinNodeKind::Material => nodes::material::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Scatter => nodes::scatter::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Resample => nodes::resample::apply_to_geometry(params, inputs),
+        BuiltinNodeKind::PolyFrame => nodes::polyframe::apply_to_geometry(params, inputs),
         BuiltinNodeKind::Normal
         | BuiltinNodeKind::Color
         | BuiltinNodeKind::Noise

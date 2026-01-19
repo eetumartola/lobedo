@@ -126,6 +126,7 @@ pub(super) struct PipelineState {
     pub(super) normals_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) normals_count: u32,
     pub(super) normals_length: f32,
+    pub(super) has_normals: bool,
     pub(super) bounds_buffer: egui_wgpu::wgpu::Buffer,
     pub(super) bounds_count: u32,
     pub(super) curve_buffer: egui_wgpu::wgpu::Buffer,
@@ -813,6 +814,7 @@ impl PipelineState {
         let index_count = mesh.indices.len() as u32;
         let normals_length = 0.3;
         let normals_vertices = normals_vertices(&mesh.vertices, normals_length);
+        let has_normals = mesh.normals.is_some() || mesh.corner_normals.is_some();
         let normals_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_normals_vertices"),
@@ -947,8 +949,13 @@ impl PipelineState {
             axes_buffer,
             axes_count: axes_vertices.len() as u32,
             normals_buffer,
-            normals_count: normals_vertices.len() as u32,
+            normals_count: if has_normals {
+                normals_vertices.len() as u32
+            } else {
+                0
+            },
             normals_length,
+            has_normals,
             bounds_buffer,
             bounds_count: bounds_vertices.len() as u32,
             curve_buffer,

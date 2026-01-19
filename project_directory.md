@@ -328,6 +328,10 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\core\src\nodes\polyframe.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\core\src\nodes\prune.rs
 Description: TODO: add description.
 Functions: None

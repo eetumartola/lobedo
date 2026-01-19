@@ -177,6 +177,7 @@ impl CallbackTrait for ViewportCallback {
             queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
             if self.debug.show_normals
+                && pipeline.has_normals
                 && (self.debug.normal_length - pipeline.normals_length).abs() > 0.0001
             {
                 let normals_vertices =
@@ -738,7 +739,7 @@ impl CallbackTrait for ViewportCallback {
                 render_pass.draw(0..pipeline.axes_count, 0..1);
             }
 
-            if self.debug.show_normals && pipeline.normals_count > 0 {
+            if self.debug.show_normals && pipeline.has_normals && pipeline.normals_count > 0 {
                 render_pass.set_vertex_buffer(0, pipeline.normals_buffer.slice(..));
                 render_pass.draw(0..pipeline.normals_count, 0..1);
             }
