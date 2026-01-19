@@ -80,7 +80,7 @@ pub fn evaluate_geometry_graph_with_progress(
 
         if node.bypass {
             let geometry = input_geometries
-                .get(0)
+                .first()
                 .cloned()
                 .flatten()
                 .unwrap_or_default();

@@ -814,7 +814,7 @@ impl PipelineState {
         let index_count = mesh.indices.len() as u32;
         let normals_length = 0.3;
         let normals_vertices = normals_vertices(&mesh.vertices, normals_length);
-        let has_normals = mesh.normals.is_some() || mesh.corner_normals.is_some();
+        let has_normals = !normals_vertices.is_empty();
         let normals_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_normals_vertices"),

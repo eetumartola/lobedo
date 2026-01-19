@@ -95,7 +95,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
         return Err("Attribute Promote requires different source/target classes".to_string());
     }
 
-    let attr_names = collect_attribute_names_mesh(mesh, source_domain, &attr_expr);
+    let attr_names = collect_attribute_names_mesh(mesh, source_domain, attr_expr);
     if attr_names.is_empty() {
         return Ok(());
     }
@@ -105,7 +105,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
         return Ok(());
     }
     let mapping = if has_piece {
-        build_mapping_with_piece(mesh, source_domain, target_domain, &piece_attr)?
+        build_mapping_with_piece(mesh, source_domain, target_domain, piece_attr)?
     } else {
         build_mapping(mesh, source_domain, target_domain)
     };
@@ -115,14 +115,14 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
 
     let attr_total = attr_names.len();
     for attr_name in &attr_names {
-        let Some(attr_ref) = mesh.attribute(source_domain, &attr_name) else {
+        let Some(attr_ref) = mesh.attribute(source_domain, attr_name) else {
             warn!(
                 "Attribute Promote: '{}' not found on {:?}; skipping",
                 attr_name, source_domain
             );
             continue;
         };
-        let out_name = resolve_output_name(attr_name, &new_name, rename, attr_total);
+        let out_name = resolve_output_name(attr_name, new_name, rename, attr_total);
         let storage = promote_attribute(attr_ref, &mapping, method);
         if let Some(storage) = storage {
             mesh.set_attribute(target_domain, out_name, storage)
@@ -159,7 +159,7 @@ pub(crate) fn apply_to_splats(
         return Err("Attribute Promote requires different source/target classes".to_string());
     }
 
-    let attr_names = collect_attribute_names_splats(splats, source_domain, &attr_expr);
+    let attr_names = collect_attribute_names_splats(splats, source_domain, attr_expr);
     if attr_names.is_empty() {
         return Ok(());
     }
@@ -175,7 +175,7 @@ pub(crate) fn apply_to_splats(
             target_len,
             source_domain,
             target_domain,
-            &piece_attr,
+            piece_attr,
         )?
     } else {
         build_mapping_splats(source_len, target_len, source_domain, target_domain)
@@ -186,14 +186,14 @@ pub(crate) fn apply_to_splats(
 
     let attr_total = attr_names.len();
     for attr_name in &attr_names {
-        let Some(attr_ref) = splats.attribute(source_domain, &attr_name) else {
+        let Some(attr_ref) = splats.attribute(source_domain, attr_name) else {
             warn!(
                 "Attribute Promote: '{}' not found on {:?}; skipping",
                 attr_name, source_domain
             );
             continue;
         };
-        let out_name = resolve_output_name(attr_name, &new_name, rename, attr_total);
+        let out_name = resolve_output_name(attr_name, new_name, rename, attr_total);
         let storage = promote_attribute(attr_ref, &mapping, method);
         if let Some(storage) = storage {
             splats
@@ -593,7 +593,7 @@ fn promote_vec4(
     out
 }
 
-fn promote_scalar(values: &mut Vec<f32>, method: PromotionMethod) -> f32 {
+fn promote_scalar(values: &mut [f32], method: PromotionMethod) -> f32 {
     if values.is_empty() {
         return 0.0;
     }
@@ -635,7 +635,7 @@ fn mode_f32(values: &[f32]) -> f32 {
     best.map(|(_, value)| value).unwrap_or(0.0)
 }
 
-fn median_f32(values: &mut Vec<f32>) -> f32 {
+fn median_f32(values: &mut [f32]) -> f32 {
     if values.is_empty() {
         return 0.0;
     }
@@ -663,7 +663,7 @@ fn mode_i32(values: &[i32]) -> i32 {
     best.map(|(_, value)| value).unwrap_or(0)
 }
 
-fn median_i32(values: &mut Vec<i32>) -> i32 {
+fn median_i32(values: &mut [i32]) -> i32 {
     if values.is_empty() {
         return 0;
     }
@@ -825,8 +825,8 @@ fn build_mapping_splats(
         | (AttributeDomain::Point, AttributeDomain::Point)
         | (AttributeDomain::Primitive, AttributeDomain::Primitive) => {
             let count = source_len.min(target_len);
-            for idx in 0..count {
-                mapping[idx].push(idx);
+            for (idx, slot) in mapping.iter_mut().enumerate().take(count) {
+                slot.push(idx);
             }
         }
         _ => {}

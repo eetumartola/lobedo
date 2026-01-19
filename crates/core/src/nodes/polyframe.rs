@@ -68,11 +68,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         meshes.push(mesh);
     }
 
-    let curves = if meshes.is_empty() {
-        input.curves.clone()
-    } else {
-        input.curves.clone()
-    };
+    let curves = input.curves.clone();
 
     Ok(Geometry {
         meshes,
@@ -406,6 +402,43 @@ fn build_frame(
     (normal, tangent, bitangent)
 }
 
+fn fill_curve_segment(
+    out: &mut [Vec3],
+    start_idx: usize,
+    end_idx: usize,
+    start: Vec3,
+    end: Vec3,
+    epsilon: f32,
+) {
+    let count = out.len();
+    if count == 0 {
+        return;
+    }
+    if start_idx == end_idx {
+        out[start_idx] = start;
+        return;
+    }
+    let span = if end_idx > start_idx {
+        end_idx - start_idx
+    } else {
+        (count - start_idx) + end_idx
+    };
+    if span == 0 {
+        return;
+    }
+    for step in 0..=span {
+        let t = step as f32 / span as f32;
+        let blended = (start * (1.0 - t) + end * t).normalize_or_zero();
+        let value = if blended.length_squared() > epsilon {
+            blended
+        } else {
+            start
+        };
+        let idx = (start_idx + step) % count;
+        out[idx] = value;
+    }
+}
+
 fn build_curve_bitangents(
     curvatures: &[Vec3],
     closed: bool,
@@ -464,62 +497,34 @@ fn build_curve_bitangents(
 
     if anchors.len() == 1 {
         let value = oriented[first];
-        for slot in &mut out {
-            *slot = value;
-        }
+        out.fill(value);
         return out;
     }
-
-    let mut fill_segment = |start_idx: usize, end_idx: usize, start: Vec3, end: Vec3| {
-        if start_idx == end_idx {
-            out[start_idx] = start;
-            return;
-        }
-        let span = if end_idx > start_idx {
-            end_idx - start_idx
-        } else {
-            (count - start_idx) + end_idx
-        };
-        if span == 0 {
-            return;
-        }
-        for step in 0..=span {
-            let t = step as f32 / span as f32;
-            let blended = (start * (1.0 - t) + end * t).normalize_or_zero();
-            let value = if blended.length_squared() > epsilon {
-                blended
-            } else {
-                start
-            };
-            let idx = (start_idx + step) % count;
-            out[idx] = value;
-        }
-    };
 
     if closed {
         for window in anchors.iter().zip(anchors.iter().cycle().skip(1)).take(anchors.len()) {
             let (start_idx, end_idx) = (*window.0, *window.1);
             let start = oriented[start_idx];
             let end = oriented[end_idx];
-            fill_segment(start_idx, end_idx, start, end);
+            fill_curve_segment(&mut out, start_idx, end_idx, start, end, epsilon);
         }
     } else {
         let first = anchors[0];
         let last = *anchors.last().unwrap();
         let first_value = oriented[first];
-        for idx in 0..=first {
-            out[idx] = first_value;
+        for slot in out.iter_mut().take(first + 1) {
+            *slot = first_value;
         }
         for pair in anchors.windows(2) {
             let start_idx = pair[0];
             let end_idx = pair[1];
             let start = oriented[start_idx];
             let end = oriented[end_idx];
-            fill_segment(start_idx, end_idx, start, end);
+            fill_curve_segment(&mut out, start_idx, end_idx, start, end, epsilon);
         }
         let last_value = oriented[last];
-        for idx in last..count {
-            out[idx] = last_value;
+        for slot in out.iter_mut().skip(last) {
+            *slot = last_value;
         }
     }
 

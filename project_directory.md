@@ -64,6 +64,26 @@ Functions: None
 Description: TODO: add description.
 Functions: None
 
+## .\crates\app\src\app\viewport_tools\viewport_tools_curve.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\app\viewport_tools\viewport_tools_ffd.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\app\viewport_tools\viewport_tools_gizmo.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\app\viewport_tools\viewport_tools_math.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\app\viewport_tools\viewport_tools_selection.rs
+Description: TODO: add description.
+Functions: None
+
 ## .\crates\app\src\app\wrangle_help.rs
 Description: TODO: add description.
 Functions: None
@@ -85,6 +105,18 @@ Description: TODO: add description.
 Functions: None
 
 ## .\crates\app\src\node_graph\help_pages.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\node_graph\help_pages_io.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\node_graph\help_pages_splats.rs
+Description: TODO: add description.
+Functions: None
+
+## .\crates\app\src\node_graph\help_pages_volumes.rs
 Description: TODO: add description.
 Functions: None
 

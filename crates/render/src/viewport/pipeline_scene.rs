@@ -33,11 +33,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.point_size = -1.0;
         pipeline.mesh_bounds = bounds_from_positions(&mesh.positions);
 
-        let has_normals = mesh
-            .normals
-            .as_ref()
-            .map(|n| !n.is_empty())
-            .unwrap_or(false)
+        let has_normals = !mesh.normals.is_empty()
             || mesh
                 .corner_normals
                 .as_ref()
