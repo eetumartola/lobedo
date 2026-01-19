@@ -353,6 +353,7 @@ pub fn param_help(node_name: &str, param: &str) -> Option<Cow<'static, str>> {
         ("Ray", "method") => Some("Ray direction mode."),
         ("Ray", "direction") => Some("Ray direction (Direction mode)."),
         ("Ray", "max_distance") => Some("Max ray distance."),
+        ("Ray", "splat_density") => Some("Accumulated splat density threshold (0 disables)."),
         ("Ray", "apply_transform") => Some("Move points to hit location."),
         ("Ray", "attr") => Some("Attribute(s) to import from the hit."),
         ("Ray", "hit_group") => Some("Group name to mark hits."),

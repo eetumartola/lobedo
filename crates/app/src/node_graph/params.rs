@@ -1468,6 +1468,7 @@ fn float_slider_range(
         "value_f" => -10.0..=10.0,
         "radius" => 0.0..=1000.0,
         "max_distance" => 0.0..=1000.0,
+        "splat_density" => 0.0..=10.0,
         "voxel_size" => 0.0..=10.0,
         "n_sigma" => 0.0..=6.0,
         "density_iso" if node_name == "Volume to Mesh" => 0.0..=1.0,

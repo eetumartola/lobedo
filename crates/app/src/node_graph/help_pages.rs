@@ -561,6 +561,10 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("method", "Ray mode: Normal, Direction, or Closest."),
                 ("direction", "Ray direction (Direction mode)."),
                 ("max_distance", "Maximum ray distance."),
+                (
+                    "splat_density",
+                    "If > 0, rays into splats accumulate density until this threshold is reached.",
+                ),
                 ("apply_transform", "Move points to hit location."),
                 ("attr", "Attribute(s) to import from the hit."),
                 ("hit_group", "Group name to mark hits."),

@@ -38,6 +38,7 @@ pub fn default_params() -> NodeParams {
             ("method".to_string(), ParamValue::Int(0)),
             ("direction".to_string(), ParamValue::Vec3([0.0, 1.0, 0.0])),
             ("max_distance".to_string(), ParamValue::Float(1.0)),
+            ("splat_density".to_string(), ParamValue::Float(0.0)),
             ("apply_transform".to_string(), ParamValue::Bool(true)),
             ("attr".to_string(), ParamValue::String(String::new())),
             ("hit_group".to_string(), ParamValue::String(String::new())),
@@ -145,6 +146,7 @@ fn apply_to_mesh_with_targets(
 
     let method = method_from_params(params);
     let max_distance = params.get_float("max_distance", 1.0);
+    let splat_density = params.get_float("splat_density", 0.0);
     let apply_transform = params.get_bool("apply_transform", true);
     let direction_param = Vec3::from(params.get_vec3("direction", [0.0, 1.0, 0.0]));
     let point_normals = if matches!(method, RayMethod::Normal) {
@@ -179,7 +181,16 @@ fn apply_to_mesh_with_targets(
             }
             _ => dir
                 .and_then(normalize_vec)
-                .and_then(|dir| find_ray_hit(origin, dir, max_distance, target_meshes, target_splats)),
+                .and_then(|dir| {
+                    find_ray_hit(
+                        origin,
+                        dir,
+                        max_distance,
+                        splat_density,
+                        target_meshes,
+                        target_splats,
+                    )
+                }),
         };
         hits[idx] = hit;
     }
@@ -222,6 +233,7 @@ fn apply_to_splats_with_targets(
 
     let method = method_from_params(params);
     let max_distance = params.get_float("max_distance", 1.0);
+    let splat_density = params.get_float("splat_density", 0.0);
     let apply_transform = params.get_bool("apply_transform", true);
     let direction_param = Vec3::from(params.get_vec3("direction", [0.0, 1.0, 0.0]));
     let point_normals = if matches!(method, RayMethod::Normal) {
@@ -256,7 +268,16 @@ fn apply_to_splats_with_targets(
             }
             _ => dir
                 .and_then(normalize_vec)
-                .and_then(|dir| find_ray_hit(origin, dir, max_distance, target_meshes, target_splats)),
+                .and_then(|dir| {
+                    find_ray_hit(
+                        origin,
+                        dir,
+                        max_distance,
+                        splat_density,
+                        target_meshes,
+                        target_splats,
+                    )
+                }),
         };
         hits[idx] = hit;
     }
@@ -572,6 +593,7 @@ fn find_ray_hit(
     origin: Vec3,
     dir: Vec3,
     max_distance: f32,
+    splat_density: f32,
     target_meshes: &[Mesh],
     target_splats: &[SplatGeo],
 ) -> Option<HitInfo> {
@@ -585,7 +607,9 @@ fn find_ray_hit(
         }
     }
     for (splat_set, splats) in target_splats.iter().enumerate() {
-        let Some(hit) = ray_hit_splats(origin, dir, max_distance, splats, splat_set) else {
+        let Some(hit) =
+            ray_hit_splats(origin, dir, max_distance, splat_density, splats, splat_set)
+        else {
             continue;
         };
         if best.is_none() || hit.distance < best.as_ref().unwrap().distance {
@@ -742,11 +766,22 @@ fn ray_hit_splats(
     origin: Vec3,
     dir: Vec3,
     max_distance: f32,
+    splat_density: f32,
     splats: &SplatGeo,
     splat_set: usize,
 ) -> Option<HitInfo> {
     if splats.positions.is_empty() {
         return None;
+    }
+    if splat_density > 0.0 {
+        return ray_hit_splats_accumulated(
+            origin,
+            dir,
+            max_distance,
+            splat_density,
+            splats,
+            splat_set,
+        );
     }
     let mut best: Option<HitInfo> = None;
     for (idx, position) in splats.positions.iter().enumerate() {
@@ -777,6 +812,74 @@ fn ray_hit_splats(
         }
     }
     best
+}
+
+fn ray_hit_splats_accumulated(
+    origin: Vec3,
+    dir: Vec3,
+    max_distance: f32,
+    splat_density: f32,
+    splats: &SplatGeo,
+    splat_set: usize,
+) -> Option<HitInfo> {
+    let mut segments = Vec::new();
+    for (idx, position) in splats.positions.iter().enumerate() {
+        let center = Vec3::from(*position);
+        if !center.is_finite() {
+            continue;
+        }
+        let radius = splat_radius(splats.scales.get(idx).copied());
+        let Some((t0, mut t1)) = ray_sphere_interval(origin, dir, center, radius) else {
+            continue;
+        };
+        if max_distance > 0.0 {
+            if t0 > max_distance {
+                continue;
+            }
+            t1 = t1.min(max_distance);
+        }
+        if t1 <= t0 {
+            continue;
+        }
+        let alpha = splat_alpha(splats.opacity.get(idx).copied().unwrap_or(0.0));
+        if alpha <= 0.0 {
+            continue;
+        }
+        segments.push((t0, t1, alpha, center, idx));
+    }
+    if segments.is_empty() {
+        return None;
+    }
+    segments.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let mut accumulated = 0.0f32;
+    for (t0, t1, alpha, center, idx) in segments {
+        let span = t1 - t0;
+        let contrib = alpha * span;
+        if contrib <= 0.0 {
+            continue;
+        }
+        if accumulated + contrib >= splat_density {
+            let remaining = (splat_density - accumulated).max(0.0);
+            let t = if alpha > 0.0 {
+                (t0 + remaining / alpha).min(t1)
+            } else {
+                t0
+            };
+            let position = origin + dir * t;
+            let normal = normalize_vec(position - center).unwrap_or(Vec3::Y);
+            return Some(HitInfo {
+                position,
+                normal,
+                distance: t,
+                source: HitSource::Splat {
+                    splat_set,
+                    splat_index: idx,
+                },
+            });
+        }
+        accumulated += contrib;
+    }
+    None
 }
 
 fn ray_triangle_intersect(
@@ -823,6 +926,32 @@ fn ray_sphere_intersect(origin: Vec3, dir: Vec3, center: Vec3, radius: f32) -> O
         t = -b + sqrt_h;
     }
     Some(t)
+}
+
+fn ray_sphere_interval(origin: Vec3, dir: Vec3, center: Vec3, radius: f32) -> Option<(f32, f32)> {
+    if radius <= 0.0 {
+        return None;
+    }
+    let oc = origin - center;
+    let b = oc.dot(dir);
+    let c = oc.dot(oc) - radius * radius;
+    let h = b * b - c;
+    if h < 0.0 {
+        return None;
+    }
+    let sqrt_h = h.sqrt();
+    let mut t0 = -b - sqrt_h;
+    let mut t1 = -b + sqrt_h;
+    if t1 < 0.0 {
+        return None;
+    }
+    if t0 < 0.0 {
+        t0 = 0.0;
+    }
+    if t1 < t0 {
+        std::mem::swap(&mut t0, &mut t1);
+    }
+    Some((t0, t1))
 }
 
 fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (Vec3, [f32; 3]) {
@@ -905,6 +1034,14 @@ fn normalize_vec(v: Vec3) -> Option<Vec3> {
     } else {
         Some(v.normalize())
     }
+}
+
+fn splat_alpha(opacity: f32) -> f32 {
+    let mut alpha = 1.0 / (1.0 + (-opacity).exp());
+    if !alpha.is_finite() {
+        alpha = 0.0;
+    }
+    alpha.clamp(0.0, 1.0)
 }
 
 fn mesh_point_normals(mesh: &Mesh) -> Option<Vec<Vec3>> {
