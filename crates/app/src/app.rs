@@ -75,6 +75,7 @@ pub(crate) struct LobedoApp {
     spreadsheet_domain: lobedo_core::AttributeDomain,
     fit_nodes_on_load: bool,
     last_window_title: String,
+    last_url_revision: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +125,7 @@ impl LobedoApp {
             spreadsheet_domain: lobedo_core::AttributeDomain::Point,
             fit_nodes_on_load: false,
             last_window_title: String::new(),
+            last_url_revision: lobedo_core::url_revision(),
         }
     }
 

@@ -10,10 +10,16 @@ pub fn load_gltf_mesh(path: &str) -> Result<Mesh, String> {
     }
     #[cfg(target_arch = "wasm32")]
     {
+        if crate::assets::is_url(path) {
+            return Err("glTF URL is downloading; retrying shortly.".to_string());
+        }
         return Err("GLTF import is not supported in web builds without a picked file".to_string());
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
+        if crate::assets::is_url(path) {
+            return Err(format!("Failed to download URL: {path}"));
+        }
         let (document, buffers, _) =
             gltf::import(path).map_err(|err| format!("glTF load failed: {err}"))?;
         build_mesh_from_gltf(&document, &buffers)

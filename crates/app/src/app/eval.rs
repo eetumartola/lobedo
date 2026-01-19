@@ -48,6 +48,11 @@ impl LobedoApp {
     }
 
     pub(super) fn evaluate_if_needed(&mut self, ctx: &egui::Context) {
+        let url_revision = lobedo_core::url_revision();
+        if url_revision != self.last_url_revision {
+            self.last_url_revision = url_revision;
+            self.mark_eval_dirty();
+        }
         if self.poll_eval_job(ctx) {
             return;
         }

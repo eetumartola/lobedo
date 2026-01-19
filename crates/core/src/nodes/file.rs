@@ -55,10 +55,16 @@ fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
     }
     #[cfg(target_arch = "wasm32")]
     {
+        if assets::is_url(path) {
+            return Err("File URL is downloading; retrying shortly.".to_string());
+        }
         return Err("File node is not supported in web builds without a picked file".to_string());
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
+    if assets::is_url(path) {
+        return Err(format!("Failed to download URL: {path}"));
+    }
     let path = Path::new(path);
     if !path.exists() {
         return Err(format!("File not found: {}", path.display()));

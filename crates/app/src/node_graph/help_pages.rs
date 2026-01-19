@@ -164,13 +164,13 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
         "File" => Some(NodeHelpPage {
             name: "File",
             description: &[
-                "Reads mesh geometry from OBJ or glTF/GLB files on disk.",
+                "Reads mesh geometry from OBJ or glTF/GLB files on disk or via URL.",
                 "Positions, indices, normals, and UVs are imported when present.",
                 "Materials are mapped into a primitive material attribute when available.",
             ],
             inputs: &[],
             outputs: &["out: Mesh geometry from file."],
-            parameters: &[("path", "Path to an OBJ or glTF/GLB file.")],
+            parameters: &[("path", "Path or URL to an OBJ or glTF/GLB file.")],
         }),
         "Splat Read" | "Read Splats" => Some(NodeHelpPage {
             name: "Splat Read",
@@ -184,7 +184,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             inputs: &[],
             outputs: &["out: Splat geometry."],
             parameters: &[
-                ("path", "Path to a splat PLY file."),
+                ("path", "Path or URL to a splat PLY file."),
                 ("read_mode", "Full SH keeps all SH bands; Color Only keeps only DC color/alpha."),
             ],
         }),
@@ -877,14 +877,14 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             description: &[
                 "Creates or updates a material and assigns it to primitives.",
                 "The material is stored in geometry and referenced by a primitive 'material' attribute.",
-                "Base color can be constant or sourced from a texture path.",
+                "Base color can be constant or sourced from a texture path or URL.",
             ],
             inputs: &["in: Geometry to assign material to."],
             outputs: &["out: Geometry with material assignment."],
             parameters: &[
                 ("name", "Material name."),
                 ("base_color", "Base color (albedo)."),
-                ("base_color_tex", "Texture path for base color."),
+                ("base_color_tex", "Texture path or URL for base color."),
                 ("metallic", "Metallic factor."),
                 ("roughness", "Roughness factor."),
             ],

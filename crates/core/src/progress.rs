@@ -49,3 +49,14 @@ pub fn report_progress(fraction: f32) {
         }
     });
 }
+
+#[cfg(target_arch = "wasm32")]
+pub fn current_progress_context() -> Option<(NodeId, ProgressSink)> {
+    CONTEXT.with(|ctx| {
+        let ctx = ctx.borrow();
+        match (ctx.node, ctx.sink.as_ref()) {
+            (Some(node), Some(sink)) => Some((node, Arc::clone(sink))),
+            _ => None,
+        }
+    })
+}

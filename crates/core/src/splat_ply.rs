@@ -70,12 +70,19 @@ pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<Splat
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
+        if assets::is_url(path) {
+            return Err(format!("Failed to download URL: {path}"));
+        }
         let data = std::fs::read(path).map_err(|err| err.to_string())?;
         parse_splat_ply_bytes_with_mode(&data, mode)
     }
     #[cfg(target_arch = "wasm32")]
     {
-        Err("Splat Read is not supported in web builds without a picked file".to_string())
+        if assets::is_url(path) {
+            Err("Splat URL is downloading; retrying shortly.".to_string())
+        } else {
+            Err("Splat Read is not supported in web builds without a picked file".to_string())
+        }
     }
 }
 

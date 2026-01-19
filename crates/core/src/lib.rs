@@ -30,7 +30,7 @@ pub use attributes::{
     AttributeDomain, AttributeError, AttributeInfo, AttributeRef, AttributeStorage, AttributeType,
     MeshAttributes,
 };
-pub use assets::{load_bytes, store_bytes};
+pub use assets::{is_url, load_bytes, store_bytes, url_revision};
 pub use eval::{
     evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
     EvalNodeReport, EvalReport, EvalState,
