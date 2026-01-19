@@ -142,8 +142,12 @@ impl LobedoApp {
     }
 
     fn snapshot_undo(&self) -> UndoSnapshot {
-        self.undo_stack
-            .snapshot(&self.project.graph, &self.node_graph)
+        self.undo_stack.snapshot(
+            &self.project.graph,
+            &self.node_graph,
+            &self.project.settings.graph_notes,
+            self.project.settings.next_note_id,
+        )
     }
 
     fn queue_undo_snapshot(&mut self, snapshot: UndoSnapshot, pointer_down: bool) {
@@ -164,6 +168,8 @@ impl LobedoApp {
 
     fn restore_snapshot(&mut self, snapshot: UndoSnapshot) {
         self.project.graph = snapshot.graph;
+        self.project.settings.graph_notes = snapshot.graph_notes;
+        self.project.settings.next_note_id = snapshot.next_note_id;
         self.node_graph
             .restore_layout(&self.project.graph, &snapshot.layout);
         self.last_selected_node = snapshot.layout.selected;

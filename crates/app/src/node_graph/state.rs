@@ -7,13 +7,19 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use egui::{vec2, Color32, Frame, Pos2, Rect, Stroke, Ui};
+use egui::{vec2, Color32, Frame, LayerId, Pos2, Rect, Sense, Stroke, Ui, UiBuilder};
+use egui::emath::GuiRounding;
 use egui_snarl::ui::{BackgroundPattern, SnarlStyle};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
-use lobedo_core::{Graph, NodeId, ProgressEvent, ProgressSink};
+use lobedo_core::{Graph, GraphNote, NodeId, ProgressEvent, ProgressSink, ProjectSettings};
 
 use super::viewer::NodeGraphViewer;
+
+const NOTE_MIN_WIDTH: f32 = 200.0;
+const NOTE_MIN_HEIGHT: f32 = 120.0;
+const NOTE_DEFAULT_WIDTH: f32 = 240.0;
+const NOTE_DEFAULT_HEIGHT: f32 = 160.0;
 
 #[derive(Clone, Copy)]
 pub(super) struct SnarlNode {
@@ -53,6 +59,7 @@ pub struct NodeGraphState {
     pub(super) node_menu_node: Option<NodeId>,
     pub(super) pending_write_request: Option<WriteRequest>,
     pub(super) progress_state: Arc<Mutex<NodeProgressState>>,
+    pub(super) selected_note: Option<u64>,
     pub(super) last_changed: bool,
     pub(super) layout_changed: bool,
 }
@@ -121,6 +128,7 @@ impl Default for NodeGraphState {
             node_menu_node: None,
             pending_write_request: None,
             progress_state: Arc::new(Mutex::new(NodeProgressState::default())),
+            selected_note: None,
             last_changed: false,
             layout_changed: false,
         }
@@ -178,7 +186,13 @@ impl NodeGraphState {
         self.pending_write_request.take()
     }
 
-    pub fn show(&mut self, ui: &mut Ui, graph: &mut Graph, eval_dirty: &mut bool) {
+    pub fn show(
+        &mut self,
+        ui: &mut Ui,
+        graph: &mut Graph,
+        settings: &mut ProjectSettings,
+        eval_dirty: &mut bool,
+    ) {
         self.ensure_nodes(graph);
         if self.needs_wire_sync {
             self.sync_wires(graph);
@@ -234,6 +248,11 @@ impl NodeGraphState {
         let viewer_changed = viewer.changed;
         self.last_changed |= viewer_changed;
         drop(viewer);
+
+        if self.show_notes(ui, settings) {
+            self.last_changed = true;
+            self.layout_changed = true;
+        }
         for (node, rect) in &self.node_ui_rects {
             let Some(prev) = self.prev_node_ui_rects.get(node) else {
                 continue;
@@ -251,7 +270,7 @@ impl NodeGraphState {
             self.needs_wire_sync = true;
         }
 
-        if self.add_menu_open && self.show_add_menu(ui, graph) {
+        if self.add_menu_open && self.show_add_menu(ui, graph, settings) {
             self.last_changed = true;
             *eval_dirty = true;
             self.needs_wire_sync = true;
@@ -289,6 +308,148 @@ impl NodeGraphState {
         changed
     }
 
+    pub(super) fn add_note(
+        &mut self,
+        settings: &mut ProjectSettings,
+        graph_pos: Pos2,
+    ) -> bool {
+        let id = settings.next_note_id.max(1);
+        settings.next_note_id = id.saturating_add(1);
+        settings.graph_notes.push(GraphNote {
+            id,
+            position: [graph_pos.x, graph_pos.y],
+            size: [NOTE_DEFAULT_WIDTH, NOTE_DEFAULT_HEIGHT],
+            text: String::new(),
+        });
+        true
+    }
+
+    fn show_notes(&mut self, ui: &mut Ui, settings: &mut ProjectSettings) -> bool {
+        if settings.graph_notes.is_empty() {
+            return false;
+        }
+        let mut hit_note = false;
+        let snarl_id = ui.make_persistent_id("node_graph");
+        let snarl_layer_id = LayerId::new(ui.layer_id().order, snarl_id);
+        let mut note_ui = ui.new_child(
+            UiBuilder::new()
+                .layer_id(snarl_layer_id)
+                .max_rect(Rect::EVERYTHING)
+                .sense(Sense::click_and_drag()),
+        );
+        let graph_clip = if self.graph_transform.valid {
+            let from_global = self.graph_transform.to_global.inverse();
+            let viewport = (from_global * ui.max_rect()).round_ui();
+            let viewport_clip = from_global * ui.clip_rect();
+            viewport.intersect(viewport_clip)
+        } else {
+            ui.clip_rect()
+        };
+        note_ui.set_clip_rect(graph_clip);
+        let mut changed = false;
+        for note in &mut settings.graph_notes {
+            let note_pos = Pos2::new(note.position[0], note.position[1]);
+            let graph_size = vec2(
+                note.size[0].max(NOTE_MIN_WIDTH),
+                note.size[1].max(NOTE_MIN_HEIGHT),
+            );
+            let note_rect = Rect::from_min_size(note_pos, graph_size);
+            if !note_rect.intersects(graph_clip) {
+                continue;
+            }
+            let id = note_ui.make_persistent_id(("graph_note", note.id));
+            let mut drag_delta = vec2(0.0, 0.0);
+            let mut note_changed = false;
+            let selected = self.selected_note == Some(note.id);
+            {
+                let painter = note_ui.painter();
+                painter.rect_filled(note_rect, 4.0, Color32::from_rgb(255, 236, 140));
+                painter.rect_stroke(
+                    note_rect,
+                    4.0,
+                    if selected {
+                        Stroke::new(2.0, Color32::from_rgb(230, 140, 40))
+                    } else {
+                        Stroke::new(1.0, Color32::from_rgb(210, 180, 80))
+                    },
+                    egui::StrokeKind::Inside,
+                );
+                let header_height = 18.0;
+                let header_bottom = note_rect.min.y + header_height;
+                let header_rect = Rect::from_min_max(
+                    note_rect.min,
+                    Pos2::new(note_rect.max.x, header_bottom),
+                );
+                painter.rect_filled(header_rect, 2.0, Color32::from_rgb(255, 226, 110));
+            }
+            let header_height = 18.0;
+            let header_bottom = note_rect.min.y + header_height;
+            let header_rect = Rect::from_min_max(
+                note_rect.min,
+                Pos2::new(note_rect.max.x, header_bottom),
+            );
+            let header_resp = note_ui.interact(
+                header_rect,
+                id.with("header"),
+                Sense::click_and_drag(),
+            );
+            if header_resp.dragged() {
+                drag_delta = header_resp.drag_delta();
+                hit_note = true;
+            }
+            if header_resp.clicked() || header_resp.drag_started() {
+                self.selected_note = Some(note.id);
+                self.selected_node = None;
+                hit_note = true;
+            }
+            let body_rect = Rect::from_min_max(
+                Pos2::new(note_rect.min.x + 6.0, header_bottom + 4.0),
+                Pos2::new(note_rect.max.x - 6.0, note_rect.max.y - 6.0),
+            );
+            if body_rect.is_positive() {
+                let text_edit = egui::TextEdit::multiline(&mut note.text)
+                    .frame(false)
+                    .desired_width(body_rect.width());
+                let response = note_ui.put(body_rect, text_edit);
+                if response.changed() {
+                    note_changed = true;
+                }
+                if response.clicked() {
+                    self.selected_note = Some(note.id);
+                    self.selected_node = None;
+                    hit_note = true;
+                }
+            }
+            note_ui.input(|input| {
+                if !input.pointer.any_pressed() {
+                    return;
+                }
+                let Some(pos) = input.pointer.interact_pos() else {
+                    return;
+                };
+                if !note_rect.contains(pos) || header_rect.contains(pos) || body_rect.contains(pos)
+                {
+                    return;
+                }
+                self.selected_note = Some(note.id);
+                self.selected_node = None;
+                hit_note = true;
+            });
+            if drag_delta.length_sq() > 0.0 {
+                note.position[0] += drag_delta.x;
+                note.position[1] += drag_delta.y;
+                note_changed = true;
+            }
+            if note_changed {
+                changed = true;
+            }
+        }
+        if note_ui.input(|i| i.pointer.any_pressed()) && !hit_note {
+            self.selected_note = None;
+        }
+        changed
+    }
+
     pub fn set_error_state(&mut self, nodes: HashSet<NodeId>, messages: HashMap<NodeId, String>) {
         self.error_nodes = nodes;
         self.error_messages = messages;
@@ -296,6 +457,23 @@ impl NodeGraphState {
 
     pub fn selected_node_id(&self) -> Option<NodeId> {
         self.selected_node
+    }
+
+    pub fn selected_note_id(&self) -> Option<u64> {
+        self.selected_note
+    }
+
+    pub fn delete_selected_note(&mut self, settings: &mut ProjectSettings) -> bool {
+        let Some(note_id) = self.selected_note else {
+            return false;
+        };
+        let before = settings.graph_notes.len();
+        settings.graph_notes.retain(|note| note.id != note_id);
+        let removed = settings.graph_notes.len() != before;
+        if removed {
+            self.selected_note = None;
+        }
+        removed
     }
 
     pub fn delete_selected_node(&mut self, graph: &mut Graph) -> bool {

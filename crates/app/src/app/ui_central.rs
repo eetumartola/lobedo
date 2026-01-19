@@ -581,8 +581,12 @@ impl LobedoApp {
                 }
             }
             let snapshot = self.snapshot_undo();
-            self.node_graph
-                .show(ui, &mut self.project.graph, &mut self.eval_dirty);
+            self.node_graph.show(
+                ui,
+                &mut self.project.graph,
+                &mut self.project.settings,
+                &mut self.eval_dirty,
+            );
             if self.fit_nodes_on_load {
                 if let Some(rect) = self.last_node_graph_rect {
                     self.node_graph.fit_to_rect(rect);

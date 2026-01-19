@@ -59,8 +59,8 @@ pub use nodes::obj_output::write_obj;
 pub use nodes::splat_merge::build_skirt_preview_mesh;
 pub use gltf_io::write_gltf;
 pub use project::{
-    CameraSettings, PanelSettings, Project, ProjectSettings, RenderDebugSettings, ShadingMode,
-    SplatShadingMode, PROJECT_VERSION,
+    CameraSettings, GraphNote, PanelSettings, Project, ProjectSettings, RenderDebugSettings,
+    ShadingMode, SplatShadingMode, PROJECT_VERSION,
 };
 pub use scene::{
     SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats, SceneVolume,

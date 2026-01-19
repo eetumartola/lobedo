@@ -60,7 +60,9 @@ impl LobedoApp {
         } else if redo_pressed {
             self.try_redo();
         } else if delete_pressed {
-            if self.node_graph.selected_node_id().is_some() {
+            if self.node_graph.selected_node_id().is_some()
+                || self.node_graph.selected_note_id().is_some()
+            {
                 ctx.input_mut(|i| {
                     i.consume_key(egui::Modifiers::NONE, egui::Key::Delete);
                     i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace);
@@ -71,6 +73,11 @@ impl LobedoApp {
                     .delete_selected_node(&mut self.project.graph)
                 {
                     self.mark_eval_dirty();
+                    self.queue_undo_snapshot(snapshot, false);
+                } else if self
+                    .node_graph
+                    .delete_selected_note(&mut self.project.settings)
+                {
                     self.queue_undo_snapshot(snapshot, false);
                 }
             }

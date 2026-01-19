@@ -48,6 +48,8 @@ pub struct ProjectSettings {
     pub panels: PanelSettings,
     pub camera: CameraSettings,
     pub render_debug: RenderDebugSettings,
+    pub graph_notes: Vec<GraphNote>,
+    pub next_note_id: u64,
 }
 
 impl Default for ProjectSettings {
@@ -59,8 +61,18 @@ impl Default for ProjectSettings {
             panels: PanelSettings::default(),
             camera: CameraSettings::default(),
             render_debug: RenderDebugSettings::default(),
+            graph_notes: Vec::new(),
+            next_note_id: 1,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphNote {
+    pub id: u64,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

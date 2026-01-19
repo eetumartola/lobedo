@@ -1,7 +1,7 @@
 use egui::{Frame, Pos2, Ui};
 
 use egui::{Color32, TextStyle};
-use lobedo_core::{BuiltinNodeKind, Graph, NodeId};
+use lobedo_core::{BuiltinNodeKind, Graph, NodeId, ProjectSettings};
 
 use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
 use super::state::{NodeGraphState, NodeInfoRequest};
@@ -139,7 +139,12 @@ impl NodeGraphState {
         self.needs_wire_sync = true;
     }
 
-    pub(super) fn show_add_menu(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
+    pub(super) fn show_add_menu(
+        &mut self,
+        ui: &mut Ui,
+        graph: &mut Graph,
+        settings: &mut ProjectSettings,
+    ) -> bool {
         let mut close_menu = ui.input(|i| i.key_pressed(egui::Key::Escape));
         let mut menu_rect = None;
         let activate_first = ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -153,6 +158,15 @@ impl NodeGraphState {
             .frame(Frame::popup(ui.style()))
             .show(ui.ctx(), |ui| {
                 ui.label("Add node");
+                ui.separator();
+                if ui.button("Note").clicked() {
+                    let graph_pos = self.add_menu_graph_pos;
+                    if self.add_note(settings, graph_pos) {
+                        changed = true;
+                    }
+                    close_menu = true;
+                    return;
+                }
                 ui.separator();
                 let search_id = ui.make_persistent_id("add_node_search");
                 let search = egui::TextEdit::singleline(&mut self.add_menu_filter)

@@ -1,4 +1,4 @@
-use lobedo_core::Graph;
+use lobedo_core::{Graph, GraphNote};
 
 use crate::node_graph::{NodeGraphLayout, NodeGraphState};
 
@@ -6,6 +6,8 @@ use crate::node_graph::{NodeGraphLayout, NodeGraphState};
 pub(super) struct UndoSnapshot {
     pub(super) graph: Graph,
     pub(super) layout: NodeGraphLayout,
+    pub(super) graph_notes: Vec<GraphNote>,
+    pub(super) next_note_id: u64,
 }
 
 pub(super) struct UndoStack {
@@ -26,10 +28,18 @@ impl UndoStack {
         self.future.clear();
     }
 
-    pub(super) fn snapshot(&self, graph: &Graph, node_graph: &NodeGraphState) -> UndoSnapshot {
+    pub(super) fn snapshot(
+        &self,
+        graph: &Graph,
+        node_graph: &NodeGraphState,
+        graph_notes: &[GraphNote],
+        next_note_id: u64,
+    ) -> UndoSnapshot {
         UndoSnapshot {
             graph: graph.clone(),
             layout: node_graph.layout_snapshot(),
+            graph_notes: graph_notes.to_vec(),
+            next_note_id,
         }
     }
 
