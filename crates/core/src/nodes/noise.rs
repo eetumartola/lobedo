@@ -66,7 +66,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
             continue;
         }
         let p = Vec3::from(*pos) * frequency + offset;
-        let n = fbm_noise(p, seed, NoiseType::Value, 3, 2.0, 0.5);
+        let n = fbm_noise(p, seed, NoiseType::Fast, 3, 2.0, 0.5);
         let displacement = Vec3::from(*normal) * (n * amplitude);
         let next = Vec3::from(*pos) + displacement;
         *pos = next.to_array();
@@ -114,7 +114,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
             continue;
         }
         let p = Vec3::from(*pos) * frequency + offset;
-        let n = fbm_noise(p, seed, NoiseType::Value, 3, 2.0, 0.5);
+        let n = fbm_noise(p, seed, NoiseType::Fast, 3, 2.0, 0.5);
         let displacement = Vec3::from(*normal) * (n * amplitude);
         let next = Vec3::from(*pos) + displacement;
         *pos = next.to_array();

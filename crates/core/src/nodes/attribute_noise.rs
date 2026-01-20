@@ -17,7 +17,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
-use crate::noise::{fbm_noise, NoiseType};
+use crate::noise::{fractal_noise, FractalSettings, FractalType, NoiseType};
 use crate::parallel;
 use crate::splat::SplatGeo;
 
@@ -39,10 +39,16 @@ pub fn default_params() -> NodeParams {
             ("domain".to_string(), ParamValue::Int(0)),
             ("data_type".to_string(), ParamValue::Int(2)),
             ("noise_type".to_string(), ParamValue::Int(0)),
+            ("fractal_type".to_string(), ParamValue::Int(1)),
+            ("octaves".to_string(), ParamValue::Int(3)),
+            ("lacunarity".to_string(), ParamValue::Float(2.0)),
+            ("roughness".to_string(), ParamValue::Float(0.5)),
             ("amplitude".to_string(), ParamValue::Float(0.5)),
             ("frequency".to_string(), ParamValue::Float(1.0)),
             ("offset".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("seed".to_string(), ParamValue::Int(1)),
+            ("flow_rotation".to_string(), ParamValue::Float(0.0)),
+            ("distortion".to_string(), ParamValue::Float(0.0)),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
@@ -60,10 +66,21 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     let domain = domain_from_params(params);
     let data_type = params.get_int("data_type", 2).clamp(0, 2);
     let noise_type = NoiseType::from_int(params.get_int("noise_type", 0));
+    let fractal_type = FractalType::from_int(params.get_int("fractal_type", 1));
+    let octaves = params.get_int("octaves", 3).max(1) as u32;
+    let lacunarity = params.get_float("lacunarity", 2.0);
+    let roughness = params.get_float("roughness", 0.5);
     let amplitude = params.get_float("amplitude", 0.5);
     let frequency = params.get_float("frequency", 1.0);
     let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
     let seed = params.get_int("seed", 1) as u32;
+    let flow_rotation = params.get_float("flow_rotation", 0.0);
+    let distortion = params.get_float("distortion", 0.0);
+    let fractal = FractalSettings {
+        octaves,
+        lacunarity,
+        roughness,
+    };
 
     let count = splats.attribute_domain_len(domain);
     if count == 0 && domain != AttributeDomain::Detail {
@@ -86,7 +103,15 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
-                let n = fbm_noise(p, seed, noise_type, 3, 2.0, 0.5);
+                let n = fractal_noise(
+                    p,
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
                 *value += n * amplitude;
             });
             splats
@@ -103,14 +128,23 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
-                let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
-                let n1 = fbm_noise(
+                let n0 = fractal_noise(
+                    p + offsets[0],
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
+                let n1 = fractal_noise(
                     p + offsets[1],
                     seed.wrapping_add(7),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
@@ -133,22 +167,32 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
-                let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
-                let n1 = fbm_noise(
+                let n0 = fractal_noise(
+                    p + offsets[0],
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
+                let n1 = fractal_noise(
                     p + offsets[1],
                     seed.wrapping_add(7),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
-                let n2 = fbm_noise(
+                let n2 = fractal_noise(
                     p + offsets[2],
                     seed.wrapping_add(13),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
@@ -168,10 +212,21 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     let domain = domain_from_params(params);
     let data_type = params.get_int("data_type", 2).clamp(0, 2);
     let noise_type = NoiseType::from_int(params.get_int("noise_type", 0));
+    let fractal_type = FractalType::from_int(params.get_int("fractal_type", 1));
+    let octaves = params.get_int("octaves", 3).max(1) as u32;
+    let lacunarity = params.get_float("lacunarity", 2.0);
+    let roughness = params.get_float("roughness", 0.5);
     let amplitude = params.get_float("amplitude", 0.5);
     let frequency = params.get_float("frequency", 1.0);
     let offset = Vec3::from(params.get_vec3("offset", [0.0, 0.0, 0.0]));
     let seed = params.get_int("seed", 1) as u32;
+    let flow_rotation = params.get_float("flow_rotation", 0.0);
+    let distortion = params.get_float("distortion", 0.0);
+    let fractal = FractalSettings {
+        octaves,
+        lacunarity,
+        roughness,
+    };
 
     let count = mesh.attribute_domain_len(domain);
     if count == 0 && domain != AttributeDomain::Detail {
@@ -194,7 +249,15 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
-                let n = fbm_noise(p, seed, noise_type, 3, 2.0, 0.5);
+                let n = fractal_noise(
+                    p,
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
                 *value += n * amplitude;
             });
             mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
@@ -210,14 +273,23 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
-                let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
-                let n1 = fbm_noise(
+                let n0 = fractal_noise(
+                    p + offsets[0],
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
+                let n1 = fractal_noise(
                     p + offsets[1],
                     seed.wrapping_add(7),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;
@@ -239,22 +311,32 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
-                let n0 = fbm_noise(p + offsets[0], seed, noise_type, 3, 2.0, 0.5);
-                let n1 = fbm_noise(
+                let n0 = fractal_noise(
+                    p + offsets[0],
+                    seed,
+                    noise_type,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
+                );
+                let n1 = fractal_noise(
                     p + offsets[1],
                     seed.wrapping_add(7),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
-                let n2 = fbm_noise(
+                let n2 = fractal_noise(
                     p + offsets[2],
                     seed.wrapping_add(13),
                     noise_type,
-                    3,
-                    2.0,
-                    0.5,
+                    fractal_type,
+                    fractal,
+                    flow_rotation,
+                    distortion,
                 );
                 value[0] += n0 * amplitude;
                 value[1] += n1 * amplitude;

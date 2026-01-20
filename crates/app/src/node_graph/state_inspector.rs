@@ -292,6 +292,32 @@ impl NodeGraphState {
         } else {
             None
         };
+        let attr_noise_type = if node_name == "Attribute Noise" {
+            Some(
+                param_values
+                    .get("noise_type")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(0),
+            )
+        } else {
+            None
+        };
+        let attr_noise_fractal = if node_name == "Attribute Noise" {
+            Some(
+                param_values
+                    .get("fractal_type")
+                    .and_then(|value| match value {
+                        ParamValue::Int(value) => Some(*value),
+                        _ => None,
+                    })
+                    .unwrap_or(1),
+            )
+        } else {
+            None
+        };
 
         if param_keys.is_empty() {
             ui.label("No parameters.");
@@ -496,6 +522,22 @@ impl NodeGraphState {
             if node_name == "Attribute Promote" {
                 if let Some(rename) = attr_promote_rename {
                     if !rename && key == "new_name" {
+                        continue;
+                    }
+                }
+            }
+            if node_name == "Attribute Noise" {
+                if let Some(fractal) = attr_noise_fractal {
+                    if fractal == 0 && matches!(key.as_str(), "octaves" | "lacunarity" | "roughness")
+                    {
+                        continue;
+                    }
+                }
+                if let Some(noise_type) = attr_noise_type {
+                    if noise_type != 4 && key == "flow_rotation" {
+                        continue;
+                    }
+                    if !matches!(noise_type, 12 | 13) && key == "distortion" {
                         continue;
                     }
                 }

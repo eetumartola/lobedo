@@ -170,8 +170,33 @@ pub(super) fn edit_param(
                     &display_label,
                     help,
                     &mut v,
-                    &[(0, "Value"), (1, "Perlin")],
-                    "Value",
+                    &[
+                        (0, "Fast"),
+                        (1, "Sparse Convolution"),
+                        (2, "Alligator"),
+                        (3, "Perlin"),
+                        (4, "Perlin Flow"),
+                        (5, "Simplex"),
+                        (6, "Worley F1"),
+                        (7, "Worley F2-F1"),
+                        (8, "Manhattan F1"),
+                        (9, "Manhattan F2-F1"),
+                        (10, "Chebyshev F1"),
+                        (11, "Chebyshev F2-F1"),
+                        (12, "Perlin Cloud"),
+                        (13, "Simplex Cloud"),
+                    ],
+                    "Fast",
+                )
+            } else if label == "fractal_type" {
+                combo_row_i32(
+                    ui,
+                    label,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &[(0, "None"), (1, "Standard"), (2, "Terrain"), (3, "Hybrid")],
+                    "Standard",
                 )
             } else if label == "color_mode" {
                 combo_row_i32(
