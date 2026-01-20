@@ -13,7 +13,7 @@ use super::callback_helpers::{
     light_view_projection, sort_splats_by_depth, splat_color_from_sh,
 };
 use super::mesh::{
-    normals_vertices, point_cross_vertices, splat_billboard_vertices, splat_billboards,
+    normals_vertices, point_cross_vertices_color, splat_billboard_vertices, splat_billboards,
     splat_vertices_from_billboards, SplatBillboardInputs, SplatVertex,
 };
 use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
@@ -323,7 +323,7 @@ impl CallbackTrait for ViewportCallback {
                 render_pass.draw(0..3, 0..1);
             }
             if let Some(mesh) = mesh {
-                if !self.debug.show_points && pipeline.index_count > 0 {
+                if pipeline.index_count > 0 {
                     render_pass.set_pipeline(&pipeline.mesh_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                     render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
@@ -379,8 +379,16 @@ impl CallbackTrait for ViewportCallback {
                 let desired_size = (pixel_size * world_per_pixel).max(0.0001);
                 if pipeline.point_size < 0.0 || (desired_size - pipeline.point_size).abs() > 0.0001
                 {
-                    let point_vertices =
-                        point_cross_vertices(&pipeline.point_positions, desired_size);
+                    let point_color = if self.debug.show_points {
+                        [1.0, 0.9, 0.2]
+                    } else {
+                        [0.9, 0.9, 0.9]
+                    };
+                    let point_vertices = point_cross_vertices_color(
+                        &pipeline.point_positions,
+                        desired_size,
+                        point_color,
+                    );
                     pipeline.point_buffer =
                         device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                             label: Some("lobedo_point_vertices"),
@@ -706,6 +714,51 @@ impl CallbackTrait for ViewportCallback {
                             render_pass.set_vertex_buffer(0, buffer.slice(..));
                             render_pass.draw(0..*count, 0..1);
                         }
+                    }
+                }
+            }
+
+            if self.debug.splat_depth_prepass
+                && self.debug.show_splats
+                && !pipeline.splat_buffers.is_empty()
+            {
+                render_pass.set_pipeline(&pipeline.splat_depth_pipeline);
+                render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                let use_scissors = !pipeline.splat_scissors.is_empty()
+                    && pipeline.splat_scissors.len() == pipeline.splat_counts.len()
+                    && pipeline.splat_scissors.len() == pipeline.splat_buffers.len();
+                if use_scissors {
+                    for ((buffer, count), scissor) in pipeline
+                        .splat_buffers
+                        .iter()
+                        .zip(pipeline.splat_counts.iter())
+                        .zip(pipeline.splat_scissors.iter())
+                    {
+                        if *count == 0 {
+                            continue;
+                        }
+                        render_pass.set_scissor_rect(
+                            scissor[0],
+                            scissor[1],
+                            scissor[2],
+                            scissor[3],
+                        );
+                        render_pass.set_vertex_buffer(0, buffer.slice(..));
+                        render_pass.draw(0..*count, 0..1);
+                    }
+                    render_pass.set_scissor_rect(0, 0, width, height);
+                } else {
+                    for (buffer, count) in pipeline
+                        .splat_buffers
+                        .iter()
+                        .zip(pipeline.splat_counts.iter())
+                    {
+                        if *count == 0 {
+                            continue;
+                        }
+                        render_pass.set_vertex_buffer(0, buffer.slice(..));
+                        render_pass.draw(0..*count, 0..1);
                     }
                 }
             }

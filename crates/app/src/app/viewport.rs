@@ -33,14 +33,22 @@ impl LobedoApp {
         let pan_speed = 0.0025 * camera.distance.max(0.1);
         let zoom_speed = 0.1;
 
-        let alt_down = response.ctx.input(|i| i.modifiers.alt);
-        let primary_down = response.ctx.input(|i| i.pointer.primary_down());
+        let (alt_down, primary_down, keys_down, dt) = response.ctx.input(|i| {
+            (
+                i.modifiers.alt,
+                i.pointer.primary_down(),
+                i.keys_down.clone(),
+                i.stable_dt.max(0.0),
+            )
+        });
         if primary_down && !alt_down && !response.ctx.wants_keyboard_input() {
-            let w = response.ctx.input(|i| i.key_down(egui::Key::W));
-            let a = response.ctx.input(|i| i.key_down(egui::Key::A));
-            let s = response.ctx.input(|i| i.key_down(egui::Key::S));
-            let d = response.ctx.input(|i| i.key_down(egui::Key::D));
-            if w || a || s || d {
+            let w = keys_down.contains(&egui::Key::W);
+            let a = keys_down.contains(&egui::Key::A);
+            let s = keys_down.contains(&egui::Key::S);
+            let d = keys_down.contains(&egui::Key::D);
+            let q = keys_down.contains(&egui::Key::Q);
+            let e = keys_down.contains(&egui::Key::E);
+            if w || a || s || d || q || e {
                 let pitch = camera.pitch.clamp(-1.54, 1.54);
                 let yaw = camera.yaw;
                 let cos_pitch = pitch.cos();
@@ -55,7 +63,6 @@ impl LobedoApp {
                 let forward = normalize([-dir[0], -dir[1], -dir[2]]);
                 let world_up = [0.0f32, 1.0f32, 0.0f32];
                 let right = normalize(cross(forward, world_up));
-                let dt = response.ctx.input(|i| i.stable_dt).max(0.0);
                 let step = camera.distance.max(0.1) * 0.6 * dt;
                 let mut delta = [0.0f32, 0.0f32, 0.0f32];
                 if w {
@@ -77,6 +84,16 @@ impl LobedoApp {
                     delta[0] -= right[0] * step;
                     delta[1] -= right[1] * step;
                     delta[2] -= right[2] * step;
+                }
+                if e {
+                    delta[0] += world_up[0] * step;
+                    delta[1] += world_up[1] * step;
+                    delta[2] += world_up[2] * step;
+                }
+                if q {
+                    delta[0] -= world_up[0] * step;
+                    delta[1] -= world_up[1] * step;
+                    delta[2] -= world_up[2] * step;
                 }
                 if delta[0] != 0.0 || delta[1] != 0.0 || delta[2] != 0.0 {
                     camera.target[0] += delta[0];

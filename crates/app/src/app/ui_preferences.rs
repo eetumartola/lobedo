@@ -33,8 +33,12 @@ impl LobedoApp {
                                     *shading = mode;
                                 }
                             }
-                        });
+                    });
                 });
+                ui.checkbox(
+                    &mut self.project.settings.render_debug.splat_depth_prepass,
+                    "Depth prepass for splats",
+                );
                 ui.separator();
                 ui.label("Splat tiling");
                 let tile_ui_enabled = !cfg!(target_arch = "wasm32");

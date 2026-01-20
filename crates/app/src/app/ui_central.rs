@@ -559,12 +559,15 @@ impl LobedoApp {
         ui.scope_builder(egui::UiBuilder::new().max_rect(graph_rect), |ui| {
             self.last_node_graph_rect = Some(graph_rect);
             let hover_pos = ui.input(|i| i.pointer.hover_pos());
-            let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+            let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll_delta.abs() > 0.0 {
                 if let Some(pos) = hover_pos {
                     if graph_rect.contains(pos) {
                         self.node_graph.zoom_at(pos, scroll_delta);
-                        ui.input_mut(|i| i.raw_scroll_delta = egui::Vec2::ZERO);
+                        ui.input_mut(|i| {
+                            i.raw_scroll_delta = egui::Vec2::ZERO;
+                            i.smooth_scroll_delta = egui::Vec2::ZERO;
+                        });
                     }
                 }
             }
@@ -597,6 +600,18 @@ impl LobedoApp {
             if (self.node_graph.take_changed() || layout_moved) && !*undo_pushed {
                 self.queue_undo_snapshot(snapshot, pointer_down);
                 *undo_pushed = true;
+            }
+            let rmb_clicked =
+                ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary));
+            if rmb_clicked {
+                if let Some(pos) = ui.input(|i| i.pointer.latest_pos()) {
+                    if graph_rect.contains(pos) {
+                        let hit_node = self.node_graph.node_at_screen_pos(pos);
+                        if hit_node.is_none() {
+                            self.node_graph.open_add_menu(pos);
+                        }
+                    }
+                }
             }
         });
     }

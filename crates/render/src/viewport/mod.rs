@@ -56,6 +56,7 @@ pub struct ViewportDebug {
     pub splat_debug_min: f32,
     pub splat_debug_max: f32,
     pub splat_shading_mode: ViewportSplatShadingMode,
+    pub splat_depth_prepass: bool,
     pub splat_tile_binning: bool,
     pub splat_tile_size: u32,
     pub splat_tile_threshold: u32,

@@ -265,11 +265,43 @@ pub(crate) fn normals_vertices(vertices: &[Vertex], length: f32) -> Vec<LineVert
     lines
 }
 
-pub(crate) fn point_cross_vertices(positions: &[[f32; 3]], size: f32) -> Vec<LineVertex> {
+pub(crate) fn point_cross_vertices_color(
+    positions: &[[f32; 3]],
+    size: f32,
+    color: [f32; 3],
+) -> Vec<LineVertex> {
     if positions.is_empty() || size <= 0.0 {
         return Vec::new();
     }
-    point_cross_vertices_with_colors(positions, &[], size)
+    let mut lines = Vec::with_capacity(positions.len() * 6);
+    for p in positions {
+        let [x, y, z] = *p;
+        lines.push(LineVertex {
+            position: [x - size, y, z],
+            color,
+        });
+        lines.push(LineVertex {
+            position: [x + size, y, z],
+            color,
+        });
+        lines.push(LineVertex {
+            position: [x, y - size, z],
+            color,
+        });
+        lines.push(LineVertex {
+            position: [x, y + size, z],
+            color,
+        });
+        lines.push(LineVertex {
+            position: [x, y, z - size],
+            color,
+        });
+        lines.push(LineVertex {
+            position: [x, y, z + size],
+            color,
+        });
+    }
+    lines
 }
 
 pub(crate) fn point_cross_vertices_with_colors(

@@ -290,6 +290,7 @@ impl LobedoApp {
             splat_debug_min: self.project.settings.render_debug.splat_debug_min,
             splat_debug_max: self.project.settings.render_debug.splat_debug_max,
             splat_shading_mode,
+            splat_depth_prepass: self.project.settings.render_debug.splat_depth_prepass,
             splat_tile_binning: self.project.settings.render_debug.splat_tile_binning,
             splat_tile_size: self.project.settings.render_debug.splat_tile_size,
             splat_tile_threshold: self.project.settings.render_debug.splat_tile_threshold,

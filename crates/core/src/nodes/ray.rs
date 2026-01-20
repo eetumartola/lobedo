@@ -1092,9 +1092,18 @@ fn splat_radius(scale: Option<[f32; 3]>) -> f32 {
     let Some(scale) = scale else {
         return 1.0;
     };
-    let s = Vec3::from(scale).abs();
-    let radius = (s.x + s.y + s.z) / 3.0;
-    radius.max(1.0e-4)
+    let s = Vec3::new(
+        if scale[0].is_finite() { scale[0].exp() } else { 0.0 },
+        if scale[1].is_finite() { scale[1].exp() } else { 0.0 },
+        if scale[2].is_finite() { scale[2].exp() } else { 0.0 },
+    );
+    let max_sigma = s.x.max(s.y).max(s.z);
+    let radius = max_sigma * 3.0;
+    if radius.is_finite() {
+        radius.max(1.0e-4)
+    } else {
+        1.0e-4
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

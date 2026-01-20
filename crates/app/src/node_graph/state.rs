@@ -213,9 +213,6 @@ impl NodeGraphState {
 
         let mut viewer = NodeGraphViewer {
             graph,
-            core_to_snarl: &mut self.core_to_snarl,
-            snarl_to_core: &mut self.snarl_to_core,
-            next_pos: &mut self.next_pos,
             selected_node: &mut self.selected_node,
             node_rects: &mut self.node_ui_rects,
             header_button_rects: &mut self.header_button_rects,

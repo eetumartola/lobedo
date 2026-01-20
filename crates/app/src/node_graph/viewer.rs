@@ -6,19 +6,15 @@ use egui::{vec2, Align2, Color32, FontId, Pos2, Rect, TextStyle, Ui};
 use egui_snarl::ui::{AnyPins, PinInfo, SnarlPin, SnarlViewer};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
-use lobedo_core::{BuiltinNodeKind, Graph, NodeId, PinId};
+use lobedo_core::{Graph, NodeId, PinId};
 
-use super::menu::{builtin_menu_items, menu_layout, render_menu_layout};
 use super::state::{
     GraphTransformState, HeaderButtonRects, NodeProgressView, PendingWire, SnarlNode,
 };
-use super::utils::{add_builtin_node_checked, core_input_pin, core_output_pin, pin_color};
+use super::utils::{core_input_pin, core_output_pin, pin_color};
 
 pub(super) struct NodeGraphViewer<'a> {
     pub(super) graph: &'a mut Graph,
-    pub(super) core_to_snarl: &'a mut HashMap<NodeId, egui_snarl::NodeId>,
-    pub(super) snarl_to_core: &'a mut HashMap<egui_snarl::NodeId, NodeId>,
-    pub(super) next_pos: &'a mut Pos2,
     pub(super) selected_node: &'a mut Option<NodeId>,
     pub(super) node_rects: &'a mut HashMap<egui_snarl::NodeId, Rect>,
     pub(super) header_button_rects: &'a mut HashMap<egui_snarl::NodeId, HeaderButtonRects>,
@@ -102,22 +98,6 @@ impl<'a> NodeGraphViewer<'a> {
         core_output_pin(self.graph, core_node, pin.output)
     }
 
-    fn add_node(&mut self, snarl: &mut Snarl<SnarlNode>, kind: BuiltinNodeKind, pos: Pos2) {
-        if add_builtin_node_checked(
-            self.graph,
-            snarl,
-            self.core_to_snarl,
-            self.snarl_to_core,
-            kind,
-            pos,
-        )
-        .is_none()
-        {
-            return;
-        }
-        *self.next_pos = Pos2::new(pos.x + 240.0, pos.y);
-        self.changed = true;
-    }
 }
 
 impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
@@ -426,17 +406,7 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
     }
 
     fn has_graph_menu(&mut self, _pos: Pos2, _snarl: &mut Snarl<SnarlNode>) -> bool {
-        true
-    }
-
-    fn show_graph_menu(&mut self, pos: Pos2, ui: &mut Ui, snarl: &mut Snarl<SnarlNode>) {
-        ui.label("Add node");
-        let items = builtin_menu_items();
-        let layout = menu_layout(&items);
-        if let Some(kind) = render_menu_layout(ui, layout) {
-            self.add_node(snarl, kind, pos);
-            ui.close();
-        }
+        false
     }
 
     fn has_node_menu(&mut self, _node: &SnarlNode) -> bool {

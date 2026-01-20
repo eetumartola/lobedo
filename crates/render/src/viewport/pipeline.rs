@@ -7,8 +7,8 @@ use web_time::Instant;
 use crate::mesh_cache::GpuMeshCache;
 
 use super::mesh::{
-    bounds_vertices, cube_mesh, grid_and_axes, normals_vertices, point_cross_vertices, LineVertex,
-    SplatVertex, Vertex, LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
+    bounds_vertices, cube_mesh, grid_and_axes, normals_vertices, point_cross_vertices_color,
+    LineVertex, SplatVertex, Vertex, LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
 };
 use super::pipeline_shaders::{create_blit_shader, create_main_shader};
 use super::pipeline_targets::{create_offscreen_targets, create_shadow_targets};
@@ -62,7 +62,8 @@ pub(super) struct PipelineState {
     pub(super) shadow_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) line_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) splat_pipeline: egui_wgpu::wgpu::RenderPipeline,
-    pub(super) splat_overdraw_pipeline: egui_wgpu::wgpu::RenderPipeline,        
+    pub(super) splat_depth_pipeline: egui_wgpu::wgpu::RenderPipeline,
+    pub(super) splat_overdraw_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) volume_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_pipeline: egui_wgpu::wgpu::RenderPipeline,
     pub(super) blit_bind_group: egui_wgpu::wgpu::BindGroup,
@@ -583,6 +584,39 @@ impl PipelineState {
                 cache: None,
             });
 
+        let splat_depth_pipeline =
+            device.create_render_pipeline(&egui_wgpu::wgpu::RenderPipelineDescriptor {
+                label: Some("lobedo_viewport_splats_depth"),
+                layout: Some(&pipeline_layout),
+                vertex: egui_wgpu::wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_splat"),
+                    compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<SplatVertex>()
+                            as egui_wgpu::wgpu::BufferAddress,
+                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                        attributes: &SPLAT_ATTRIBUTES,
+                    }],
+                },
+                fragment: None,
+                primitive: egui_wgpu::wgpu::PrimitiveState {
+                    topology: egui_wgpu::wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(egui_wgpu::wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: egui_wgpu::wgpu::CompareFunction::LessEqual,
+                    stencil: egui_wgpu::wgpu::StencilState::default(),
+                    bias: egui_wgpu::wgpu::DepthBiasState::default(),
+                }),
+                multisample: egui_wgpu::wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+
         let splat_pipeline =
             device.create_render_pipeline(&egui_wgpu::wgpu::RenderPipelineDescriptor {
                 label: Some("lobedo_viewport_splats"),
@@ -863,7 +897,8 @@ impl PipelineState {
         let point_count = mesh.vertices.len() as u32;
         let point_positions: Vec<[f32; 3]> = mesh.vertices.iter().map(|v| v.position).collect();
         let point_size = 0.1;
-        let point_lines = point_cross_vertices(&point_positions, point_size);
+        let point_lines =
+            point_cross_vertices_color(&point_positions, point_size, [1.0, 0.9, 0.2]);
         let point_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_point_vertices"),
@@ -887,6 +922,7 @@ impl PipelineState {
             shadow_pipeline,
             line_pipeline,
             splat_pipeline,
+            splat_depth_pipeline,
             splat_overdraw_pipeline,
             volume_pipeline,
             blit_pipeline,
