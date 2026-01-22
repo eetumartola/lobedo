@@ -80,6 +80,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_opacity = splats.opacity.clone();
         pipeline.splat_scales = splats.scales.clone();
         pipeline.splat_rotations = splats.rotations.clone();
+        pipeline.splat_base_colors.clear();
+        pipeline.splat_color_cache_len = 0;
         pipeline.splat_point_size = -1.0;
         pipeline.splat_buffers.clear();
         pipeline.splat_counts.clear();
@@ -96,6 +98,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_opacity.clear();
         pipeline.splat_scales.clear();
         pipeline.splat_rotations.clear();
+        pipeline.splat_base_colors.clear();
+        pipeline.splat_color_cache_len = 0;
         pipeline.splat_buffers.clear();
         pipeline.splat_counts.clear();
         pipeline.splat_scissors.clear();

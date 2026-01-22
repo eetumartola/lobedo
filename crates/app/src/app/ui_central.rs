@@ -583,13 +583,30 @@ impl LobedoApp {
                     }
                 }
             }
+            if self.node_graph.preflight_flag_click(ui) {
+                self.eval_dirty = true;
+                if self.refresh_dirty_nodes() {
+                    ui.ctx().request_repaint();
+                }
+            }
             let snapshot = self.snapshot_undo();
+            let was_dirty = self.eval_dirty;
             self.node_graph.show(
                 ui,
                 &mut self.project.graph,
                 &mut self.project.settings,
                 &mut self.eval_dirty,
+                &self.eval_state.eval,
             );
+            if self.eval_dirty || was_dirty {
+                let dirty_changed = self.refresh_dirty_nodes();
+                if dirty_changed {
+                    ui.ctx().request_repaint();
+                }
+            }
+            if self.eval_dirty && !was_dirty {
+                ui.ctx().request_repaint();
+            }
             if self.fit_nodes_on_load {
                 if let Some(rect) = self.last_node_graph_rect {
                     self.node_graph.fit_to_rect(rect);

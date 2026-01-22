@@ -8,7 +8,6 @@ use std::time::Instant;
 use web_time::Instant;
 
 use egui::{vec2, Color32, Frame, LayerId, Pos2, Rect, Sense, Stroke, Ui, UiBuilder};
-use egui::emath::GuiRounding;
 use egui_snarl::ui::{BackgroundPattern, SnarlStyle};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
@@ -53,6 +52,7 @@ pub struct NodeGraphState {
     pub(super) output_pin_positions: Rc<RefCell<HashMap<OutPinId, Pos2>>>,
     pub(super) error_nodes: HashSet<NodeId>,
     pub(super) error_messages: HashMap<NodeId, String>,
+    pub(super) dirty_nodes: HashSet<NodeId>,
     pub(super) node_menu_request: Option<NodeMenuRequest>,
     pub(super) node_menu_open: bool,
     pub(super) node_menu_screen_pos: Pos2,
@@ -122,6 +122,7 @@ impl Default for NodeGraphState {
             output_pin_positions: Rc::new(RefCell::new(HashMap::new())),
             error_nodes: HashSet::new(),
             error_messages: HashMap::new(),
+            dirty_nodes: HashSet::new(),
             node_menu_request: None,
             node_menu_open: false,
             node_menu_screen_pos: Pos2::new(0.0, 0.0),
@@ -146,6 +147,15 @@ pub(super) struct HeaderButtonRects {
     pub(super) display: Rect,
     pub(super) template: Rect,
     pub(super) help: Option<Rect>,
+}
+
+impl HeaderButtonRects {
+    fn hit_test(&self, pos: Pos2) -> bool {
+        self.bypass.contains(pos)
+            || self.display.contains(pos)
+            || self.template.contains(pos)
+            || self.help.is_some_and(|rect| rect.contains(pos))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -192,6 +202,7 @@ impl NodeGraphState {
         graph: &mut Graph,
         settings: &mut ProjectSettings,
         eval_dirty: &mut bool,
+        eval_state: &lobedo_core::EvalState,
     ) {
         self.ensure_nodes(graph);
         if self.needs_wire_sync {
@@ -201,16 +212,23 @@ impl NodeGraphState {
 
         self.prev_node_ui_rects = std::mem::take(&mut self.node_ui_rects);
         self.node_ui_rects.clear();
+        self.last_changed = false;
+        let (skip_header_click, header_changed) = self.handle_header_click(ui, graph);
+        if header_changed {
+            self.last_changed = true;
+            *eval_dirty = true;
+            self.needs_wire_sync = true;
+        }
         self.header_button_rects.clear();
         self.input_pin_positions.borrow_mut().clear();
         self.output_pin_positions.borrow_mut().clear();
-        self.last_changed = false;
         self.layout_changed = false;
         let progress_snapshot = self.progress_snapshot();
         if !progress_snapshot.is_empty() {
             ui.ctx().request_repaint();
         }
 
+        let dim_nodes = self.compute_dim_nodes(graph, eval_state);
         let mut viewer = NodeGraphViewer {
             graph,
             selected_node: &mut self.selected_node,
@@ -231,6 +249,8 @@ impl NodeGraphState {
             wrangle_help_request: &mut self.wrangle_help_request,
             error_nodes: &self.error_nodes,
             error_messages: &self.error_messages,
+            dim_nodes: &dim_nodes,
+            skip_header_click,
             changed: false,
         };
         let style = SnarlStyle {
@@ -305,6 +325,110 @@ impl NodeGraphState {
         changed
     }
 
+    fn handle_header_click(&mut self, ui: &Ui, graph: &mut Graph) -> (bool, bool) {
+        let clicked_pos = ui.input(|i| {
+            if i.pointer.primary_clicked() {
+                i.pointer.interact_pos()
+            } else {
+                None
+            }
+        });
+        let Some(pos_screen) = clicked_pos else {
+            return (false, false);
+        };
+        let pos = if self.graph_transform.valid {
+            self.graph_transform.to_global.inverse() * pos_screen
+        } else {
+            pos_screen
+        };
+        for (snarl_id, rects) in &self.header_button_rects {
+            if rects.bypass.contains(pos) {
+                if let Some(core_id) = self.snarl_to_core.get(snarl_id) {
+                    let _ = graph.toggle_bypass_node(*core_id);
+                    return (true, true);
+                }
+            }
+            if rects.display.contains(pos) {
+                if let Some(core_id) = self.snarl_to_core.get(snarl_id) {
+                    let _ = graph.toggle_display_node(*core_id);
+                    return (true, true);
+                }
+            }
+            if rects.template.contains(pos) {
+                if let Some(core_id) = self.snarl_to_core.get(snarl_id) {
+                    let _ = graph.toggle_template_node(*core_id);
+                    return (true, true);
+                }
+            }
+            if rects.help.is_some_and(|rect| rect.contains(pos)) {
+                self.wrangle_help_request = Some(pos_screen);
+                return (true, false);
+            }
+        }
+        (false, false)
+    }
+
+    fn compute_dim_nodes(
+        &self,
+        graph: &Graph,
+        eval_state: &lobedo_core::EvalState,
+    ) -> HashSet<NodeId> {
+        let mut dim_nodes = HashSet::new();
+        let Some(display_node) = graph.display_node() else {
+            for node in graph.nodes() {
+                dim_nodes.insert(node.id);
+            }
+            return dim_nodes;
+        };
+
+        let reachable = match graph.topo_sort_from(display_node) {
+            Ok(nodes) => nodes,
+            Err(_) => Vec::new(),
+        };
+        let reachable: HashSet<_> = reachable.into_iter().collect();
+
+        let mut dirty_cache = HashMap::new();
+        let mut dirty_visiting = HashSet::new();
+        for node in graph.nodes() {
+            if !reachable.contains(&node.id) {
+                dim_nodes.insert(node.id);
+                continue;
+            }
+            if lobedo_core::node_dirty(
+                graph,
+                eval_state,
+                node.id,
+                &mut dirty_cache,
+                &mut dirty_visiting,
+            ) {
+                dim_nodes.insert(node.id);
+            }
+        }
+        dim_nodes
+    }
+
+    pub fn preflight_flag_click(&self, ui: &Ui) -> bool {
+        let clicked_pos = ui.input(|i| {
+            if i.pointer.primary_clicked() {
+                i.pointer.interact_pos()
+            } else {
+                None
+            }
+        });
+        let Some(pos) = clicked_pos else {
+            return false;
+        };
+        let pos = if self.graph_transform.valid {
+            self.graph_transform.to_global.inverse() * pos
+        } else {
+            pos
+        };
+        self.header_button_rects
+            .values()
+            .any(|rects| rects.hit_test(pos))
+    }
+
+
     pub(super) fn add_note(
         &mut self,
         settings: &mut ProjectSettings,
@@ -321,7 +445,11 @@ impl NodeGraphState {
         true
     }
 
-    fn show_notes(&mut self, ui: &mut Ui, settings: &mut ProjectSettings) -> bool {
+    fn show_notes(
+        &mut self,
+        ui: &mut Ui,
+        settings: &mut ProjectSettings,
+    ) -> bool {
         if settings.graph_notes.is_empty() {
             return false;
         }
@@ -331,18 +459,15 @@ impl NodeGraphState {
         let mut note_ui = ui.new_child(
             UiBuilder::new()
                 .layer_id(snarl_layer_id)
-                .max_rect(Rect::EVERYTHING)
-                .sense(Sense::click_and_drag()),
+                .max_rect(ui.max_rect())
+                .sense(Sense::click()),
         );
-        let graph_clip = if self.graph_transform.valid {
-            let from_global = self.graph_transform.to_global.inverse();
-            let viewport = (from_global * ui.max_rect()).round_ui();
-            let viewport_clip = from_global * ui.clip_rect();
-            viewport.intersect(viewport_clip)
+        note_ui.set_clip_rect(ui.clip_rect());
+        let to_global = if self.graph_transform.valid {
+            self.graph_transform.to_global
         } else {
-            ui.clip_rect()
+            egui::emath::TSTransform::IDENTITY
         };
-        note_ui.set_clip_rect(graph_clip);
         let mut changed = false;
         for note in &mut settings.graph_notes {
             let note_pos = Pos2::new(note.position[0], note.position[1]);
@@ -351,7 +476,8 @@ impl NodeGraphState {
                 note.size[1].max(NOTE_MIN_HEIGHT),
             );
             let note_rect = Rect::from_min_size(note_pos, graph_size);
-            if !note_rect.intersects(graph_clip) {
+            let note_rect = Rect::from_min_max(to_global * note_rect.min, to_global * note_rect.max);
+            if !note_rect.intersects(note_ui.clip_rect()) {
                 continue;
             }
             let id = note_ui.make_persistent_id(("graph_note", note.id));
@@ -405,6 +531,7 @@ impl NodeGraphState {
             );
             if body_rect.is_positive() {
                 let text_edit = egui::TextEdit::multiline(&mut note.text)
+                    .id(id.with("text"))
                     .frame(false)
                     .desired_width(body_rect.width());
                 let response = note_ui.put(body_rect, text_edit);
@@ -433,8 +560,10 @@ impl NodeGraphState {
                 hit_note = true;
             });
             if drag_delta.length_sq() > 0.0 {
-                note.position[0] += drag_delta.x;
-                note.position[1] += drag_delta.y;
+                let scale = to_global.scaling.max(0.0001);
+                let delta = drag_delta / scale;
+                note.position[0] += delta.x;
+                note.position[1] += delta.y;
                 note_changed = true;
             }
             if note_changed {
@@ -450,6 +579,14 @@ impl NodeGraphState {
     pub fn set_error_state(&mut self, nodes: HashSet<NodeId>, messages: HashMap<NodeId, String>) {
         self.error_nodes = nodes;
         self.error_messages = messages;
+    }
+
+    pub fn set_dirty_nodes(&mut self, nodes: HashSet<NodeId>) -> bool {
+        if self.dirty_nodes == nodes {
+            return false;
+        }
+        self.dirty_nodes = nodes;
+        true
     }
 
     pub fn selected_node_id(&self) -> Option<NodeId> {

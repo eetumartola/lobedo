@@ -364,6 +364,25 @@ impl Graph {
         Ok(ordered)
     }
 
+    pub fn topo_sort_all(&self) -> Result<Vec<NodeId>, GraphError> {
+        let mut ordered = Vec::new();
+        let mut visiting = HashSet::new();
+        let mut visited = HashSet::new();
+        let mut stack = Vec::new();
+
+        for node_id in self.nodes.keys().copied() {
+            self.visit_node(
+                node_id,
+                &mut visiting,
+                &mut visited,
+                &mut ordered,
+                &mut stack,
+            )?;
+        }
+
+        Ok(ordered)
+    }
+
     fn visit_node(
         &self,
         node_id: NodeId,

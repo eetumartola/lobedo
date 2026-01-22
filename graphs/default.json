@@ -37,9 +37,13 @@
       "splat_debug_min": 0.0,
       "splat_debug_max": 1.0,
       "splat_shading_mode": "full_sh",
-      "splat_tile_binning": true,
-      "splat_tile_size": 64,
-      "splat_tile_threshold": 50000
+      "splat_depth_prepass": false,
+      "splat_tile_binning": false,
+      "splat_tile_size": 160,
+      "splat_tile_threshold": 50000,
+      "splat_rebuild_fps_enabled": false,
+      "splat_rebuild_fps": 15.0,
+      "splat_frustum_cull": true
     }
   },
   "graph": {

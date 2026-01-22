@@ -164,7 +164,7 @@ pub(super) fn submenu_menu_button<R>(
     .inner
 }
 
-fn darken_color(color: Color32, factor: f32) -> Color32 {
+pub(super) fn darken_color(color: Color32, factor: f32) -> Color32 {
     let [r, g, b, a] = color.to_array();
     let scale = factor.clamp(0.0, 1.0);
     let r = (r as f32 * scale).round().clamp(0.0, 255.0) as u8;

@@ -42,6 +42,25 @@ struct EvalResult {
 }
 
 impl LobedoApp {
+    pub(super) fn refresh_dirty_nodes(&mut self) -> bool {
+        if self.eval_job.is_some() {
+            return false;
+        }
+        let all_nodes: HashSet<_> = self.project.graph.nodes().map(|node| node.id).collect();
+        let Some(display_node) = self.project.graph.display_node() else {
+            return self.node_graph.set_dirty_nodes(all_nodes);
+        };
+        let dirty_nodes: HashSet<_> = lobedo_core::collect_dirty_nodes_full(
+            &self.project.graph,
+            &self.eval_state.eval,
+        )
+        .ok()
+        .map(|entries| entries.into_iter().map(|entry| entry.node).collect())
+        .unwrap_or_default();
+        let _ = display_node;
+        self.node_graph.set_dirty_nodes(dirty_nodes)
+    }
+
     pub(super) fn mark_eval_dirty(&mut self) {
         self.eval_dirty = true;
         self.last_param_change = Some(Instant::now());
@@ -52,6 +71,9 @@ impl LobedoApp {
         if url_revision != self.last_url_revision {
             self.last_url_revision = url_revision;
             self.mark_eval_dirty();
+        }
+        if self.refresh_dirty_nodes() {
+            ctx.request_repaint();
         }
         if self.poll_eval_job(ctx) {
             return;
@@ -102,6 +124,7 @@ impl LobedoApp {
             self.pending_scene = None;
             self.node_graph
                 .set_error_state(HashSet::new(), HashMap::new());
+            self.node_graph.set_dirty_nodes(HashSet::new());
             self.last_template_mesh = None;
             return;
         };
@@ -159,6 +182,7 @@ impl LobedoApp {
             self.pending_scene = None;
             self.node_graph
                 .set_error_state(HashSet::new(), HashMap::new());
+            self.node_graph.set_dirty_nodes(HashSet::new());
             self.last_template_mesh = None;
             return;
         };
@@ -202,6 +226,7 @@ impl LobedoApp {
         self.last_template_mesh = result.template_mesh.clone();
         self.node_graph
             .set_error_state(result.error_nodes, result.error_messages);
+        self.node_graph.set_dirty_nodes(HashSet::new());
 
         if let Some(scene) = result.scene {
             self.apply_scene(scene);
@@ -294,6 +319,13 @@ impl LobedoApp {
             splat_tile_binning: self.project.settings.render_debug.splat_tile_binning,
             splat_tile_size: self.project.settings.render_debug.splat_tile_size,
             splat_tile_threshold: self.project.settings.render_debug.splat_tile_threshold,
+            splat_rebuild_fps_enabled: self
+                .project
+                .settings
+                .render_debug
+                .splat_rebuild_fps_enabled,
+            splat_rebuild_fps: self.project.settings.render_debug.splat_rebuild_fps,
+            splat_frustum_cull: self.project.settings.render_debug.splat_frustum_cull,
             show_points: self.project.settings.render_debug.show_points,
             show_splats: self.project.settings.render_debug.show_splats,
             point_size: self.project.settings.render_debug.point_size,

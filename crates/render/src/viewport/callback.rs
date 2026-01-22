@@ -120,6 +120,10 @@ impl CallbackTrait for ViewportCallback {
                         pipeline.splat_opacity.clear();
                         pipeline.splat_scales.clear();
                         pipeline.splat_rotations.clear();
+                        pipeline.splat_base_colors.clear();
+                        pipeline.splat_color_cache_len = 0;
+                        pipeline.splat_color_cache_scene = 0;
+                        pipeline.splat_color_cache_sh0_is_coeff = false;
                         pipeline.splat_buffers.clear();
                         pipeline.splat_counts.clear();
                         pipeline.splat_scissors.clear();
@@ -405,7 +409,6 @@ impl CallbackTrait for ViewportCallback {
             }
 
             if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
-                const SPLAT_REBUILD_MAX_FPS: f32 = 30.0;
                 const SPLAT_BUFFER_SOFT_LIMIT: u64 = 64 * 1024 * 1024;
                 let tile_size = self.debug.splat_tile_size.max(1);
                 let tile_threshold = self.debug.splat_tile_threshold as usize;
@@ -423,8 +426,19 @@ impl CallbackTrait for ViewportCallback {
                     .last_splat_rebuild
                     .map(|last| (now - last).as_secs_f32())
                     .unwrap_or(f32::INFINITY);
-                let interval = 1.0 / SPLAT_REBUILD_MAX_FPS.max(1.0);
-                let allow_rebuild = scene_changed || viewport_changed || elapsed >= interval;
+                let rebuild_fps = self
+                    .debug
+                    .splat_rebuild_fps
+                    .max(1.0);
+                let interval = if self.debug.splat_rebuild_fps_enabled {
+                    1.0 / rebuild_fps
+                } else {
+                    0.0
+                };
+                let allow_rebuild = scene_changed
+                    || viewport_changed
+                    || !self.debug.splat_rebuild_fps_enabled
+                    || elapsed >= interval;
                 if needs_rebuild && allow_rebuild {
                     let world_transform = Mat3::IDENTITY;
                     let use_full_sh = matches!(
@@ -434,34 +448,72 @@ impl CallbackTrait for ViewportCallback {
                     let sh_coeffs = pipeline.splat_sh_coeffs;
                     let sh0_is_coeff = pipeline.splat_sh0_is_coeff;
                     let sh_rest = &pipeline.splat_sh_rest;
-                    let mut base_colors = Vec::with_capacity(pipeline.splat_positions.len());
-                    for (idx, pos) in pipeline.splat_positions.iter().enumerate() {
-                        let sh0 = pipeline
-                            .splat_sh0
-                            .get(idx)
-                            .copied()
-                            .unwrap_or([1.0, 1.0, 1.0]);
-                        let base = idx.saturating_mul(sh_coeffs);
-                        let rest = if sh_coeffs > 0 && base + sh_coeffs <= sh_rest.len() {
-                            &sh_rest[base..base + sh_coeffs]
-                        } else {
-                            &[]
-                        };
-                        let view_dir = if use_full_sh && sh0_is_coeff {
-                            let center = Vec3::from(*pos);
-                            camera_pos - center
-                        } else {
-                            Vec3::Z
-                        };
-                        base_colors.push(splat_color_from_sh(
-                            sh0,
-                            rest,
-                            sh_coeffs,
-                            sh0_is_coeff,
-                            use_full_sh,
-                            view_dir,
-                        ));
-                    }
+                    let mut temp_colors = Vec::new();
+                    let base_colors: &[[f32; 3]] = if use_full_sh {
+                        temp_colors.reserve(pipeline.splat_positions.len());
+                        for (idx, pos) in pipeline.splat_positions.iter().enumerate() {
+                            let sh0 = pipeline
+                                .splat_sh0
+                                .get(idx)
+                                .copied()
+                                .unwrap_or([1.0, 1.0, 1.0]);
+                            let base = idx.saturating_mul(sh_coeffs);
+                            let rest = if sh_coeffs > 0 && base + sh_coeffs <= sh_rest.len() {
+                                &sh_rest[base..base + sh_coeffs]
+                            } else {
+                                &[]
+                            };
+                            let view_dir = if sh0_is_coeff {
+                                let center = Vec3::from(*pos);
+                                camera_pos - center
+                            } else {
+                                Vec3::Z
+                            };
+                            temp_colors.push(splat_color_from_sh(
+                                sh0,
+                                rest,
+                                sh_coeffs,
+                                sh0_is_coeff,
+                                true,
+                                view_dir,
+                            ));
+                        }
+                        &temp_colors
+                    } else {
+                        let cache_len = pipeline.splat_positions.len();
+                        let cache_invalid = pipeline.splat_color_cache_scene != pipeline.scene_version
+                            || pipeline.splat_color_cache_len != cache_len
+                            || pipeline.splat_color_cache_sh0_is_coeff != sh0_is_coeff;
+                        if cache_invalid {
+                            pipeline.splat_base_colors.clear();
+                            pipeline.splat_base_colors.reserve(cache_len);
+                            for (idx, _pos) in pipeline.splat_positions.iter().enumerate() {
+                                let sh0 = pipeline
+                                    .splat_sh0
+                                    .get(idx)
+                                    .copied()
+                                    .unwrap_or([1.0, 1.0, 1.0]);
+                                let base = idx.saturating_mul(sh_coeffs);
+                                let rest = if sh_coeffs > 0 && base + sh_coeffs <= sh_rest.len() {
+                                    &sh_rest[base..base + sh_coeffs]
+                                } else {
+                                    &[]
+                                };
+                                pipeline.splat_base_colors.push(splat_color_from_sh(
+                                    sh0,
+                                    rest,
+                                    sh_coeffs,
+                                    sh0_is_coeff,
+                                    false,
+                                    Vec3::Z,
+                                ));
+                            }
+                            pipeline.splat_color_cache_scene = pipeline.scene_version;
+                            pipeline.splat_color_cache_len = cache_len;
+                            pipeline.splat_color_cache_sh0_is_coeff = sh0_is_coeff;
+                        }
+                        &pipeline.splat_base_colors
+                    };
                     let vertex_bytes = std::mem::size_of::<SplatVertex>() as u64;
                     let max_buffer_size =
                         device.limits().max_buffer_size.min(SPLAT_BUFFER_SOFT_LIMIT);
@@ -482,7 +534,7 @@ impl CallbackTrait for ViewportCallback {
                     if use_tile_binning {
                         let billboards = splat_billboards(SplatBillboardInputs {
                             positions: &pipeline.splat_positions,
-                            colors: &base_colors,
+                            colors: base_colors,
                             opacities: &pipeline.splat_opacity,
                             scales: &pipeline.splat_scales,
                             rotations: &pipeline.splat_rotations,
@@ -491,6 +543,7 @@ impl CallbackTrait for ViewportCallback {
                             fov_y: 45_f32.to_radians(),
                             world_transform,
                             near_clip,
+                            frustum_cull: self.debug.splat_frustum_cull,
                         });
                         let mut depths = Vec::with_capacity(billboards.len());
                         for billboard in &billboards {
@@ -510,6 +563,7 @@ impl CallbackTrait for ViewportCallback {
                             (1.0, 1.0),
                             (-1.0, 1.0),
                         ];
+                        let pad_px = 2.0;
                         for (idx, billboard) in billboards.iter().enumerate() {
                             let center = Vec3::from(billboard.center);
                             let clip = view_proj * center.extend(1.0);
@@ -527,10 +581,10 @@ impl CallbackTrait for ViewportCallback {
                                 let corner = ndc + axis1 * sx + axis2 * sy;
                                 let px = (corner.x * 0.5 + 0.5) * width_f;
                                 let py = (0.5 - corner.y * 0.5) * height_f;
-                                min_x = min_x.min(px);
-                                max_x = max_x.max(px);
-                                min_y = min_y.min(py);
-                                max_y = max_y.max(py);
+                            min_x = min_x.min(px);
+                            max_x = max_x.max(px);
+                            min_y = min_y.min(py);
+                            max_y = max_y.max(py);
                             }
                             if max_x < 0.0
                                 || max_y < 0.0
@@ -539,10 +593,10 @@ impl CallbackTrait for ViewportCallback {
                             {
                                 continue;
                             }
-                            min_x = min_x.clamp(0.0, width_f - 1.0);
-                            max_x = max_x.clamp(0.0, width_f - 1.0);
-                            min_y = min_y.clamp(0.0, height_f - 1.0);
-                            max_y = max_y.clamp(0.0, height_f - 1.0);
+                            min_x = (min_x - pad_px).clamp(0.0, width_f - 1.0);
+                            max_x = (max_x + pad_px).clamp(0.0, width_f - 1.0);
+                            min_y = (min_y - pad_px).clamp(0.0, height_f - 1.0);
+                            max_y = (max_y + pad_px).clamp(0.0, height_f - 1.0);
                             let tile_min_x = (min_x as u32) / tile_size;
                             let tile_max_x = (max_x as u32) / tile_size;
                             let tile_min_y = (min_y as u32) / tile_size;
@@ -598,7 +652,7 @@ impl CallbackTrait for ViewportCallback {
                     } else {
                         let sorted = sort_splats_by_depth(
                             &pipeline.splat_positions,
-                            &base_colors,
+                            base_colors,
                             &pipeline.splat_opacity,
                             &pipeline.splat_scales,
                             &pipeline.splat_rotations,
@@ -633,6 +687,7 @@ impl CallbackTrait for ViewportCallback {
                                 fov_y: 45_f32.to_radians(),
                                 world_transform,
                                 near_clip,
+                                frustum_cull: self.debug.splat_frustum_cull,
                             });
                             let count = splat_vertices.len() as u32;
                             if count == 0 {

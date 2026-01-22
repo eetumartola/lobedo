@@ -58,6 +58,7 @@ pub(crate) struct SplatBillboardInputs<'a> {
     pub(crate) fov_y: f32,
     pub(crate) world_transform: Mat3,
     pub(crate) near_clip: f32,
+    pub(crate) frustum_cull: bool,
 }
 
 const SPLAT_BILLBOARD_RADIUS: f32 = 3.0;
@@ -359,7 +360,7 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
     let height = inputs.viewport[1].max(1.0);
     let tan_half = (inputs.fov_y * 0.5).tan().max(1.0e-6);
     let fy = 0.5 * height / tan_half;
-    let fx = fy * (width / height);
+    let fx = fy;
     let view_rot = Mat3::from_mat4(inputs.view);
     let flip = Mat3::from_diagonal(Vec3::new(1.0, 1.0, -1.0));
 
@@ -469,6 +470,31 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
         let axis2 = v2 * (sigma2 * SPLAT_BILLBOARD_RADIUS);
         let axis1_ndc = Vec2::new(axis1.x * 2.0 / width, axis1.y * 2.0 / height);
         let axis2_ndc = Vec2::new(axis2.x * 2.0 / width, axis2.y * 2.0 / height);
+        if inputs.frustum_cull {
+            let center_ndc = Vec2::new(
+                pos_cam.x * fx * 2.0 / (width * z),
+                pos_cam.y * fy * 2.0 / (height * z),
+            );
+            let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+            let mut min_ndc = Vec2::splat(f32::INFINITY);
+            let mut max_ndc = Vec2::splat(f32::NEG_INFINITY);
+            for (sx, sy) in corners {
+                let p = center_ndc + axis1_ndc * sx + axis2_ndc * sy;
+                min_ndc.x = min_ndc.x.min(p.x);
+                min_ndc.y = min_ndc.y.min(p.y);
+                max_ndc.x = max_ndc.x.max(p.x);
+                max_ndc.y = max_ndc.y.max(p.y);
+            }
+            let pad_px = 2.0;
+            let pad_ndc = Vec2::new(pad_px * 2.0 / width, pad_px * 2.0 / height);
+            if max_ndc.x < -1.0 - pad_ndc.x
+                || min_ndc.x > 1.0 + pad_ndc.x
+                || max_ndc.y < -1.0 - pad_ndc.y
+                || min_ndc.y > 1.0 + pad_ndc.y
+            {
+                continue;
+            }
+        }
 
         let color = inputs
             .colors

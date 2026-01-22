@@ -155,6 +155,9 @@ pub struct RenderDebugSettings {
     pub splat_tile_binning: bool,
     pub splat_tile_size: u32,
     pub splat_tile_threshold: u32,
+    pub splat_rebuild_fps_enabled: bool,
+    pub splat_rebuild_fps: f32,
+    pub splat_frustum_cull: bool,
 }
 
 impl Default for RenderDebugSettings {
@@ -176,10 +179,13 @@ impl Default for RenderDebugSettings {
             splat_debug_min: 0.0,
             splat_debug_max: 1.0,
             splat_shading_mode: SplatShadingMode::FullSh,
-            splat_depth_prepass: true,
-            splat_tile_binning: true,
-            splat_tile_size: 64,
+            splat_depth_prepass: false,
+            splat_tile_binning: false,
+            splat_tile_size: 160,
             splat_tile_threshold: 50_000,
+            splat_rebuild_fps_enabled: false,
+            splat_rebuild_fps: 15.0,
+            splat_frustum_cull: true,
         }
     }
 }

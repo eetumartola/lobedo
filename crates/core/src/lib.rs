@@ -32,8 +32,10 @@ pub use attributes::{
 };
 pub use assets::{is_url, load_bytes, store_bytes, url_revision};
 pub use eval::{
-    evaluate_from, evaluate_from_with, DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError,
-    EvalNodeReport, EvalReport, EvalState,
+    collect_dirty_nodes, collect_dirty_nodes_full, evaluate_from, evaluate_from_with,
+    node_dirty,
+    DirtyNodeReport, DirtyReason, EvalCacheStats, EvalError, EvalNodeReport, EvalReport,
+    EvalState,
 };
 pub use progress::{report_progress, ProgressEvent, ProgressSink};
 pub use color::{lerp_oklab, linear_srgb_to_oklab, oklab_to_linear_srgb};

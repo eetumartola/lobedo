@@ -39,6 +39,28 @@ impl LobedoApp {
                     &mut self.project.settings.render_debug.splat_depth_prepass,
                     "Depth prepass for splats",
                 );
+                ui.checkbox(
+                    &mut self.project.settings.render_debug.splat_frustum_cull,
+                    "Frustum cull splats",
+                );
+                ui.separator();
+                ui.label("Splat rebuild");
+                ui.checkbox(
+                    &mut self.project.settings.render_debug.splat_rebuild_fps_enabled,
+                    "Limit rebuild FPS",
+                );
+                ui.horizontal(|ui| {
+                    ui.label("Rebuild FPS");
+                    ui.add_enabled(
+                        self.project.settings.render_debug.splat_rebuild_fps_enabled,
+                        egui::DragValue::new(
+                            &mut self.project.settings.render_debug.splat_rebuild_fps,
+                        )
+                        .speed(1.0)
+                        .range(1.0..=120.0)
+                        .update_while_editing(false),
+                    );
+                });
                 ui.separator();
                 ui.label("Splat tiling");
                 let tile_ui_enabled = !cfg!(target_arch = "wasm32");

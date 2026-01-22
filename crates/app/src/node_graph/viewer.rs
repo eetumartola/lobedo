@@ -11,7 +11,7 @@ use lobedo_core::{Graph, NodeId, PinId};
 use super::state::{
     GraphTransformState, HeaderButtonRects, NodeProgressView, PendingWire, SnarlNode,
 };
-use super::utils::{core_input_pin, core_output_pin, pin_color};
+use super::utils::{core_input_pin, core_output_pin, darken_color, pin_color};
 
 pub(super) struct NodeGraphViewer<'a> {
     pub(super) graph: &'a mut Graph,
@@ -33,6 +33,8 @@ pub(super) struct NodeGraphViewer<'a> {
     pub(super) wrangle_help_request: &'a mut Option<Pos2>,
     pub(super) error_nodes: &'a HashSet<NodeId>,
     pub(super) error_messages: &'a HashMap<NodeId, String>,
+    pub(super) dim_nodes: &'a HashSet<NodeId>,
+    pub(super) skip_header_click: bool,
     pub(super) changed: bool,
 }
 
@@ -101,6 +103,26 @@ impl<'a> NodeGraphViewer<'a> {
 }
 
 impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
+    fn node_frame(
+        &mut self,
+        default: egui::Frame,
+        node: egui_snarl::NodeId,
+        inputs: &[egui_snarl::InPin],
+        outputs: &[egui_snarl::OutPin],
+        snarl: &Snarl<SnarlNode>,
+    ) -> egui::Frame {
+        let _ = (inputs, outputs);
+        let Some(core_id) = self.core_node_id(snarl, node) else {
+            return default;
+        };
+        if self.dim_nodes.contains(&core_id) {
+            let mut frame = default;
+            frame.fill = darken_color(frame.fill, 0.65);
+            return frame;
+        }
+        default
+    }
+
     fn title(&mut self, node: &SnarlNode) -> String {
         self.graph
             .node(node.core_id)
@@ -563,34 +585,36 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
                 None
             }
         });
-        if let (Some(pos), Some(buttons)) = (clicked_pos, self.header_button_rects.get(&node)) {
-            let pos_screen = pos;
-            let pos = if self.graph_transform.valid {
-                self.graph_transform.to_global.inverse() * pos
-            } else {
-                pos
-            };
-            if buttons.bypass.contains(pos) {
-                if self.graph.toggle_bypass_node(core_id).is_ok() {
-                    self.changed = true;
+        if !self.skip_header_click {
+            if let (Some(pos), Some(buttons)) = (clicked_pos, self.header_button_rects.get(&node)) {
+                let pos_screen = pos;
+                let pos = if self.graph_transform.valid {
+                    self.graph_transform.to_global.inverse() * pos
+                } else {
+                    pos
+                };
+                if buttons.bypass.contains(pos) {
+                    if self.graph.toggle_bypass_node(core_id).is_ok() {
+                        self.changed = true;
+                    }
+                    return;
                 }
-                return;
-            }
-            if buttons.display.contains(pos) {
-                if self.graph.toggle_display_node(core_id).is_ok() {
-                    self.changed = true;
+                if buttons.display.contains(pos) {
+                    if self.graph.toggle_display_node(core_id).is_ok() {
+                        self.changed = true;
+                    }
+                    return;
                 }
-                return;
-            }
-            if buttons.template.contains(pos) {
-                if self.graph.toggle_template_node(core_id).is_ok() {
-                    self.changed = true;
+                if buttons.template.contains(pos) {
+                    if self.graph.toggle_template_node(core_id).is_ok() {
+                        self.changed = true;
+                    }
+                    return;
                 }
-                return;
-            }
-            if buttons.help.is_some_and(|rect| rect.contains(pos)) {
-                *self.wrangle_help_request = Some(pos_screen);
-                return;
+                if buttons.help.is_some_and(|rect| rect.contains(pos)) {
+                    *self.wrangle_help_request = Some(pos_screen);
+                    return;
+                }
             }
         }
 

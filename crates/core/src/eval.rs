@@ -247,6 +247,203 @@ where
     Ok(report)
 }
 
+pub fn collect_dirty_nodes(
+    graph: &Graph,
+    output: NodeId,
+    state: &EvalState,
+) -> Result<Vec<DirtyNodeReport>, GraphError> {
+    let ordered = graph.topo_sort_from(output)?;
+    let mut dirty = Vec::new();
+
+    for node_id in ordered {
+        let node = graph
+            .node(node_id)
+            .ok_or(GraphError::MissingNode(node_id))?;
+        let mut upstream = graph.upstream_nodes(node_id);
+        upstream.sort();
+
+        let upstream_versions: Vec<(NodeId, u64)> = upstream
+            .iter()
+            .map(|upstream_id| {
+                let output_version = state
+                    .nodes
+                    .get(upstream_id)
+                    .map(|state| state.output_version)
+                    .unwrap_or_default();
+                (*upstream_id, output_version)
+            })
+            .collect();
+
+        let upstream_signature = hash_upstream(&upstream_versions);
+        let signature = hash_signature(node.param_version, &upstream_versions);
+
+        let node_state = state.nodes.get(&node_id);
+        let (initialized, last_signature, last_param_version, last_upstream_signature) =
+            if let Some(node_state) = node_state {
+                (
+                    node_state.initialized,
+                    node_state.last_signature,
+                    node_state.last_param_version,
+                    node_state.last_upstream_signature,
+                )
+            } else {
+                (false, 0, 0, 0)
+            };
+
+        let dirty_reason = if !initialized {
+            Some(DirtyReason::NewNode)
+        } else if last_signature == signature {
+            None
+        } else {
+            let param_changed = node.param_version != last_param_version;
+            let upstream_changed = upstream_signature != last_upstream_signature;
+            match (param_changed, upstream_changed) {
+                (true, true) => Some(DirtyReason::ParamAndUpstreamChanged),
+                (true, false) => Some(DirtyReason::ParamChanged),
+                (false, true) => Some(DirtyReason::UpstreamChanged),
+                (false, false) => None,
+            }
+        };
+
+        if let Some(reason) = dirty_reason {
+            dirty.push(DirtyNodeReport { node: node_id, reason });
+        }
+    }
+
+    Ok(dirty)
+}
+
+pub fn collect_dirty_nodes_full(
+    graph: &Graph,
+    state: &EvalState,
+) -> Result<Vec<DirtyNodeReport>, GraphError> {
+    let ordered = graph.topo_sort_all()?;
+    let mut dirty = Vec::new();
+    let mut dirty_set = std::collections::HashSet::new();
+
+    for node_id in ordered {
+        let node = graph
+            .node(node_id)
+            .ok_or(GraphError::MissingNode(node_id))?;
+        let mut upstream = graph.upstream_nodes(node_id);
+        upstream.sort();
+
+        let upstream_versions: Vec<(NodeId, u64)> = upstream
+            .iter()
+            .map(|upstream_id| {
+                let output_version = state
+                    .nodes
+                    .get(upstream_id)
+                    .map(|state| state.output_version)
+                    .unwrap_or_default();
+                (*upstream_id, output_version)
+            })
+            .collect();
+        let upstream_signature = hash_upstream(&upstream_versions);
+
+        let node_state = state.nodes.get(&node_id);
+        let (initialized, last_param_version, last_upstream_signature) =
+            if let Some(node_state) = node_state {
+                (
+                    node_state.initialized,
+                    node_state.last_param_version,
+                    node_state.last_upstream_signature,
+                )
+            } else {
+                (false, 0, 0)
+            };
+
+        let upstream_dirty = upstream.iter().any(|id| dirty_set.contains(id));
+        let upstream_changed = upstream_dirty || upstream_signature != last_upstream_signature;
+        let param_changed = node.param_version != last_param_version;
+        let reason = if !initialized {
+            Some(DirtyReason::NewNode)
+        } else if param_changed && upstream_changed {
+            Some(DirtyReason::ParamAndUpstreamChanged)
+        } else if param_changed {
+            Some(DirtyReason::ParamChanged)
+        } else if upstream_changed {
+            Some(DirtyReason::UpstreamChanged)
+        } else {
+            None
+        };
+
+        if let Some(dirty_reason) = reason {
+            dirty.push(DirtyNodeReport {
+                node: node_id,
+                reason: dirty_reason,
+            });
+            dirty_set.insert(node_id);
+        }
+    }
+
+    Ok(dirty)
+}
+
+pub fn node_dirty(
+    graph: &Graph,
+    state: &EvalState,
+    node_id: NodeId,
+    cache: &mut std::collections::HashMap<NodeId, bool>,
+    visiting: &mut std::collections::HashSet<NodeId>,
+) -> bool {
+    if let Some(value) = cache.get(&node_id) {
+        return *value;
+    }
+    if !visiting.insert(node_id) {
+        cache.insert(node_id, true);
+        return true;
+    }
+    let dirty = if let Some(node) = graph.node(node_id) {
+        let node_state = state.nodes.get(&node_id);
+        let initialized = node_state.map(|state| state.initialized).unwrap_or(false);
+        if !initialized {
+            true
+        } else {
+            let last_param_version =
+                node_state.map(|state| state.last_param_version).unwrap_or(0);
+            let last_upstream_signature = node_state
+                .map(|state| state.last_upstream_signature)
+                .unwrap_or(0);
+            if node.param_version != last_param_version {
+                true
+            } else {
+                let mut upstream = graph.upstream_nodes(node_id);
+                upstream.sort();
+                let mut upstream_dirty = false;
+                for upstream_id in &upstream {
+                    if node_dirty(graph, state, *upstream_id, cache, visiting) {
+                        upstream_dirty = true;
+                        break;
+                    }
+                }
+                if upstream_dirty {
+                    true
+                } else {
+                    let upstream_versions: Vec<(NodeId, u64)> = upstream
+                        .iter()
+                        .map(|upstream_id| {
+                            let output_version = state
+                                .nodes
+                                .get(upstream_id)
+                                .map(|state| state.output_version)
+                                .unwrap_or_default();
+                            (*upstream_id, output_version)
+                        })
+                        .collect();
+                    let upstream_signature = hash_upstream(&upstream_versions);
+                    upstream_signature != last_upstream_signature
+                }
+            }
+        }
+    } else {
+        true
+    };
+    visiting.remove(&node_id);
+    cache.insert(node_id, dirty);
+    dirty
+}
+
 fn hash_signature(param_version: u64, upstream_versions: &[(NodeId, u64)]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     param_version.hash(&mut hasher);
