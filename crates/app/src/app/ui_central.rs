@@ -596,7 +596,7 @@ impl LobedoApp {
                 &mut self.project.graph,
                 &mut self.project.settings,
                 &mut self.eval_dirty,
-                &self.eval_state.eval,
+                &self.eval_state_snapshot,
             );
             if self.eval_dirty || was_dirty {
                 let dirty_changed = self.refresh_dirty_nodes();

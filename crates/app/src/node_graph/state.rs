@@ -374,26 +374,9 @@ impl NodeGraphState {
         eval_state: &lobedo_core::EvalState,
     ) -> HashSet<NodeId> {
         let mut dim_nodes = HashSet::new();
-        let Some(display_node) = graph.display_node() else {
-            for node in graph.nodes() {
-                dim_nodes.insert(node.id);
-            }
-            return dim_nodes;
-        };
-
-        let reachable = match graph.topo_sort_from(display_node) {
-            Ok(nodes) => nodes,
-            Err(_) => Vec::new(),
-        };
-        let reachable: HashSet<_> = reachable.into_iter().collect();
-
         let mut dirty_cache = HashMap::new();
         let mut dirty_visiting = HashSet::new();
         for node in graph.nodes() {
-            if !reachable.contains(&node.id) {
-                dim_nodes.insert(node.id);
-                continue;
-            }
             if lobedo_core::node_dirty(
                 graph,
                 eval_state,

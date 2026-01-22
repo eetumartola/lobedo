@@ -15,13 +15,13 @@ pub struct EvalCacheStats {
     pub misses: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct EvalState {
     nodes: BTreeMap<NodeId, NodeEvalState>,
     pub stats: EvalCacheStats,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct NodeEvalState {
     last_signature: u64,
     last_param_version: u64,

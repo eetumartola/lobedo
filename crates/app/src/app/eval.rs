@@ -52,7 +52,7 @@ impl LobedoApp {
         };
         let dirty_nodes: HashSet<_> = lobedo_core::collect_dirty_nodes_full(
             &self.project.graph,
-            &self.eval_state.eval,
+            &self.eval_state_snapshot,
         )
         .ok()
         .map(|entries| entries.into_iter().map(|entry| entry.node).collect())
@@ -135,6 +135,7 @@ impl LobedoApp {
         let template_nodes = graph.template_nodes();
         let selected_node = self.node_graph.selected_node_id();
         let progress = Some(self.node_graph.progress_sink());
+        self.eval_state_snapshot = self.eval_state.eval.clone();
         let eval_state = std::mem::take(&mut self.eval_state);
         let result = run_eval_job(
             graph,
@@ -193,6 +194,7 @@ impl LobedoApp {
         let template_nodes = graph.template_nodes();
         let selected_node = self.node_graph.selected_node_id();
         let progress = Some(self.node_graph.progress_sink());
+        self.eval_state_snapshot = self.eval_state.eval.clone();
         let eval_state = std::mem::take(&mut self.eval_state);
 
         let (sender, receiver) = mpsc::channel();
@@ -214,6 +216,7 @@ impl LobedoApp {
 
     fn apply_eval_result(&mut self, result: EvalResult) {
         self.eval_state = result.eval_state;
+        self.eval_state_snapshot = self.eval_state.eval.clone();
         if self.project.graph.revision() != result.revision
             || self.project.graph.display_node() != Some(result.display_node)
         {
