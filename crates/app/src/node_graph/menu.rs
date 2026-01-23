@@ -1,6 +1,6 @@
 use egui::Ui;
 
-use lobedo_core::{node_definition, node_specs, BuiltinNodeKind};
+use lobedo_core::{menu_group, node_definition, node_specs, BuiltinNodeKind};
 
 use super::utils::submenu_menu_button;
 
@@ -31,7 +31,7 @@ pub(super) fn builtin_menu_items() -> Vec<MenuItem> {
                 kind: spec.kind,
                 name: definition.name,
                 category: definition.category,
-                submenu: submenu_for_kind(spec.kind),
+                submenu: menu_group(spec.kind),
             }
         })
         .collect()
@@ -85,42 +85,4 @@ pub(super) fn render_menu_layout(ui: &mut Ui, layout: MenuLayout) -> Option<Buil
     }
 
     None
-}
-
-fn submenu_for_kind(kind: BuiltinNodeKind) -> Option<&'static str> {
-    match kind {
-        BuiltinNodeKind::File
-        | BuiltinNodeKind::ReadSplats
-        | BuiltinNodeKind::WriteSplats
-        | BuiltinNodeKind::ObjOutput
-        | BuiltinNodeKind::GltfOutput => Some("IO"),
-        BuiltinNodeKind::Prune
-        | BuiltinNodeKind::Regularize
-        | BuiltinNodeKind::SplatLod
-        | BuiltinNodeKind::SplatToMesh
-        | BuiltinNodeKind::SplatDeform
-        | BuiltinNodeKind::SplatDelight
-        | BuiltinNodeKind::SplatIntegrate
-        | BuiltinNodeKind::SplatHeal
-        | BuiltinNodeKind::SplatOutlier
-        | BuiltinNodeKind::SplatCluster
-        | BuiltinNodeKind::SplatMerge => Some("Splat"),
-        BuiltinNodeKind::AttributeNoise
-        | BuiltinNodeKind::PolyFrame
-        | BuiltinNodeKind::AttributePromote
-        | BuiltinNodeKind::AttributeExpand
-        | BuiltinNodeKind::ErosionNoise
-        | BuiltinNodeKind::AttributeFromFeature
-        | BuiltinNodeKind::AttributeFromVolume
-        | BuiltinNodeKind::AttributeTransfer
-        | BuiltinNodeKind::AttributeMath
-        | BuiltinNodeKind::UvTexture
-        | BuiltinNodeKind::UvUnwrap
-        | BuiltinNodeKind::UvView => Some("Attribute"),
-        BuiltinNodeKind::Material => Some("Materials"),
-        BuiltinNodeKind::VolumeFromGeometry
-        | BuiltinNodeKind::VolumeCombine
-        | BuiltinNodeKind::VolumeToMesh => Some("Volume"),
-        _ => None,
-    }
 }

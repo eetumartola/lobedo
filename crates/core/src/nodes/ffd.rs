@@ -75,13 +75,16 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_slider("res_z", "Res Z", 2, 8)
             .with_help("Control points along Z (lattice resolution)."),
         ParamSpec::string("lattice_points", "Lattice Points")
-            .with_help("Optional override for lattice control points."),
+            .with_help("Optional override for lattice control points.")
+            .hidden(),
         ParamSpec::bool("use_input_bounds", "Use Input Bounds")
             .with_help("Use input geometry bounds for the lattice."),
         ParamSpec::vec3("center", "Center")
-            .with_help("Lattice center when not using input bounds."),
+            .with_help("Lattice center when not using input bounds.")
+            .visible_when_bool("use_input_bounds", false),
         ParamSpec::vec3("size", "Size")
-            .with_help("Lattice size when not using input bounds."),
+            .with_help("Lattice size when not using input bounds.")
+            .visible_when_bool("use_input_bounds", false),
         ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
             .with_help("Expand lattice bounds by this amount."),
         ParamSpec::bool("extrapolate", "Extrapolate")

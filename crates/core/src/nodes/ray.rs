@@ -57,7 +57,9 @@ pub fn param_specs() -> Vec<ParamSpec> {
             vec![(0, "Normal"), (1, "Direction"), (2, "Closest")],
         )
         .with_help("Ray direction mode."),
-        ParamSpec::vec3("direction", "Direction").with_help("Ray direction (Direction mode)."),
+        ParamSpec::vec3("direction", "Direction")
+            .with_help("Ray direction (Direction mode).")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("max_distance", "Max Distance", 0.0, 1000.0)
             .with_help("Max ray distance."),
         ParamSpec::float_slider("splat_density", "Splat Density", 0.0, 10.0)

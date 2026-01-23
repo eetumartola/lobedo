@@ -122,7 +122,8 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::bool("rename", "Change New Name")
             .with_help("Enable renaming the promoted attribute."),
         ParamSpec::string("new_name", "New Name")
-            .with_help("New attribute name or pattern (* placeholder)."),
+            .with_help("New attribute name or pattern (* placeholder).")
+            .visible_when_bool("rename", true),
         ParamSpec::bool("delete_original", "Delete Original")
             .with_help("Remove the original attribute after promoting."),
     ]

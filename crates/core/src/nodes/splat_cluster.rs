@@ -68,11 +68,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::string("attr", "Attribute")
             .with_help("Attribute name to store cluster ids."),
         ParamSpec::float_slider("cell_size", "Cell Size", 0.0, 10.0)
-            .with_help("Grid cell size (<=0 = auto)."),
+            .with_help("Grid cell size (<=0 = auto).")
+            .visible_when_int("method", 0),
         ParamSpec::float_slider("eps", "Radius", 0.0, 10.0)
-            .with_help("DBSCAN radius (<=0 = auto)."),
+            .with_help("DBSCAN radius (<=0 = auto).")
+            .visible_when_int("method", 1),
         ParamSpec::int_slider("min_pts", "Min Points", 1, 128)
-            .with_help("Minimum points per DBSCAN core."),
+            .with_help("Minimum points per DBSCAN core.")
+            .visible_when_int("method", 1),
     ]
 }
 

@@ -7,23 +7,36 @@ pub struct NodeHelpPage {
     pub parameters: &'static [(&'static str, &'static str)],
 }
 
-mod help_pages_io;
-mod help_pages_splats;
-mod help_pages_volumes;
+use crate::nodes_builtin::{builtin_kind_from_id, builtin_kind_from_name, BuiltinNodeKind};
+use crate::{node_help_io, node_help_splats, node_help_volumes};
 
-pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
-    if let Some(page) = help_pages_splats::node_help_page(node_name) {
+fn resolve_kind(help_key: &str) -> Option<BuiltinNodeKind> {
+    builtin_kind_from_id(help_key).or_else(|| builtin_kind_from_name(help_key))
+}
+
+pub fn help_summary(kind: BuiltinNodeKind) -> Option<&'static str> {
+    node_help_page_for_kind(kind)
+        .and_then(|page| page.description.first().copied())
+}
+
+pub fn node_help_page(help_key: &str) -> Option<NodeHelpPage> {
+    let kind = resolve_kind(help_key)?;
+    node_help_page_for_kind(kind)
+}
+
+pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
+    if let Some(page) = node_help_splats::node_help_page(kind) {
         return Some(page);
     }
-    if let Some(page) = help_pages_volumes::node_help_page(node_name) {
+    if let Some(page) = node_help_volumes::node_help_page(kind) {
         return Some(page);
     }
-    if let Some(page) = help_pages_io::node_help_page(node_name) {
+    if let Some(page) = node_help_io::node_help_page(kind) {
         return Some(page);
     }
 
-    match node_name {
-        "Box" => Some(NodeHelpPage {
+    match kind {
+        BuiltinNodeKind::Box => Some(NodeHelpPage {
             name: "Box",
             description: &[
                 "Creates an axis-aligned box mesh centered at the given position.",
@@ -37,7 +50,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("center", "Box center in world space."),
             ],
         }),
-        "Grid" => Some(NodeHelpPage {
+        BuiltinNodeKind::Grid => Some(NodeHelpPage {
             name: "Grid",
             description: &[
                 "Creates a flat grid mesh on the XZ plane (Y up).",
@@ -53,7 +66,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("center", "Grid center in world space."),
             ],
         }),
-        "Sphere" => Some(NodeHelpPage {
+        BuiltinNodeKind::Sphere => Some(NodeHelpPage {
             name: "Sphere",
             description: &[
                 "Creates a UV sphere mesh with poles at top and bottom.",
@@ -69,7 +82,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("center", "Sphere center in world space."),
             ],
         }),
-        "Tube" => Some(NodeHelpPage {
+        BuiltinNodeKind::Tube => Some(NodeHelpPage {
             name: "Tube",
             description: &[
                 "Creates a vertical tube/cylinder along the Y axis.",
@@ -87,7 +100,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("center", "Tube center in world space."),
             ],
         }),
-        "Circle" => Some(NodeHelpPage {
+        BuiltinNodeKind::Circle => Some(NodeHelpPage {
             name: "Circle",
             description: &[
                 "Creates a circle primitive on the XZ plane.",
@@ -103,7 +116,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("center", "Circle center in world space."),
             ],
         }),
-        "Curve" => Some(NodeHelpPage {
+        BuiltinNodeKind::Curve => Some(NodeHelpPage {
             name: "Curve",
             description: &[
                 "Creates a polyline curve from a list of points.",
@@ -118,7 +131,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("closed", "Close the curve loop."),
             ],
         }),
-        "Boolean" | "Boolean SDF" => Some(NodeHelpPage {
+        BuiltinNodeKind::BooleanSdf => Some(NodeHelpPage {
             name: "Boolean SDF",
             description: &[
                 "Combines meshes using signed distance fields (SDFs) and extracts a new surface.",
@@ -139,7 +152,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("surface_iso", "Isovalue used when extracting the mesh from the SDF."),
             ],
         }),
-        "Boolean Geo" => Some(NodeHelpPage {
+        BuiltinNodeKind::BooleanGeo => Some(NodeHelpPage {
             name: "Boolean Geo",
             description: &[
                 "Combines meshes using polygonal booleans and preserves the original surface geometry where possible.",
@@ -157,7 +170,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("op", "Operation: Union, Difference (A - B), or Intersect."),
             ],
         }),
-        "Sweep" => Some(NodeHelpPage {
+        BuiltinNodeKind::Sweep => Some(NodeHelpPage {
             name: "Sweep",
             description: &[
                 "Sweeps a profile curve or point list along a path curve to create a surface.",
@@ -175,7 +188,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("up", "Up vector used to stabilize the sweep orientation."),
             ],
         }),
-        "Delete" => Some(NodeHelpPage {
+        BuiltinNodeKind::Delete => Some(NodeHelpPage {
             name: "Delete",
             description: &[
                 "Deletes geometry inside a selection volume, similar to Houdini Delete.",
@@ -196,7 +209,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Group" => Some(NodeHelpPage {
+        BuiltinNodeKind::Group => Some(NodeHelpPage {
             name: "Group",
             description: &[
                 "Creates or updates a named group using a selection shape or attribute range.",
@@ -222,7 +235,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("attr_max", "Maximum attribute value to include."),
             ],
         }),
-        "Group Expand" => Some(NodeHelpPage {
+        BuiltinNodeKind::GroupExpand => Some(NodeHelpPage {
             name: "Group Expand",
             description: &[
                 "Expands or contracts an existing group by walking topological neighbors.",
@@ -239,7 +252,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("iterations", "Number of expansion steps."),
             ],
         }),
-        "Transform" => Some(NodeHelpPage {
+        BuiltinNodeKind::Transform => Some(NodeHelpPage {
             name: "Transform",
             description: &[
                 "Applies translation, rotation, and scale to geometry.",
@@ -257,7 +270,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("pivot", "Pivot point."),
             ],
         }),
-        "FFD" => Some(NodeHelpPage {
+        BuiltinNodeKind::Ffd => Some(NodeHelpPage {
             name: "FFD",
             description: &[
                 "Free-form deformation (FFD) warps geometry through a 3D lattice of control points.",
@@ -282,7 +295,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("extrapolate", "Allow extrapolation outside the lattice bounds."),
             ],
         }),
-        "Copy/Transform" => Some(NodeHelpPage {
+        BuiltinNodeKind::CopyTransform => Some(NodeHelpPage {
             name: "Copy/Transform",
             description: &[
                 "Creates multiple copies by applying a base transform and per-copy increments.",
@@ -302,7 +315,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("scale_step", "Per-copy scale step."),
             ],
         }),
-        "Merge" => Some(NodeHelpPage {
+        BuiltinNodeKind::Merge => Some(NodeHelpPage {
             name: "Merge",
             description: &[
                 "Merges all incoming geometry streams into one output.",
@@ -313,7 +326,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Merged geometry."],
             parameters: &[],
         }),
-        "Copy to Points" => Some(NodeHelpPage {
+        BuiltinNodeKind::CopyToPoints => Some(NodeHelpPage {
             name: "Copy to Points",
             description: &[
                 "Copies source meshes or splats onto each template point.",
@@ -338,7 +351,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Scatter" => Some(NodeHelpPage {
+        BuiltinNodeKind::Scatter => Some(NodeHelpPage {
             name: "Scatter",
             description: &[
                 "Scatters random points over surfaces, curves, or volumes.",
@@ -358,7 +371,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Normal" => Some(NodeHelpPage {
+        BuiltinNodeKind::Normal => Some(NodeHelpPage {
             name: "Normal",
             description: &[
                 "Computes normals for meshes based on vertex angles.",
@@ -373,7 +386,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "PolyFrame" => Some(NodeHelpPage {
+        BuiltinNodeKind::PolyFrame => Some(NodeHelpPage {
             name: "PolyFrame",
             description: &[
                 "Builds a local frame (normal, tangent, bitangent) for points that belong to polygons or curves.",
@@ -395,7 +408,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ),
             ],
         }),
-        "Color" => Some(NodeHelpPage {
+        BuiltinNodeKind::Color => Some(NodeHelpPage {
             name: "Color",
             description: &[
                 "Writes or updates a color attribute (Cd).",
@@ -414,7 +427,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Noise/Mountain" => Some(NodeHelpPage {
+        BuiltinNodeKind::Noise => Some(NodeHelpPage {
             name: "Noise/Mountain",
             description: &[
                 "Displaces points along their normals using fractal noise.",
@@ -432,7 +445,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Erosion Noise" => Some(NodeHelpPage {
+        BuiltinNodeKind::ErosionNoise => Some(NodeHelpPage {
             name: "Erosion Noise",
             description: &[
                 "Applies erosion-style noise to a height field stored on points.",
@@ -454,7 +467,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Smooth" => Some(NodeHelpPage {
+        BuiltinNodeKind::Smooth => Some(NodeHelpPage {
             name: "Smooth",
             description: &[
                 "Smooths attribute values across neighbors.",
@@ -474,7 +487,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Resample" => Some(NodeHelpPage {
+        BuiltinNodeKind::Resample => Some(NodeHelpPage {
             name: "Resample",
             description: &[
                 "Resamples geometry based on primitive type.",
@@ -490,7 +503,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("volume_max_dim", "Maximum voxel dimension for volume resampling."),
             ],
         }),
-        "UV Texture" => Some(NodeHelpPage {
+        BuiltinNodeKind::UvTexture => Some(NodeHelpPage {
             name: "UV Texture",
             description: &[
                 "Generates UVs using simple projections.",
@@ -506,7 +519,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("offset", "UV offset."),
             ],
         }),
-        "UV Unwrap" => Some(NodeHelpPage {
+        BuiltinNodeKind::UvUnwrap => Some(NodeHelpPage {
             name: "UV Unwrap",
             description: &[
                 "Builds UV islands by clustering triangles with similar normals.",
@@ -520,7 +533,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("normal_threshold", "Angle threshold for island splits."),
             ],
         }),
-        "UV View" => Some(NodeHelpPage {
+        BuiltinNodeKind::UvView => Some(NodeHelpPage {
             name: "UV View",
             description: &[
                 "Displays a 2D wireframe of the incoming mesh UVs in the parameter pane.",
@@ -531,7 +544,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Pass-through geometry."],
             parameters: &[],
         }),
-        "Material" => Some(NodeHelpPage {
+        BuiltinNodeKind::Material => Some(NodeHelpPage {
             name: "Material",
             description: &[
                 "Creates or updates a material and assigns it to primitives.",
@@ -548,7 +561,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("roughness", "Roughness factor."),
             ],
         }),
-        "Ray" => Some(NodeHelpPage {
+        BuiltinNodeKind::Ray => Some(NodeHelpPage {
             name: "Ray",
             description: &[
                 "Projects points onto target geometry using raycasts.",
@@ -572,7 +585,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Attribute Noise" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeNoise => Some(NodeHelpPage {
             name: "Attribute Noise",
             description: &[
                 "Writes procedural noise into an attribute.",
@@ -604,7 +617,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Attribute Expand" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeExpand => Some(NodeHelpPage {
             name: "Attribute Expand",
             description: &[
                 "Expands or contracts attribute values across the mesh topology.",
@@ -622,7 +635,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("iterations", "Number of expansion steps."),
             ],
         }),
-        "Attribute Promote" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributePromote => Some(NodeHelpPage {
             name: "Attribute Promote",
             description: &[
                 "Promotes or demotes attributes between classes (point/vertex/primitive/detail).",
@@ -643,7 +656,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("delete_original", "Remove the source attribute after promoting."),
             ],
         }),
-        "Attribute from Feature" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeFromFeature => Some(NodeHelpPage {
             name: "Attribute from Feature",
             description: &[
                 "Computes simple geometric features such as area or gradient.",
@@ -660,7 +673,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Attribute from Volume" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeFromVolume => Some(NodeHelpPage {
             name: "Attribute from Volume",
             description: &[
                 "Samples a volume at geometry locations and stores the value in an attribute.",
@@ -676,7 +689,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Attribute Transfer" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeTransfer => Some(NodeHelpPage {
             name: "Attribute Transfer",
             description: &[
                 "Transfers attributes from a source input onto a target input.",
@@ -692,7 +705,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Attribute Math" => Some(NodeHelpPage {
+        BuiltinNodeKind::AttributeMath => Some(NodeHelpPage {
             name: "Attribute Math",
             description: &[
                 "Applies a math operation to an attribute and writes the result.",
@@ -712,7 +725,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Wrangle" => Some(NodeHelpPage {
+        BuiltinNodeKind::Wrangle => Some(NodeHelpPage {
             name: "Wrangle",
             description: &[
                 "Runs a small expression language to edit attributes directly.",
@@ -731,3 +744,5 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
+
+

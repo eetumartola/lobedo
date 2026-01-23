@@ -40,6 +40,15 @@ pub enum ParamPathKind {
     ReadTexture,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParamCondition {
+    Bool { key: &'static str, value: bool },
+    Int { key: &'static str, value: i32 },
+    IntIn { key: &'static str, values: Vec<i32> },
+    String { key: &'static str, value: &'static str },
+    StringIn { key: &'static str, values: Vec<&'static str> },
+}
+
 #[derive(Debug, Clone)]
 pub struct ParamSpec {
     pub key: &'static str,
@@ -50,6 +59,8 @@ pub struct ParamSpec {
     pub options: Vec<ParamOption>,
     pub path_kind: Option<ParamPathKind>,
     pub help: Option<&'static str>,
+    pub visible: bool,
+    pub visible_when: Vec<ParamCondition>,
 }
 
 impl ParamSpec {
@@ -63,6 +74,8 @@ impl ParamSpec {
             options: Vec::new(),
             path_kind: None,
             help: None,
+            visible: true,
+            visible_when: Vec::new(),
         }
     }
 
@@ -166,5 +179,108 @@ impl ParamSpec {
             self.widget = ParamWidget::Combo;
         }
         self
+    }
+
+    pub fn hidden(mut self) -> Self {
+        self.visible = false;
+        self
+    }
+
+    pub fn visible_when_bool(mut self, key: &'static str, value: bool) -> Self {
+        self.visible_when.push(ParamCondition::Bool { key, value });
+        self
+    }
+
+    pub fn visible_when_int(mut self, key: &'static str, value: i32) -> Self {
+        self.visible_when.push(ParamCondition::Int { key, value });
+        self
+    }
+
+    pub fn visible_when_int_in(mut self, key: &'static str, values: &[i32]) -> Self {
+        self.visible_when.push(ParamCondition::IntIn {
+            key,
+            values: values.to_vec(),
+        });
+        self
+    }
+
+    pub fn visible_when_string(mut self, key: &'static str, value: &'static str) -> Self {
+        self.visible_when.push(ParamCondition::String { key, value });
+        self
+    }
+
+    pub fn visible_when_string_in(
+        mut self,
+        key: &'static str,
+        values: &[&'static str],
+    ) -> Self {
+        self.visible_when.push(ParamCondition::StringIn {
+            key,
+            values: values.to_vec(),
+        });
+        self
+    }
+
+    pub fn is_visible(&self, params: &crate::graph::NodeParams) -> bool {
+        if !self.visible {
+            return false;
+        }
+        self.visible_when
+            .iter()
+            .all(|condition| condition.matches(params))
+    }
+}
+
+impl ParamCondition {
+    fn matches(&self, params: &crate::graph::NodeParams) -> bool {
+        use crate::graph::ParamValue;
+
+        match self {
+            ParamCondition::Bool { key, value } => params
+                .values
+                .get(*key)
+                .and_then(|param| match param {
+                    ParamValue::Bool(v) => Some(*v),
+                    _ => None,
+                })
+                .map(|v| v == *value)
+                .unwrap_or(false),
+            ParamCondition::Int { key, value } => params
+                .values
+                .get(*key)
+                .and_then(|param| match param {
+                    ParamValue::Int(v) => Some(*v),
+                    _ => None,
+                })
+                .map(|v| v == *value)
+                .unwrap_or(false),
+            ParamCondition::IntIn { key, values } => params
+                .values
+                .get(*key)
+                .and_then(|param| match param {
+                    ParamValue::Int(v) => Some(*v),
+                    _ => None,
+                })
+                .map(|v| values.contains(&v))
+                .unwrap_or(false),
+            ParamCondition::String { key, value } => params
+                .values
+                .get(*key)
+                .and_then(|param| match param {
+                    ParamValue::String(v) => Some(v.as_str()),
+                    _ => None,
+                })
+                .map(|v| v.eq_ignore_ascii_case(value))
+                .unwrap_or(false),
+            ParamCondition::StringIn { key, values } => params
+                .values
+                .get(*key)
+                .and_then(|param| match param {
+                    ParamValue::String(v) => Some(v.as_str()),
+                    _ => None,
+                })
+                .map(|v| values.iter().any(|candidate| v.eq_ignore_ascii_case(candidate)))
+                .unwrap_or(false),
+        }
     }
 }

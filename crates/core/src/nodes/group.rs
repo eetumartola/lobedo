@@ -59,19 +59,23 @@ pub fn param_specs() -> Vec<ParamSpec> {
     );
     specs.push(
         ParamSpec::bool("select_backface", "Select Backface")
-            .with_help("Allow selecting back-facing elements."),
+            .with_help("Allow selecting back-facing elements.")
+            .visible_when_string("shape", "selection"),
     );
     specs.push(
         ParamSpec::string("attr", "Attribute")
-            .with_help("Attribute name for attribute-range selection."),
+            .with_help("Attribute name for attribute-range selection.")
+            .visible_when_string("shape", "attribute"),
     );
     specs.push(
         ParamSpec::float_slider("attr_min", "Attr Min", 0.0, 1.0)
-            .with_help("Minimum attribute value to include."),
+            .with_help("Minimum attribute value to include.")
+            .visible_when_string("shape", "attribute"),
     );
     specs.push(
         ParamSpec::float_slider("attr_max", "Attr Max", 0.0, 1.0)
-            .with_help("Maximum attribute value to include."),
+            .with_help("Maximum attribute value to include.")
+            .visible_when_string("shape", "attribute"),
     );
     specs
 }

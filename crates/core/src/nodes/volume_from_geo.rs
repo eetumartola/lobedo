@@ -50,9 +50,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
             .with_help("Padding around the bounds."),
         ParamSpec::float_slider("density_scale", "Density Scale", 0.0, 10.0)
-            .with_help("Density value inside the volume."),
+            .with_help("Density value inside the volume.")
+            .visible_when_string("mode", "density"),
         ParamSpec::float_slider("sdf_band", "SDF Band", 0.0, 10.0)
-            .with_help("SDF band width for rendering."),
+            .with_help("SDF band width for rendering.")
+            .visible_when_string("mode", "sdf"),
     ]
 }
 

@@ -1,8 +1,10 @@
-use super::NodeHelpPage;
+use crate::nodes_builtin::BuiltinNodeKind;
 
-pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
-    match node_name {
-        "File" => Some(NodeHelpPage {
+use crate::node_help::NodeHelpPage;
+
+pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
+    match kind {
+        BuiltinNodeKind::File => Some(NodeHelpPage {
             name: "File",
             description: &[
                 "Reads mesh geometry from OBJ or glTF/GLB files on disk or via URL.",
@@ -13,7 +15,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Mesh geometry from file."],
             parameters: &[("path", "Path or URL to an OBJ or glTF/GLB file.")],
         }),
-        "OBJ Output" => Some(NodeHelpPage {
+        BuiltinNodeKind::ObjOutput => Some(NodeHelpPage {
             name: "OBJ Output",
             description: &[
                 "Exports mesh geometry to OBJ.",
@@ -24,7 +26,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Pass-through geometry."],
             parameters: &[("path", "Output OBJ file path.")],
         }),
-        "GLTF Output" => Some(NodeHelpPage {
+        BuiltinNodeKind::GltfOutput => Some(NodeHelpPage {
             name: "GLTF Output",
             description: &[
                 "Exports mesh geometry to glTF/GLB.",
@@ -35,7 +37,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
             outputs: &["out: Pass-through geometry."],
             parameters: &[("path", "Output glTF/GLB file path.")],
         }),
-        "Output" => Some(NodeHelpPage {
+        BuiltinNodeKind::Output => Some(NodeHelpPage {
             name: "Output",
             description: &[
                 "Marks the final output of a graph branch.",
@@ -49,3 +51,4 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
+

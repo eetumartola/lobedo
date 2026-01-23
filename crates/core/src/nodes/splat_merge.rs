@@ -59,19 +59,26 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::bool("fade_originals", "Fade Originals")
             .with_help("Fade original splats near the seam."),
         ParamSpec::float_slider("skirt_max_dist", "Skirt Max Dist", 0.0, 10.0)
-            .with_help("Maximum distance to bridge with skirt splats."),
+            .with_help("Maximum distance to bridge with skirt splats.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("skirt_step", "Skirt Step", 0.0, 10.0)
-            .with_help("Spacing between skirt splats."),
+            .with_help("Spacing between skirt splats.")
+            .visible_when_int("method", 1),
         ParamSpec::int_slider("skirt_max_new", "Skirt Max New", 0, 1000)
-            .with_help("Maximum skirt splats per pair."),
+            .with_help("Maximum skirt splats per pair.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("seam_alpha", "Seam Alpha", 0.0, 1.0)
-            .with_help("Opacity for seam splats."),
+            .with_help("Opacity for seam splats.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("seam_scale", "Seam Scale", 0.01, 10.0)
-            .with_help("Scale multiplier for seam splats."),
+            .with_help("Scale multiplier for seam splats.")
+            .visible_when_int("method", 1),
         ParamSpec::bool("seam_dc_only", "Seam DC Only")
-            .with_help("Use DC-only SH for seam splats."),
+            .with_help("Use DC-only SH for seam splats.")
+            .visible_when_int("method", 1),
         ParamSpec::bool("preview_skirt", "Preview Skirt")
-            .with_help("Preview skirt geometry as a wireframe when selected."),
+            .with_help("Preview skirt geometry as a wireframe when selected.")
+            .visible_when_int("method", 1),
     ]
 }
 

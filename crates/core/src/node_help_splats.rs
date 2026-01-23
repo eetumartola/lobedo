@@ -1,8 +1,10 @@
-use super::NodeHelpPage;
+use crate::nodes_builtin::BuiltinNodeKind;
 
-pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
-    match node_name {
-        "Splat Read" | "Read Splats" => Some(NodeHelpPage {
+use crate::node_help::NodeHelpPage;
+
+pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
+    match kind {
+        BuiltinNodeKind::ReadSplats => Some(NodeHelpPage {
             name: "Splat Read",
             description: &[
                 "Loads Gaussian splats from a PLY file and produces splat primitives.",
@@ -18,7 +20,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("read_mode", "Full SH keeps all SH bands; Color Only keeps only DC color/alpha."),
             ],
         }),
-        "Splat Write" | "Write Splats" => Some(NodeHelpPage {
+        BuiltinNodeKind::WriteSplats => Some(NodeHelpPage {
             name: "Splat Write",
             description: &[
                 "Writes Gaussian splats to a PLY file in a 3DGS-compatible layout.",
@@ -33,7 +35,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("format", "PLY format: Binary (recommended) or ASCII."),
             ],
         }),
-        "Splat Prune" | "Prune" => Some(NodeHelpPage {
+        BuiltinNodeKind::Prune => Some(NodeHelpPage {
             name: "Splat Prune",
             description: &[
                 "Filters splats by scale and opacity ranges in splat parameter space.",
@@ -51,7 +53,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("remove_invalid", "Drop splats with NaN/Inf."),
             ],
         }),
-        "Splat Regularize" | "Regularize" => Some(NodeHelpPage {
+        BuiltinNodeKind::Regularize => Some(NodeHelpPage {
             name: "Splat Regularize",
             description: &[
                 "Clamps splat parameters to a stable range and repairs invalid values.",
@@ -69,7 +71,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("remove_invalid", "Drop splats with NaN/Inf."),
             ],
         }),
-        "Splat LOD" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatLod => Some(NodeHelpPage {
             name: "Splat LOD",
             description: &[
                 "Reduces splat count by clustering splats into a voxel grid.",
@@ -84,7 +86,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("target_count", "Optional cap on output splats (0 disables)."),
             ],
         }),
-        "Splat to Mesh" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatToMesh => Some(NodeHelpPage {
             name: "Splat to Mesh",
             description: &[
                 "Converts splats to either a polygon mesh or an SDF volume.",
@@ -110,7 +112,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("blur_iters", "Blur passes on the density grid to smooth surfaces (Density only)."),
             ],
         }),
-        "Splat Deform" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatDeform => Some(NodeHelpPage {
             name: "Splat Deform",
             description: &[
                 "Deforms a source splat model using a second input of edited points or splats.",
@@ -125,7 +127,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("derive_rot_scale", "Infer rotation/scale from local deformation; disable to move centers only."),
             ],
         }),
-        "Splat Delight" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatDelight => Some(NodeHelpPage {
             name: "Splat Delight",
             description: &[
                 "Removes baked lighting from splat SH coefficients to approximate albedo-like splats.",
@@ -156,7 +158,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Splat Integrate" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatIntegrate => Some(NodeHelpPage {
             name: "Splat Integrate",
             description: &[
                 "Relights splats to match a target environment or a target splat set.",
@@ -188,7 +190,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("group_type", "Group domain to use."),
             ],
         }),
-        "Splat Heal" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatHeal => Some(NodeHelpPage {
             name: "Splat Heal",
             description: &[
                 "Fills holes in splat surfaces by generating new splats in under-dense regions.",
@@ -225,7 +227,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("blur_iters", "Density blur iterations (Voxel Close only)."),
             ],
         }),
-        "Splat Outlier" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatOutlier => Some(NodeHelpPage {
             name: "Splat Outlier",
             description: &[
                 "Removes stray splats by clustering in position space and discarding noise.",
@@ -243,7 +245,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("min_cluster_size", "Remove clusters smaller than this size (0 disables)."),
             ],
         }),
-        "Splat Cluster" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatCluster => Some(NodeHelpPage {
             name: "Splat Cluster",
             description: &[
                 "Assigns a cluster id to each splat for selection and downstream editing.",
@@ -263,7 +265,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("min_pts", "Minimum neighbors for a DBSCAN core."),
             ],
         }),
-        "Splat Merge" => Some(NodeHelpPage {
+        BuiltinNodeKind::SplatMerge => Some(NodeHelpPage {
             name: "Splat Merge",
             description: &[
                 "Geometrically joins two splat models by softening their seam.",
@@ -289,3 +291,4 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
+

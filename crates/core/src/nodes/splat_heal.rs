@@ -128,9 +128,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
         )
         .with_help("Heal bounds: All, Box, or Sphere."),
         ParamSpec::vec3("heal_center", "Heal Center")
-            .with_help("Heal bounds center."),
+            .with_help("Heal bounds center.")
+            .hidden(),
         ParamSpec::vec3("heal_size", "Heal Size")
-            .with_help("Heal bounds size."),
+            .with_help("Heal bounds size.")
+            .hidden(),
         ParamSpec::int_enum(
             "method",
             "Method",
@@ -150,15 +152,18 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("bounds_padding", "Bounds Padding", 0.0, 10.0)
             .with_help("Padding around bounds in sigmas."),
         ParamSpec::int_slider("close_radius", "Close Radius", 0, 6)
-            .with_help("Closing radius in voxels."),
+            .with_help("Closing radius in voxels.")
+            .visible_when_int("method", 0),
         ParamSpec::int_slider("fill_stride", "Fill Stride", 1, 8)
             .with_help("Subsample candidates (higher = fewer splats)."),
         ParamSpec::int_slider("max_new", "Max New", 0, 100_000)
             .with_help("Maximum number of new splats."),
         ParamSpec::float_slider("sdf_band", "SDF Band", 0.0, 5.0)
-            .with_help("SDF band thickness around the surface."),
+            .with_help("SDF band thickness around the surface.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("sdf_close", "SDF Close", -2.0, 2.0)
-            .with_help("SDF offset to close small gaps."),
+            .with_help("SDF offset to close small gaps.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("search_radius", "Search Radius", 0.0, 10.0).with_help(
             "Neighbor search radius for copying attributes (<=0 = auto).",
         ),
@@ -174,9 +179,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("max_m2", "Exponent Clamp", 0.0, 10.0)
             .with_help("Exponent clamp for SDF method."),
         ParamSpec::float_slider("smooth_k", "Blend Sharpness", 0.001, 2.0)
-            .with_help("Smooth-min blend sharpness for SDF method."),
+            .with_help("Smooth-min blend sharpness for SDF method.")
+            .visible_when_int("method", 1),
         ParamSpec::float_slider("shell_radius", "Shell Radius", 0.1, 4.0)
-            .with_help("Ellipsoid shell radius for SDF method."),
+            .with_help("Ellipsoid shell radius for SDF method.")
+            .visible_when_int("method", 1),
         ParamSpec::int_slider("blur_iters", "Density Blur", 0, 6)
             .with_help("Density blur iterations."),
     ]

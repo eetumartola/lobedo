@@ -84,7 +84,8 @@ pub fn param_specs() -> Vec<ParamSpec> {
             "Method",
             vec![(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
         )
-        .with_help("Conversion method."),
+        .with_help("Conversion method.")
+        .visible_when_int("output", 0),
         ParamSpec::float_slider("voxel_size", "Voxel Size", 0.0, 10.0)
             .with_help("Voxel size for density grid."),
         ParamSpec::int_slider("voxel_size_max", "Max Voxel Dimension", 8, 2048)
@@ -92,21 +93,30 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("n_sigma", "Support Sigma", 0.0, 6.0)
             .with_help("Gaussian support radius in sigmas."),
         ParamSpec::float_slider("density_iso", "Density Threshold", 0.0, 10.0)
-            .with_help("Density threshold for marching cubes."),
+            .with_help("Density threshold for marching cubes.")
+            .visible_when_int("output", 0)
+            .visible_when_int("algorithm", 0),
         ParamSpec::float_slider("surface_iso", "Surface Threshold", -5.0, 5.0)
-            .with_help("Surface threshold for ellipsoid method."),
+            .with_help("Surface threshold for ellipsoid method.")
+            .visible_when_int("output", 0)
+            .visible_when_int("algorithm", 1),
         ParamSpec::float_slider("bounds_padding", "Bounds Padding (sigma)", 0.0, 10.0)
             .with_help("Padding around bounds in sigmas."),
         ParamSpec::bool("transfer_color", "Transfer Color")
-            .with_help("Transfer splat color to mesh Cd."),
+            .with_help("Transfer splat color to mesh Cd.")
+            .visible_when_int("output", 0),
         ParamSpec::float_slider("max_m2", "Exponent Clamp", 0.0, 10.0)
             .with_help("Exponent clamp for ellipsoid blend."),
         ParamSpec::float_slider("smooth_k", "Blend Sharpness", 0.001, 2.0)
-            .with_help("Smooth-min blend sharpness."),
+            .with_help("Smooth-min blend sharpness.")
+            .visible_when_int("algorithm", 1),
         ParamSpec::float_slider("shell_radius", "Shell Radius", 0.1, 4.0)
-            .with_help("Shell thickness for ellipsoid."),
+            .with_help("Shell thickness for ellipsoid.")
+            .visible_when_int("algorithm", 1),
         ParamSpec::int_slider("blur_iters", "Density Blur", 0, 6)
-            .with_help("Density blur iterations."),
+            .with_help("Density blur iterations.")
+            .visible_when_int("output", 0)
+            .visible_when_int("algorithm", 0),
     ]
 }
 

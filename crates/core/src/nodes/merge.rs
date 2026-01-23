@@ -1,6 +1,7 @@
 use crate::graph::{NodeDefinition, NodeParams};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Merge";
 
@@ -15,6 +16,10 @@ pub fn definition() -> NodeDefinition {
 
 pub fn default_params() -> NodeParams {
     NodeParams::default()
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    Vec::new()
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

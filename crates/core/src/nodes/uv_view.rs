@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::graph::{NodeDefinition, NodeParams};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "UV View";
 
@@ -19,6 +20,10 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::new(),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    Vec::new()
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

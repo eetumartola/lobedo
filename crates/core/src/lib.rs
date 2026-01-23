@@ -15,6 +15,10 @@ mod material;
 mod noise;
 mod nodes;
 mod nodes_builtin;
+mod node_help;
+mod node_help_io;
+mod node_help_splats;
+mod node_help_volumes;
 mod parallel;
 mod param_spec;
 mod param_templates;
@@ -59,8 +63,10 @@ pub use geometry_eval::{
 pub use nodes_builtin::{
     builtin_definitions, builtin_kind_from_id, builtin_kind_from_name, compute_geometry_node,
     compute_mesh_node, compute_splat_node, default_params, node_definition, node_specs,
-    param_specs, param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, NodeSpec,
+    menu_group, param_specs, param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind,
+    NodeSpec,
 };
+pub use node_help::{help_summary, node_help_page, node_help_page_for_kind, NodeHelpPage};
 pub use nodes::obj_output::write_obj;
 pub use nodes::splat_merge::build_skirt_preview_mesh;
 pub use gltf_io::write_gltf;

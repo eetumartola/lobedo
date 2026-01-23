@@ -104,11 +104,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
         )
         .with_help("Fractal mode (None/Standard/Terrain/Hybrid)."),
         ParamSpec::int_slider("octaves", "Octaves", 1, 8)
-            .with_help("Number of fractal octaves."),
+            .with_help("Number of fractal octaves.")
+            .visible_when_int_in("fractal_type", &[1, 2, 3]),
         ParamSpec::float_slider("lacunarity", "Lacunarity", 1.0, 4.0)
-            .with_help("Frequency multiplier per octave."),
+            .with_help("Frequency multiplier per octave.")
+            .visible_when_int_in("fractal_type", &[1, 2, 3]),
         ParamSpec::float_slider("roughness", "Roughness", 0.0, 1.0)
-            .with_help("Amplitude multiplier per octave."),
+            .with_help("Amplitude multiplier per octave.")
+            .visible_when_int_in("fractal_type", &[1, 2, 3]),
         ParamSpec::float_slider("amplitude", "Amplitude", -10.0, 10.0)
             .with_help("Noise amplitude."),
         ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0)
@@ -116,9 +119,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::vec3("offset", "Offset").with_help("Noise space offset."),
         ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Noise seed."),
         ParamSpec::float_slider("flow_rotation", "Flow Rotation", 0.0, 360.0)
-            .with_help("Perlin Flow rotation (degrees)."),
+            .with_help("Perlin Flow rotation (degrees).")
+            .visible_when_int("noise_type", 4),
         ParamSpec::float_slider("distortion", "Distortion", 0.0, 10.0)
-            .with_help("Cloud noise distortion amount."),
+            .with_help("Cloud noise distortion amount.")
+            .visible_when_int_in("noise_type", &[12, 13]),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",

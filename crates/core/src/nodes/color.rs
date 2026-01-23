@@ -51,11 +51,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
         )
         .with_help("Constant color or color from attribute."),
         ParamSpec::vec3("color", "Color")
-            .with_help("Color value (RGB)."),
+            .with_help("Color value (RGB).")
+            .visible_when_int("color_mode", 0),
         ParamSpec::string("attr", "Attribute")
-            .with_help("Attribute to map into the gradient."),
+            .with_help("Attribute to map into the gradient.")
+            .visible_when_int("color_mode", 1),
         ParamSpec::gradient("gradient", "Gradient")
-            .with_help("Gradient stops like 0:#000000;1:#ffffff."),
+            .with_help("Gradient stops like 0:#000000;1:#ffffff.")
+            .visible_when_int("color_mode", 1),
         ParamSpec::int_enum(
             "domain",
             "Domain",

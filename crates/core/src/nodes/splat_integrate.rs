@@ -97,7 +97,8 @@ pub fn param_specs() -> Vec<ParamSpec> {
             "Source Env",
             vec![(0, "From Splats"), (1, "Uniform White"), (2, "Custom")],
         )
-        .with_help("Source lighting estimate for SH ratios."),
+        .with_help("Source lighting estimate for SH ratios.")
+        .visible_when_int_in("relight_mode", &[0, 2]),
         ParamSpec::int_enum(
             "target_env",
             "Target Env",
@@ -105,23 +106,31 @@ pub fn param_specs() -> Vec<ParamSpec> {
         )
         .with_help("Target lighting estimate to match."),
         ParamSpec::vec3("source_color", "Source Color")
-            .with_help("Custom source lighting color (DC)."),
+            .with_help("Custom source lighting color (DC).")
+            .visible_when_int_in("relight_mode", &[0, 2])
+            .visible_when_int("source_env", 2),
         ParamSpec::vec3("target_color", "Target Color")
-            .with_help("Custom target lighting color (DC)."),
+            .with_help("Custom target lighting color (DC).")
+            .visible_when_int("target_env", 2),
         ParamSpec::float_slider("eps", "Epsilon", 0.0, 0.1)
-            .with_help("Stability epsilon scale for ratios."),
+            .with_help("Stability epsilon scale for ratios.")
+            .visible_when_int_in("relight_mode", &[0, 2]),
         ParamSpec::float_slider("ratio_min", "Ratio Min", 0.0, 10.0)
-            .with_help("Minimum ratio clamp for SH transfer."),
+            .with_help("Minimum ratio clamp for SH transfer.")
+            .visible_when_int_in("relight_mode", &[0, 2]),
         ParamSpec::float_slider("ratio_max", "Ratio Max", 0.0, 10.0)
-            .with_help("Maximum ratio clamp for SH transfer."),
+            .with_help("Maximum ratio clamp for SH transfer.")
+            .visible_when_int_in("relight_mode", &[0, 2]),
         ParamSpec::float_slider("high_band_gain", "High Band Gain", 0.0, 1.0)
-            .with_help("Gain applied to higher SH bands."),
+            .with_help("Gain applied to higher SH bands.")
+            .visible_when_int_in("relight_mode", &[0, 2]),
         ParamSpec::int_enum(
             "high_band_mode",
             "High Band Mode",
             vec![(0, "Scale Only"), (1, "Scale + Ratio")],
         )
-        .with_help("Apply ratios to higher bands in hybrid mode."),
+        .with_help("Apply ratios to higher bands in hybrid mode.")
+        .visible_when_int("relight_mode", 2),
         ParamSpec::int_enum(
             "output_sh_order",
             "Output SH Order",
@@ -129,7 +138,8 @@ pub fn param_specs() -> Vec<ParamSpec> {
         )
         .with_help("Zero SH bands above this order."),
         ParamSpec::float_slider("albedo_max", "Albedo Max", 0.0, 4.0)
-            .with_help("Maximum albedo clamp for diffuse relighting."),
+            .with_help("Maximum albedo clamp for diffuse relighting.")
+            .visible_when_int_in("relight_mode", &[1, 2]),
     ]
 }
 

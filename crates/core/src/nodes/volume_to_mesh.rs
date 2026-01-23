@@ -45,9 +45,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::string_enum("mode", "Mode", vec![("density", "Density"), ("sdf", "SDF")])
             .with_help("Treat input volume as density or SDF."),
         ParamSpec::float_slider("density_iso", "Density Iso", 0.0, 1.0)
-            .with_help("Isovalue for density surfaces."),
+            .with_help("Isovalue for density surfaces.")
+            .visible_when_string("mode", "density"),
         ParamSpec::float_slider("surface_iso", "Surface Iso", -1.0, 1.0)
-            .with_help("Isovalue for SDF surfaces."),
+            .with_help("Isovalue for SDF surfaces.")
+            .visible_when_string("mode", "sdf"),
     ]
 }
 

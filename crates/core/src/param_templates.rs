@@ -32,14 +32,19 @@ pub fn selection_shape_specs(
         ParamSpec::bool("invert", "Invert")
             .with_help("Invert selection."),
         ParamSpec::vec3("center", "Center")
-            .with_help("Shape center."),
+            .with_help("Shape center.")
+            .visible_when_string_in("shape", &["box", "sphere"]),
         ParamSpec::vec3("size", "Size")
-            .with_help("Box size in X/Y/Z."),
+            .with_help("Box size in X/Y/Z.")
+            .visible_when_string_in("shape", &["box", "sphere"]),
         ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
-            .with_help("Sphere radius."),
+            .with_help("Sphere radius.")
+            .hidden(),
         ParamSpec::vec3("plane_origin", "Plane Origin")
-            .with_help("Plane origin."),
+            .with_help("Plane origin.")
+            .visible_when_string("shape", "plane"),
         ParamSpec::vec3("plane_normal", "Plane Normal")
-            .with_help("Plane normal."),
+            .with_help("Plane normal.")
+            .visible_when_string("shape", "plane"),
     ]
 }

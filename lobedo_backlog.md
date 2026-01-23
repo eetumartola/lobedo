@@ -22,7 +22,7 @@ Status: done | in progress | not started
 - **D1**: ParamSpec schema + reusable templates (Vec3/Float/Enum/etc.) (done)
 - **D2**: Migrate parameter UI to ParamSpec (labels/help/ranges/widgets), shrink string-based special cases (done)
 - **D3**: Stable node kind id stored in graph; migrate existing projects (done)
-- **D4**: Consolidate node registry (reduce remaining manual duplication) (not started)
+- **D4**: Consolidate node registry (reduce remaining manual duplication) (in progress: menu grouping + param_specs + compute_geometry + compute_splat + menu_group + ids moved into core registry; help pages moved into core; help summaries derived from help pages; param UI special-case labels/options removed in favor of ParamSpec; param visibility rules moved into ParamSpec + core templates)
 - **D5**: Shared scene types crate used by core/render/app (not started)
 - **D6**: Graph adjacency/index for input link lookup (not started)
 - **D7**: Texture decode cache (path + mtime / URL revision) (not started)

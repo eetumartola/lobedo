@@ -72,75 +72,14 @@ pub enum BuiltinNodeKind {
 
 impl BuiltinNodeKind {
     pub fn id(self) -> &'static str {
-        match self {
-            BuiltinNodeKind::Box => "builtin:box",
-            BuiltinNodeKind::Grid => "builtin:grid",
-            BuiltinNodeKind::Sphere => "builtin:sphere",
-            BuiltinNodeKind::Tube => "builtin:tube",
-            BuiltinNodeKind::Circle => "builtin:circle",
-            BuiltinNodeKind::Curve => "builtin:curve",
-            BuiltinNodeKind::Sweep => "builtin:sweep",
-            BuiltinNodeKind::File => "builtin:file",
-            BuiltinNodeKind::ReadSplats => "builtin:read_splats",
-            BuiltinNodeKind::WriteSplats => "builtin:write_splats",
-            BuiltinNodeKind::GltfOutput => "builtin:gltf_output",
-            BuiltinNodeKind::BooleanSdf => "builtin:boolean_sdf",
-            BuiltinNodeKind::BooleanGeo => "builtin:boolean_geo",
-            BuiltinNodeKind::Delete => "builtin:delete",
-            BuiltinNodeKind::Prune => "builtin:prune",
-            BuiltinNodeKind::Regularize => "builtin:regularize",
-            BuiltinNodeKind::SplatLod => "builtin:splat_lod",
-            BuiltinNodeKind::SplatToMesh => "builtin:splat_to_mesh",
-            BuiltinNodeKind::SplatDeform => "builtin:splat_deform",
-            BuiltinNodeKind::SplatDelight => "builtin:splat_delight",
-            BuiltinNodeKind::SplatIntegrate => "builtin:splat_integrate",
-            BuiltinNodeKind::SplatHeal => "builtin:splat_heal",
-            BuiltinNodeKind::SplatOutlier => "builtin:splat_outlier",
-            BuiltinNodeKind::SplatCluster => "builtin:splat_cluster",
-            BuiltinNodeKind::SplatMerge => "builtin:splat_merge",
-            BuiltinNodeKind::VolumeFromGeometry => "builtin:volume_from_geometry",
-            BuiltinNodeKind::VolumeCombine => "builtin:volume_combine",
-            BuiltinNodeKind::VolumeBlur => "builtin:volume_blur",
-            BuiltinNodeKind::VolumeToMesh => "builtin:volume_to_mesh",
-            BuiltinNodeKind::Group => "builtin:group",
-            BuiltinNodeKind::GroupExpand => "builtin:group_expand",
-            BuiltinNodeKind::Transform => "builtin:transform",
-            BuiltinNodeKind::Fuse => "builtin:fuse",
-            BuiltinNodeKind::Ffd => "builtin:ffd",
-            BuiltinNodeKind::CopyTransform => "builtin:copy_transform",
-            BuiltinNodeKind::Merge => "builtin:merge",
-            BuiltinNodeKind::CopyToPoints => "builtin:copy_to_points",
-            BuiltinNodeKind::Scatter => "builtin:scatter",
-            BuiltinNodeKind::Normal => "builtin:normal",
-            BuiltinNodeKind::PolyFrame => "builtin:polyframe",
-            BuiltinNodeKind::Color => "builtin:color",
-            BuiltinNodeKind::Noise => "builtin:noise",
-            BuiltinNodeKind::ErosionNoise => "builtin:erosion_noise",
-            BuiltinNodeKind::Smooth => "builtin:smooth",
-            BuiltinNodeKind::Resample => "builtin:resample",
-            BuiltinNodeKind::UvTexture => "builtin:uv_texture",
-            BuiltinNodeKind::UvUnwrap => "builtin:uv_unwrap",
-            BuiltinNodeKind::UvView => "builtin:uv_view",
-            BuiltinNodeKind::Material => "builtin:material",
-            BuiltinNodeKind::Ray => "builtin:ray",
-            BuiltinNodeKind::AttributeNoise => "builtin:attribute_noise",
-            BuiltinNodeKind::AttributePromote => "builtin:attribute_promote",
-            BuiltinNodeKind::AttributeExpand => "builtin:attribute_expand",
-            BuiltinNodeKind::AttributeFromFeature => "builtin:attribute_from_feature",
-            BuiltinNodeKind::AttributeFromVolume => "builtin:attribute_from_volume",
-            BuiltinNodeKind::AttributeTransfer => "builtin:attribute_transfer",
-            BuiltinNodeKind::AttributeMath => "builtin:attribute_math",
-            BuiltinNodeKind::Wrangle => "builtin:wrangle",
-            BuiltinNodeKind::ObjOutput => "builtin:obj_output",
-            BuiltinNodeKind::Output => "builtin:output",
-        }
+        node_spec(self).id
     }
 }
 
 pub fn builtin_kind_from_id(id: &str) -> Option<BuiltinNodeKind> {
     node_specs()
         .iter()
-        .find_map(|spec| (spec.kind.id() == id).then_some(spec.kind))
+        .find_map(|spec| (spec.id == id).then_some(spec.kind))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,11 +91,16 @@ pub enum InputPolicy {
 
 pub struct NodeSpec {
     pub kind: BuiltinNodeKind,
+    pub id: &'static str,
     pub name: &'static str,
     pub aliases: &'static [&'static str],
     pub definition: fn() -> NodeDefinition,
     pub default_params: fn() -> NodeParams,
+    pub param_specs: fn() -> Vec<ParamSpec>,
     pub compute_mesh: fn(&NodeParams, &[Mesh]) -> Result<Mesh, String>,
+    pub compute_geometry: fn(&NodeParams, &[Geometry]) -> Result<Geometry, String>,
+    pub compute_splat: fn(&NodeParams, &[SplatGeo]) -> Result<SplatGeo, String>,
+    pub menu_group: Option<&'static str>,
     pub input_policy: InputPolicy,
 }
 
@@ -203,548 +147,852 @@ fn mesh_error_attribute_from_volume(_params: &NodeParams, _inputs: &[Mesh]) -> R
 static NODE_SPECS: &[NodeSpec] = &[
     NodeSpec {
         kind: BuiltinNodeKind::Box,
+        id: "builtin:box",
         name: nodes::box_node::NAME,
         aliases: &[],
         definition: nodes::box_node::definition,
         default_params: nodes::box_node::default_params,
+        param_specs: nodes::box_node::param_specs,
         compute_mesh: nodes::box_node::compute,
+        compute_geometry: compute_geometry_box,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Grid,
+        id: "builtin:grid",
         name: nodes::grid::NAME,
         aliases: &[],
         definition: nodes::grid::definition,
         default_params: nodes::grid::default_params,
+        param_specs: nodes::grid::param_specs,
         compute_mesh: nodes::grid::compute,
+        compute_geometry: compute_geometry_grid,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Sphere,
+        id: "builtin:sphere",
         name: nodes::sphere::NAME,
         aliases: &[],
         definition: nodes::sphere::definition,
         default_params: nodes::sphere::default_params,
+        param_specs: nodes::sphere::param_specs,
         compute_mesh: nodes::sphere::compute,
+        compute_geometry: compute_geometry_sphere,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Tube,
+        id: "builtin:tube",
         name: nodes::tube::NAME,
         aliases: &[],
         definition: nodes::tube::definition,
         default_params: nodes::tube::default_params,
+        param_specs: nodes::tube::param_specs,
         compute_mesh: nodes::tube::compute,
+        compute_geometry: compute_geometry_tube,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Circle,
+        id: "builtin:circle",
         name: nodes::circle::NAME,
         aliases: &[],
         definition: nodes::circle::definition,
         default_params: nodes::circle::default_params,
+        param_specs: nodes::circle::param_specs,
         compute_mesh: nodes::circle::compute,
+        compute_geometry: compute_geometry_circle,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Curve,
+        id: "builtin:curve",
         name: nodes::curve::NAME,
         aliases: &[],
         definition: nodes::curve::definition,
         default_params: nodes::curve::default_params,
+        param_specs: nodes::curve::param_specs,
         compute_mesh: mesh_error_curve,
+        compute_geometry: compute_geometry_curve,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Sweep,
+        id: "builtin:sweep",
         name: nodes::sweep::NAME,
         aliases: &[],
         definition: nodes::sweep::definition,
         default_params: nodes::sweep::default_params,
+        param_specs: nodes::sweep::param_specs,
         compute_mesh: mesh_error_sweep,
+        compute_geometry: nodes::sweep::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::File,
+        id: "builtin:file",
         name: nodes::file::NAME,
         aliases: &[],
         definition: nodes::file::definition,
         default_params: nodes::file::default_params,
+        param_specs: nodes::file::param_specs,
         compute_mesh: nodes::file::compute,
+        compute_geometry: compute_geometry_file,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::ReadSplats,
+        id: "builtin:read_splats",
         name: nodes::read_splats::NAME,
         aliases: &[nodes::read_splats::LEGACY_NAME],
         definition: nodes::read_splats::definition,
         default_params: nodes::read_splats::default_params,
+        param_specs: nodes::read_splats::param_specs,
         compute_mesh: mesh_error_read_splats,
+        compute_geometry: compute_geometry_read_splats,
+        compute_splat: compute_splat_read_splats,
+        menu_group: Some("IO"),
         input_policy: InputPolicy::None,
     },
     NodeSpec {
         kind: BuiltinNodeKind::WriteSplats,
+        id: "builtin:write_splats",
         name: nodes::write_splats::NAME,
         aliases: &[nodes::write_splats::LEGACY_NAME],
         definition: nodes::write_splats::definition,
         default_params: nodes::write_splats::default_params,
+        param_specs: nodes::write_splats::param_specs,
         compute_mesh: mesh_error_write_splats,
+        compute_geometry: apply_write_splats,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::GltfOutput,
+        id: "builtin:gltf_output",
         name: nodes::gltf_output::NAME,
         aliases: &[],
         definition: nodes::gltf_output::definition,
         default_params: nodes::gltf_output::default_params,
+        param_specs: nodes::gltf_output::param_specs,
         compute_mesh: nodes::gltf_output::compute,
+        compute_geometry: apply_obj_output,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::BooleanSdf,
+        id: "builtin:boolean_sdf",
         name: nodes::boolean::NAME,
         aliases: &["Boolean"],
         definition: nodes::boolean::definition,
         default_params: nodes::boolean::default_params,
+        param_specs: nodes::boolean::param_specs,
         compute_mesh: nodes::boolean::compute,
+        compute_geometry: nodes::boolean::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::BooleanGeo,
+        id: "builtin:boolean_geo",
         name: nodes::boolean_geo::NAME,
         aliases: &[],
         definition: nodes::boolean_geo::definition,
         default_params: nodes::boolean_geo::default_params,
+        param_specs: nodes::boolean_geo::param_specs,
         compute_mesh: nodes::boolean_geo::compute,
+        compute_geometry: nodes::boolean_geo::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Delete,
+        id: "builtin:delete",
         name: nodes::delete::NAME,
         aliases: &[],
         definition: nodes::delete::definition,
         default_params: nodes::delete::default_params,
+        param_specs: nodes::delete::param_specs,
         compute_mesh: nodes::delete::compute,
+        compute_geometry: apply_delete,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Prune,
+        id: "builtin:prune",
         name: nodes::prune::NAME,
         aliases: &[nodes::prune::LEGACY_NAME],
         definition: nodes::prune::definition,
         default_params: nodes::prune::default_params,
+        param_specs: nodes::prune::param_specs,
         compute_mesh: nodes::prune::compute,
+        compute_geometry: apply_prune,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Regularize,
+        id: "builtin:regularize",
         name: nodes::regularize::NAME,
         aliases: &[nodes::regularize::LEGACY_NAME],
         definition: nodes::regularize::definition,
         default_params: nodes::regularize::default_params,
+        param_specs: nodes::regularize::param_specs,
         compute_mesh: nodes::regularize::compute,
+        compute_geometry: apply_regularize,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatLod,
+        id: "builtin:splat_lod",
         name: nodes::splat_lod::NAME,
         aliases: &[],
         definition: nodes::splat_lod::definition,
         default_params: nodes::splat_lod::default_params,
+        param_specs: nodes::splat_lod::param_specs,
         compute_mesh: nodes::splat_lod::compute,
+        compute_geometry: apply_splat_lod,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatToMesh,
+        id: "builtin:splat_to_mesh",
         name: nodes::splat_to_mesh::NAME,
         aliases: &[],
         definition: nodes::splat_to_mesh::definition,
         default_params: nodes::splat_to_mesh::default_params,
+        param_specs: nodes::splat_to_mesh::param_specs,
         compute_mesh: mesh_error_splat_to_mesh,
+        compute_geometry: nodes::splat_to_mesh::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatDeform,
+        id: "builtin:splat_deform",
         name: nodes::splat_deform::NAME,
         aliases: &[],
         definition: nodes::splat_deform::definition,
         default_params: nodes::splat_deform::default_params,
+        param_specs: nodes::splat_deform::param_specs,
         compute_mesh: nodes::splat_deform::compute,
+        compute_geometry: nodes::splat_deform::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatDelight,
+        id: "builtin:splat_delight",
         name: nodes::splat_delight::NAME,
         aliases: &[],
         definition: nodes::splat_delight::definition,
         default_params: nodes::splat_delight::default_params,
+        param_specs: nodes::splat_delight::param_specs,
         compute_mesh: nodes::splat_delight::compute,
+        compute_geometry: apply_splat_delight,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatIntegrate,
+        id: "builtin:splat_integrate",
         name: nodes::splat_integrate::NAME,
         aliases: &[],
         definition: nodes::splat_integrate::definition,
         default_params: nodes::splat_integrate::default_params,
+        param_specs: nodes::splat_integrate::param_specs,
         compute_mesh: nodes::splat_integrate::compute,
+        compute_geometry: nodes::splat_integrate::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatHeal,
+        id: "builtin:splat_heal",
         name: nodes::splat_heal::NAME,
         aliases: &[],
         definition: nodes::splat_heal::definition,
         default_params: nodes::splat_heal::default_params,
+        param_specs: nodes::splat_heal::param_specs,
         compute_mesh: nodes::splat_heal::compute,
+        compute_geometry: apply_splat_heal,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatOutlier,
+        id: "builtin:splat_outlier",
         name: nodes::splat_outlier::NAME,
         aliases: &[],
         definition: nodes::splat_outlier::definition,
         default_params: nodes::splat_outlier::default_params,
+        param_specs: nodes::splat_outlier::param_specs,
         compute_mesh: nodes::splat_outlier::compute,
+        compute_geometry: apply_splat_outlier,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatCluster,
+        id: "builtin:splat_cluster",
         name: nodes::splat_cluster::NAME,
         aliases: &[],
         definition: nodes::splat_cluster::definition,
         default_params: nodes::splat_cluster::default_params,
+        param_specs: nodes::splat_cluster::param_specs,
         compute_mesh: nodes::splat_cluster::compute,
+        compute_geometry: apply_splat_cluster,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatMerge,
+        id: "builtin:splat_merge",
         name: nodes::splat_merge::NAME,
         aliases: &[],
         definition: nodes::splat_merge::definition,
         default_params: nodes::splat_merge::default_params,
+        param_specs: nodes::splat_merge::param_specs,
         compute_mesh: nodes::splat_merge::compute,
+        compute_geometry: nodes::splat_merge::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::VolumeFromGeometry,
+        id: "builtin:volume_from_geometry",
         name: nodes::volume_from_geo::NAME,
         aliases: &[],
         definition: nodes::volume_from_geo::definition,
         default_params: nodes::volume_from_geo::default_params,
+        param_specs: nodes::volume_from_geo::param_specs,
         compute_mesh: mesh_error_volume_from_geo,
+        compute_geometry: nodes::volume_from_geo::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Volume"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::VolumeCombine,
+        id: "builtin:volume_combine",
         name: nodes::volume_combine::NAME,
         aliases: &[],
         definition: nodes::volume_combine::definition,
         default_params: nodes::volume_combine::default_params,
+        param_specs: nodes::volume_combine::param_specs,
         compute_mesh: mesh_error_volume_combine,
+        compute_geometry: nodes::volume_combine::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Volume"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::VolumeBlur,
+        id: "builtin:volume_blur",
         name: nodes::volume_blur::NAME,
         aliases: &[],
         definition: nodes::volume_blur::definition,
         default_params: nodes::volume_blur::default_params,
+        param_specs: nodes::volume_blur::param_specs,
         compute_mesh: mesh_error_volume_blur,
+        compute_geometry: nodes::volume_blur::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::VolumeToMesh,
+        id: "builtin:volume_to_mesh",
         name: nodes::volume_to_mesh::NAME,
         aliases: &[],
         definition: nodes::volume_to_mesh::definition,
         default_params: nodes::volume_to_mesh::default_params,
+        param_specs: nodes::volume_to_mesh::param_specs,
         compute_mesh: mesh_error_volume_to_mesh,
+        compute_geometry: nodes::volume_to_mesh::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Volume"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Group,
+        id: "builtin:group",
         name: nodes::group::NAME,
         aliases: &[],
         definition: nodes::group::definition,
         default_params: nodes::group::default_params,
+        param_specs: nodes::group::param_specs,
         compute_mesh: nodes::group::compute,
+        compute_geometry: apply_group,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::GroupExpand,
+        id: "builtin:group_expand",
         name: nodes::group_expand::NAME,
         aliases: &[],
         definition: nodes::group_expand::definition,
         default_params: nodes::group_expand::default_params,
+        param_specs: nodes::group_expand::param_specs,
         compute_mesh: nodes::group_expand::compute,
+        compute_geometry: apply_group_expand,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Transform,
+        id: "builtin:transform",
         name: nodes::transform::NAME,
         aliases: &[],
         definition: nodes::transform::definition,
         default_params: nodes::transform::default_params,
+        param_specs: nodes::transform::param_specs,
         compute_mesh: nodes::transform::compute,
+        compute_geometry: apply_transform,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Fuse,
+        id: "builtin:fuse",
         name: nodes::fuse::NAME,
         aliases: &[],
         definition: nodes::fuse::definition,
         default_params: nodes::fuse::default_params,
+        param_specs: nodes::fuse::param_specs,
         compute_mesh: nodes::fuse::compute,
+        compute_geometry: nodes::fuse::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Ffd,
+        id: "builtin:ffd",
         name: nodes::ffd::NAME,
         aliases: &[],
         definition: nodes::ffd::definition,
         default_params: nodes::ffd::default_params,
+        param_specs: nodes::ffd::param_specs,
         compute_mesh: nodes::ffd::compute,
+        compute_geometry: nodes::ffd::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::CopyTransform,
+        id: "builtin:copy_transform",
         name: nodes::copy_transform::NAME,
         aliases: &[],
         definition: nodes::copy_transform::definition,
         default_params: nodes::copy_transform::default_params,
+        param_specs: nodes::copy_transform::param_specs,
         compute_mesh: nodes::copy_transform::compute,
+        compute_geometry: apply_copy_transform,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Merge,
+        id: "builtin:merge",
         name: nodes::merge::NAME,
         aliases: &[],
         definition: nodes::merge::definition,
         default_params: nodes::merge::default_params,
+        param_specs: nodes::merge::param_specs,
         compute_mesh: nodes::merge::compute,
+        compute_geometry: compute_geometry_merge,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::CopyToPoints,
+        id: "builtin:copy_to_points",
         name: nodes::copy_to_points::NAME,
         aliases: &[],
         definition: nodes::copy_to_points::definition,
         default_params: nodes::copy_to_points::default_params,
+        param_specs: nodes::copy_to_points::param_specs,
         compute_mesh: nodes::copy_to_points::compute,
+        compute_geometry: apply_copy_to_points,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Scatter,
+        id: "builtin:scatter",
         name: nodes::scatter::NAME,
         aliases: &[],
         definition: nodes::scatter::definition,
         default_params: nodes::scatter::default_params,
+        param_specs: nodes::scatter::param_specs,
         compute_mesh: nodes::scatter::compute,
+        compute_geometry: nodes::scatter::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Normal,
+        id: "builtin:normal",
         name: nodes::normal::NAME,
         aliases: &[],
         definition: nodes::normal::definition,
         default_params: nodes::normal::default_params,
+        param_specs: nodes::normal::param_specs,
         compute_mesh: nodes::normal::compute,
+        compute_geometry: compute_geometry_normal,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::PolyFrame,
+        id: "builtin:polyframe",
         name: nodes::polyframe::NAME,
         aliases: &[],
         definition: nodes::polyframe::definition,
         default_params: nodes::polyframe::default_params,
+        param_specs: nodes::polyframe::param_specs,
         compute_mesh: nodes::polyframe::compute,
+        compute_geometry: nodes::polyframe::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Color,
+        id: "builtin:color",
         name: nodes::color::NAME,
         aliases: &[],
         definition: nodes::color::definition,
         default_params: nodes::color::default_params,
+        param_specs: nodes::color::param_specs,
         compute_mesh: nodes::color::compute,
+        compute_geometry: compute_geometry_color,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Noise,
+        id: "builtin:noise",
         name: nodes::noise::NAME,
         aliases: &[],
         definition: nodes::noise::definition,
         default_params: nodes::noise::default_params,
+        param_specs: nodes::noise::param_specs,
         compute_mesh: nodes::noise::compute,
+        compute_geometry: compute_geometry_noise,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::ErosionNoise,
+        id: "builtin:erosion_noise",
         name: nodes::erosion_noise::NAME,
         aliases: &[],
         definition: nodes::erosion_noise::definition,
         default_params: nodes::erosion_noise::default_params,
+        param_specs: nodes::erosion_noise::param_specs,
         compute_mesh: nodes::erosion_noise::compute,
+        compute_geometry: compute_geometry_erosion_noise,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Smooth,
+        id: "builtin:smooth",
         name: nodes::smooth::NAME,
         aliases: &[],
         definition: nodes::smooth::definition,
         default_params: nodes::smooth::default_params,
+        param_specs: nodes::smooth::param_specs,
         compute_mesh: nodes::smooth::compute,
+        compute_geometry: compute_geometry_smooth,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Resample,
+        id: "builtin:resample",
         name: nodes::resample::NAME,
         aliases: &[],
         definition: nodes::resample::definition,
         default_params: nodes::resample::default_params,
+        param_specs: nodes::resample::param_specs,
         compute_mesh: nodes::resample::compute,
+        compute_geometry: nodes::resample::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::UvTexture,
+        id: "builtin:uv_texture",
         name: nodes::uv_texture::NAME,
         aliases: &[],
         definition: nodes::uv_texture::definition,
         default_params: nodes::uv_texture::default_params,
+        param_specs: nodes::uv_texture::param_specs,
         compute_mesh: nodes::uv_texture::compute,
+        compute_geometry: compute_geometry_uv_texture,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::UvUnwrap,
+        id: "builtin:uv_unwrap",
         name: nodes::uv_unwrap::NAME,
         aliases: &[],
         definition: nodes::uv_unwrap::definition,
         default_params: nodes::uv_unwrap::default_params,
+        param_specs: nodes::uv_unwrap::param_specs,
         compute_mesh: nodes::uv_unwrap::compute,
+        compute_geometry: compute_geometry_uv_unwrap,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::UvView,
+        id: "builtin:uv_view",
         name: nodes::uv_view::NAME,
         aliases: &[],
         definition: nodes::uv_view::definition,
         default_params: nodes::uv_view::default_params,
+        param_specs: nodes::uv_view::param_specs,
         compute_mesh: nodes::uv_view::compute,
+        compute_geometry: compute_geometry_uv_view,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Material,
+        id: "builtin:material",
         name: nodes::material::NAME,
         aliases: &[],
         definition: nodes::material::definition,
         default_params: nodes::material::default_params,
+        param_specs: nodes::material::param_specs,
         compute_mesh: nodes::material::compute,
+        compute_geometry: nodes::material::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Materials"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Ray,
+        id: "builtin:ray",
         name: nodes::ray::NAME,
         aliases: &[],
         definition: nodes::ray::definition,
         default_params: nodes::ray::default_params,
+        param_specs: nodes::ray::param_specs,
         compute_mesh: nodes::ray::compute,
+        compute_geometry: nodes::ray::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeNoise,
+        id: "builtin:attribute_noise",
         name: nodes::attribute_noise::NAME,
         aliases: &[],
         definition: nodes::attribute_noise::definition,
         default_params: nodes::attribute_noise::default_params,
+        param_specs: nodes::attribute_noise::param_specs,
         compute_mesh: nodes::attribute_noise::compute,
+        compute_geometry: compute_geometry_attribute_noise,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributePromote,
+        id: "builtin:attribute_promote",
         name: nodes::attribute_promote::NAME,
         aliases: &[],
         definition: nodes::attribute_promote::definition,
         default_params: nodes::attribute_promote::default_params,
+        param_specs: nodes::attribute_promote::param_specs,
         compute_mesh: nodes::attribute_promote::compute,
+        compute_geometry: compute_geometry_attribute_promote,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeExpand,
+        id: "builtin:attribute_expand",
         name: nodes::attribute_expand::NAME,
         aliases: &[],
         definition: nodes::attribute_expand::definition,
         default_params: nodes::attribute_expand::default_params,
+        param_specs: nodes::attribute_expand::param_specs,
         compute_mesh: nodes::attribute_expand::compute,
+        compute_geometry: compute_geometry_attribute_expand,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeFromFeature,
+        id: "builtin:attribute_from_feature",
         name: nodes::attribute_from_feature::NAME,
         aliases: &[],
         definition: nodes::attribute_from_feature::definition,
         default_params: nodes::attribute_from_feature::default_params,
+        param_specs: nodes::attribute_from_feature::param_specs,
         compute_mesh: nodes::attribute_from_feature::compute,
+        compute_geometry: compute_geometry_attribute_from_feature,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeFromVolume,
+        id: "builtin:attribute_from_volume",
         name: nodes::attribute_from_volume::NAME,
         aliases: &[],
         definition: nodes::attribute_from_volume::definition,
         default_params: nodes::attribute_from_volume::default_params,
+        param_specs: nodes::attribute_from_volume::param_specs,
         compute_mesh: mesh_error_attribute_from_volume,
+        compute_geometry: nodes::attribute_from_volume::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeTransfer,
+        id: "builtin:attribute_transfer",
         name: nodes::attribute_transfer::NAME,
         aliases: &[],
         definition: nodes::attribute_transfer::definition,
         default_params: nodes::attribute_transfer::default_params,
+        param_specs: nodes::attribute_transfer::param_specs,
         compute_mesh: nodes::attribute_transfer::compute,
+        compute_geometry: apply_attribute_transfer,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::AttributeMath,
+        id: "builtin:attribute_math",
         name: nodes::attribute_math::NAME,
         aliases: &[],
         definition: nodes::attribute_math::definition,
         default_params: nodes::attribute_math::default_params,
+        param_specs: nodes::attribute_math::param_specs,
         compute_mesh: nodes::attribute_math::compute,
+        compute_geometry: compute_geometry_attribute_math,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Attribute"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Wrangle,
+        id: "builtin:wrangle",
         name: nodes::wrangle::NAME,
         aliases: &[],
         definition: nodes::wrangle::definition,
         default_params: nodes::wrangle::default_params,
+        param_specs: nodes::wrangle::param_specs,
         compute_mesh: nodes::wrangle::compute,
+        compute_geometry: nodes::wrangle::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::ObjOutput,
+        id: "builtin:obj_output",
         name: nodes::obj_output::NAME,
         aliases: &[],
         definition: nodes::obj_output::definition,
         default_params: nodes::obj_output::default_params,
+        param_specs: nodes::obj_output::param_specs,
         compute_mesh: nodes::obj_output::compute,
+        compute_geometry: apply_obj_output,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
         input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::Output,
+        id: "builtin:output",
         name: nodes::output::NAME,
         aliases: &[],
         definition: nodes::output::definition,
         default_params: nodes::output::default_params,
+        param_specs: nodes::output::param_specs,
         compute_mesh: nodes::output::compute,
+        compute_geometry: compute_geometry_output,
+        compute_splat: splat_error_not_output,
+        menu_group: None,
         input_policy: InputPolicy::RequireAll,
     },
 ];
 
 pub fn node_specs() -> &'static [NodeSpec] {
     NODE_SPECS
+}
+
+pub fn menu_group(kind: BuiltinNodeKind) -> Option<&'static str> {
+    node_spec(kind).menu_group
 }
 
 fn node_spec(kind: BuiltinNodeKind) -> &'static NodeSpec {
@@ -791,66 +1039,7 @@ pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
 }
 
 pub fn param_specs(kind: BuiltinNodeKind) -> Vec<ParamSpec> {
-    match kind {
-        BuiltinNodeKind::Box => nodes::box_node::param_specs(),
-        BuiltinNodeKind::Grid => nodes::grid::param_specs(),
-        BuiltinNodeKind::Sphere => nodes::sphere::param_specs(),
-        BuiltinNodeKind::Tube => nodes::tube::param_specs(),
-        BuiltinNodeKind::Circle => nodes::circle::param_specs(),
-        BuiltinNodeKind::Curve => nodes::curve::param_specs(),
-        BuiltinNodeKind::Sweep => nodes::sweep::param_specs(),
-        BuiltinNodeKind::File => nodes::file::param_specs(),
-        BuiltinNodeKind::ReadSplats => nodes::read_splats::param_specs(),
-        BuiltinNodeKind::WriteSplats => nodes::write_splats::param_specs(),
-        BuiltinNodeKind::GltfOutput => nodes::gltf_output::param_specs(),
-        BuiltinNodeKind::BooleanSdf => nodes::boolean::param_specs(),
-        BuiltinNodeKind::BooleanGeo => nodes::boolean_geo::param_specs(),
-        BuiltinNodeKind::Delete => nodes::delete::param_specs(),
-        BuiltinNodeKind::Prune => nodes::prune::param_specs(),
-        BuiltinNodeKind::Regularize => nodes::regularize::param_specs(),
-        BuiltinNodeKind::SplatLod => nodes::splat_lod::param_specs(),
-        BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::param_specs(),
-        BuiltinNodeKind::SplatDeform => nodes::splat_deform::param_specs(),
-        BuiltinNodeKind::SplatDelight => nodes::splat_delight::param_specs(),
-        BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::param_specs(),
-        BuiltinNodeKind::SplatHeal => nodes::splat_heal::param_specs(),
-        BuiltinNodeKind::SplatOutlier => nodes::splat_outlier::param_specs(),
-        BuiltinNodeKind::SplatCluster => nodes::splat_cluster::param_specs(),
-        BuiltinNodeKind::SplatMerge => nodes::splat_merge::param_specs(),
-        BuiltinNodeKind::Group => nodes::group::param_specs(),
-        BuiltinNodeKind::GroupExpand => nodes::group_expand::param_specs(),
-        BuiltinNodeKind::Material => nodes::material::param_specs(),
-        BuiltinNodeKind::VolumeFromGeometry => nodes::volume_from_geo::param_specs(),
-        BuiltinNodeKind::VolumeCombine => nodes::volume_combine::param_specs(),
-        BuiltinNodeKind::VolumeBlur => nodes::volume_blur::param_specs(),
-        BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::param_specs(),
-        BuiltinNodeKind::Transform => nodes::transform::param_specs(),
-        BuiltinNodeKind::CopyTransform => nodes::copy_transform::param_specs(),
-        BuiltinNodeKind::Fuse => nodes::fuse::param_specs(),
-        BuiltinNodeKind::Ffd => nodes::ffd::param_specs(),
-        BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::param_specs(),
-        BuiltinNodeKind::PolyFrame => nodes::polyframe::param_specs(),
-        BuiltinNodeKind::Normal => nodes::normal::param_specs(),
-        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::param_specs(),
-        BuiltinNodeKind::AttributePromote => nodes::attribute_promote::param_specs(),
-        BuiltinNodeKind::AttributeExpand => nodes::attribute_expand::param_specs(),
-        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::param_specs(),
-        BuiltinNodeKind::AttributeFromVolume => nodes::attribute_from_volume::param_specs(),
-        BuiltinNodeKind::AttributeMath => nodes::attribute_math::param_specs(),
-        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::param_specs(),
-        BuiltinNodeKind::Color => nodes::color::param_specs(),
-        BuiltinNodeKind::Noise => nodes::noise::param_specs(),
-        BuiltinNodeKind::ErosionNoise => nodes::erosion_noise::param_specs(),
-        BuiltinNodeKind::Ray => nodes::ray::param_specs(),
-        BuiltinNodeKind::UvTexture => nodes::uv_texture::param_specs(),
-        BuiltinNodeKind::UvUnwrap => nodes::uv_unwrap::param_specs(),
-        BuiltinNodeKind::Smooth => nodes::smooth::param_specs(),
-        BuiltinNodeKind::Scatter => nodes::scatter::param_specs(),
-        BuiltinNodeKind::Resample => nodes::resample::param_specs(),
-        BuiltinNodeKind::Wrangle => nodes::wrangle::param_specs(),
-        BuiltinNodeKind::ObjOutput => nodes::obj_output::param_specs(),
-        _ => Vec::new(),
-    }
+    (node_spec(kind).param_specs)()
 }
 
 pub fn param_specs_for_name(name: &str) -> Vec<ParamSpec> {
@@ -878,88 +1067,149 @@ pub fn compute_geometry_node(
     params: &NodeParams,
     inputs: &[Geometry],
 ) -> Result<Geometry, String> {
-    match kind {
-        BuiltinNodeKind::Box => Ok(Geometry::with_mesh(nodes::box_node::compute(params, &[])?)),
-        BuiltinNodeKind::Grid => Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?)),
-        BuiltinNodeKind::Sphere => Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?)),
-        BuiltinNodeKind::Tube => Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?)),
-        BuiltinNodeKind::Circle => nodes::circle::apply_to_geometry(params),
-        BuiltinNodeKind::Curve => {
-            let output = nodes::curve::compute(params)?;
-            Ok(Geometry::with_curve(output.points, output.closed))
-        }
-        BuiltinNodeKind::Sweep => nodes::sweep::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::File => Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?)),
-        BuiltinNodeKind::ReadSplats => {
-            Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
-        }
-        BuiltinNodeKind::WriteSplats => apply_write_splats(params, inputs),
-        BuiltinNodeKind::BooleanSdf => nodes::boolean::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::BooleanGeo => nodes::boolean_geo::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Delete => apply_delete(params, inputs),
-        BuiltinNodeKind::Prune => apply_prune(params, inputs),
-        BuiltinNodeKind::Regularize => apply_regularize(params, inputs),
-        BuiltinNodeKind::SplatLod => apply_splat_lod(params, inputs),
-        BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::SplatDeform => nodes::splat_deform::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::SplatDelight => apply_splat_delight(params, inputs),
-        BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::SplatHeal => apply_splat_heal(params, inputs),
-        BuiltinNodeKind::SplatOutlier => apply_splat_outlier(params, inputs),
-        BuiltinNodeKind::SplatCluster => apply_splat_cluster(params, inputs),
-        BuiltinNodeKind::SplatMerge => nodes::splat_merge::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::VolumeFromGeometry => {
-            nodes::volume_from_geo::apply_to_geometry(params, inputs)
-        }
-        BuiltinNodeKind::VolumeCombine => nodes::volume_combine::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::VolumeBlur => nodes::volume_blur::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Group => apply_group(params, inputs),
-        BuiltinNodeKind::GroupExpand => apply_group_expand(params, inputs),
-        BuiltinNodeKind::Transform => apply_transform(params, inputs),
-        BuiltinNodeKind::Fuse => nodes::fuse::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Ffd => nodes::ffd::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::CopyTransform => apply_copy_transform(params, inputs),
-        BuiltinNodeKind::Ray => nodes::ray::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Material => nodes::material::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Scatter => nodes::scatter::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Resample => nodes::resample::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::PolyFrame => nodes::polyframe::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::Normal
-        | BuiltinNodeKind::Color
-        | BuiltinNodeKind::Noise
-        | BuiltinNodeKind::ErosionNoise
-        | BuiltinNodeKind::Smooth
-        | BuiltinNodeKind::UvTexture
-        | BuiltinNodeKind::UvUnwrap
-        | BuiltinNodeKind::UvView
-        | BuiltinNodeKind::AttributeNoise
-        | BuiltinNodeKind::AttributePromote
-        | BuiltinNodeKind::AttributeExpand
-        | BuiltinNodeKind::AttributeFromFeature
-        | BuiltinNodeKind::AttributeMath => apply_mesh_unary(kind, params, inputs),
-        BuiltinNodeKind::Wrangle => nodes::wrangle::apply_to_geometry(params, inputs),
-        BuiltinNodeKind::AttributeTransfer => apply_attribute_transfer(params, inputs),
-        BuiltinNodeKind::AttributeFromVolume => {
-            nodes::attribute_from_volume::apply_to_geometry(params, inputs)
-        }
-        BuiltinNodeKind::CopyToPoints => apply_copy_to_points(params, inputs),
-        BuiltinNodeKind::Merge => merge_geometry(inputs),
-        BuiltinNodeKind::ObjOutput => apply_obj_output(params, inputs),
-        BuiltinNodeKind::GltfOutput => apply_obj_output(params, inputs),
-        BuiltinNodeKind::Output => Ok(inputs.first().cloned().unwrap_or_default()),
-    }
+    (node_spec(kind).compute_geometry)(params, inputs)
+}
+
+fn compute_geometry_box(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(Geometry::with_mesh(nodes::box_node::compute(params, &[])?))
+}
+
+fn compute_geometry_grid(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(Geometry::with_mesh(nodes::grid::compute(params, &[])?))
+}
+
+fn compute_geometry_sphere(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(Geometry::with_mesh(nodes::sphere::compute(params, &[])?))
+}
+
+fn compute_geometry_tube(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(Geometry::with_mesh(nodes::tube::compute(params, &[])?))
+}
+
+fn compute_geometry_circle(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    nodes::circle::apply_to_geometry(params)
+}
+
+fn compute_geometry_curve(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    let output = nodes::curve::compute(params)?;
+    Ok(Geometry::with_curve(output.points, output.closed))
+}
+
+fn compute_geometry_file(params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(Geometry::with_mesh(nodes::file::compute(params, &[])?))
+}
+
+fn compute_geometry_read_splats(
+    params: &NodeParams,
+    _inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
+}
+
+fn compute_geometry_merge(_params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    merge_geometry(inputs)
+}
+
+fn compute_geometry_output(_params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    Ok(inputs.first().cloned().unwrap_or_default())
+}
+
+fn compute_geometry_normal(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::Normal, params, inputs)
+}
+
+fn compute_geometry_color(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::Color, params, inputs)
+}
+
+fn compute_geometry_noise(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::Noise, params, inputs)
+}
+
+fn compute_geometry_erosion_noise(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::ErosionNoise, params, inputs)
+}
+
+fn compute_geometry_smooth(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::Smooth, params, inputs)
+}
+
+fn compute_geometry_uv_texture(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::UvTexture, params, inputs)
+}
+
+fn compute_geometry_uv_unwrap(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::UvUnwrap, params, inputs)
+}
+
+fn compute_geometry_uv_view(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::UvView, params, inputs)
+}
+
+fn compute_geometry_attribute_noise(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::AttributeNoise, params, inputs)
+}
+
+fn compute_geometry_attribute_promote(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::AttributePromote, params, inputs)
+}
+
+fn compute_geometry_attribute_expand(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::AttributeExpand, params, inputs)
+}
+
+fn compute_geometry_attribute_from_feature(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::AttributeFromFeature, params, inputs)
+}
+
+fn compute_geometry_attribute_math(
+    params: &NodeParams,
+    inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    apply_mesh_unary(BuiltinNodeKind::AttributeMath, params, inputs)
 }
 
 pub fn compute_splat_node(
     kind: BuiltinNodeKind,
     params: &NodeParams,
+    inputs: &[SplatGeo],
+) -> Result<SplatGeo, String> {
+    (node_spec(kind).compute_splat)(params, inputs)
+}
+
+fn compute_splat_read_splats(
+    params: &NodeParams,
     _inputs: &[SplatGeo],
 ) -> Result<SplatGeo, String> {
-    match kind {
-        BuiltinNodeKind::ReadSplats => nodes::read_splats::compute(params),
-        _ => Err("Node does not produce splats".to_string()),
-    }
+    nodes::read_splats::compute(params)
+}
+
+fn splat_error_not_output(
+    _params: &NodeParams,
+    _inputs: &[SplatGeo],
+) -> Result<SplatGeo, String> {
+    Err("Node does not produce splats".to_string())
 }
 
 fn apply_mesh_unary(
@@ -1469,3 +1719,14 @@ mod tests {
         assert!(mesh.normals.is_some());
     }
 }
+
+
+
+
+
+
+
+
+
+
+

@@ -1,8 +1,10 @@
-use super::NodeHelpPage;
+use crate::nodes_builtin::BuiltinNodeKind;
 
-pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
-    match node_name {
-        "Volume from Geometry" => Some(NodeHelpPage {
+use crate::node_help::NodeHelpPage;
+
+pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
+    match kind {
+        BuiltinNodeKind::VolumeFromGeometry => Some(NodeHelpPage {
             name: "Volume from Geometry",
             description: &[
                 "Voxelizes geometry into a regular grid volume.",
@@ -19,7 +21,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("sdf_band", "SDF band width for rendering."),
             ],
         }),
-        "Volume Combine" => Some(NodeHelpPage {
+        BuiltinNodeKind::VolumeCombine => Some(NodeHelpPage {
             name: "Volume Combine",
             description: &[
                 "Combines two volumes into a single volume by resampling them onto a shared grid.",
@@ -33,7 +35,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("resolution", "Resolution: Lower, Higher, or Average."),
             ],
         }),
-        "Volume Blur" => Some(NodeHelpPage {
+        BuiltinNodeKind::VolumeBlur => Some(NodeHelpPage {
             name: "Volume Blur",
             description: &[
                 "Blurs volume values over a radius in world space.",
@@ -47,7 +49,7 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
                 ("iterations", "Number of blur passes."),
             ],
         }),
-        "Volume to Mesh" => Some(NodeHelpPage {
+        BuiltinNodeKind::VolumeToMesh => Some(NodeHelpPage {
             name: "Volume to Mesh",
             description: &[
                 "Extracts a surface from a volume using marching cubes.",
@@ -65,3 +67,4 @@ pub fn node_help_page(node_name: &str) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
+
