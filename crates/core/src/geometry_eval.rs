@@ -75,7 +75,7 @@ pub fn evaluate_geometry_graph_with_progress(
                 .pin(*pin_id)
                 .ok_or_else(|| "missing input pin".to_string())?;
             input_names.push(pin.name.clone());
-            let link = graph.links().find(|link| link.to == *pin_id);
+            let link = graph.input_link(*pin_id);
             let geometry = if let Some(link) = link {
                 let from_pin = graph
                     .pin(link.from)

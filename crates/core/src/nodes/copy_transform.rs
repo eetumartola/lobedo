@@ -6,6 +6,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::transform;
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::param_templates;
 
@@ -92,12 +93,12 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         return Ok(Mesh::default());
     }
 
-    let mut copies = Vec::with_capacity(matrices.len());
-    for matrix in matrices {
+    let mut copies: Vec<Mesh> = (0..matrices.len()).map(|_| Mesh::default()).collect();
+    parallel::for_each_indexed_mut(&mut copies, |idx, slot| {
         let mut mesh = input.clone();
-        mesh.transform(matrix);
-        copies.push(mesh);
-    }
+        mesh.transform(matrices[idx]);
+        *slot = mesh;
+    });
     Ok(Mesh::merge(&copies))
 }
 

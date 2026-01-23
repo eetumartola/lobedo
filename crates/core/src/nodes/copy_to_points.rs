@@ -13,6 +13,7 @@ use crate::nodes::{
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::param_templates;
 use crate::splat::SplatGeo;
@@ -250,24 +251,37 @@ fn compute_mesh_from_template(
 
     let settings = copy_settings(params);
     let (copy_attr, copy_attr_domain) = copy_attr_info(params);
-    let mut copies = Vec::with_capacity(template.selected.len());
-    for (copy_idx, idx) in template.selected.into_iter().enumerate() {
+    let TemplateData {
+        positions,
+        normals,
+        selected,
+        pscale_point,
+        pscale_detail,
+        inherit_sources,
+    } = template;
+    let normals = normals.as_deref();
+    let pscale_point = pscale_point.as_ref();
+    let pscale_detail = pscale_detail.as_ref();
+    let mut copies: Vec<Mesh> = (0..selected.len()).map(|_| Mesh::default()).collect();
+    parallel::try_for_each_indexed_mut(&mut copies, |copy_idx, slot| {
+        let idx = selected[copy_idx];
         let matrix = build_copy_matrix(
             &settings,
-            template.positions,
-            template.normals.as_deref(),
+            positions,
+            normals,
             idx,
-            template.pscale_point.as_ref(),
-            template.pscale_detail.as_ref(),
+            pscale_point,
+            pscale_detail,
         );
         let mut mesh = source.clone();
         mesh.transform(matrix);
-        apply_inherit_attributes(&mut mesh, &template.inherit_sources, idx)?;
+        apply_inherit_attributes(&mut mesh, &inherit_sources, idx)?;
         if !copy_attr.is_empty() {
             apply_copy_index_attribute(&mut mesh, &copy_attr, copy_attr_domain, copy_idx)?;
         }
-        copies.push(mesh);
-    }
+        *slot = mesh;
+        Ok::<(), String>(())
+    })?;
     Ok(Mesh::merge(&copies))
 }
 
@@ -282,19 +296,31 @@ fn compute_splats_from_template(
 
     let settings = copy_settings(params);
     let (copy_attr, copy_attr_domain) = copy_attr_info(params);
-    let mut copies = Vec::with_capacity(template.selected.len());
-    for (copy_idx, idx) in template.selected.into_iter().enumerate() {
+    let TemplateData {
+        positions,
+        normals,
+        selected,
+        pscale_point,
+        pscale_detail,
+        inherit_sources,
+    } = template;
+    let normals = normals.as_deref();
+    let pscale_point = pscale_point.as_ref();
+    let pscale_detail = pscale_detail.as_ref();
+    let mut copies: Vec<SplatGeo> = (0..selected.len()).map(|_| SplatGeo::default()).collect();
+    parallel::try_for_each_indexed_mut(&mut copies, |copy_idx, slot| {
+        let idx = selected[copy_idx];
         let matrix = build_copy_matrix(
             &settings,
-            template.positions,
-            template.normals.as_deref(),
+            positions,
+            normals,
             idx,
-            template.pscale_point.as_ref(),
-            template.pscale_detail.as_ref(),
+            pscale_point,
+            pscale_detail,
         );
         let mut splats = source.clone();
         splats.transform(matrix);
-        apply_inherit_attributes_splats(&mut splats, &template.inherit_sources, idx)?;
+        apply_inherit_attributes_splats(&mut splats, &inherit_sources, idx)?;
         if !copy_attr.is_empty() {
             apply_copy_index_attribute_splats(
                 &mut splats,
@@ -303,8 +329,9 @@ fn compute_splats_from_template(
                 copy_idx,
             )?;
         }
-        copies.push(splats);
-    }
+        *slot = splats;
+        Ok::<(), String>(())
+    })?;
     Ok(merge_splats(&copies))
 }
 

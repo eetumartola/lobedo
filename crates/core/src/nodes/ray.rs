@@ -19,6 +19,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
@@ -192,20 +193,21 @@ fn apply_to_mesh_with_targets(
     };
 
     let mut hits = vec![None; mesh.positions.len()];
-    for (idx, position) in mesh.positions.iter().enumerate() {
+    let positions = mesh.positions.as_slice();
+    let mask = mask.as_deref();
+    let point_normals = point_normals.as_deref();
+    parallel::for_each_indexed_mut(&mut hits, |idx, slot| {
         if mask
-            .as_ref()
             .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
         {
-            continue;
+            return;
         }
-        let origin = Vec3::from(*position);
+        let origin = Vec3::from(positions[idx]);
         let dir = match method {
             RayMethod::Closest => None,
             RayMethod::Direction => Some(direction_param),
             RayMethod::Normal => {
                 let normal = point_normals
-                    .as_ref()
                     .and_then(|values| values.get(idx).copied())
                     .unwrap_or(direction_param);
                 Some(normal)
@@ -228,17 +230,15 @@ fn apply_to_mesh_with_targets(
                     )
                 }),
         };
-        hits[idx] = hit;
-    }
+        *slot = hit;
+    });
 
     if apply_transform {
-        for (idx, hit) in hits.iter().enumerate() {
-            if let Some(hit) = hit {
-                if let Some(slot) = mesh.positions.get_mut(idx) {
-                    *slot = hit.position.into();
-                }
+        parallel::for_each_indexed_mut(&mut mesh.positions, |idx, slot| {
+            if let Some(Some(hit)) = hits.get(idx) {
+                *slot = hit.position.into();
             }
-        }
+        });
         recompute_mesh_normals(mesh);
     }
 
@@ -279,20 +279,21 @@ fn apply_to_splats_with_targets(
     };
 
     let mut hits = vec![None; splats.positions.len()];
-    for (idx, position) in splats.positions.iter().enumerate() {
+    let positions = splats.positions.as_slice();
+    let mask = mask.as_deref();
+    let point_normals = point_normals.as_deref();
+    parallel::for_each_indexed_mut(&mut hits, |idx, slot| {
         if mask
-            .as_ref()
             .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
         {
-            continue;
+            return;
         }
-        let origin = Vec3::from(*position);
+        let origin = Vec3::from(positions[idx]);
         let dir = match method {
             RayMethod::Closest => None,
             RayMethod::Direction => Some(direction_param),
             RayMethod::Normal => {
                 let normal = point_normals
-                    .as_ref()
                     .and_then(|values| values.get(idx).copied())
                     .unwrap_or(direction_param);
                 Some(normal)
@@ -315,17 +316,15 @@ fn apply_to_splats_with_targets(
                     )
                 }),
         };
-        hits[idx] = hit;
-    }
+        *slot = hit;
+    });
 
     if apply_transform {
-        for (idx, hit) in hits.iter().enumerate() {
-            if let Some(hit) = hit {
-                if let Some(slot) = splats.positions.get_mut(idx) {
-                    *slot = hit.position.into();
-                }
+        parallel::for_each_indexed_mut(&mut splats.positions, |idx, slot| {
+            if let Some(Some(hit)) = hits.get(idx) {
+                *slot = hit.position.into();
             }
-        }
+        });
     }
 
     apply_hit_group(splats.groups.map_mut(AttributeDomain::Point), params, &hits);

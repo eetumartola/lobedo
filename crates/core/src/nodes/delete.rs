@@ -10,6 +10,7 @@ use crate::nodes::{
     require_mesh_input,
     selection_shape_params,
 };
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::param_templates;
 
@@ -73,11 +74,11 @@ fn delete_mesh_with_mapping(params: &NodeParams, mesh: &Mesh) -> DeleteResult {
     let shape = params.get_string("shape", "box");
     let invert = params.get_bool("invert", false);
 
-    let mut keep_points = Vec::with_capacity(mesh.positions.len());
-    for position in &mesh.positions {
-        let inside = is_inside(params, shape, Vec3::from(*position));
-        keep_points.push(if invert { inside } else { !inside });
-    }
+    let mut keep_points = vec![false; mesh.positions.len()];
+    parallel::for_each_indexed_mut(&mut keep_points, |idx, keep| {
+        let inside = is_inside(params, shape, Vec3::from(mesh.positions[idx]));
+        *keep = if invert { inside } else { !inside };
+    });
 
     if let Some(mask) = mesh_group_mask(mesh, params, AttributeDomain::Point) {
         for (idx, keep) in keep_points.iter_mut().enumerate() {

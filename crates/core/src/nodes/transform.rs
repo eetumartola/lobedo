@@ -6,6 +6,7 @@ use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::param_templates;
 
@@ -90,19 +91,19 @@ fn apply_transform_mask(mesh: &mut Mesh, matrix: Mat4, mask: &[bool]) {
         mesh.transform(matrix);
         return;
     }
-    for (idx, pos) in mesh.positions.iter_mut().enumerate() {
+    parallel::for_each_indexed_mut(&mut mesh.positions, |idx, pos| {
         if !mask[idx] {
-            continue;
+            return;
         }
         let v = matrix.transform_point3(Vec3::from(*pos));
         *pos = v.to_array();
-    }
+    });
 
     let normal_matrix = matrix.inverse().transpose();
     if let Some(normals) = &mut mesh.normals {
-        for (idx, n) in normals.iter_mut().enumerate() {
+        parallel::for_each_indexed_mut(normals, |idx, n| {
             if !mask.get(idx).copied().unwrap_or(false) {
-                continue;
+                return;
             }
             let v = normal_matrix.transform_vector3(Vec3::from(*n));
             let len = v.length();
@@ -111,14 +112,15 @@ fn apply_transform_mask(mesh: &mut Mesh, matrix: Mat4, mask: &[bool]) {
             } else {
                 [0.0, 1.0, 0.0]
             };
-        }
+        });
     }
 
     if let Some(corner_normals) = &mut mesh.corner_normals {
-        for (idx, n) in corner_normals.iter_mut().enumerate() {
-            let point = mesh.indices.get(idx).copied().unwrap_or(0) as usize;
+        let indices = mesh.indices.as_slice();
+        parallel::for_each_indexed_mut(corner_normals, |idx, n| {
+            let point = indices.get(idx).copied().unwrap_or(0) as usize;
             if !mask.get(point).copied().unwrap_or(false) {
-                continue;
+                return;
             }
             let v = normal_matrix.transform_vector3(Vec3::from(*n));
             let len = v.length();
@@ -127,7 +129,7 @@ fn apply_transform_mask(mesh: &mut Mesh, matrix: Mat4, mask: &[bool]) {
             } else {
                 [0.0, 1.0, 0.0]
             };
-        }
+        });
     }
 }
 

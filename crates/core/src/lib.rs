@@ -75,7 +75,9 @@ pub use project::{
     ShadingMode, SplatShadingMode, PROJECT_VERSION,
 };
 pub use scene::{
-    SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats, SceneVolume,
+    scene_mesh_from_mesh, scene_snapshot_from_geometry, scene_snapshot_from_mesh,
+    scene_snapshot_from_splats, SceneCurve, SceneDrawable, SceneMesh, SceneSnapshot, SceneSplats,
+    SceneVolume, SceneVolumeKind, SceneMaterial,
 };
 pub use splat::{save_splat_ply_with_format, SplatGeo, SplatSaveFormat};
 pub use splat_eval::{evaluate_splat_graph, SplatEvalResult, SplatEvalState};

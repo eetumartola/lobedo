@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+lobedo_scene = { path = "../scene" }
 egui = "0.33"
 egui-wgpu = "0.33"
 glam = "0.27"

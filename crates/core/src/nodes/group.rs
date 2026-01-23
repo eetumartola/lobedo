@@ -5,6 +5,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::groups::build_group_mask;
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input, selection_shape_params};
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::param_templates;
 use crate::splat::SplatGeo;
@@ -115,11 +116,10 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
         let max = params.get_float("attr_max", 1.0);
         attribute_range_mask_mesh(mesh, domain, attr.trim(), min, max)?
     } else {
-        let mut mask = Vec::with_capacity(len);
-        for idx in 0..len {
-            let keep = element_inside_mesh(mesh, domain, idx, params, shape);
-            mask.push(keep);
-        }
+        let mut mask = vec![false; len];
+        parallel::for_each_indexed_mut(&mut mask, |idx, slot| {
+            *slot = element_inside_mesh(mesh, domain, idx, params, shape);
+        });
         mask
     };
     if !shape.eq_ignore_ascii_case("selection") {
@@ -178,11 +178,12 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         let max = params.get_float("attr_max", 1.0);
         attribute_range_mask_splats(splats, domain, attr.trim(), min, max)?
     } else {
-        let mut mask = Vec::with_capacity(len);
-        for position in &splats.positions {
-            let keep = crate::nodes::delete::is_inside(params, shape, Vec3::from(*position));
-            mask.push(keep);
-        }
+        let mut mask = vec![false; len];
+        parallel::for_each_indexed_mut(&mut mask, |idx, slot| {
+            let keep =
+                crate::nodes::delete::is_inside(params, shape, Vec3::from(splats.positions[idx]));
+            *slot = keep;
+        });
         mask
     };
     if !shape.eq_ignore_ascii_case("selection") {
@@ -281,13 +282,13 @@ fn attribute_range_mask_mesh(
         return Err(format!("Group attribute selection missing attribute '{attr}'"));
     };
     let len = mesh.attribute_domain_len(domain);
-    Ok((0..len)
-        .map(|idx| {
-            attribute_value(values, idx)
-                .map(|value| value >= min && value <= max)
-                .unwrap_or(false)
-        })
-        .collect())
+    let mut mask = vec![false; len];
+    parallel::for_each_indexed_mut(&mut mask, |idx, slot| {
+        *slot = attribute_value(values, idx)
+            .map(|value| value >= min && value <= max)
+            .unwrap_or(false);
+    });
+    Ok(mask)
 }
 
 fn attribute_range_mask_splats(
@@ -304,13 +305,13 @@ fn attribute_range_mask_splats(
         return Err(format!("Group attribute selection missing attribute '{attr}'"));
     };
     let len = splats.attribute_domain_len(domain);
-    Ok((0..len)
-        .map(|idx| {
-            attribute_value(values, idx)
-                .map(|value| value >= min && value <= max)
-                .unwrap_or(false)
-        })
-        .collect())
+    let mut mask = vec![false; len];
+    parallel::for_each_indexed_mut(&mut mask, |idx, slot| {
+        *slot = attribute_value(values, idx)
+            .map(|value| value >= min && value <= max)
+            .unwrap_or(false);
+    });
+    Ok(mask)
 }
 
 fn attribute_value(values: AttributeRef<'_>, index: usize) -> Option<f32> {

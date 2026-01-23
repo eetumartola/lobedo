@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::time::Duration;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, SystemTime};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread;
 
@@ -13,13 +14,12 @@ use web_time::Instant;
 
 use lobedo_core::{
     build_skirt_preview_mesh, evaluate_geometry_graph_with_progress,
-    BuiltinNodeKind, Geometry, GeometryEvalState, Mesh, NodeId, ProgressSink, SceneCurve,
-    SceneDrawable, SceneSnapshot, SceneSplats, SceneVolume,
-    ShadingMode, SplatShadingMode, VolumeKind,
+    scene_mesh_from_mesh, scene_snapshot_from_geometry, BuiltinNodeKind, Geometry,
+    GeometryEvalState, Mesh, NodeId, ProgressSink, SceneDrawable, SceneSnapshot, ShadingMode,
+    SplatShadingMode,
 };
 use render::{
-    RenderCurve, RenderDrawable, RenderMaterial, RenderMesh, RenderScene, RenderSplats,
-    RenderTexture, RenderVolume, RenderVolumeKind, SelectionShape, ViewportDebug,
+    RenderMaterial, RenderMesh, RenderScene, RenderTexture, SelectionShape, ViewportDebug,
     ViewportShadingMode, ViewportSplatShadingMode,
 };
 
@@ -386,7 +386,7 @@ fn run_eval_job(
 
     if output_valid {
         if let Some(geometry) = output.as_ref() {
-            let snapshot = SceneSnapshot::from_geometry(geometry, [0.7, 0.72, 0.75]);
+            let snapshot = scene_snapshot_from_geometry(geometry, [0.7, 0.72, 0.75]);
             template_mesh = collect_template_meshes(
                 &graph,
                 display_node,
@@ -405,7 +405,7 @@ fn run_eval_job(
             let merged_template = merge_optional_meshes(template_mesh.clone(), preview);
             let selection_shape = selection_shape_for_node(&graph, selected_node);
             scene = Some(scene_to_render_with_template(
-                &snapshot,
+                snapshot,
                 merged_template.as_ref(),
                 selection_shape,
             ));
@@ -431,30 +431,16 @@ fn run_eval_job(
 }
 
 pub(super) fn scene_to_render_with_template(
-    scene: &SceneSnapshot,
+    scene: SceneSnapshot,
     template: Option<&Mesh>,
     selection_shape: Option<SelectionShape>,
 ) -> RenderScene {
-    let mut drawables = Vec::new();
-    let mut mesh_has_colors = false;
-    for drawable in &scene.drawables {
-        match drawable {
-            SceneDrawable::Mesh(mesh) => {
-                mesh_has_colors |=
-                    mesh.colors.is_some() || mesh.corner_colors.is_some();
-                drawables.push(RenderDrawable::Mesh(render_mesh_from_scene(mesh)));
-            }
-            SceneDrawable::Splats(splats) => {
-                drawables.push(RenderDrawable::Splats(render_splats_from_scene(splats)));
-            }
-            SceneDrawable::Curve(curve) => {
-                drawables.push(RenderDrawable::Curve(render_curve_from_scene(curve)));
-            }
-            SceneDrawable::Volume(volume) => {
-                drawables.push(RenderDrawable::Volume(render_volume_from_scene(volume)));
-            }
+    let mesh_has_colors = scene.drawables.iter().any(|drawable| match drawable {
+        SceneDrawable::Mesh(mesh) => {
+            mesh.colors.is_some() || mesh.corner_colors.is_some()
         }
-    }
+        _ => false,
+    });
 
     let base_color = if mesh_has_colors || !scene.materials.is_empty() {
         [1.0, 1.0, 1.0]
@@ -462,7 +448,8 @@ pub(super) fn scene_to_render_with_template(
         scene.base_color
     };
 
-    let (materials, textures) = render_materials_from_scene(scene);
+    let (materials, textures) = render_materials_from_scene(&scene);
+    let SceneSnapshot { drawables, .. } = scene;
 
     RenderScene {
         drawables,
@@ -474,93 +461,25 @@ pub(super) fn scene_to_render_with_template(
     }
 }
 
-fn render_mesh_from_scene(mesh: &lobedo_core::SceneMesh) -> RenderMesh {
-    RenderMesh {
-        positions: mesh.positions.clone(),
-        normals: mesh.normals.clone(),
-        indices: mesh.indices.clone(),
-        tri_to_face: mesh.tri_to_face.clone(),
-        corner_indices: mesh.corner_indices.clone(),
-        poly_indices: mesh.poly_indices.clone(),
-        poly_face_counts: mesh.poly_face_counts.clone(),
-        corner_normals: mesh.corner_normals.clone(),
-        colors: mesh.colors.clone(),
-        corner_colors: mesh.corner_colors.clone(),
-        uvs: mesh.uvs.clone(),
-        corner_uvs: mesh.corner_uvs.clone(),
-        corner_materials: mesh.corner_materials.clone(),
-    }
-}
-
-fn render_splats_from_scene(splats: &SceneSplats) -> RenderSplats {
-    let sh0 = splats.sh0.clone();
-    let mut opacity = splats.opacity.clone();
-    let mut scales = splats.scales.clone();
-    let sh_coeffs = splats.sh_coeffs;
-    let sh_rest = splats.sh_rest.clone();
-
-    for value in &mut opacity {
-        let logit = value.clamp(-9.21034, 9.21034);
-        *value = 1.0 / (1.0 + (-logit).exp());
-    }
-
-    for value in &mut scales {
-        let sx = value[0].clamp(-10.0, 10.0).exp();
-        let sy = value[1].clamp(-10.0, 10.0).exp();
-        let sz = value[2].clamp(-10.0, 10.0).exp();
-        *value = [sx, sy, sz];
-    }
-
-    let sh0_is_coeff = sh_coeffs > 0
-        || sh0
-            .iter()
-            .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
-
-    RenderSplats {
-        positions: splats.positions.clone(),
-        sh0,
-        sh_coeffs,
-        sh_rest,
-        sh0_is_coeff,
-        opacity,
-        scales,
-        rotations: splats.rotations.clone(),
-    }
-}
-
-fn render_curve_from_scene(curve: &SceneCurve) -> RenderCurve {
-    RenderCurve {
-        points: curve.points.clone(),
-        closed: curve.closed,
-    }
-}
-
-fn render_volume_from_scene(volume: &SceneVolume) -> RenderVolume {
-    let kind = match volume.kind {
-        VolumeKind::Density => RenderVolumeKind::Density,
-        VolumeKind::Sdf => RenderVolumeKind::Sdf,
-    };
-    RenderVolume {
-        kind,
-        origin: volume.origin,
-        dims: volume.dims,
-        voxel_size: volume.voxel_size,
-        values: volume.values.clone(),
-        transform: volume.transform,
-        density_scale: volume.density_scale,
-        sdf_band: volume.sdf_band,
-    }
-}
-
 fn render_mesh_from_mesh(mesh: &Mesh) -> RenderMesh {
-    let snapshot = SceneSnapshot::from_mesh(mesh, [0.7, 0.72, 0.75]);
-    let mesh = snapshot
-        .mesh()
-        .expect("mesh snapshot missing mesh");
-    render_mesh_from_scene(mesh)
+    scene_mesh_from_mesh(mesh)
 }
 
 const MAX_MATERIAL_TEXTURES: usize = 64;
+
+#[derive(Clone, PartialEq, Eq)]
+enum TextureCacheToken {
+    Static,
+    FileMtime(SystemTime),
+    UrlRevision(usize),
+}
+
+struct TextureCacheEntry {
+    token: TextureCacheToken,
+    texture: RenderTexture,
+}
+
+static TEXTURE_CACHE: OnceLock<Mutex<HashMap<String, TextureCacheEntry>>> = OnceLock::new();
 
 fn render_materials_from_scene(
     scene: &SceneSnapshot,
@@ -614,6 +533,17 @@ fn render_materials_from_scene(
 }
 
 fn load_render_texture(path: &str) -> Option<RenderTexture> {
+    let token = texture_cache_token(path);
+    if let Some(token) = token.as_ref() {
+        if let Some(cache) = TEXTURE_CACHE.get() {
+            if let Some(entry) = cache.lock().expect("texture cache lock").get(path) {
+                if &entry.token == token {
+                    return Some(entry.texture.clone());
+                }
+            }
+        }
+    }
+
     let bytes = load_texture_bytes(path)?;
     let image = match image::load_from_memory(&bytes) {
         Ok(image) => image,
@@ -623,11 +553,40 @@ fn load_render_texture(path: &str) -> Option<RenderTexture> {
         }
     };
     let rgba = image.to_rgba8();
-    Some(RenderTexture {
+    let texture = RenderTexture {
         width: rgba.width(),
         height: rgba.height(),
         pixels: rgba.into_raw(),
-    })
+    };
+
+    if let Some(token) = token {
+        let cache = TEXTURE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        cache
+            .lock()
+            .expect("texture cache lock")
+            .insert(path.to_string(), TextureCacheEntry { token, texture: texture.clone() });
+    }
+
+    Some(texture)
+}
+
+fn texture_cache_token(path: &str) -> Option<TextureCacheToken> {
+    if path.starts_with("mem://") {
+        return Some(TextureCacheToken::Static);
+    }
+    if lobedo_core::is_url(path) {
+        return Some(TextureCacheToken::UrlRevision(lobedo_core::url_revision()));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let meta = std::fs::metadata(path).ok()?;
+        let modified = meta.modified().ok()?;
+        Some(TextureCacheToken::FileMtime(modified))
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        None
+    }
 }
 
 fn load_texture_bytes(path: &str) -> Option<Vec<u8>> {

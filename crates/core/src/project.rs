@@ -32,6 +32,7 @@ impl Project {
             self.graph.ensure_node_kind_ids();
             self.version = 3;
         }
+        self.graph.rebuild_link_index();
         self.graph
             .rename_nodes(nodes::read_splats::LEGACY_NAME, nodes::read_splats::NAME);
         self.graph
@@ -191,5 +192,39 @@ impl Default for RenderDebugSettings {
             splat_rebuild_fps: 15.0,
             splat_frustum_cull: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nodes_builtin::{node_definition, BuiltinNodeKind};
+
+    #[test]
+    fn migrate_rebuilds_link_index_and_kind_ids() {
+        let mut project = Project::default();
+        project.version = 1;
+
+        let a = project
+            .graph
+            .add_node(node_definition(BuiltinNodeKind::Box));
+        let b = project
+            .graph
+            .add_node(node_definition(BuiltinNodeKind::Merge));
+        let from = project.graph.node(a).unwrap().outputs[0];
+        let to = project.graph.node(b).unwrap().inputs[0];
+        project.graph.add_link(from, to).unwrap();
+
+        let data = serde_json::to_vec(&project).expect("serialize project");
+        let mut loaded: Project =
+            serde_json::from_slice(&data).expect("deserialize project");
+        assert!(loaded.graph.input_node(b, 0).is_none());
+
+        loaded.migrate_to_latest();
+
+        assert_eq!(loaded.version, PROJECT_VERSION);
+        assert_eq!(loaded.graph.input_node(b, 0), Some(a));
+        let node = loaded.graph.node(a).expect("node");
+        assert!(!node.kind_id.is_empty());
     }
 }

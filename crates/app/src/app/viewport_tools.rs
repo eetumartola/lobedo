@@ -790,12 +790,5 @@ pub(super) fn input_node_for(
     node_id: NodeId,
     input_index: usize,
 ) -> Option<NodeId> {
-    let node = graph.node(node_id)?;
-    let input_pin = *node.inputs.get(input_index)?;
-    for link in graph.links() {
-        if link.to == input_pin {
-            return graph.pin(link.from).map(|pin| pin.node);
-        }
-    }
-    None
+    graph.input_node(node_id, input_index)
 }

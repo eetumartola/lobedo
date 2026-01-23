@@ -3,6 +3,7 @@ use crate::graph::{NodeDefinition, NodeParams};
 use crate::geometry::{merge_splats, Geometry};
 use crate::mesh::Mesh;
 use crate::nodes;
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
@@ -1225,9 +1226,12 @@ fn apply_mesh_unary(
         meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(&mesh))?);
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        let mut splat = splat.clone();
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::try_for_each_indexed_mut(&mut splats, |idx, slot| {
+        let mut splat = input_splats[idx].clone();
         match kind {
             BuiltinNodeKind::Color => {
                 nodes::color::apply_to_splats(params, &mut splat)?;
@@ -1261,8 +1265,9 @@ fn apply_mesh_unary(
             }
             _ => {}
         }
-        splats.push(splat);
-    }
+        *slot = splat;
+        Ok::<(), String>(())
+    })?;
 
     let curves = if meshes.is_empty() {
         Vec::new()
@@ -1282,10 +1287,10 @@ fn apply_mesh_unary(
 fn apply_splat_only<F>(
     params: &NodeParams,
     inputs: &[Geometry],
-    mut op: F,
+    op: F,
 ) -> Result<Geometry, String>
 where
-    F: FnMut(&NodeParams, &SplatGeo) -> Result<SplatGeo, String>,
+    F: Fn(&NodeParams, &SplatGeo) -> Result<SplatGeo, String> + Sync + Send,
 {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
@@ -1296,10 +1301,14 @@ where
         meshes.push(mesh);
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(op(params, splat)?);
-    }
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::try_for_each_indexed_mut(&mut splats, |idx, slot| {
+        *slot = op(params, &input_splats[idx])?;
+        Ok::<(), String>(())
+    })?;
 
     let curves = if meshes.is_empty() {
         Vec::new()
@@ -1340,10 +1349,13 @@ fn apply_delete(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, St
         }
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        splats.push(filter_splats(params, splat));
-    }
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::for_each_indexed_mut(&mut splats, |idx, slot| {
+        *slot = filter_splats(params, &input_splats[idx]);
+    });
 
     Ok(Geometry {
         meshes,
@@ -1424,12 +1436,16 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         meshes.push(nodes::group::compute(params, std::slice::from_ref(&mesh))?);
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        let mut splat = splat.clone();
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::try_for_each_indexed_mut(&mut splats, |idx, slot| {
+        let mut splat = input_splats[idx].clone();
         nodes::group::apply_to_splats(params, &mut splat)?;
-        splats.push(splat);
-    }
+        *slot = splat;
+        Ok::<(), String>(())
+    })?;
 
     let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
@@ -1451,12 +1467,16 @@ fn apply_group_expand(params: &NodeParams, inputs: &[Geometry]) -> Result<Geomet
         meshes.push(nodes::group_expand::compute(params, std::slice::from_ref(&mesh))?);
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        let mut splat = splat.clone();
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::try_for_each_indexed_mut(&mut splats, |idx, slot| {
+        let mut splat = input_splats[idx].clone();
         nodes::group_expand::apply_to_splats(params, &mut splat)?;
-        splats.push(splat);
-    }
+        *slot = splat;
+        Ok::<(), String>(())
+    })?;
 
     let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
@@ -1481,9 +1501,12 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         meshes.push(mesh);
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
-        let mut splat = splat.clone();
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::for_each_indexed_mut(&mut splats, |idx, slot| {
+        let mut splat = input_splats[idx].clone();
         if let Some(mask) =
             nodes::group_utils::splat_group_mask(&splat, params, AttributeDomain::Point)
         {
@@ -1491,15 +1514,13 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         } else {
             splat.transform(matrix);
         }
-        splats.push(splat);
-    }
+        *slot = splat;
+    });
 
-    let mut volumes = Vec::with_capacity(input.volumes.len());
-    for volume in &input.volumes {
-        let mut volume = volume.clone();
+    let mut volumes = input.volumes.clone();
+    parallel::for_each_indexed_mut(&mut volumes, |_idx, volume| {
         volume.transform = matrix * volume.transform;
-        volumes.push(volume);
-    }
+    });
 
     let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
     Ok(Geometry {
@@ -1524,25 +1545,29 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
     let base_mesh = input.merged_mesh();
     let base_point_count = base_mesh.as_ref().map(|mesh| mesh.positions.len() as u32).unwrap_or(0);
     if let Some(mesh) = base_mesh {
-        let mut copies = Vec::with_capacity(matrices.len());
-        for matrix in &matrices {
+        let mut copies: Vec<Mesh> = (0..matrices.len()).map(|_| Mesh::default()).collect();
+        parallel::for_each_indexed_mut(&mut copies, |idx, slot| {
             let mut copy = mesh.clone();
-            copy.transform(*matrix);
-            copies.push(copy);
-        }
+            copy.transform(matrices[idx]);
+            *slot = copy;
+        });
         meshes.push(Mesh::merge(&copies));
     }
 
-    let mut splats = Vec::with_capacity(input.splats.len());
-    for splat in &input.splats {
+    let mut splats: Vec<SplatGeo> = (0..input.splats.len())
+        .map(|_| SplatGeo::default())
+        .collect();
+    let input_splats = input.splats.as_slice();
+    parallel::for_each_indexed_mut(&mut splats, |idx, slot| {
+        let splat = &input_splats[idx];
         let mut copies = Vec::with_capacity(matrices.len());
         for matrix in &matrices {
             let mut copy = splat.clone();
             copy.transform(*matrix);
             copies.push(copy);
         }
-        splats.push(merge_splats(&copies));
-    }
+        *slot = merge_splats(&copies);
+    });
 
     let mut volumes = Vec::new();
     for volume in &input.volumes {
@@ -1670,7 +1695,7 @@ fn merge_geometry(inputs: &[Geometry]) -> Result<Geometry, String> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
 
     use super::*;
     use crate::mesh::make_box;
@@ -1717,6 +1742,19 @@ mod tests {
         let mesh =
             compute_mesh_node(BuiltinNodeKind::Normal, &NodeParams::default(), &[input]).unwrap();
         assert!(mesh.normals.is_some());
+    }
+
+    #[test]
+    fn node_specs_cover_definitions() {
+        assert_eq!(NODE_SPECS.len(), builtin_definitions().len());
+    }
+
+    #[test]
+    fn node_spec_ids_are_unique() {
+        let mut ids = HashSet::new();
+        for spec in node_specs() {
+            assert!(ids.insert(spec.id));
+        }
     }
 }
 

@@ -11,6 +11,7 @@ use crate::nodes::{
     require_mesh_input,
     splat_utils::{splat_bounds_indices, splat_cell_key, split_splats_by_group},
 };
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
@@ -133,128 +134,20 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         }
     }
 
-    for cluster in &cluster_sets {
-        let count = cluster.len() as f32;
-        let mut weights = Vec::with_capacity(cluster.len());
-        let mut weight_sum = 0.0f32;
-        let mut opacity_prod = 1.0f32;
+    let mut cluster_outputs: Vec<ClusterOutput> =
+        (0..cluster_sets.len()).map(|_| ClusterOutput::default()).collect();
+    parallel::for_each_indexed_mut(&mut cluster_outputs, |cluster_idx, output| {
+        *output = compute_cluster_output(splats, &cluster_sets[cluster_idx], sh_coeffs);
+    });
 
-        for &idx in cluster {
-            let mut w = sigmoid(splats.opacity[idx]);
-            if !w.is_finite() {
-                w = 0.0;
-            }
-            w = w.clamp(0.0, 1.0);
-            weight_sum += w;
-            opacity_prod *= 1.0 - w;
-            weights.push(w);
-        }
-
-        let mut pos_sum = Vec3::ZERO;
-        let mut sh0_sum = Vec3::ZERO;
-        let mut sh_rest_sum = vec![Vec3::ZERO; sh_coeffs];
-        let mut quat_ref: Option<Quat> = None;
-        let mut quat_sum = Vec4::ZERO;
-
-        if weight_sum <= 1.0e-6 {
-            weights.fill(1.0);
-            weight_sum = count.max(1.0);
-        }
-
-        for (idx, &weight) in cluster.iter().zip(weights.iter()) {
-            pos_sum += Vec3::from(splats.positions[*idx]) * weight;
-            sh0_sum += Vec3::from(splats.sh0[*idx]) * weight;
-
-            let mut quat = quat_from_rotation(splats.rotations[*idx]);
-            if let Some(reference) = quat_ref {
-                if reference.dot(quat) < 0.0 {
-                    quat = Quat::from_xyzw(-quat.x, -quat.y, -quat.z, -quat.w);
-                }
-            } else {
-                quat_ref = Some(quat);
-            }
-            quat_sum += Vec4::new(quat.x, quat.y, quat.z, quat.w) * weight;
-
-            if sh_coeffs > 0 {
-                let base = *idx * sh_coeffs;
-                for (coeff, sum) in sh_rest_sum.iter_mut().enumerate() {
-                    *sum += Vec3::from(splats.sh_rest[base + coeff]) * weight;
-                }
-            }
-        }
-
-        let inv_weight = 1.0 / weight_sum.max(1.0e-6);
-        let mean = pos_sum * inv_weight;
-        positions.push(mean.to_array());
-        sh0.push((sh0_sum * inv_weight).to_array());
-
-        let mut linear_opacity = 1.0 - opacity_prod;
-        if !linear_opacity.is_finite() {
-            linear_opacity = 0.0;
-        }
-        let output_opacity = logit(linear_opacity);
-        opacity.push(output_opacity);
-
-        let mut quat = Quat::from_xyzw(quat_sum.x, quat_sum.y, quat_sum.z, quat_sum.w);
-        if quat.length_squared() > 0.0 {
-            quat = quat.normalize();
-        } else {
-            quat = quat_ref.unwrap_or(Quat::IDENTITY);
-        }
-        rotations.push([quat.w, quat.x, quat.y, quat.z]);
-
-        let cluster_rot = Mat3::from_quat(quat);
-        let cluster_rot_t = cluster_rot.transpose();
-        let mut cov_sum = Mat3::ZERO;
-
-        for (idx, &weight) in cluster.iter().zip(weights.iter()) {
-            if weight <= 0.0 {
-                continue;
-            }
-            let pos = Vec3::from(splats.positions[*idx]);
-            let delta = pos - mean;
-            let delta_outer = Mat3::from_cols(delta * delta.x, delta * delta.y, delta * delta.z);
-
-            let mut log_scale = Vec3::from(splats.scales[*idx]);
-            log_scale = Vec3::new(
-                log_scale.x.clamp(-10.0, 10.0),
-                log_scale.y.clamp(-10.0, 10.0),
-                log_scale.z.clamp(-10.0, 10.0),
-            );
-            let scale = Vec3::new(
-                log_scale.x.exp(),
-                log_scale.y.exp(),
-                log_scale.z.exp(),
-            );
-            let rot = Mat3::from_quat(quat_from_rotation(splats.rotations[*idx]));
-            let cov_local = Mat3::from_diagonal(scale * scale);
-            let cov_world = rot * cov_local * rot.transpose();
-            let cov_world = cov_world + delta_outer;
-            let cov_cluster = cluster_rot_t * cov_world * cluster_rot;
-            cov_sum += cov_cluster * weight;
-        }
-
-        let cov = cov_sum * inv_weight;
-        let mut sigma = Vec3::new(cov.x_axis.x, cov.y_axis.y, cov.z_axis.z);
-        sigma = Vec3::new(
-            sigma.x.max(0.0).sqrt(),
-            sigma.y.max(0.0).sqrt(),
-            sigma.z.max(0.0).sqrt(),
-        );
-        if !sigma.x.is_finite() || !sigma.y.is_finite() || !sigma.z.is_finite() {
-            sigma = Vec3::splat(1.0e-6);
-        }
-        sigma = Vec3::new(
-            sigma.x.max(1.0e-6),
-            sigma.y.max(1.0e-6),
-            sigma.z.max(1.0e-6),
-        );
-        scales.push([sigma.x.ln(), sigma.y.ln(), sigma.z.ln()]);
-
+    for output in cluster_outputs {
+        positions.push(output.position);
+        rotations.push(output.rotation);
+        scales.push(output.scale);
+        opacity.push(output.opacity);
+        sh0.push(output.sh0);
         if sh_coeffs > 0 {
-            for sum in &sh_rest_sum {
-                sh_rest.push((*sum * inv_weight).to_array());
-            }
+            sh_rest.extend(output.sh_rest);
         }
     }
 
@@ -271,6 +164,155 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         sh_rest,
         attributes,
         groups,
+    }
+}
+
+#[derive(Debug, Default)]
+struct ClusterOutput {
+    position: [f32; 3],
+    rotation: [f32; 4],
+    scale: [f32; 3],
+    opacity: f32,
+    sh0: [f32; 3],
+    sh_rest: Vec<[f32; 3]>,
+}
+
+fn compute_cluster_output(
+    splats: &SplatGeo,
+    cluster: &[usize],
+    sh_coeffs: usize,
+) -> ClusterOutput {
+    let count = cluster.len() as f32;
+    let mut weights = Vec::with_capacity(cluster.len());
+    let mut weight_sum = 0.0f32;
+    let mut opacity_prod = 1.0f32;
+
+    for &idx in cluster {
+        let mut w = sigmoid(splats.opacity[idx]);
+        if !w.is_finite() {
+            w = 0.0;
+        }
+        w = w.clamp(0.0, 1.0);
+        weight_sum += w;
+        opacity_prod *= 1.0 - w;
+        weights.push(w);
+    }
+
+    let mut pos_sum = Vec3::ZERO;
+    let mut sh0_sum = Vec3::ZERO;
+    let mut sh_rest_sum = vec![Vec3::ZERO; sh_coeffs];
+    let mut quat_ref: Option<Quat> = None;
+    let mut quat_sum = Vec4::ZERO;
+
+    if weight_sum <= 1.0e-6 {
+        weights.fill(1.0);
+        weight_sum = count.max(1.0);
+    }
+
+    for (idx, &weight) in cluster.iter().zip(weights.iter()) {
+        pos_sum += Vec3::from(splats.positions[*idx]) * weight;
+        sh0_sum += Vec3::from(splats.sh0[*idx]) * weight;
+
+        let mut quat = quat_from_rotation(splats.rotations[*idx]);
+        if let Some(reference) = quat_ref {
+            if reference.dot(quat) < 0.0 {
+                quat = Quat::from_xyzw(-quat.x, -quat.y, -quat.z, -quat.w);
+            }
+        } else {
+            quat_ref = Some(quat);
+        }
+        quat_sum += Vec4::new(quat.x, quat.y, quat.z, quat.w) * weight;
+
+        if sh_coeffs > 0 {
+            let base = *idx * sh_coeffs;
+            for (coeff, sum) in sh_rest_sum.iter_mut().enumerate() {
+                *sum += Vec3::from(splats.sh_rest[base + coeff]) * weight;
+            }
+        }
+    }
+
+    let inv_weight = 1.0 / weight_sum.max(1.0e-6);
+    let mean = pos_sum * inv_weight;
+    let position = mean.to_array();
+    let sh0 = (sh0_sum * inv_weight).to_array();
+
+    let mut linear_opacity = 1.0 - opacity_prod;
+    if !linear_opacity.is_finite() {
+        linear_opacity = 0.0;
+    }
+    let opacity = logit(linear_opacity);
+
+    let mut quat = Quat::from_xyzw(quat_sum.x, quat_sum.y, quat_sum.z, quat_sum.w);
+    if quat.length_squared() > 0.0 {
+        quat = quat.normalize();
+    } else {
+        quat = quat_ref.unwrap_or(Quat::IDENTITY);
+    }
+    let rotation = [quat.w, quat.x, quat.y, quat.z];
+
+    let cluster_rot = Mat3::from_quat(quat);
+    let cluster_rot_t = cluster_rot.transpose();
+    let mut cov_sum = Mat3::ZERO;
+
+    for (idx, &weight) in cluster.iter().zip(weights.iter()) {
+        if weight <= 0.0 {
+            continue;
+        }
+        let pos = Vec3::from(splats.positions[*idx]);
+        let delta = pos - mean;
+        let delta_outer = Mat3::from_cols(delta * delta.x, delta * delta.y, delta * delta.z);
+
+        let mut log_scale = Vec3::from(splats.scales[*idx]);
+        log_scale = Vec3::new(
+            log_scale.x.clamp(-10.0, 10.0),
+            log_scale.y.clamp(-10.0, 10.0),
+            log_scale.z.clamp(-10.0, 10.0),
+        );
+        let scale = Vec3::new(
+            log_scale.x.exp(),
+            log_scale.y.exp(),
+            log_scale.z.exp(),
+        );
+        let rot = Mat3::from_quat(quat_from_rotation(splats.rotations[*idx]));
+        let cov_local = Mat3::from_diagonal(scale * scale);
+        let cov_world = rot * cov_local * rot.transpose();
+        let cov_world = cov_world + delta_outer;
+        let cov_cluster = cluster_rot_t * cov_world * cluster_rot;
+        cov_sum += cov_cluster * weight;
+    }
+
+    let cov = cov_sum * inv_weight;
+    let mut sigma = Vec3::new(cov.x_axis.x, cov.y_axis.y, cov.z_axis.z);
+    sigma = Vec3::new(
+        sigma.x.max(0.0).sqrt(),
+        sigma.y.max(0.0).sqrt(),
+        sigma.z.max(0.0).sqrt(),
+    );
+    if !sigma.x.is_finite() || !sigma.y.is_finite() || !sigma.z.is_finite() {
+        sigma = Vec3::splat(1.0e-6);
+    }
+    sigma = Vec3::new(
+        sigma.x.max(1.0e-6),
+        sigma.y.max(1.0e-6),
+        sigma.z.max(1.0e-6),
+    );
+    let scale = [sigma.x.ln(), sigma.y.ln(), sigma.z.ln()];
+
+    let mut sh_rest = Vec::new();
+    if sh_coeffs > 0 {
+        sh_rest.reserve(sh_coeffs);
+        for sum in &sh_rest_sum {
+            sh_rest.push((*sum * inv_weight).to_array());
+        }
+    }
+
+    ClusterOutput {
+        position,
+        rotation,
+        scale,
+        opacity,
+        sh0,
+        sh_rest,
     }
 }
 

@@ -54,16 +54,16 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - ParamSpec schema with reusable templates (Vec3/Float/Enum/etc.) driving labels, help, ranges, and widgets
 - Migrate parameter UI to ParamSpec and shrink string-based special cases
 - Stable node kind id stored in graph (name becomes display-only); add migration
-- Shared scene types crate for core/render/app to remove duplication and reduce clone conversions
-- Graph adjacency/index for input link lookup (avoid per-pin link scans)
-- Texture decode cache (path + mtime / URL revision) for render textures
-- Add core tests: graph/eval/migrations/registry
+- Shared scene types crate for core/render/app to remove duplication and reduce clone conversions (done)
+- Graph adjacency/index for input link lookup (avoid per-pin link scans) (done)
+- Texture decode cache (path + mtime / URL revision) for render textures (done)
+- Add core tests: graph/eval/migrations/registry (done)
 
 ## Epic T - Parallelism
 - Add optional CPU parallelism (rayon) for heavy geometry loops with a single-thread fallback for web (done)
-- Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering) (in progress: LOD pending)
-- Target high-cost loops (Attribute Transfer, Smooth, Ray, Copy to Points) + CPU splat depth sorting (in progress: Ray/Copy to Points pending)
-- Parallelize per-primitive evaluation inside a node (mesh list, splat list, point list) (not started)
+- Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering) (done)
+- Target high-cost loops (Attribute Transfer, Smooth, Ray, Copy to Points) + CPU splat depth sorting (in progress: CPU splat depth sorting pending)
+- Parallelize per-primitive evaluation inside a node (mesh list, splat list, point list) (done)
 - Explore parallel node evaluation for independent subgraphs (graph scheduling) (not started)
 - Add profiling-driven thresholds (only parallelize above a size/complexity cutoff) (in progress: size threshold, no profiling)
 

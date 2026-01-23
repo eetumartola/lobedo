@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,45 @@ pub struct PinId(u64);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkId(u64);
 
+#[derive(Debug, Clone, Default)]
+struct LinkIndex {
+    input_to_link: HashMap<PinId, LinkId>,
+    output_to_links: HashMap<PinId, Vec<LinkId>>,
+}
+
+impl LinkIndex {
+    fn clear(&mut self) {
+        self.input_to_link.clear();
+        self.output_to_links.clear();
+    }
+
+    fn insert(&mut self, link_id: LinkId, link: &Link) {
+        self.input_to_link.insert(link.to, link_id);
+        self.output_to_links
+            .entry(link.from)
+            .or_default()
+            .push(link_id);
+    }
+
+    fn remove(&mut self, link_id: LinkId, link: &Link) {
+        self.input_to_link.remove(&link.to);
+        if let Some(list) = self.output_to_links.get_mut(&link.from) {
+            list.retain(|id| *id != link_id);
+            if list.is_empty() {
+                self.output_to_links.remove(&link.from);
+            }
+        }
+    }
+
+    fn input_link(&self, pin: PinId) -> Option<LinkId> {
+        self.input_to_link.get(&pin).copied()
+    }
+
+    fn output_links(&self, pin: PinId) -> Option<&[LinkId]> {
+        self.output_to_links.get(&pin).map(|links| links.as_slice())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Graph {
     nodes: BTreeMap<NodeId, Node>,
@@ -23,6 +62,8 @@ pub struct Graph {
     next_link_id: u64,
     #[serde(default)]
     revision: u64,
+    #[serde(skip)]
+    link_index: LinkIndex,
 }
 
 impl Default for Graph {
@@ -35,6 +76,7 @@ impl Default for Graph {
             next_pin_id: 1,
             next_link_id: 1,
             revision: 0,
+            link_index: LinkIndex::default(),
         }
     }
 }
@@ -54,6 +96,13 @@ impl Graph {
 
     fn bump_revision(&mut self) {
         self.revision = self.revision.wrapping_add(1);
+    }
+
+    pub fn rebuild_link_index(&mut self) {
+        self.link_index.clear();
+        for (id, link) in &self.links {
+            self.link_index.insert(*id, link);
+        }
     }
 
     pub fn display_node(&self) -> Option<NodeId> {
@@ -219,9 +268,18 @@ impl Graph {
         let mut pins_to_remove: HashSet<PinId> = node.inputs.into_iter().collect();
         pins_to_remove.extend(node.outputs);
 
-        self.links.retain(|_, link| {
-            !pins_to_remove.contains(&link.from) && !pins_to_remove.contains(&link.to)
-        });
+        let mut links_to_remove: HashSet<LinkId> = HashSet::new();
+        for pin_id in &pins_to_remove {
+            if let Some(link_id) = self.link_index.input_link(*pin_id) {
+                links_to_remove.insert(link_id);
+            }
+            if let Some(links) = self.link_index.output_links(*pin_id) {
+                links_to_remove.extend(links.iter().copied());
+            }
+        }
+        for link_id in links_to_remove {
+            self.remove_link_internal(link_id);
+        }
 
         for pin_id in pins_to_remove {
             self.pins.remove(&pin_id);
@@ -256,7 +314,7 @@ impl Graph {
             return Err(GraphError::WrongPinDirection { from, to });
         }
 
-        if self.links.values().any(|link| link.to == to) {
+        if self.link_index.input_link(to).is_some() {
             return Err(GraphError::InputAlreadyConnected { to });
         }
 
@@ -268,20 +326,15 @@ impl Graph {
         }
 
         let link_id = self.alloc_link_id();
-        self.links.insert(
-            link_id,
-            Link {
-                id: link_id,
-                from,
-                to,
-            },
-        );
+        let link = Link { id: link_id, from, to };
+        self.links.insert(link_id, link.clone());
+        self.link_index.insert(link_id, &link);
         self.bump_revision();
         Ok(link_id)
     }
 
     pub fn remove_link(&mut self, link_id: LinkId) -> bool {
-        let removed = self.links.remove(&link_id).is_some();
+        let removed = self.remove_link_internal(link_id);
         if removed {
             self.bump_revision();
         }
@@ -293,15 +346,14 @@ impl Graph {
     }
 
     pub fn remove_link_between(&mut self, from: PinId, to: PinId) -> bool {
-        let link_id = self.links.iter().find_map(|(id, link)| {
-            if link.from == from && link.to == to {
-                Some(*id)
-            } else {
-                None
-            }
-        });
+        let link_id = self
+            .link_index
+            .input_link(to)
+            .and_then(|id| {
+                self.links.get(&id).filter(|link| link.from == from).map(|_| id)
+            });
 
-        let removed = link_id.map(|id| self.links.remove(&id)).is_some();
+        let removed = link_id.map(|id| self.remove_link_internal(id)).unwrap_or(false);
         if removed {
             self.bump_revision();
         }
@@ -309,10 +361,21 @@ impl Graph {
     }
 
     pub fn remove_links_for_pin(&mut self, pin_id: PinId) -> usize {
-        let before = self.links.len();
-        self.links
-            .retain(|_, link| link.from != pin_id && link.to != pin_id);
-        let removed = before - self.links.len();
+        let mut to_remove: Vec<LinkId> = Vec::new();
+        if let Some(link_id) = self.link_index.input_link(pin_id) {
+            to_remove.push(link_id);
+        }
+        if let Some(links) = self.link_index.output_links(pin_id) {
+            to_remove.extend(links.iter().copied());
+        }
+        to_remove.sort();
+        to_remove.dedup();
+        let mut removed = 0;
+        for link_id in to_remove {
+            if self.remove_link_internal(link_id) {
+                removed += 1;
+            }
+        }
         if removed > 0 {
             self.bump_revision();
         }
@@ -419,14 +482,17 @@ impl Graph {
     pub fn upstream_nodes(&self, node_id: NodeId) -> Vec<NodeId> {
         let mut upstream = Vec::new();
 
-        for link in self.links.values() {
-            let Some(to_node) = self.node_for_pin(link.to) else {
+        let Some(node) = self.nodes.get(&node_id) else {
+            return upstream;
+        };
+        for input_pin in &node.inputs {
+            let link_id = match self.link_index.input_link(*input_pin) {
+                Some(link_id) => link_id,
+                None => continue,
+            };
+            let Some(link) = self.links.get(&link_id) else {
                 continue;
             };
-            if to_node != node_id {
-                continue;
-            }
-
             if let Some(from_node) = self.node_for_pin(link.from) {
                 upstream.push(from_node);
             }
@@ -437,6 +503,19 @@ impl Graph {
 
     fn node_for_pin(&self, pin_id: PinId) -> Option<NodeId> {
         self.pins.get(&pin_id).map(|pin| pin.node)
+    }
+
+    pub fn input_node(&self, node_id: NodeId, input_index: usize) -> Option<NodeId> {
+        let node = self.nodes.get(&node_id)?;
+        let input_pin = *node.inputs.get(input_index)?;
+        let link_id = self.link_index.input_link(input_pin)?;
+        let link = self.links.get(&link_id)?;
+        self.node_for_pin(link.from)
+    }
+
+    pub fn input_link(&self, input_pin: PinId) -> Option<&Link> {
+        let link_id = self.link_index.input_link(input_pin)?;
+        self.links.get(&link_id)
     }
 
     fn alloc_node_id(&mut self) -> NodeId {
@@ -455,6 +534,14 @@ impl Graph {
         let id = self.next_link_id;
         self.next_link_id += 1;
         LinkId(id)
+    }
+
+    fn remove_link_internal(&mut self, link_id: LinkId) -> bool {
+        let Some(link) = self.links.remove(&link_id) else {
+            return false;
+        };
+        self.link_index.remove(link_id, &link);
+        true
     }
 
     pub fn migrate_geometry_pins(&mut self) -> bool {
@@ -765,6 +852,53 @@ mod tests {
 
         let result = graph.add_link(from, to);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn input_node_tracks_links() {
+        let mut graph = Graph::default();
+        let a = graph.add_node(demo_node("A"));
+        let b = graph.add_node(demo_node("B"));
+
+        let from = graph.nodes.get(&a).unwrap().outputs[0];
+        let to = graph.nodes.get(&b).unwrap().inputs[0];
+        graph.add_link(from, to).unwrap();
+
+        assert_eq!(graph.input_node(b, 0), Some(a));
+        let link = graph.input_link(to).expect("input link");
+        assert_eq!(link.from, from);
+    }
+
+    #[test]
+    fn rebuild_link_index_restores_input_lookup() {
+        let mut graph = Graph::default();
+        let a = graph.add_node(demo_node("A"));
+        let b = graph.add_node(demo_node("B"));
+
+        let from = graph.nodes.get(&a).unwrap().outputs[0];
+        let to = graph.nodes.get(&b).unwrap().inputs[0];
+        graph.add_link(from, to).unwrap();
+
+        graph.link_index.clear();
+        assert!(graph.input_node(b, 0).is_none());
+
+        graph.rebuild_link_index();
+        assert_eq!(graph.input_node(b, 0), Some(a));
+    }
+
+    #[test]
+    fn remove_node_clears_links() {
+        let mut graph = Graph::default();
+        let a = graph.add_node(demo_node("A"));
+        let b = graph.add_node(demo_node("B"));
+
+        let from = graph.nodes.get(&a).unwrap().outputs[0];
+        let to = graph.nodes.get(&b).unwrap().inputs[0];
+        graph.add_link(from, to).unwrap();
+
+        assert!(graph.remove_node(a));
+        assert!(graph.links().next().is_none());
+        assert!(graph.input_node(b, 0).is_none());
     }
 
     fn node_def(name: &str, inputs: usize, outputs: usize) -> NodeDefinition {
