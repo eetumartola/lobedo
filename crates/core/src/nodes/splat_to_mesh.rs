@@ -10,6 +10,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 use crate::volume::{Volume, VolumeKind};
 
@@ -68,6 +69,45 @@ pub fn default_params() -> NodeParams {
             ("blur_iters".to_string(), ParamValue::Int(DEFAULT_BLUR_ITERS)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "output",
+            "Output",
+            vec![(0, "Mesh"), (1, "SDF Volume")],
+        )
+        .with_help("Output type (mesh or SDF volume)."),
+        ParamSpec::int_enum(
+            "algorithm",
+            "Method",
+            vec![(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
+        )
+        .with_help("Conversion method."),
+        ParamSpec::float_slider("voxel_size", "Voxel Size", 0.0, 10.0)
+            .with_help("Voxel size for density grid."),
+        ParamSpec::int_slider("voxel_size_max", "Max Voxel Dimension", 8, 2048)
+            .with_help("Max voxel dimension (safety clamp)."),
+        ParamSpec::float_slider("n_sigma", "Support Sigma", 0.0, 6.0)
+            .with_help("Gaussian support radius in sigmas."),
+        ParamSpec::float_slider("density_iso", "Density Threshold", 0.0, 10.0)
+            .with_help("Density threshold for marching cubes."),
+        ParamSpec::float_slider("surface_iso", "Surface Threshold", -5.0, 5.0)
+            .with_help("Surface threshold for ellipsoid method."),
+        ParamSpec::float_slider("bounds_padding", "Bounds Padding (sigma)", 0.0, 10.0)
+            .with_help("Padding around bounds in sigmas."),
+        ParamSpec::bool("transfer_color", "Transfer Color")
+            .with_help("Transfer splat color to mesh Cd."),
+        ParamSpec::float_slider("max_m2", "Exponent Clamp", 0.0, 10.0)
+            .with_help("Exponent clamp for ellipsoid blend."),
+        ParamSpec::float_slider("smooth_k", "Blend Sharpness", 0.001, 2.0)
+            .with_help("Smooth-min blend sharpness."),
+        ParamSpec::float_slider("shell_radius", "Shell Radius", 0.1, 4.0)
+            .with_help("Shell thickness for ellipsoid."),
+        ParamSpec::int_slider("blur_iters", "Density Blur", 0, 6)
+            .with_help("Density blur iterations."),
+    ]
 }
 
 pub fn apply_to_geometry(

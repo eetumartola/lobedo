@@ -7,6 +7,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Sweep";
 
@@ -27,6 +28,17 @@ pub fn default_params() -> NodeParams {
             ("up".to_string(), ParamValue::Vec3([0.0, 1.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::bool("profile_closed", "Profile Closed")
+            .with_help("Close the profile when no curve primitive is supplied."),
+        ParamSpec::bool("path_closed", "Path Closed")
+            .with_help("Close the path when no curve primitive is supplied."),
+        ParamSpec::vec3("up", "Up")
+            .with_help("Up vector used to orient the swept profile."),
+    ]
 }
 
 pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

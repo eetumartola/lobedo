@@ -10,6 +10,7 @@ use crate::nodes::{
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 use crate::wrangle::{apply_wrangle, apply_wrangle_splats};
 
@@ -36,6 +37,35 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "mode",
+            "Mode",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Domain to iterate over."),
+        ParamSpec::string("code", "Code").with_help("Wrangle code snippet."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

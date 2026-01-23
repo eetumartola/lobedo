@@ -20,6 +20,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::parallel;
 use crate::splat::SplatGeo;
 
@@ -43,6 +44,36 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("attr", "Attributes")
+            .with_help("Space-delimited list of attributes."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to transfer."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

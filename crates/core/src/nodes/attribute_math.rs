@@ -13,6 +13,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Math";
@@ -39,6 +40,45 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("attr", "Attribute").with_help("Source attribute."),
+        ParamSpec::string("result", "Result").with_help("Destination attribute."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to operate on."),
+        ParamSpec::int_enum(
+            "op",
+            "Operator",
+            vec![(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")],
+        )
+        .with_help("Math operation."),
+        ParamSpec::float_slider("value_f", "Value", -10.0, 10.0)
+            .with_help("Scalar operand."),
+        ParamSpec::vec3("value_v3", "Value Vec3").with_help("Vector operand."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 struct AttributeMathSettings {

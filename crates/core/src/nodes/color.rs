@@ -11,6 +11,7 @@ use crate::nodes::{
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Color";
@@ -39,6 +40,47 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "color_mode",
+            "Mode",
+            vec![(0, "Constant"), (1, "From Attribute")],
+        )
+        .with_help("Constant color or color from attribute."),
+        ParamSpec::vec3("color", "Color")
+            .with_help("Color value (RGB)."),
+        ParamSpec::string("attr", "Attribute")
+            .with_help("Attribute to map into the gradient."),
+        ParamSpec::string("gradient", "Gradient")
+            .with_help("Gradient stops like 0:#000000;1:#ffffff."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to write."),
+        ParamSpec::string("group", "Group")
+            .with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

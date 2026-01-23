@@ -11,6 +11,7 @@ use crate::nodes::{
     require_mesh_input,
     splat_utils::{split_splats_by_group, splat_cell_key, SpatialHash},
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Cluster";
@@ -45,6 +46,34 @@ pub fn default_params() -> NodeParams {
             ("min_pts".to_string(), ParamValue::Int(DEFAULT_MIN_PTS)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict clustering."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::int_enum("method", "Method", vec![(0, "Grid"), (1, "DBSCAN")])
+            .with_help("Clustering method (Grid or DBSCAN)."),
+        ParamSpec::string("attr", "Attribute")
+            .with_help("Attribute name to store cluster ids."),
+        ParamSpec::float_slider("cell_size", "Cell Size", 0.0, 10.0)
+            .with_help("Grid cell size (<=0 = auto)."),
+        ParamSpec::float_slider("eps", "Radius", 0.0, 10.0)
+            .with_help("DBSCAN radius (<=0 = auto)."),
+        ParamSpec::int_slider("min_pts", "Min Points", 1, 128)
+            .with_help("Minimum points per DBSCAN core."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

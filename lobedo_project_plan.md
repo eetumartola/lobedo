@@ -50,6 +50,15 @@ Lobedo is not trying to compete with full DCC suites; it is a **splat asset pipe
 - Wrap mesh/splat eval around geometry eval to remove duplicate input logic     
 - Reduce duplicate node lists in UI menu/state helpers
 
+## Epic D - Parameter Schema + Architecture Hardening (in progress)
+- ParamSpec schema with reusable templates (Vec3/Float/Enum/etc.) driving labels, help, ranges, and widgets
+- Migrate parameter UI to ParamSpec and shrink string-based special cases
+- Stable node kind id stored in graph (name becomes display-only); add migration
+- Shared scene types crate for core/render/app to remove duplication and reduce clone conversions
+- Graph adjacency/index for input link lookup (avoid per-pin link scans)
+- Texture decode cache (path + mtime / URL revision) for render textures
+- Add core tests: graph/eval/migrations/registry
+
 ## Epic T - Parallelism
 - Add optional CPU parallelism (rayon) for heavy geometry loops with a single-thread fallback for web (done)
 - Parallelize expensive per-element ops (wrangle, attribute ops, prune/regularize, LOD clustering) (in progress: LOD pending)

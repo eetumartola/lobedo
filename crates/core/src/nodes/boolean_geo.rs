@@ -9,6 +9,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
 use crate::nodes::volume_to_mesh::volume_to_mesh;
+use crate::param_spec::ParamSpec;
 use crate::volume::{Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
@@ -32,6 +33,29 @@ pub fn default_params() -> NodeParams {
             ("op".to_string(), ParamValue::Int(DEFAULT_OP)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string_enum(
+            "mode",
+            "Mode",
+            vec![
+                ("auto", "Auto"),
+                ("mesh_mesh", "Mesh-Mesh"),
+                ("mesh_sdf", "Mesh-SDF"),
+            ],
+        )
+        .with_help(
+            "Auto picks mesh-mesh or mesh-SDF; mesh-SDF uses an SDF volume on input B as a cutter.",
+        ),
+        ParamSpec::int_enum(
+            "op",
+            "Operation",
+            vec![(0, "Union"), (1, "Difference"), (2, "Intersect")],
+        )
+        .with_help("Boolean operation (Union, Difference, Intersect)."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

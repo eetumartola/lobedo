@@ -14,6 +14,7 @@ use crate::nodes::{
     splat_lighting_utils::{average_env_coeffs, estimate_splat_normals, selected},
 };
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use crate::splat::SplatGeo;
@@ -68,6 +69,68 @@ pub fn default_params() -> NodeParams {
             ("albedo_max".to_string(), ParamValue::Float(2.0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict integration."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::int_enum(
+            "relight_mode",
+            "Mode",
+            vec![(0, "SH Ratio"), (1, "Diffuse"), (2, "Hybrid")],
+        )
+        .with_help("Relighting method to apply."),
+        ParamSpec::int_enum(
+            "source_env",
+            "Source Env",
+            vec![(0, "From Splats"), (1, "Uniform White"), (2, "Custom")],
+        )
+        .with_help("Source lighting estimate for SH ratios."),
+        ParamSpec::int_enum(
+            "target_env",
+            "Target Env",
+            vec![(0, "From Splats"), (1, "Uniform White"), (2, "Custom")],
+        )
+        .with_help("Target lighting estimate to match."),
+        ParamSpec::vec3("source_color", "Source Color")
+            .with_help("Custom source lighting color (DC)."),
+        ParamSpec::vec3("target_color", "Target Color")
+            .with_help("Custom target lighting color (DC)."),
+        ParamSpec::float_slider("eps", "Epsilon", 0.0, 0.1)
+            .with_help("Stability epsilon scale for ratios."),
+        ParamSpec::float_slider("ratio_min", "Ratio Min", 0.0, 10.0)
+            .with_help("Minimum ratio clamp for SH transfer."),
+        ParamSpec::float_slider("ratio_max", "Ratio Max", 0.0, 10.0)
+            .with_help("Maximum ratio clamp for SH transfer."),
+        ParamSpec::float_slider("high_band_gain", "High Band Gain", 0.0, 1.0)
+            .with_help("Gain applied to higher SH bands."),
+        ParamSpec::int_enum(
+            "high_band_mode",
+            "High Band Mode",
+            vec![(0, "Scale Only"), (1, "Scale + Ratio")],
+        )
+        .with_help("Apply ratios to higher bands in hybrid mode."),
+        ParamSpec::int_enum(
+            "output_sh_order",
+            "Output SH Order",
+            vec![(0, "L0"), (1, "L1"), (2, "L2"), (3, "L3")],
+        )
+        .with_help("Zero SH bands above this order."),
+        ParamSpec::float_slider("albedo_max", "Albedo Max", 0.0, 4.0)
+            .with_help("Maximum albedo clamp for diffuse relighting."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

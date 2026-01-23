@@ -6,6 +6,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "UV Texture";
 
@@ -27,6 +28,26 @@ pub fn default_params() -> NodeParams {
             ("offset".to_string(), ParamValue::Vec2([0.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "projection",
+            "Projection",
+            vec![
+                (0, "Planar"),
+                (1, "Box"),
+                (2, "Cylindrical"),
+                (3, "Spherical"),
+            ],
+        )
+        .with_help("Projection type."),
+        ParamSpec::int_enum("axis", "Axis", vec![(0, "X"), (1, "Y"), (2, "Z")])
+            .with_help("Primary projection axis."),
+        ParamSpec::vec2("scale", "Scale").with_help("UV scale."),
+        ParamSpec::vec2("offset", "Offset").with_help("UV offset."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

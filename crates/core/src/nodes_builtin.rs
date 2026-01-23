@@ -3,6 +3,7 @@ use crate::graph::{NodeDefinition, NodeParams};
 use crate::geometry::{merge_splats, Geometry};
 use crate::mesh::Mesh;
 use crate::nodes;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -714,6 +715,75 @@ pub fn node_definition(kind: BuiltinNodeKind) -> NodeDefinition {
 
 pub fn default_params(kind: BuiltinNodeKind) -> NodeParams {
     (node_spec(kind).default_params)()
+}
+
+pub fn param_specs(kind: BuiltinNodeKind) -> Vec<ParamSpec> {
+    match kind {
+        BuiltinNodeKind::Box => nodes::box_node::param_specs(),
+        BuiltinNodeKind::Grid => nodes::grid::param_specs(),
+        BuiltinNodeKind::Sphere => nodes::sphere::param_specs(),
+        BuiltinNodeKind::Tube => nodes::tube::param_specs(),
+        BuiltinNodeKind::Circle => nodes::circle::param_specs(),
+        BuiltinNodeKind::Curve => nodes::curve::param_specs(),
+        BuiltinNodeKind::Sweep => nodes::sweep::param_specs(),
+        BuiltinNodeKind::File => nodes::file::param_specs(),
+        BuiltinNodeKind::ReadSplats => nodes::read_splats::param_specs(),
+        BuiltinNodeKind::WriteSplats => nodes::write_splats::param_specs(),
+        BuiltinNodeKind::GltfOutput => nodes::gltf_output::param_specs(),
+        BuiltinNodeKind::BooleanSdf => nodes::boolean::param_specs(),
+        BuiltinNodeKind::BooleanGeo => nodes::boolean_geo::param_specs(),
+        BuiltinNodeKind::Delete => nodes::delete::param_specs(),
+        BuiltinNodeKind::Prune => nodes::prune::param_specs(),
+        BuiltinNodeKind::Regularize => nodes::regularize::param_specs(),
+        BuiltinNodeKind::SplatLod => nodes::splat_lod::param_specs(),
+        BuiltinNodeKind::SplatToMesh => nodes::splat_to_mesh::param_specs(),
+        BuiltinNodeKind::SplatDeform => nodes::splat_deform::param_specs(),
+        BuiltinNodeKind::SplatDelight => nodes::splat_delight::param_specs(),
+        BuiltinNodeKind::SplatIntegrate => nodes::splat_integrate::param_specs(),
+        BuiltinNodeKind::SplatHeal => nodes::splat_heal::param_specs(),
+        BuiltinNodeKind::SplatOutlier => nodes::splat_outlier::param_specs(),
+        BuiltinNodeKind::SplatCluster => nodes::splat_cluster::param_specs(),
+        BuiltinNodeKind::SplatMerge => nodes::splat_merge::param_specs(),
+        BuiltinNodeKind::Group => nodes::group::param_specs(),
+        BuiltinNodeKind::GroupExpand => nodes::group_expand::param_specs(),
+        BuiltinNodeKind::Material => nodes::material::param_specs(),
+        BuiltinNodeKind::VolumeFromGeometry => nodes::volume_from_geo::param_specs(),
+        BuiltinNodeKind::VolumeCombine => nodes::volume_combine::param_specs(),
+        BuiltinNodeKind::VolumeBlur => nodes::volume_blur::param_specs(),
+        BuiltinNodeKind::VolumeToMesh => nodes::volume_to_mesh::param_specs(),
+        BuiltinNodeKind::Transform => nodes::transform::param_specs(),
+        BuiltinNodeKind::CopyTransform => nodes::copy_transform::param_specs(),
+        BuiltinNodeKind::Fuse => nodes::fuse::param_specs(),
+        BuiltinNodeKind::Ffd => nodes::ffd::param_specs(),
+        BuiltinNodeKind::CopyToPoints => nodes::copy_to_points::param_specs(),
+        BuiltinNodeKind::PolyFrame => nodes::polyframe::param_specs(),
+        BuiltinNodeKind::Normal => nodes::normal::param_specs(),
+        BuiltinNodeKind::AttributeNoise => nodes::attribute_noise::param_specs(),
+        BuiltinNodeKind::AttributePromote => nodes::attribute_promote::param_specs(),
+        BuiltinNodeKind::AttributeExpand => nodes::attribute_expand::param_specs(),
+        BuiltinNodeKind::AttributeFromFeature => nodes::attribute_from_feature::param_specs(),
+        BuiltinNodeKind::AttributeFromVolume => nodes::attribute_from_volume::param_specs(),
+        BuiltinNodeKind::AttributeMath => nodes::attribute_math::param_specs(),
+        BuiltinNodeKind::AttributeTransfer => nodes::attribute_transfer::param_specs(),
+        BuiltinNodeKind::Color => nodes::color::param_specs(),
+        BuiltinNodeKind::Noise => nodes::noise::param_specs(),
+        BuiltinNodeKind::ErosionNoise => nodes::erosion_noise::param_specs(),
+        BuiltinNodeKind::Ray => nodes::ray::param_specs(),
+        BuiltinNodeKind::UvTexture => nodes::uv_texture::param_specs(),
+        BuiltinNodeKind::UvUnwrap => nodes::uv_unwrap::param_specs(),
+        BuiltinNodeKind::Smooth => nodes::smooth::param_specs(),
+        BuiltinNodeKind::Scatter => nodes::scatter::param_specs(),
+        BuiltinNodeKind::Resample => nodes::resample::param_specs(),
+        BuiltinNodeKind::Wrangle => nodes::wrangle::param_specs(),
+        BuiltinNodeKind::ObjOutput => nodes::obj_output::param_specs(),
+        _ => Vec::new(),
+    }
+}
+
+pub fn param_specs_for_name(name: &str) -> Vec<ParamSpec> {
+    builtin_kind_from_name(name)
+        .map(param_specs)
+        .unwrap_or_default()
 }
 
 pub fn compute_mesh_node(

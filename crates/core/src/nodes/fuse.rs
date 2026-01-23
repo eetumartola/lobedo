@@ -8,6 +8,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Fuse";
 const DEFAULT_RADIUS: f32 = 0.001;
@@ -28,6 +29,15 @@ pub fn default_params() -> NodeParams {
             ("unfuse".to_string(), ParamValue::Bool(false)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
+            .with_help("Merge points within this radius."),
+        ParamSpec::bool("unfuse", "Unfuse")
+            .with_help("Split shared points into unique points."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

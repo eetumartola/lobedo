@@ -6,6 +6,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "UV Unwrap";
 
@@ -25,6 +26,15 @@ pub fn default_params() -> NodeParams {
             ("normal_threshold".to_string(), ParamValue::Float(45.0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
+            .with_help("Island padding in UV space."),
+        ParamSpec::float_slider("normal_threshold", "Normal Threshold", 0.0, 180.0)
+            .with_help("Angle threshold for island splits."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

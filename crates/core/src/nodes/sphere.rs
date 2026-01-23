@@ -5,6 +5,7 @@ use glam::{Mat4, Vec3};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{make_uv_sphere, Mesh};
 use crate::nodes::geometry_out;
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Sphere";
 
@@ -26,6 +27,19 @@ pub fn default_params() -> NodeParams {
             ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
+            .with_help("Sphere radius."),
+        ParamSpec::int_slider("rows", "Rows", 3, 64)
+            .with_help("Latitude segments."),
+        ParamSpec::int_slider("cols", "Cols", 3, 128)
+            .with_help("Longitude segments."),
+        ParamSpec::vec3("center", "Center")
+            .with_help("Sphere center in world space."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {

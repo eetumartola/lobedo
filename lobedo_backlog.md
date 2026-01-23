@@ -18,6 +18,16 @@ Status: done | in progress | not started
 - **C4**: Splat eval wraps geometry eval and derives splat outputs (done)
 - **C5**: Reduce duplicate node lists in the UI menu/state helpers (done)
 
+## Epic D - Parameter Schema + Architecture Hardening
+- **D1**: ParamSpec schema + reusable templates (Vec3/Float/Enum/etc.) (in progress)
+- **D2**: Migrate parameter UI to ParamSpec (labels/help/ranges/widgets), shrink string-based special cases (not started)
+- **D3**: Stable node kind id stored in graph; migrate existing projects (not started)
+- **D4**: Consolidate node registry (reduce remaining manual duplication) (not started)
+- **D5**: Shared scene types crate used by core/render/app (not started)
+- **D6**: Graph adjacency/index for input link lookup (not started)
+- **D7**: Texture decode cache (path + mtime / URL revision) (not started)
+- **D8**: Add core tests (graph/eval/migrations/registry) (not started)
+
 ## Epic T - Parallelism
 - **T1**: Add optional CPU parallelism (rayon) with single-thread fallback for web/wasm (done)
 - **T2**: Parallelize attribute-heavy nodes (Wrangle, Attribute Noise/From Feature/Transfer/Math, Smooth) (done)

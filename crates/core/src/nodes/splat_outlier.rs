@@ -9,6 +9,7 @@ use crate::nodes::{
     require_mesh_input,
     splat_utils::split_splats_by_group,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 use super::splat_cluster::{dbscan_labels, estimate_spacing};
@@ -41,6 +42,30 @@ pub fn default_params() -> NodeParams {
             ),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict outlier removal."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::float_slider("eps", "Radius", 0.0, 10.0)
+            .with_help("Neighborhood radius for density clustering (<=0 = auto)."),
+        ParamSpec::int_slider("min_pts", "Min Points", 1, 128)
+            .with_help("Minimum neighbors for a core point."),
+        ParamSpec::int_slider("min_cluster_size", "Min Cluster Size", 0, 100_000)
+            .with_help("Remove clusters smaller than this size (0 disables)."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

@@ -11,6 +11,7 @@ use crate::nodes::{
     require_mesh_input,
     splat_utils::{splat_bounds_indices, splat_cell_key, split_splats_by_group},
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat LOD";
@@ -33,6 +34,28 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("voxel_size", "Voxel Size", 0.0, 10.0)
+            .with_help("Voxel size for clustering."),
+        ParamSpec::int_slider("target_count", "Target Count", 0, 1_000_000)
+            .with_help("Optional cap on cluster count (0 = disabled)."),
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict LOD."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

@@ -10,6 +10,7 @@ use crate::nodes::attribute_utils::domain_from_params;
 use crate::nodes::expand_utils::{mesh_adjacency, ExpandMode};
 use crate::nodes::group_utils::{mask_has_any, mesh_group_mask, splat_group_mask};
 use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Expand";
@@ -34,6 +35,39 @@ pub fn default_params() -> NodeParams {
             ("iterations".to_string(), ParamValue::Int(1)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::string("attr", "Attribute").with_help("Attribute name(s) to expand."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to expand."),
+        ParamSpec::int_enum("expand_mode", "Mode", vec![(0, "Expand"), (1, "Contract")])
+            .with_help("Expand or Contract mode."),
+        ParamSpec::int_slider("iterations", "Iterations", 0, 20)
+            .with_help("Number of iterations."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

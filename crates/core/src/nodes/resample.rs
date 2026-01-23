@@ -8,6 +8,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume};
 use crate::volume_sampling::VolumeSampler;
 
@@ -33,6 +34,17 @@ pub fn default_params() -> NodeParams {
             ("volume_max_dim".to_string(), ParamValue::Int(DEFAULT_VOLUME_MAX_DIM)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_slider("curve_points", "Curve Points", 2, 512)
+            .with_help("Target point count per curve."),
+        ParamSpec::float_slider("mesh_ratio", "Mesh Ratio", 0.0, 1.0)
+            .with_help("Target triangle ratio for mesh reduction."),
+        ParamSpec::int_slider("volume_max_dim", "Volume Max Dim", 8, 512)
+            .with_help("Maximum voxel dimension for resampled volumes."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

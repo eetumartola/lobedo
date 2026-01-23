@@ -5,6 +5,7 @@ use glam::{Mat4, Vec3};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{make_grid, Mesh};
 use crate::nodes::geometry_out;
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Grid";
 
@@ -26,6 +27,19 @@ pub fn default_params() -> NodeParams {
             ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::vec2("size", "Size")
+            .with_help("Grid size in X/Z."),
+        ParamSpec::int_slider("rows", "Rows", 2, 64)
+            .with_help("Rows (subdivisions) along Z."),
+        ParamSpec::int_slider("cols", "Cols", 2, 64)
+            .with_help("Columns (subdivisions) along X."),
+        ParamSpec::vec3("center", "Center")
+            .with_help("Grid center in world space."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {

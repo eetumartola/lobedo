@@ -7,6 +7,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::parallel;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Regularize";
@@ -33,6 +34,34 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("min_scale", "Min Scale", -10.0, 10.0)
+            .with_help("Minimum log-scale to keep."),
+        ParamSpec::float_slider("max_scale", "Max Scale", -10.0, 10.0)
+            .with_help("Maximum log-scale to keep."),
+        ParamSpec::bool("normalize_opacity", "Normalize Opacity")
+            .with_help("Renormalize opacity to a stable range."),
+        ParamSpec::bool("normalize_rotation", "Normalize Rotation")
+            .with_help("Normalize/repair rotations."),
+        ParamSpec::bool("remove_invalid", "Remove Invalid")
+            .with_help("Drop splats with NaN/Inf."),
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict regularize."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

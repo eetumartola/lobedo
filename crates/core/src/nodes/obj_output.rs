@@ -5,6 +5,7 @@ use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "OBJ Output";
 
@@ -24,6 +25,10 @@ pub fn default_params() -> NodeParams {
             ParamValue::String("output.obj".to_string()),
         )]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![ParamSpec::string("path", "Path").with_help("Output OBJ file path.")]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

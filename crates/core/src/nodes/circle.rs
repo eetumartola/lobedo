@@ -6,6 +6,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::geometry_out;
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Circle";
 const DEFAULT_RADIUS: f32 = 1.0;
@@ -29,6 +30,23 @@ pub fn default_params() -> NodeParams {
             ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string_enum(
+            "output",
+            "Output",
+            vec![("curve", "Curve"), ("mesh", "Mesh")],
+        )
+        .with_help("Output as a curve or a mesh."),
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
+            .with_help("Circle radius."),
+        ParamSpec::int_slider("segments", "Segments", 3, 256)
+            .with_help("Number of segments."),
+        ParamSpec::vec3("center", "Center")
+            .with_help("Circle center in world space."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {

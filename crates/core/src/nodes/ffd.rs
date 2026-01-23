@@ -16,6 +16,7 @@ use crate::nodes::{
     require_mesh_input,
 };
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "FFD";
@@ -50,6 +51,42 @@ pub fn default_params() -> NodeParams {
             ("extrapolate".to_string(), ParamValue::Bool(false)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict deformation."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::int_slider("res_x", "Res X", 2, 8)
+            .with_help("Control points along X (lattice resolution)."),
+        ParamSpec::int_slider("res_y", "Res Y", 2, 8)
+            .with_help("Control points along Y (lattice resolution)."),
+        ParamSpec::int_slider("res_z", "Res Z", 2, 8)
+            .with_help("Control points along Z (lattice resolution)."),
+        ParamSpec::string("lattice_points", "Lattice Points")
+            .with_help("Optional override for lattice control points."),
+        ParamSpec::bool("use_input_bounds", "Use Input Bounds")
+            .with_help("Use input geometry bounds for the lattice."),
+        ParamSpec::vec3("center", "Center")
+            .with_help("Lattice center when not using input bounds."),
+        ParamSpec::vec3("size", "Size")
+            .with_help("Lattice size when not using input bounds."),
+        ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
+            .with_help("Expand lattice bounds by this amount."),
+        ParamSpec::bool("extrapolate", "Extrapolate")
+            .with_help("Allow extrapolation outside the lattice."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

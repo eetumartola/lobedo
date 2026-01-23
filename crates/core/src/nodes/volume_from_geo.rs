@@ -5,6 +5,7 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
+use crate::param_spec::ParamSpec;
 use crate::parallel;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
@@ -38,6 +39,21 @@ pub fn default_params() -> NodeParams {
             ("sdf_band".to_string(), ParamValue::Float(DEFAULT_SDF_BAND)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string_enum("mode", "Mode", vec![("density", "Density"), ("sdf", "SDF")])
+            .with_help("Volume type to generate (density or SDF)."),
+        ParamSpec::int_slider("max_dim", "Max Dim", 8, 512)
+            .with_help("Largest voxel dimension (grid resolution)."),
+        ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
+            .with_help("Padding around the bounds."),
+        ParamSpec::float_slider("density_scale", "Density Scale", 0.0, 10.0)
+            .with_help("Density value inside the volume."),
+        ParamSpec::float_slider("sdf_band", "SDF Band", 0.0, 10.0)
+            .with_help("SDF band width for rendering."),
+    ]
 }
 
 pub fn apply_to_geometry(

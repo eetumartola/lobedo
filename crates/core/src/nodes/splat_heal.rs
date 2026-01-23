@@ -10,6 +10,7 @@ use crate::nodes::splat_to_mesh::{build_splat_grid, GridSpec, SplatOutputMode};
 use crate::nodes::splat_utils::{split_splats_by_group, SpatialHash};
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Heal";
@@ -103,6 +104,82 @@ pub fn default_params() -> NodeParams {
             ("blur_iters".to_string(), ParamValue::Int(DEFAULT_BLUR_ITERS)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict healing."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::string_enum(
+            "heal_shape",
+            "Heal Bounds",
+            vec![("all", "All"), ("box", "Box"), ("sphere", "Sphere")],
+        )
+        .with_help("Heal bounds: All, Box, or Sphere."),
+        ParamSpec::vec3("heal_center", "Heal Center")
+            .with_help("Heal bounds center."),
+        ParamSpec::vec3("heal_size", "Heal Size")
+            .with_help("Heal bounds size."),
+        ParamSpec::int_enum(
+            "method",
+            "Method",
+            vec![(0, "Voxel Close"), (1, "SDF Patch")],
+        )
+        .with_help("Healing method to apply."),
+        ParamSpec::bool("preview_surface", "Preview Surface")
+            .with_help("Preview the healed surface as a mesh in the viewport."),
+        ParamSpec::float_slider("voxel_size", "Voxel Size", 0.0, 10.0)
+            .with_help("Voxel size for the density grid."),
+        ParamSpec::int_slider("voxel_size_max", "Max Voxel Dim", 8, 2048)
+            .with_help("Max voxel dimension (safety clamp)."),
+        ParamSpec::float_slider("n_sigma", "Support Sigma", 0.0, 6.0)
+            .with_help("Gaussian support radius in sigmas."),
+        ParamSpec::float_slider("density_iso", "Density Threshold", 0.0, 10.0)
+            .with_help("Density threshold for occupancy."),
+        ParamSpec::float_slider("bounds_padding", "Bounds Padding", 0.0, 10.0)
+            .with_help("Padding around bounds in sigmas."),
+        ParamSpec::int_slider("close_radius", "Close Radius", 0, 6)
+            .with_help("Closing radius in voxels."),
+        ParamSpec::int_slider("fill_stride", "Fill Stride", 1, 8)
+            .with_help("Subsample candidates (higher = fewer splats)."),
+        ParamSpec::int_slider("max_new", "Max New", 0, 100_000)
+            .with_help("Maximum number of new splats."),
+        ParamSpec::float_slider("sdf_band", "SDF Band", 0.0, 5.0)
+            .with_help("SDF band thickness around the surface."),
+        ParamSpec::float_slider("sdf_close", "SDF Close", -2.0, 2.0)
+            .with_help("SDF offset to close small gaps."),
+        ParamSpec::float_slider("search_radius", "Search Radius", 0.0, 10.0).with_help(
+            "Neighbor search radius for copying attributes (<=0 = auto).",
+        ),
+        ParamSpec::float_slider("min_distance", "Min Distance", 0.0, 10.0).with_help(
+            "Minimum distance to existing splats (<=0 = auto).",
+        ),
+        ParamSpec::float_slider("scale_mul", "Scale Mult", 0.1, 10.0)
+            .with_help("Scale multiplier for new splats."),
+        ParamSpec::float_slider("opacity_mul", "Opacity Mult", 0.0, 2.0)
+            .with_help("Opacity multiplier for new splats."),
+        ParamSpec::bool("copy_sh", "Copy SH")
+            .with_help("Copy full SH coefficients (else DC only)."),
+        ParamSpec::float_slider("max_m2", "Exponent Clamp", 0.0, 10.0)
+            .with_help("Exponent clamp for SDF method."),
+        ParamSpec::float_slider("smooth_k", "Blend Sharpness", 0.001, 2.0)
+            .with_help("Smooth-min blend sharpness for SDF method."),
+        ParamSpec::float_slider("shell_radius", "Shell Radius", 0.1, 4.0)
+            .with_help("Ellipsoid shell radius for SDF method."),
+        ParamSpec::int_slider("blur_iters", "Density Blur", 0, 6)
+            .with_help("Density blur iterations."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

@@ -12,6 +12,7 @@ use crate::nodes::{
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute from Feature";
@@ -35,6 +36,38 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum("feature", "Feature", vec![(0, "Area"), (1, "Gradient")])
+            .with_help("Feature to compute."),
+        ParamSpec::string("attr", "Attribute")
+            .with_help("Destination attribute (empty = default)."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to write."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

@@ -13,6 +13,7 @@ use crate::nodes::{
     require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Noise/Mountain";
@@ -37,6 +38,29 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("amplitude", "Amplitude", -10.0, 10.0)
+            .with_help("Displacement strength."),
+        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0)
+            .with_help("Noise frequency."),
+        ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Noise seed."),
+        ParamSpec::vec3("offset", "Offset").with_help("Noise space offset."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

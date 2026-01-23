@@ -13,6 +13,8 @@ use crate::nodes::{
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
+use crate::param_templates;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Copy to Points";
@@ -40,6 +42,44 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    let mut specs = vec![
+        ParamSpec::bool("align_to_normals", "Align to Normals")
+            .with_help("Align copies to template normals."),
+    ];
+    specs.extend(param_templates::transform_params(false));
+    specs.push(
+        ParamSpec::string("inherit", "Inherit Attributes")
+            .with_help("Template point attributes to copy onto each instance."),
+    );
+    specs.push(
+        ParamSpec::string("copy_attr", "Copy Attribute")
+            .with_help("Name of the per-copy index attribute."),
+    );
+    specs.push(ParamSpec::int_enum(
+        "copy_attr_class",
+        "Copy Attribute Class",
+        vec![(0, "Point"), (1, "Vertex"), (2, "Primitive")],
+    )
+    .with_help("Attribute class for the per-copy index."));
+    specs.push(
+        ParamSpec::string("group", "Group")
+            .with_help("Restrict to a template point group."),
+    );
+    specs.push(ParamSpec::int_enum(
+        "group_type",
+        "Group Type",
+        vec![
+            (0, "Auto"),
+            (1, "Vertex"),
+            (2, "Point"),
+            (3, "Primitive"),
+        ],
+    )
+    .with_help("Group domain to use."));
+    specs
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

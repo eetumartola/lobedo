@@ -10,6 +10,8 @@ use crate::nodes::{
     require_mesh_input,
     selection_shape_params,
 };
+use crate::param_spec::ParamSpec;
+use crate::param_templates;
 
 pub const NAME: &str = "Delete";
 
@@ -27,6 +29,26 @@ pub fn default_params() -> NodeParams {
     values.insert("group".to_string(), ParamValue::String(String::new()));
     values.insert("group_type".to_string(), ParamValue::Int(0));
     NodeParams { values }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    let mut specs = param_templates::selection_shape_specs(false, false);
+    specs.push(
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict deletion."),
+    );
+    specs.push(ParamSpec::int_enum(
+        "group_type",
+        "Group Type",
+        vec![
+            (0, "Auto"),
+            (1, "Vertex"),
+            (2, "Point"),
+            (3, "Primitive"),
+        ],
+    )
+    .with_help("Group domain to use."));
+    specs
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

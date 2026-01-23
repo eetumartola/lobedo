@@ -6,6 +6,8 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::transform;
+use crate::param_spec::ParamSpec;
+use crate::param_templates;
 
 pub const NAME: &str = "Copy/Transform";
 
@@ -37,6 +39,27 @@ pub fn default_params() -> NodeParams {
             ("scale_step".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    let mut specs = param_templates::transform_params(true);
+    specs.push(
+        ParamSpec::int_slider("count", "Count", 0, 1000)
+            .with_help("Number of copies."),
+    );
+    specs.push(
+        ParamSpec::vec3("translate_step", "Translate Step")
+            .with_help("Per-copy translation step."),
+    );
+    specs.push(
+        ParamSpec::vec3("rotate_step_deg", "Rotate Step")
+            .with_help("Per-copy rotation step (degrees)."),
+    );
+    specs.push(
+        ParamSpec::vec3("scale_step", "Scale Step")
+            .with_help("Per-copy scale step."),
+    );
+    specs
 }
 
 pub fn transform_matrices(params: &NodeParams) -> Vec<Mat4> {

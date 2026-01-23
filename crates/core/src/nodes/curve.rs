@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::curve::{parse_curve_points, sample_catmull_rom};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::geometry_out;
+use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Curve";
 
@@ -23,6 +24,17 @@ pub fn default_params() -> NodeParams {
             ("closed".to_string(), ParamValue::Bool(false)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("points", "Points")
+            .with_help("Curve points encoded as x y z; x y z; ..."),
+        ParamSpec::int_slider("subdivs", "Subdivs", 1, 64)
+            .with_help("Subdivisions per segment for smoothing."),
+        ParamSpec::bool("closed", "Closed")
+            .with_help("Close the curve loop."),
+    ]
 }
 
 pub struct CurveOutput {

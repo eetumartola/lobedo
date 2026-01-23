@@ -11,7 +11,10 @@ use std::sync::{Mutex, OnceLock};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
-use lobedo_core::{parse_color_gradient, ColorGradient, ParamValue};
+use lobedo_core::{
+    parse_color_gradient, ColorGradient, ParamKind, ParamOption, ParamRange, ParamSpec,
+    ParamValue, ParamWidget,
+};
 
 use super::help::{param_help, show_help_tooltip};
 
@@ -46,7 +49,7 @@ pub(super) fn edit_param(
                     changed = true;
                 }
                 ui.add_space(spacing);
-                let range = float_slider_range(node_name, label, v);
+                let range = -1000.0..=1000.0;
                 let slider_width = (controls_width - value_width - spacing).max(120.0);
                 let min = *range.start();
                 let max = *range.end();
@@ -458,7 +461,7 @@ pub(super) fn edit_param(
                         changed = true;
                     }
                     ui.add_space(spacing);
-                    let range = int_slider_range(node_name, label, v);
+                    let range = -1000..=1000;
                     let slider_width = (controls_width - value_width - spacing).max(120.0);
                     let min = *range.start();
                     let max = *range.end();
@@ -611,6 +614,261 @@ pub(super) fn edit_param(
             };
             (ParamValue::String(v), changed)
         }
+    }
+}
+
+pub(super) fn edit_param_with_spec(
+    ui: &mut Ui,
+    node_name: &str,
+    spec: &ParamSpec,
+    value: ParamValue,
+) -> (ParamValue, bool) {
+    let display_label = if spec.label.is_empty() {
+        display_label(node_name, spec.key)
+    } else {
+        spec.label.to_string()
+    };
+    let fallback_help = if spec.help.is_some() {
+        None
+    } else {
+        param_help(node_name, spec.key)
+    };
+    let help = spec.help.or(fallback_help.as_deref());
+
+    let fallback_value = value.clone();
+    match (spec.kind, value) {
+        (ParamKind::Float, ParamValue::Float(mut v)) => {
+            let changed = param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let height = ui.spacing().interact_size.y;
+                let controls_width = ui.max_rect().width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
+                if ui
+                    .add_sized(
+                        [value_width, height],
+                        egui::DragValue::new(&mut v)
+                            .speed(0.1)
+                            .update_while_editing(false),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+                ui.add_space(spacing);
+                let range = match spec.range {
+                    Some(ParamRange::Float { min, max }) => min..=max,
+                    _ => -1000.0..=1000.0,
+                };
+                let slider_width = (controls_width - value_width - spacing).max(120.0);
+                let min = *range.start();
+                let max = *range.end();
+                let mut slider_value = v.clamp(min, max);
+                if ui
+                    .add_sized(
+                        [slider_width, height],
+                        egui::Slider::new(&mut slider_value, range).show_value(false),
+                    )
+                    .changed()
+                {
+                    v = slider_value;
+                    changed = true;
+                }
+                ui.spacing_mut().item_spacing = prev_spacing;
+                changed
+            });
+            (ParamValue::Float(v), changed)
+        }
+        (ParamKind::Int, ParamValue::Int(mut v)) => {
+            let mut options_i32 = Vec::new();
+            for option in &spec.options {
+                if let ParamOption::Int { value, label } = option {
+                    options_i32.push((*value, *label));
+                }
+            }
+            let changed = if spec.widget == ParamWidget::Combo && !options_i32.is_empty() {
+                combo_row_i32(
+                    ui,
+                    spec.key,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &options_i32,
+                    options_i32
+                        .first()
+                        .map(|(_, label)| *label)
+                        .unwrap_or("Option"),
+                )
+            } else {
+                param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                    let mut changed = false;
+                    let spacing = 8.0;
+                    let height = ui.spacing().interact_size.y;
+                    let controls_width = ui.max_rect().width();
+                    let prev_spacing = ui.spacing().item_spacing;
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                    let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
+                    if ui
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(&mut v)
+                                .speed(1.0)
+                                .update_while_editing(false),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    ui.add_space(spacing);
+                    let range = match spec.range {
+                        Some(ParamRange::Int { min, max }) => min..=max,
+                        _ => -1000..=1000,
+                    };
+                    let slider_width = (controls_width - value_width - spacing).max(120.0);
+                    let min = *range.start();
+                    let max = *range.end();
+                    let mut slider_value = v.clamp(min, max);
+                    if ui
+                        .add_sized(
+                            [slider_width, height],
+                            egui::Slider::new(&mut slider_value, range).show_value(false),
+                        )
+                        .changed()
+                    {
+                        v = slider_value;
+                        changed = true;
+                    }
+                    ui.spacing_mut().item_spacing = prev_spacing;
+                    changed
+                })
+            };
+            (ParamValue::Int(v), changed)
+        }
+        (ParamKind::Bool, ParamValue::Bool(mut v)) => {
+            let changed = param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                let checkbox = egui::Checkbox::without_text(&mut v);
+                ui.add(checkbox).changed()
+            });
+            (ParamValue::Bool(v), changed)
+        }
+        (ParamKind::Vec2, ParamValue::Vec2(mut v)) => {
+            let changed = param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let available = ui.available_width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                let value_width = ((available - spacing) / 2.0).clamp(56.0, 120.0);
+                let height = ui.spacing().interact_size.y;
+                let len = v.len();
+                for (idx, item) in v.iter_mut().enumerate() {
+                    if ui
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(item)
+                                .speed(0.1)
+                                .update_while_editing(false),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    if idx + 1 < len {
+                        ui.add_space(spacing);
+                    }
+                }
+                ui.spacing_mut().item_spacing = prev_spacing;
+                changed
+            });
+            (ParamValue::Vec2(v), changed)
+        }
+        (ParamKind::Vec3, ParamValue::Vec3(mut v)) => {
+            let changed = param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                let mut changed = false;
+                let spacing = 8.0;
+                let available = ui.available_width();
+                let prev_spacing = ui.spacing().item_spacing;
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+                let value_width = ((available - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
+                let height = ui.spacing().interact_size.y;
+                let len = v.len();
+                for (idx, item) in v.iter_mut().enumerate() {
+                    if ui
+                        .add_sized(
+                            [value_width, height],
+                            egui::DragValue::new(item)
+                                .speed(0.1)
+                                .update_while_editing(false),
+                        )
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    if idx + 1 < len {
+                        ui.add_space(spacing);
+                    }
+                }
+                ui.spacing_mut().item_spacing = prev_spacing;
+                changed
+            });
+            (ParamValue::Vec3(v), changed)
+        }
+        (ParamKind::String, ParamValue::String(mut v)) => {
+            let mut options_str = Vec::new();
+            for option in &spec.options {
+                if let ParamOption::String { value, label } = option {
+                    options_str.push((*value, *label));
+                }
+            }
+            let changed = if spec.widget == ParamWidget::Combo && !options_str.is_empty() {
+                combo_row_string(
+                    ui,
+                    spec.key,
+                    &display_label,
+                    help,
+                    &mut v,
+                    &options_str,
+                    options_str
+                        .first()
+                        .map(|(_, label)| *label)
+                        .unwrap_or("Option"),
+                )
+            } else if spec.key == "gradient" {
+                param_row_with_height_label(ui, spec.key, &display_label, help, 112.0, |ui| {
+                    edit_gradient_field(ui, node_name, spec.key, &mut v)
+                })
+            } else if spec.key == "code" {
+                param_row_with_height_label(ui, spec.key, &display_label, help, 120.0, |ui| {
+                    ui.add_sized(
+                        [ui.available_width().max(160.0), 100.0],
+                        egui::TextEdit::multiline(&mut v)
+                            .code_editor()
+                            .desired_rows(4),
+                    )
+                    .changed()
+                })
+            } else {
+                let use_picker = path_picker_kind(node_name, spec.key).is_some();
+                if use_picker {
+                    param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                        edit_path_field(ui, node_name, spec.key, &mut v)
+                    })
+                } else {
+                    param_row_with_label(ui, spec.key, &display_label, help, |ui| {
+                        let height = ui.spacing().interact_size.y;
+                        ui.add_sized(
+                            [ui.available_width().max(160.0), height],
+                            egui::TextEdit::singleline(&mut v),
+                        )
+                        .changed()
+                    })
+                }
+            };
+            (ParamValue::String(v), changed)
+        }
+        _ => edit_param(ui, node_name, spec.key, fallback_value),
     }
 }
 
@@ -1475,91 +1733,4 @@ fn display_label(node_name: &str, key: &str) -> String {
         .to_string();
     }
     key.to_string()
-}
-
-fn float_slider_range(
-    node_name: &str,
-    label: &str,
-    _value: f32,
-) -> std::ops::RangeInclusive<f32> {
-    match label {
-        "min_scale" | "max_scale" => -10.0..=10.0,
-        "min_opacity" | "max_opacity" => -2.0..=2.0,
-        "threshold_deg" => 0.0..=180.0,
-        "amplitude" => -10.0..=10.0,
-        "frequency" => 0.0..=10.0,
-        "strength" => 0.0..=1.0,
-        "density_min" | "density_max" => 0.0..=1.0,
-        "value_f" => -10.0..=10.0,
-        "radius" => 0.0..=1000.0,
-        "max_distance" => 0.0..=1000.0,
-        "splat_density" => 0.0..=10.0,
-        "voxel_size" => 0.0..=10.0,
-        "n_sigma" => 0.0..=6.0,
-        "density_iso" if node_name == "Volume to Mesh" => 0.0..=1.0,
-        "surface_iso" if node_name == "Volume to Mesh" => -1.0..=1.0,
-        "density_iso" => 0.0..=10.0,
-        "surface_iso" => -5.0..=5.0,
-        "bounds_padding" => 0.0..=10.0,
-        "normal_threshold" => 0.0..=180.0,
-        "max_m2" => 0.0..=10.0,
-        "smooth_k" => 0.001..=2.0,
-        "shell_radius" => 0.1..=4.0,
-        "sdf_band" if node_name == "Splat Heal" => 0.0..=5.0,
-        "sdf_close" => -2.0..=2.0,
-        "search_radius" => 0.0..=10.0,
-        "min_distance" => 0.0..=10.0,
-        "scale_mul" => 0.1..=10.0,
-        "opacity_mul" => 0.0..=2.0,
-        "cell_size" => 0.0..=10.0,
-        "eps" if node_name == "Splat Cluster" || node_name == "Splat Outlier" => 0.0..=10.0,
-        "padding" => 0.0..=10.0,
-        "density_scale" => 0.0..=10.0,
-        "mesh_ratio" => 0.0..=1.0,
-        "sdf_band" => 0.0..=10.0,
-        "metallic" | "roughness" => 0.0..=1.0,
-        "erosion_strength" => 0.0..=1.0,
-        "erosion_freq" => 0.0..=30.0,
-        "erosion_roughness" => 0.0..=1.0,
-        "erosion_lacunarity" => 1.0..=4.0,
-        "erosion_slope_strength" => 0.0..=5.0,
-        "erosion_branch_strength" => 0.0..=5.0,
-        "ratio_min" | "ratio_max" => 0.0..=10.0,
-        "high_band_gain" => 0.0..=1.0,
-        "eps" => 0.0..=0.1,
-        "albedo_max" => 0.0..=4.0,
-        _ => -1000.0..=1000.0,
-    }
-}
-
-fn int_slider_range(
-    node_name: &str,
-    label: &str,
-    _value: i32,
-) -> std::ops::RangeInclusive<i32> {
-    match label {
-        "domain" => 0..=3,
-        "op" => 0..=3,
-        "rows" | "cols" => 2..=64,
-        "res_x" | "res_y" | "res_z" => 2..=8,
-        "subdivs" => 1..=64,
-        "segments" => 3..=256,
-        "iterations" => 0..=20,
-        "seed" => 0..=100,
-        "blur_iters" => 0..=6,
-        "voxel_size_max" => 8..=2048,
-        "max_dim" => 8..=512,
-        "curve_points" => 2..=512,
-        "volume_max_dim" => 8..=512,
-        "close_radius" => 0..=6,
-        "fill_stride" => 1..=8,
-        "max_new" => 0..=100_000,
-        "min_pts" => 1..=128,
-        "min_cluster_size" => 0..=100_000,
-        "erosion_octaves" => 1..=8,
-        "count" if node_name == "Scatter" => 0..=1000,
-        "count" if node_name == "Copy/Transform" => 1..=100,
-        "target_count" => 0..=1_000_000,
-        _ => -1000..=1000,
-    }
 }

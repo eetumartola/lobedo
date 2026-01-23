@@ -7,6 +7,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::attribute_utils::parse_attribute_list;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Promote";
@@ -71,6 +72,60 @@ pub fn default_params() -> NodeParams {
             ("delete_original".to_string(), ParamValue::Bool(false)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("attr", "Original Name")
+            .with_help("Attribute name or pattern to promote."),
+        ParamSpec::int_enum(
+            "source_domain",
+            "Original Class",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Class of the source attribute."),
+        ParamSpec::int_enum(
+            "target_domain",
+            "New Class",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Class to promote into."),
+        ParamSpec::string("piece_attr", "Piece Attribute")
+            .with_help("Optional piece attribute to promote per-piece."),
+        ParamSpec::int_enum(
+            "promotion",
+            "Promotion Method",
+            vec![
+                (0, "Maximum"),
+                (1, "Minimum"),
+                (2, "Average"),
+                (3, "Mode"),
+                (4, "Median"),
+                (5, "Sum"),
+                (6, "Sum of Squares"),
+                (7, "Root Mean Square"),
+                (8, "First"),
+                (9, "Last"),
+            ],
+        )
+        .with_help("Promotion method for combining values."),
+        ParamSpec::bool("rename", "Change New Name")
+            .with_help("Enable renaming the promoted attribute."),
+        ParamSpec::string("new_name", "New Name")
+            .with_help("New attribute name or pattern (* placeholder)."),
+        ParamSpec::bool("delete_original", "Delete Original")
+            .with_help("Remove the original attribute after promoting."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

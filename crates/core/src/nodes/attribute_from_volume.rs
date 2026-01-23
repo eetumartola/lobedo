@@ -13,6 +13,7 @@ use crate::nodes::{
     geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
 };
+use crate::param_spec::ParamSpec;
 use crate::parallel;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
@@ -38,6 +39,36 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("attr", "Attribute")
+            .with_help("Attribute name (empty = volume)."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to write."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn apply_to_geometry(

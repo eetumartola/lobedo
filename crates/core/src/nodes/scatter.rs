@@ -11,6 +11,7 @@ use crate::nodes::{
     attribute_utils::parse_attribute_list, geometry_in, geometry_out, group_utils::mesh_group_mask,
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::volume::{Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
@@ -38,6 +39,36 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_slider("count", "Count", 0, 1000)
+            .with_help("Number of points to scatter."),
+        ParamSpec::int_slider("seed", "Seed", 0, 100)
+            .with_help("Random seed."),
+        ParamSpec::string("density_attr", "Density Attribute")
+            .with_help("Optional density attribute for weighting."),
+        ParamSpec::float_slider("density_min", "Density Min", 0.0, 1.0)
+            .with_help("Minimum mapped density value (0->min)."),
+        ParamSpec::float_slider("density_max", "Density Max", 0.0, 1.0)
+            .with_help("Maximum mapped density value (1->max)."),
+        ParamSpec::string("inherit", "Inherit Attributes")
+            .with_help("Attributes to inherit from the source."),
+        ParamSpec::string("group", "Group")
+            .with_help("Restrict scattering to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

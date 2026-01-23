@@ -9,6 +9,7 @@ use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
 use crate::nodes::volume_from_geo;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
@@ -43,6 +44,35 @@ pub fn default_params() -> NodeParams {
             ),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string_enum(
+            "mode",
+            "Mode",
+            vec![
+                ("auto", "Auto"),
+                ("mesh_mesh", "Mesh-Mesh"),
+                ("mesh_sdf", "Mesh-SDF"),
+            ],
+        )
+        .with_help(
+            "Auto picks mesh-mesh or mesh-SDF; mesh-SDF requires an SDF volume on input B.",
+        ),
+        ParamSpec::int_enum(
+            "op",
+            "Operation",
+            vec![(0, "Union"), (1, "Difference"), (2, "Intersect")],
+        )
+        .with_help("Boolean operation (Union, Difference, Intersect)."),
+        ParamSpec::int_slider("max_dim", "Max Dimension", 8, 512)
+            .with_help("Maximum voxel dimension for the SDF grid."),
+        ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
+            .with_help("Padding around the combined bounds."),
+        ParamSpec::float_slider("surface_iso", "Surface Iso", -5.0, 5.0)
+            .with_help("Isovalue used when extracting the output mesh."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

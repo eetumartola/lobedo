@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
 pub const NAME: &str = "Volume Blur";
@@ -25,6 +26,15 @@ pub fn default_params() -> NodeParams {
             ("iterations".to_string(), ParamValue::Int(DEFAULT_ITERATIONS)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
+            .with_help("Blur radius in world units."),
+        ParamSpec::int_slider("iterations", "Iterations", 0, 20)
+            .with_help("Number of blur passes."),
+    ]
 }
 
 pub fn apply_to_geometry(

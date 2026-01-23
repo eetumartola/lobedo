@@ -9,6 +9,7 @@ use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_utils::splat_cell_key;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Deform";
@@ -37,6 +38,15 @@ pub fn default_params() -> NodeParams {
             ParamValue::Bool(true),
         )]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::bool("allow_new", "Allow New")
+            .with_help("Allow creation of new splats."),
+        ParamSpec::bool("derive_rot_scale", "Derive Rotation/Scale")
+            .with_help("Infer rotation/scale from deformation."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

@@ -5,6 +5,7 @@ use glam::{Mat4, Vec3};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
 
@@ -30,6 +31,30 @@ pub fn default_params() -> NodeParams {
             ("resolution".to_string(), ParamValue::Int(DEFAULT_RESOLUTION)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "op",
+            "Operation",
+            vec![
+                (0, "Add"),
+                (1, "Subtract"),
+                (2, "Multiply"),
+                (3, "Min"),
+                (4, "Max"),
+                (5, "Average"),
+            ],
+        )
+        .with_help("How to combine the two volumes."),
+        ParamSpec::int_enum(
+            "resolution",
+            "Resolution",
+            vec![(0, "Lower"), (1, "Higher"), (2, "Average")],
+        )
+        .with_help("Output resolution (lower/higher/average)."),
+    ]
 }
 
 pub fn apply_to_geometry(

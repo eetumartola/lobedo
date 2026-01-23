@@ -14,6 +14,7 @@ use crate::nodes::{
     splat_lighting_utils::{average_env_coeffs, estimate_splat_normals, selected},
 };
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use crate::splat::SplatGeo;
@@ -67,6 +68,69 @@ pub fn default_params() -> NodeParams {
             ("albedo_max".to_string(), ParamValue::Float(2.0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict delighting."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+        ParamSpec::int_enum(
+            "delight_mode",
+            "Mode",
+            vec![
+                (0, "Band 0 Only"),
+                (1, "SH Ratio"),
+                (2, "Irradiance Divide"),
+                (3, "Env Splat"),
+            ],
+        )
+        .with_help(
+            "Delighting method to apply (Band 0, SH Ratio, Irradiance, Env Splat).",
+        ),
+        ParamSpec::int_enum(
+            "source_env",
+            "Source Env",
+            vec![(0, "From Splats"), (1, "Uniform White"), (2, "Custom")],
+        )
+        .with_help("Source lighting estimate used for ratios or irradiance."),
+        ParamSpec::int_enum(
+            "neutral_env",
+            "Neutral Env",
+            vec![(0, "Uniform White"), (1, "Custom")],
+        )
+        .with_help("Target neutral lighting for ratio-based delighting."),
+        ParamSpec::vec3("source_color", "Source Color")
+            .with_help("Custom source lighting color (DC)."),
+        ParamSpec::vec3("neutral_color", "Neutral Color")
+            .with_help("Custom neutral lighting color (DC)."),
+        ParamSpec::float_slider("eps", "Epsilon", 0.0, 0.1)
+            .with_help("Stability epsilon scale for ratios/division."),
+        ParamSpec::float_slider("ratio_min", "Ratio Min", 0.0, 10.0)
+            .with_help("Minimum ratio clamp for SH transfer."),
+        ParamSpec::float_slider("ratio_max", "Ratio Max", 0.0, 10.0)
+            .with_help("Maximum ratio clamp for SH transfer."),
+        ParamSpec::float_slider("high_band_gain", "High Band Gain", 0.0, 1.0)
+            .with_help("Gain applied to higher SH bands."),
+        ParamSpec::int_enum(
+            "output_sh_order",
+            "Output SH Order",
+            vec![(0, "L0"), (1, "L1"), (2, "L2"), (3, "L3")],
+        )
+        .with_help("Zero SH bands above this order."),
+        ParamSpec::float_slider("albedo_max", "Albedo Max", 0.0, 4.0)
+            .with_help("Maximum albedo clamp for irradiance divide."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

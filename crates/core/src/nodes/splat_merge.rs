@@ -8,6 +8,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::splat_utils::SpatialHash;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Merge";
@@ -47,6 +48,31 @@ pub fn default_params() -> NodeParams {
             ("preview_skirt".to_string(), ParamValue::Bool(DEFAULT_PREVIEW_SKIRT)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum("method", "Method", vec![(0, "Feather"), (1, "Skirt")])
+            .with_help("Join method."),
+        ParamSpec::float_slider("blend_radius", "Blend Radius", 0.0, 10.0)
+            .with_help("Blend radius for feathering/fade."),
+        ParamSpec::bool("fade_originals", "Fade Originals")
+            .with_help("Fade original splats near the seam."),
+        ParamSpec::float_slider("skirt_max_dist", "Skirt Max Dist", 0.0, 10.0)
+            .with_help("Maximum distance to bridge with skirt splats."),
+        ParamSpec::float_slider("skirt_step", "Skirt Step", 0.0, 10.0)
+            .with_help("Spacing between skirt splats."),
+        ParamSpec::int_slider("skirt_max_new", "Skirt Max New", 0, 1000)
+            .with_help("Maximum skirt splats per pair."),
+        ParamSpec::float_slider("seam_alpha", "Seam Alpha", 0.0, 1.0)
+            .with_help("Opacity for seam splats."),
+        ParamSpec::float_slider("seam_scale", "Seam Scale", 0.01, 10.0)
+            .with_help("Scale multiplier for seam splats."),
+        ParamSpec::bool("seam_dc_only", "Seam DC Only")
+            .with_help("Use DC-only SH for seam splats."),
+        ParamSpec::bool("preview_skirt", "Preview Skirt")
+            .with_help("Preview skirt geometry as a wireframe when selected."),
+    ]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

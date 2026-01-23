@@ -6,6 +6,8 @@ use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input};
+use crate::param_spec::ParamSpec;
+use crate::param_templates;
 
 pub const NAME: &str = "Transform";
 
@@ -29,6 +31,26 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    let mut specs = param_templates::transform_params(true);
+    specs.push(
+        ParamSpec::string("group", "Group")
+            .with_help("Optional group to restrict transform."),
+    );
+    specs.push(ParamSpec::int_enum(
+        "group_type",
+        "Group Type",
+        vec![
+            (0, "Auto"),
+            (1, "Vertex"),
+            (2, "Point"),
+            (3, "Primitive"),
+        ],
+    )
+    .with_help("Group domain to use."));
+    specs
 }
 
 pub fn transform_matrix(params: &NodeParams) -> Mat4 {

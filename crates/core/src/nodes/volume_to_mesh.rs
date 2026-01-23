@@ -7,6 +7,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume};
 
 pub const NAME: &str = "Volume to Mesh";
@@ -37,6 +38,17 @@ pub fn default_params() -> NodeParams {
             ),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string_enum("mode", "Mode", vec![("density", "Density"), ("sdf", "SDF")])
+            .with_help("Treat input volume as density or SDF."),
+        ParamSpec::float_slider("density_iso", "Density Iso", 0.0, 1.0)
+            .with_help("Isovalue for density surfaces."),
+        ParamSpec::float_slider("surface_iso", "Surface Iso", -1.0, 1.0)
+            .with_help("Isovalue for SDF surfaces."),
+    ]
 }
 
 pub fn apply_to_geometry(

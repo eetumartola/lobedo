@@ -19,6 +19,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Ray";
@@ -46,6 +47,39 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::int_enum(
+            "method",
+            "Method",
+            vec![(0, "Normal"), (1, "Direction"), (2, "Closest")],
+        )
+        .with_help("Ray direction mode."),
+        ParamSpec::vec3("direction", "Direction").with_help("Ray direction (Direction mode)."),
+        ParamSpec::float_slider("max_distance", "Max Distance", 0.0, 1000.0)
+            .with_help("Max ray distance."),
+        ParamSpec::float_slider("splat_density", "Splat Density", 0.0, 10.0)
+            .with_help("Accumulated splat density threshold (0 disables)."),
+        ParamSpec::bool("apply_transform", "Apply Transform")
+            .with_help("Move points to hit location."),
+        ParamSpec::string("attr", "Attributes")
+            .with_help("Attribute(s) to import from the hit."),
+        ParamSpec::string("hit_group", "Hit Group").with_help("Group name to mark hits."),
+        ParamSpec::string("group", "Group").with_help("Restrict source points to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

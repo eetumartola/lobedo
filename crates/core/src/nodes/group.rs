@@ -5,6 +5,8 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::groups::build_group_mask;
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input, selection_shape_params};
+use crate::param_spec::ParamSpec;
+use crate::param_templates;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Group";
@@ -32,6 +34,46 @@ pub fn default_params() -> NodeParams {
     values.insert("attr_min".to_string(), ParamValue::Float(0.0));
     values.insert("attr_max".to_string(), ParamValue::Float(1.0));
     NodeParams { values }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    let mut specs = param_templates::selection_shape_specs(true, true);
+    specs.push(
+        ParamSpec::string("group", "Group")
+            .with_help("Name of the group to create."),
+    );
+    specs.push(ParamSpec::int_enum(
+        "domain",
+        "Domain",
+        vec![
+            (1, "Vertex"),
+            (0, "Point"),
+            (2, "Primitive"),
+            (3, "Detail"),
+        ],
+    )
+    .with_help("Group domain (vertex/point/primitive)."));
+    specs.push(
+        ParamSpec::string("base_group", "Base Group")
+            .with_help("Optional source group to filter first."),
+    );
+    specs.push(
+        ParamSpec::bool("select_backface", "Select Backface")
+            .with_help("Allow selecting back-facing elements."),
+    );
+    specs.push(
+        ParamSpec::string("attr", "Attribute")
+            .with_help("Attribute name for attribute-range selection."),
+    );
+    specs.push(
+        ParamSpec::float_slider("attr_min", "Attr Min", 0.0, 1.0)
+            .with_help("Minimum attribute value to include."),
+    );
+    specs.push(
+        ParamSpec::float_slider("attr_max", "Attr Max", 0.0, 1.0)
+            .with_help("Maximum attribute value to include."),
+    );
+    specs
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

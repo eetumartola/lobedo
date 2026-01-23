@@ -18,6 +18,7 @@ use crate::nodes::{
     require_mesh_input,
 };
 use crate::noise::{fractal_noise, FractalSettings, FractalType, NoiseType};
+use crate::param_spec::ParamSpec;
 use crate::parallel;
 use crate::splat::SplatGeo;
 
@@ -53,6 +54,84 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::string("attr", "Attribute").with_help("Attribute name to write."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![
+                (0, "Point"),
+                (1, "Vertex"),
+                (2, "Primitive"),
+                (3, "Detail"),
+            ],
+        )
+        .with_help("Attribute domain to write."),
+        ParamSpec::int_enum(
+            "data_type",
+            "Data Type",
+            vec![(0, "Float"), (1, "Vec2"), (2, "Vec3")],
+        )
+        .with_help("Attribute data type."),
+        ParamSpec::int_enum(
+            "noise_type",
+            "Noise Type",
+            vec![
+                (0, "Fast"),
+                (1, "Sparse Convolution"),
+                (2, "Alligator"),
+                (3, "Perlin"),
+                (4, "Perlin Flow"),
+                (5, "Simplex"),
+                (6, "Worley F1"),
+                (7, "Worley F2-F1"),
+                (8, "Manhattan F1"),
+                (9, "Manhattan F2-F1"),
+                (10, "Chebyshev F1"),
+                (11, "Chebyshev F2-F1"),
+                (12, "Perlin Cloud"),
+                (13, "Simplex Cloud"),
+            ],
+        )
+        .with_help("Noise basis (Fast/Perlin/Simplex/Worley/etc)."),
+        ParamSpec::int_enum(
+            "fractal_type",
+            "Fractal Type",
+            vec![(0, "None"), (1, "Standard"), (2, "Terrain"), (3, "Hybrid")],
+        )
+        .with_help("Fractal mode (None/Standard/Terrain/Hybrid)."),
+        ParamSpec::int_slider("octaves", "Octaves", 1, 8)
+            .with_help("Number of fractal octaves."),
+        ParamSpec::float_slider("lacunarity", "Lacunarity", 1.0, 4.0)
+            .with_help("Frequency multiplier per octave."),
+        ParamSpec::float_slider("roughness", "Roughness", 0.0, 1.0)
+            .with_help("Amplitude multiplier per octave."),
+        ParamSpec::float_slider("amplitude", "Amplitude", -10.0, 10.0)
+            .with_help("Noise amplitude."),
+        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0)
+            .with_help("Noise frequency."),
+        ParamSpec::vec3("offset", "Offset").with_help("Noise space offset."),
+        ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Noise seed."),
+        ParamSpec::float_slider("flow_rotation", "Flow Rotation", 0.0, 360.0)
+            .with_help("Perlin Flow rotation (degrees)."),
+        ParamSpec::float_slider("distortion", "Distortion", 0.0, 10.0)
+            .with_help("Cloud noise distortion amount."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

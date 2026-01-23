@@ -13,6 +13,7 @@ use crate::nodes::{
     recompute_mesh_normals,
     require_mesh_input,
 };
+use crate::param_spec::ParamSpec;
 use crate::parallel;
 use crate::splat::SplatGeo;
 
@@ -53,6 +54,48 @@ pub fn default_params() -> NodeParams {
             ("group_type".to_string(), ParamValue::Int(0)),
         ]),
     }
+}
+
+pub fn param_specs() -> Vec<ParamSpec> {
+    vec![
+        ParamSpec::float_slider("erosion_strength", "Erosion Strength", 0.0, 1.0)
+            .with_help("Height offset strength."),
+        ParamSpec::float_slider("erosion_freq", "Erosion Freq", 0.0, 30.0)
+            .with_help("Erosion pattern frequency."),
+        ParamSpec::int_slider("erosion_octaves", "Erosion Octaves", 1, 8)
+            .with_help("Number of erosion octaves."),
+        ParamSpec::float_slider("erosion_roughness", "Erosion Roughness", 0.0, 1.0)
+            .with_help("Amplitude falloff per octave."),
+        ParamSpec::float_slider("erosion_lacunarity", "Erosion Lacunarity", 1.0, 4.0)
+            .with_help("Frequency growth per octave."),
+        ParamSpec::float_slider(
+            "erosion_slope_strength",
+            "Erosion Slope Strength",
+            0.0,
+            5.0,
+        )
+        .with_help("Slope influence on flow."),
+        ParamSpec::float_slider(
+            "erosion_branch_strength",
+            "Erosion Branch Strength",
+            0.0,
+            5.0,
+        )
+        .with_help("Branching influence on flow."),
+        ParamSpec::bool("do_mask", "Output Mask").with_help("Write erosion mask to @mask."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![
+                (0, "Auto"),
+                (1, "Vertex"),
+                (2, "Point"),
+                (3, "Primitive"),
+            ],
+        )
+        .with_help("Group domain to use."),
+    ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
