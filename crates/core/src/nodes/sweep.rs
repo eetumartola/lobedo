@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use glam::{Mat3, Vec3};
 
+use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
@@ -37,7 +38,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         .ok_or_else(|| "Sweep requires a path input".to_string())?;
 
     let (profile_points, profile_closed) = resolve_profile(profile_geo, params)?;
-    let (path_points, path_closed) = resolve_path(path_geo, params)?;
+    let (path_points, path_scales, path_closed) = resolve_path(path_geo, params)?;
 
     if profile_points.len() < 2 {
         return Err("Sweep profile needs at least two points".to_string());
@@ -47,7 +48,14 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     }
 
     let up = Vec3::from(params.get_vec3("up", [0.0, 1.0, 0.0]));
-    let mesh = sweep_points(&profile_points, profile_closed, &path_points, path_closed, up);
+    let mesh = sweep_points(
+        &profile_points,
+        profile_closed,
+        &path_points,
+        &path_scales,
+        path_closed,
+        up,
+    );
     Ok(Geometry::with_mesh(mesh))
 }
 
@@ -84,20 +92,22 @@ fn resolve_profile(
 fn resolve_path(
     geometry: &Geometry,
     params: &NodeParams,
-) -> Result<(Vec<Vec3>, bool), String> {
+) -> Result<(Vec<Vec3>, Vec<f32>, bool), String> {
     if let Some(curve) = geometry.curves.first() {
         let mesh = geometry
             .merged_mesh()
             .ok_or_else(|| "Path curve has no point pool".to_string())?;
+        let scales = curve_point_scales(&mesh, &curve.indices);
         let points = curve
             .resolved_points(&mesh.positions)
             .into_iter()
             .map(Vec3::from)
             .collect::<Vec<_>>();
-        return Ok((points, curve.closed));
+        return Ok((points, scales, curve.closed));
     }
 
     if let Some(mesh) = geometry.merged_mesh() {
+        let scales = point_scales(&mesh);
         let points = mesh
             .positions
             .iter()
@@ -105,7 +115,7 @@ fn resolve_path(
             .map(Vec3::from)
             .collect::<Vec<_>>();
         let closed = params.get_bool("path_closed", false);
-        return Ok((points, closed));
+        return Ok((points, scales, closed));
     }
 
     Err("Sweep path must contain a curve or mesh points".to_string())
@@ -115,6 +125,7 @@ fn sweep_points(
     profile: &[Vec3],
     profile_closed: bool,
     path: &[Vec3],
+    path_scales: &[f32],
     path_closed: bool,
     up: Vec3,
 ) -> Mesh {
@@ -131,8 +142,9 @@ fn sweep_points(
     for i in 0..path_len {
         let tangent = path_tangent(path, i, path_closed);
         let (normal, binormal) = frame_from_tangent(tangent, up);
+        let scale = path_scales.get(i).copied().unwrap_or(1.0);
         for coord in &profile_coords {
-            let world = path[i] + normal * coord.x + binormal * coord.y;
+            let world = path[i] + normal * coord.x * scale + binormal * coord.y * scale;
             positions.push(world.to_array());
         }
     }
@@ -158,6 +170,41 @@ fn sweep_points(
     let mut mesh = Mesh::with_positions_faces(positions, indices, face_counts);
     let _ = mesh.compute_normals();
     mesh
+}
+
+fn point_scales(mesh: &Mesh) -> Vec<f32> {
+    let count = mesh.positions.len();
+    if count == 0 {
+        return Vec::new();
+    }
+    let value = mesh
+        .attributes
+        .get(AttributeDomain::Point, "width")
+        .or_else(|| mesh.attributes.get(AttributeDomain::Point, "pscale"));
+    let Some(AttributeStorage::Float(values)) = value else {
+        return vec![1.0; count];
+    };
+    if values.len() < count {
+        return vec![1.0; count];
+    }
+    values[..count].to_vec()
+}
+
+fn curve_point_scales(mesh: &Mesh, indices: &[u32]) -> Vec<f32> {
+    if indices.is_empty() {
+        return Vec::new();
+    }
+    let value = mesh
+        .attributes
+        .get(AttributeDomain::Point, "width")
+        .or_else(|| mesh.attributes.get(AttributeDomain::Point, "pscale"));
+    let Some(AttributeStorage::Float(values)) = value else {
+        return vec![1.0; indices.len()];
+    };
+    indices
+        .iter()
+        .map(|idx| values.get(*idx as usize).copied().unwrap_or(1.0))
+        .collect()
 }
 
 fn profile_frame(points: &[Vec3]) -> (Vec3, Mat3) {

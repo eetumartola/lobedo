@@ -437,20 +437,23 @@ impl NodeGraphState {
             return false;
         }
         let mut hit_note = false;
-        let snarl_id = ui.make_persistent_id("node_graph");
-        let snarl_layer_id = LayerId::new(ui.layer_id().order, snarl_id);
+        let notes_layer = LayerId::new(
+            egui::Order::Foreground,
+            ui.make_persistent_id("graph_notes"),
+        );
         let mut note_ui = ui.new_child(
             UiBuilder::new()
-                .layer_id(snarl_layer_id)
+                .layer_id(notes_layer)
                 .max_rect(ui.max_rect())
                 .sense(Sense::click()),
         );
-        note_ui.set_clip_rect(ui.clip_rect());
+        note_ui.set_clip_rect(ui.max_rect());
         let to_global = if self.graph_transform.valid {
             self.graph_transform.to_global
         } else {
             egui::emath::TSTransform::IDENTITY
         };
+        let scale = to_global.scaling.max(0.0001);
         let mut changed = false;
         for note in &mut settings.graph_notes {
             let note_pos = Pos2::new(note.position[0], note.position[1]);
@@ -458,8 +461,9 @@ impl NodeGraphState {
                 note.size[0].max(NOTE_MIN_WIDTH),
                 note.size[1].max(NOTE_MIN_HEIGHT),
             );
-            let note_rect = Rect::from_min_size(note_pos, graph_size);
-            let note_rect = Rect::from_min_max(to_global * note_rect.min, to_global * note_rect.max);
+            let note_rect_graph = Rect::from_min_size(note_pos, graph_size);
+            let note_rect =
+                Rect::from_min_max(to_global * note_rect_graph.min, to_global * note_rect_graph.max);
             if !note_rect.intersects(note_ui.clip_rect()) {
                 continue;
             }
@@ -480,7 +484,7 @@ impl NodeGraphState {
                     },
                     egui::StrokeKind::Inside,
                 );
-                let header_height = 18.0;
+                let header_height = 18.0 * scale;
                 let header_bottom = note_rect.min.y + header_height;
                 let header_rect = Rect::from_min_max(
                     note_rect.min,
@@ -488,7 +492,7 @@ impl NodeGraphState {
                 );
                 painter.rect_filled(header_rect, 2.0, Color32::from_rgb(255, 226, 110));
             }
-            let header_height = 18.0;
+            let header_height = 18.0 * scale;
             let header_bottom = note_rect.min.y + header_height;
             let header_rect = Rect::from_min_max(
                 note_rect.min,
@@ -508,15 +512,18 @@ impl NodeGraphState {
                 self.selected_node = None;
                 hit_note = true;
             }
+            let pad_x = 6.0 * scale;
+            let pad_y = 4.0 * scale;
             let body_rect = Rect::from_min_max(
-                Pos2::new(note_rect.min.x + 6.0, header_bottom + 4.0),
-                Pos2::new(note_rect.max.x - 6.0, note_rect.max.y - 6.0),
+                Pos2::new(note_rect.min.x + pad_x, header_bottom + pad_y),
+                Pos2::new(note_rect.max.x - pad_x, note_rect.max.y - pad_x),
             );
             if body_rect.is_positive() {
                 let text_edit = egui::TextEdit::multiline(&mut note.text)
                     .id(id.with("text"))
                     .frame(false)
-                    .desired_width(body_rect.width());
+                    .desired_width(body_rect.width())
+                    .font(egui::FontId::proportional(14.0 * scale));
                 let response = note_ui.put(body_rect, text_edit);
                 if response.changed() {
                     note_changed = true;
