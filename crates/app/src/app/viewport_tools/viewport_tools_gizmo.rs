@@ -1,7 +1,7 @@
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke};
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
-use lobedo_core::{NodeId, ParamValue};
+use lobedo_core::{BuiltinNodeKind, NodeId, ParamValue};
 
 use super::{BoxDrag, BoxHandle, GizmoAxis, GizmoHit, TransformDrag, TransformMode};
 use super::LobedoApp;
@@ -60,7 +60,7 @@ fn quat_to_euler_deg(quat: Quat) -> [f32; 3] {
 
 pub(super) fn box_params(graph: &lobedo_core::Graph, node_id: NodeId) -> Option<BoxParams> {
     let node = graph.node(node_id)?;
-    let (center, size) = if node.name == "Splat Heal" {
+    let (center, size) = if node.builtin_kind() == Some(BuiltinNodeKind::SplatHeal) {
         (
             Vec3::from(node.params.get_vec3("heal_center", [0.0, 0.0, 0.0])),
             Vec3::from(node.params.get_vec3("heal_size", [1.0, 1.0, 1.0])),
@@ -83,7 +83,7 @@ fn set_box_params(app: &mut LobedoApp, node_id: NodeId, center: Vec3, size: Vec3
         .project
         .graph
         .node(node_id)
-        .is_some_and(|node| node.name == "Splat Heal");
+        .is_some_and(|node| node.builtin_kind() == Some(BuiltinNodeKind::SplatHeal));
     if is_splat_heal {
         let shape = app
             .project

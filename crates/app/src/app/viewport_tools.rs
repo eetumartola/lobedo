@@ -1,6 +1,6 @@
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke};
 use glam::{Quat, Vec3};
-use lobedo_core::NodeId;
+use lobedo_core::{BuiltinNodeKind, NodeId};
 use std::collections::BTreeSet;
 
 mod viewport_tools_curve;
@@ -228,7 +228,7 @@ impl LobedoApp {
     pub(super) fn selected_group_select_node(&self) -> Option<NodeId> {
         let node_id = self.node_graph.selected_node_id()?;
         let node = self.project.graph.node(node_id)?;
-        if node.name != "Group" {
+        if node.builtin_kind() != Some(BuiltinNodeKind::Group) {
             return None;
         }
         let shape = node.params.get_string("shape", "box").to_lowercase();
@@ -748,7 +748,10 @@ impl LobedoApp {
     fn selected_transform_node(&self) -> Option<NodeId> {
         let node_id = self.node_graph.selected_node_id()?;
         let node = self.project.graph.node(node_id)?;
-        if matches!(node.name.as_str(), "Transform" | "Copy/Transform") {
+        if matches!(
+            node.builtin_kind(),
+            Some(BuiltinNodeKind::Transform | BuiltinNodeKind::CopyTransform)
+        ) {
             Some(node_id)
         } else {
             None
@@ -758,9 +761,9 @@ impl LobedoApp {
     fn selected_box_node(&self) -> Option<NodeId> {
         let node_id = self.node_graph.selected_node_id()?;
         let node = self.project.graph.node(node_id)?;
-        match node.name.as_str() {
-            "Box" => Some(node_id),
-            "Group" | "Delete" => {
+        match node.builtin_kind() {
+            Some(BuiltinNodeKind::Box) => Some(node_id),
+            Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete) => {
                 let shape = node.params.get_string("shape", "box").to_lowercase();
                 if shape == "box" {
                     Some(node_id)
@@ -768,7 +771,7 @@ impl LobedoApp {
                     None
                 }
             }
-            "Splat Heal" => {
+            Some(BuiltinNodeKind::SplatHeal) => {
                 let shape = node.params.get_string("heal_shape", "all").to_lowercase();
                 if matches!(shape.as_str(), "box" | "sphere") {
                     Some(node_id)

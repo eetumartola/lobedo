@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
-use crate::param_spec::ParamSpec;
+use crate::param_spec::{ParamPathKind, ParamSpec};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Splat Write";
@@ -31,7 +31,7 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("path", "Path")
+        ParamSpec::path("path", "Path", ParamPathKind::WriteSplat)
             .with_help("Output PLY file path."),
         ParamSpec::int_enum("format", "Format", vec![(0, "Binary"), (1, "ASCII")])
             .with_help("PLY file format (binary is faster)."),

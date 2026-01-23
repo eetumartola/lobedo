@@ -1,7 +1,7 @@
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke};
 use glam::Vec3;
 
-use lobedo_core::{encode_curve_points, parse_curve_points, NodeId, ParamValue};
+use lobedo_core::{encode_curve_points, parse_curve_points, BuiltinNodeKind, NodeId, ParamValue};
 
 use super::{GizmoAxis, LobedoApp};
 use super::viewport_tools_gizmo::{axis_color, axis_dir, gizmo_scale};
@@ -15,7 +15,7 @@ impl LobedoApp {
             let Some(node) = self.project.graph.node(node_id) else {
                 return;
             };
-            if node.name != "FFD" {
+            if node.builtin_kind() != Some(BuiltinNodeKind::Ffd) {
                 return;
             }
             node.params.clone()
@@ -51,7 +51,7 @@ impl LobedoApp {
             let Some(node) = self.project.graph.node(node_id) else {
                 return false;
             };
-            if node.name != "FFD" {
+            if node.builtin_kind() != Some(BuiltinNodeKind::Ffd) {
                 return false;
             }
             node.params.get_string("lattice_points", "")
@@ -171,7 +171,7 @@ pub(super) fn draw_ffd_lattice_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rec
     let Some(node) = app.project.graph.node(node_id) else {
         return;
     };
-    if node.name != "FFD" {
+    if node.builtin_kind() != Some(BuiltinNodeKind::Ffd) {
         return;
     }
     let (res_x, res_y, res_z) = ffd_resolution(&node.params);
@@ -235,7 +235,7 @@ pub(super) fn draw_ffd_lattice_handles(app: &LobedoApp, ui: &egui::Ui, rect: Rec
     let Some(node) = app.project.graph.node(node_id) else {
         return;
     };
-    if node.name != "FFD" {
+    if node.builtin_kind() != Some(BuiltinNodeKind::Ffd) {
         return;
     }
     let (res_x, res_y, res_z) = ffd_resolution(&node.params);
@@ -285,7 +285,7 @@ pub(super) fn pick_ffd_handle(
     graph: &lobedo_core::Graph,
 ) -> Option<FfdHandlePick> {
     let node = graph.node(node_id)?;
-    if node.name != "FFD" {
+    if node.builtin_kind() != Some(BuiltinNodeKind::Ffd) {
         return None;
     }
     let (res_x, res_y, res_z) = ffd_resolution(&node.params);

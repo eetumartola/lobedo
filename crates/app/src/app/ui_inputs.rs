@@ -1,4 +1,5 @@
 use eframe::egui;
+use lobedo_core::BuiltinNodeKind;
 
 use super::LobedoApp;
 
@@ -27,7 +28,7 @@ impl LobedoApp {
                     if rect.contains(pos) {
                         if let Some(node_id) = self.node_graph.selected_node_id() {
                             if let Some(node) = self.project.graph.node(node_id) {
-                                if node.name == "Transform" {
+                                if node.builtin_kind() == Some(BuiltinNodeKind::Transform) {
                                     if translate_pressed {
                                         self.viewport_tools.transform_mode =
                                             super::viewport_tools::TransformMode::Translate;

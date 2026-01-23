@@ -52,7 +52,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             ],
         )
         .with_help("Domain to iterate over."),
-        ParamSpec::string("code", "Code").with_help("Wrangle code snippet."),
+        ParamSpec::code("code", "Code").with_help("Wrangle code snippet."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",

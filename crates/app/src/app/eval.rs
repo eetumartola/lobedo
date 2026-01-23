@@ -13,8 +13,8 @@ use web_time::Instant;
 
 use lobedo_core::{
     build_skirt_preview_mesh, evaluate_geometry_graph_with_progress,
-    Geometry, GeometryEvalState, Mesh, NodeId, ProgressSink, SceneCurve, SceneDrawable,
-    SceneSnapshot, SceneSplats, SceneVolume,
+    BuiltinNodeKind, Geometry, GeometryEvalState, Mesh, NodeId, ProgressSink, SceneCurve,
+    SceneDrawable, SceneSnapshot, SceneSplats, SceneVolume,
     ShadingMode, SplatShadingMode, VolumeKind,
 };
 use render::{
@@ -689,7 +689,7 @@ fn splat_merge_preview_mesh(
 ) -> Option<Mesh> {
     let node_id = selected_node?;
     let node = graph.node(node_id)?;
-    if node.name != "Splat Merge" {
+    if node.builtin_kind() != Some(BuiltinNodeKind::SplatMerge) {
         return None;
     }
     let preview = node.params.get_bool("preview_skirt", false);
@@ -751,14 +751,16 @@ fn selection_shape_for_node(
 ) -> Option<SelectionShape> {
     let node_id = node_id?;
     let node = graph.node(node_id)?;
-    match node.name.as_str() {
-        "Box" => {
+    match node.builtin_kind() {
+        Some(BuiltinNodeKind::Box) => {
             let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);       
             let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
             Some(SelectionShape::Box { center, size })
         }
-        "Group" | "Delete" => selection_shape_from_params(&node.params),
-        "Splat Heal" => {
+        Some(BuiltinNodeKind::Group) | Some(BuiltinNodeKind::Delete) => {
+            selection_shape_from_params(&node.params)
+        }
+        Some(BuiltinNodeKind::SplatHeal) => {
             let shape = node.params.get_string("heal_shape", "all").to_lowercase();
             match shape.as_str() {
                 "box" => {

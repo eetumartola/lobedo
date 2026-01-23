@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
-use crate::param_spec::ParamSpec;
+use crate::param_spec::{ParamPathKind, ParamSpec};
 
 pub const NAME: &str = "GLTF Output";
 
@@ -26,7 +26,8 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
-    vec![ParamSpec::string("path", "Path").with_help("Output glTF/GLB file path.")]
+    vec![ParamSpec::path("path", "Path", ParamPathKind::WriteGltf)
+        .with_help("Output glTF/GLB file path.")]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {

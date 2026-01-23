@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 
-use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, Geometry};
+use lobedo_core::{AttributeDomain, AttributeInfo, AttributeType, BuiltinNodeKind, Geometry};
 
 use crate::app::LobedoApp;
 
@@ -101,7 +101,8 @@ impl LobedoApp {
                 ui.end_row();
             });
 
-        if (node.name == "Splat Read" || node.name == "Read Splats") && !geometry.splats.is_empty()
+        if node.builtin_kind() == Some(BuiltinNodeKind::ReadSplats)
+            && !geometry.splats.is_empty()
         {
             ui.separator();
             ui.heading("Splats");

@@ -12,8 +12,8 @@ use std::sync::{Mutex, OnceLock};
 use wasm_bindgen_futures::spawn_local;
 
 use lobedo_core::{
-    parse_color_gradient, ColorGradient, ParamKind, ParamOption, ParamRange, ParamSpec,
-    ParamValue, ParamWidget,
+    parse_color_gradient, BuiltinNodeKind, ColorGradient, ParamKind, ParamOption, ParamRange,
+    ParamSpec, ParamValue, ParamWidget, ParamPathKind,
 };
 
 use super::help::{param_help, show_help_tooltip};
@@ -21,10 +21,11 @@ use super::help::{param_help, show_help_tooltip};
 pub(super) fn edit_param(
     ui: &mut Ui,
     node_name: &str,
+    node_kind: Option<BuiltinNodeKind>,
     label: &str,
     value: ParamValue,
 ) -> (ParamValue, bool) {
-    let display_label = display_label(node_name, label);
+    let display_label = display_label(node_name, node_kind, label);
     let help = param_help(node_name, label);
     let help = help.as_deref();
     match value {
@@ -115,7 +116,7 @@ pub(super) fn edit_param(
                     &[(0, "Expand"), (1, "Contract")],
                     "Expand",
                 )
-            } else if label == "promotion" && node_name == "Attribute Promote" {
+            } else if label == "promotion" && node_kind == Some(BuiltinNodeKind::AttributePromote) {
                 combo_row_i32(
                     ui,
                     label,
@@ -221,7 +222,7 @@ pub(super) fn edit_param(
                     &[(0, "Area"), (1, "Gradient")],
                     "Area",
                 )
-            } else if label == "method" && node_name == "Splat Merge" {
+            } else if label == "method" && node_kind == Some(BuiltinNodeKind::SplatMerge) {
                 combo_row_i32(
                     ui,
                     label,
@@ -231,7 +232,7 @@ pub(super) fn edit_param(
                     &[(0, "Feather"), (1, "Skirt")],
                     "Feather",
                 )
-            } else if label == "method" && node_name == "Splat Heal" {
+            } else if label == "method" && node_kind == Some(BuiltinNodeKind::SplatHeal) {
                 combo_row_i32(
                     ui,
                     label,
@@ -241,7 +242,7 @@ pub(super) fn edit_param(
                     &[(0, "Voxel Close"), (1, "SDF Patch")],
                     "Voxel Close",
                 )
-            } else if label == "method" && node_name == "Splat Cluster" {       
+            } else if label == "method" && node_kind == Some(BuiltinNodeKind::SplatCluster) {       
                 combo_row_i32(
                     ui,
                     label,
@@ -252,7 +253,10 @@ pub(super) fn edit_param(
                     "Grid",
                 )
             } else if label == "op"
-                && matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo")
+                && matches!(
+                    node_kind,
+                    Some(BuiltinNodeKind::BooleanSdf | BuiltinNodeKind::BooleanGeo)
+                )
             {
                 combo_row_i32(
                     ui,
@@ -273,7 +277,7 @@ pub(super) fn edit_param(
                     &[(0, "Normal"), (1, "Direction"), (2, "Closest")],
                     "Normal",
                 )
-            } else if label == "op" && node_name == "Volume Combine" {
+            } else if label == "op" && node_kind == Some(BuiltinNodeKind::VolumeCombine) {
                 combo_row_i32(
                     ui,
                     label,
@@ -290,7 +294,7 @@ pub(super) fn edit_param(
                     ],
                     "Add",
                 )
-            } else if label == "resolution" && node_name == "Volume Combine" {
+            } else if label == "resolution" && node_kind == Some(BuiltinNodeKind::VolumeCombine) {
                 combo_row_i32(
                     ui,
                     label,
@@ -320,7 +324,7 @@ pub(super) fn edit_param(
                     &[(0, "Density (Iso)"), (1, "Ellipsoid (Smooth Min)")],
                     "Density (Iso)",
                 )
-            } else if label == "output" && node_name == "Splat to Mesh" {
+            } else if label == "output" && node_kind == Some(BuiltinNodeKind::SplatToMesh) {
                 combo_row_i32(
                     ui,
                     label,
@@ -365,7 +369,7 @@ pub(super) fn edit_param(
                     &[(0, "World"), (1, "Surface")],
                     "World",
                 )
-            } else if label == "format" && node_name == "Splat Write" {
+            } else if label == "format" && node_kind == Some(BuiltinNodeKind::WriteSplats) {
                 combo_row_i32(
                     ui,
                     label,
@@ -557,17 +561,23 @@ pub(super) fn edit_param(
                     edit_gradient_field(ui, node_name, label, &mut v)
                 })
             } else if label == "mode"
-                && matches!(node_name, "Volume to Mesh" | "Volume from Geometry")
+                && matches!(
+                    node_kind,
+                    Some(BuiltinNodeKind::VolumeToMesh | BuiltinNodeKind::VolumeFromGeometry)
+                )
             {
                 let options = &[("density", "Density"), ("sdf", "SDF")];        
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Density")
             } else if label == "mode"
-                && matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo")
+                && matches!(
+                    node_kind,
+                    Some(BuiltinNodeKind::BooleanSdf | BuiltinNodeKind::BooleanGeo)
+                )
             {
                 let options = &[("auto", "Auto"), ("mesh_mesh", "Mesh-Mesh"), ("mesh_sdf", "Mesh-SDF")];
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Auto")
             } else if label == "shape" {
-                let options: &[(&str, &str)] = if node_name == "Group" {
+                let options: &[(&str, &str)] = if node_kind == Some(BuiltinNodeKind::Group) {
                     &[
                         ("box", "Box"),
                         ("sphere", "Sphere"),
@@ -582,7 +592,7 @@ pub(super) fn edit_param(
             } else if label == "heal_shape" {
                 let options = &[("all", "All"), ("box", "Box"), ("sphere", "Sphere")];
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "All")
-            } else if label == "output" && node_name == "Circle" {
+            } else if label == "output" && node_kind == Some(BuiltinNodeKind::Circle) {
                 let options = &[("curve", "Curve"), ("mesh", "Mesh")];
                 combo_row_string(ui, label, &display_label, help, &mut v, options, "Curve")
             } else if label == "code" {
@@ -596,10 +606,10 @@ pub(super) fn edit_param(
                     .changed()
                 })
             } else {
-                let use_picker = path_picker_kind(node_name, label).is_some();
-                if use_picker {
+                let picker_kind = path_picker_kind(node_kind, label);
+                if picker_kind.is_some() {
                     param_row_with_label(ui, label, &display_label, help, |ui| {
-                        edit_path_field(ui, node_name, label, &mut v)
+                        edit_path_field(ui, picker_kind, &mut v)
                     })
                 } else {
                     param_row_with_label(ui, label, &display_label, help, |ui| {
@@ -620,11 +630,12 @@ pub(super) fn edit_param(
 pub(super) fn edit_param_with_spec(
     ui: &mut Ui,
     node_name: &str,
+    node_kind: Option<BuiltinNodeKind>,
     spec: &ParamSpec,
     value: ParamValue,
 ) -> (ParamValue, bool) {
     let display_label = if spec.label.is_empty() {
-        display_label(node_name, spec.key)
+        display_label(node_name, node_kind, spec.key)
     } else {
         spec.label.to_string()
     };
@@ -835,11 +846,11 @@ pub(super) fn edit_param_with_spec(
                         .map(|(_, label)| *label)
                         .unwrap_or("Option"),
                 )
-            } else if spec.key == "gradient" {
+            } else if spec.widget == ParamWidget::Gradient {
                 param_row_with_height_label(ui, spec.key, &display_label, help, 112.0, |ui| {
                     edit_gradient_field(ui, node_name, spec.key, &mut v)
                 })
-            } else if spec.key == "code" {
+            } else if spec.widget == ParamWidget::Code {
                 param_row_with_height_label(ui, spec.key, &display_label, help, 120.0, |ui| {
                     ui.add_sized(
                         [ui.available_width().max(160.0), 100.0],
@@ -850,10 +861,10 @@ pub(super) fn edit_param_with_spec(
                     .changed()
                 })
             } else {
-                let use_picker = path_picker_kind(node_name, spec.key).is_some();
-                if use_picker {
+                let picker_kind = path_picker_kind_from_spec(spec);
+                if spec.widget == ParamWidget::Path {
                     param_row_with_label(ui, spec.key, &display_label, help, |ui| {
-                        edit_path_field(ui, node_name, spec.key, &mut v)
+                        edit_path_field(ui, picker_kind, &mut v)
                     })
                 } else {
                     param_row_with_label(ui, spec.key, &display_label, help, |ui| {
@@ -868,7 +879,7 @@ pub(super) fn edit_param_with_spec(
             };
             (ParamValue::String(v), changed)
         }
-        _ => edit_param(ui, node_name, spec.key, fallback_value),
+        _ => edit_param(ui, node_name, node_kind, spec.key, fallback_value),
     }
 }
 
@@ -1097,7 +1108,11 @@ fn color32_from_rgb(color: [f32; 3]) -> egui::Color32 {
     )
 }
 
-fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
+fn edit_path_field(
+    ui: &mut Ui,
+    kind: Option<PathPickerKind>,
+    value: &mut String,
+) -> bool {
     let height = ui.spacing().interact_size.y;
     let spacing = 6.0;
     let button_width = height;
@@ -1107,7 +1122,7 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String
         .min(total_width);
     let mut changed = false;
     #[cfg(target_arch = "wasm32")]
-    if let Some(kind) = path_picker_kind(node_name, label) {
+    if let Some(kind) = kind {
         if let Some(result) = take_file_pick(kind) {
             let key = lobedo_core::store_bytes(result.name, result.bytes);
             *value = key;
@@ -1121,7 +1136,7 @@ fn edit_path_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String
         changed = true;
     }
     ui.add_space(spacing);
-    if let Some(kind) = path_picker_kind(node_name, label) {
+    if let Some(kind) = kind {
         if open_path_picker_button(ui, kind, value, button_width, height) {
             changed = true;
         }
@@ -1137,6 +1152,17 @@ enum PathPickerKind {
     ReadSplat,
     WriteSplat,
     ReadTexture,
+}
+
+fn path_picker_kind_from_spec(spec: &ParamSpec) -> Option<PathPickerKind> {
+    spec.path_kind.map(|kind| match kind {
+        ParamPathKind::ReadMesh => PathPickerKind::ReadMesh,
+        ParamPathKind::WriteObj => PathPickerKind::WriteObj,
+        ParamPathKind::WriteGltf => PathPickerKind::WriteGltf,
+        ParamPathKind::ReadSplat => PathPickerKind::ReadSplat,
+        ParamPathKind::WriteSplat => PathPickerKind::WriteSplat,
+        ParamPathKind::ReadTexture => PathPickerKind::ReadTexture,
+    })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1170,14 +1196,17 @@ fn take_file_pick(kind: PathPickerKind) -> Option<FilePickResult> {
     }
 }
 
-fn path_picker_kind(node_name: &str, label: &str) -> Option<PathPickerKind> {
-    match (node_name, label) {
-        ("File", "path") => Some(PathPickerKind::ReadMesh),
-        ("OBJ Output", "path") => Some(PathPickerKind::WriteObj),
-        ("GLTF Output", "path") => Some(PathPickerKind::WriteGltf),
-        ("Splat Read", "path") | ("Read Splats", "path") => Some(PathPickerKind::ReadSplat),
-        ("Splat Write", "path") => Some(PathPickerKind::WriteSplat),
-        ("Material", "base_color_tex") => Some(PathPickerKind::ReadTexture),
+fn path_picker_kind(
+    node_kind: Option<BuiltinNodeKind>,
+    label: &str,
+) -> Option<PathPickerKind> {
+    match (node_kind, label) {
+        (Some(BuiltinNodeKind::File), "path") => Some(PathPickerKind::ReadMesh),
+        (Some(BuiltinNodeKind::ObjOutput), "path") => Some(PathPickerKind::WriteObj),
+        (Some(BuiltinNodeKind::GltfOutput), "path") => Some(PathPickerKind::WriteGltf),
+        (Some(BuiltinNodeKind::ReadSplats), "path") => Some(PathPickerKind::ReadSplat),
+        (Some(BuiltinNodeKind::WriteSplats), "path") => Some(PathPickerKind::WriteSplat),
+        (Some(BuiltinNodeKind::Material), "base_color_tex") => Some(PathPickerKind::ReadTexture),
         _ => None,
     }
 }
@@ -1395,8 +1424,8 @@ fn combo_row_string(
     })
 }
 
-fn display_label(node_name: &str, key: &str) -> String {
-    if node_name == "Splat Cluster" {
+fn display_label(_node_name: &str, node_kind: Option<BuiltinNodeKind>, key: &str) -> String {
+    if node_kind == Some(BuiltinNodeKind::SplatCluster) {
         return match key {
             "cell_size" => "Cell Size",
             "eps" => "Radius",
@@ -1406,7 +1435,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Outlier" {
+    if node_kind == Some(BuiltinNodeKind::SplatOutlier) {
         return match key {
             "eps" => "Radius",
             "min_pts" => "Min Points",
@@ -1415,7 +1444,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Color" {
+    if node_kind == Some(BuiltinNodeKind::Color) {
         return match key {
             "color_mode" => "Mode",
             "attr" => "Attribute",
@@ -1424,7 +1453,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Curve" {
+    if node_kind == Some(BuiltinNodeKind::Curve) {
         return match key {
             "points" => "Points",
             "subdivs" => "Subdivs",
@@ -1433,7 +1462,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if matches!(node_name, "Boolean" | "Boolean SDF" | "Boolean Geo") {
+    if matches!(node_kind, Some(BuiltinNodeKind::BooleanSdf | BuiltinNodeKind::BooleanGeo)) {
         return match key {
             "mode" => "Mode",
             "op" => "Operation",
@@ -1444,7 +1473,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Circle" {
+    if node_kind == Some(BuiltinNodeKind::Circle) {
         return match key {
             "output" => "Output",
             "radius" => "Radius",
@@ -1454,7 +1483,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Group" {
+    if node_kind == Some(BuiltinNodeKind::Group) {
         return match key {
             "select_backface" => "Select Backfaces",
             "attr_min" => "Range Min",
@@ -1464,7 +1493,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Scatter" {
+    if node_kind == Some(BuiltinNodeKind::Scatter) {
         return match key {
             "density_attr" => "Density Attribute",
             "density_min" => "Density Min",
@@ -1474,7 +1503,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Smooth" {
+    if node_kind == Some(BuiltinNodeKind::Smooth) {
         return match key {
             "smooth_space" => "Space",
             "radius" => "Radius",
@@ -1482,7 +1511,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Resample" {
+    if node_kind == Some(BuiltinNodeKind::Resample) {
         return match key {
             "curve_points" => "Curve Points",
             "mesh_ratio" => "Mesh Ratio",
@@ -1491,7 +1520,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Erosion Noise" {
+    if node_kind == Some(BuiltinNodeKind::ErosionNoise) {
         return match key {
             "erosion_strength" => "Erosion Strength",
             "erosion_freq" => "Erosion Freq",
@@ -1505,7 +1534,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Copy/Transform" {
+    if node_kind == Some(BuiltinNodeKind::CopyTransform) {
         return match key {
             "translate" => "Translate",
             "rotate_deg" => "Rotate",
@@ -1519,7 +1548,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Copy to Points" {
+    if node_kind == Some(BuiltinNodeKind::CopyToPoints) {
         return match key {
             "inherit" => "Inherit Attributes",
             "copy_attr" => "Copy Attribute",
@@ -1528,7 +1557,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "FFD" {
+    if node_kind == Some(BuiltinNodeKind::Ffd) {
         return match key {
             "res_x" => "Res X",
             "res_y" => "Res Y",
@@ -1540,7 +1569,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat to Mesh" {
+    if node_kind == Some(BuiltinNodeKind::SplatToMesh) {
         return match key {
             "output" => "Output",
             "algorithm" => "Method",
@@ -1559,7 +1588,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Merge" {
+    if node_kind == Some(BuiltinNodeKind::SplatMerge) {
         return match key {
             "method" => "Method",
             "blend_radius" => "Blend Radius",
@@ -1575,7 +1604,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Heal" {
+    if node_kind == Some(BuiltinNodeKind::SplatHeal) {
         return match key {
             "heal_shape" => "Heal Bounds",
             "method" => "Method",
@@ -1603,7 +1632,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Volume from Geometry" {
+    if node_kind == Some(BuiltinNodeKind::VolumeFromGeometry) {
         return match key {
             "mode" => "Mode",
             "max_dim" => "Max Dimension",
@@ -1614,7 +1643,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Volume Combine" {
+    if node_kind == Some(BuiltinNodeKind::VolumeCombine) {
         return match key {
             "op" => "Operator",
             "resolution" => "Resolution",
@@ -1622,7 +1651,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Volume to Mesh" {
+    if node_kind == Some(BuiltinNodeKind::VolumeToMesh) {
         return match key {
             "mode" => "Mode",
             "density_iso" => "Density Iso",
@@ -1631,7 +1660,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "UV Texture" {
+    if node_kind == Some(BuiltinNodeKind::UvTexture) {
         return match key {
             "projection" => "Projection",
             "axis" => "Axis",
@@ -1641,7 +1670,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "UV Unwrap" {
+    if node_kind == Some(BuiltinNodeKind::UvUnwrap) {
         return match key {
             "padding" => "Padding",
             "normal_threshold" => "Normal Threshold",
@@ -1649,7 +1678,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Material" {
+    if node_kind == Some(BuiltinNodeKind::Material) {
         return match key {
             "name" => "Name",
             "base_color" => "Base Color",
@@ -1660,7 +1689,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Attribute from Volume" {
+    if node_kind == Some(BuiltinNodeKind::AttributeFromVolume) {
         return match key {
             "attr" => "Attribute",
             "domain" => "Domain",
@@ -1668,7 +1697,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Attribute Promote" {
+    if node_kind == Some(BuiltinNodeKind::AttributePromote) {
         return match key {
             "attr" => "Original Name",
             "source_domain" => "Original Class",
@@ -1682,7 +1711,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Delight" {
+    if node_kind == Some(BuiltinNodeKind::SplatDelight) {
         return match key {
             "delight_mode" => "Mode",
             "source_env" => "Source Env",
@@ -1699,7 +1728,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Integrate" {
+    if node_kind == Some(BuiltinNodeKind::SplatIntegrate) {
         return match key {
             "relight_mode" => "Mode",
             "source_env" => "Source Env",
@@ -1717,7 +1746,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "Splat Write" {
+    if node_kind == Some(BuiltinNodeKind::WriteSplats) {
         return match key {
             "path" => "Path",
             "format" => "Format",
@@ -1725,7 +1754,7 @@ fn display_label(node_name: &str, key: &str) -> String {
         }
         .to_string();
     }
-    if node_name == "GLTF Output" {
+    if node_kind == Some(BuiltinNodeKind::GltfOutput) {
         return match key {
             "path" => "Path",
             _ => key,
@@ -1734,3 +1763,5 @@ fn display_label(node_name: &str, key: &str) -> String {
     }
     key.to_string()
 }
+
+

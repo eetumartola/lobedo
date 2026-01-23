@@ -13,6 +13,9 @@ pub enum ParamWidget {
     Default,
     Slider,
     Combo,
+    Gradient,
+    Code,
+    Path,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,6 +30,16 @@ pub enum ParamOption {
     String { value: &'static str, label: &'static str },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamPathKind {
+    ReadMesh,
+    WriteObj,
+    WriteGltf,
+    ReadSplat,
+    WriteSplat,
+    ReadTexture,
+}
+
 #[derive(Debug, Clone)]
 pub struct ParamSpec {
     pub key: &'static str,
@@ -35,6 +48,7 @@ pub struct ParamSpec {
     pub widget: ParamWidget,
     pub range: Option<ParamRange>,
     pub options: Vec<ParamOption>,
+    pub path_kind: Option<ParamPathKind>,
     pub help: Option<&'static str>,
 }
 
@@ -47,6 +61,7 @@ impl ParamSpec {
             widget: ParamWidget::Default,
             range: None,
             options: Vec::new(),
+            path_kind: None,
             help: None,
         }
     }
@@ -96,6 +111,18 @@ impl ParamSpec {
         Self::new(key, label, ParamKind::String)
     }
 
+    pub fn path(key: &'static str, label: &'static str, kind: ParamPathKind) -> Self {
+        Self::string(key, label).with_path_kind(kind)
+    }
+
+    pub fn gradient(key: &'static str, label: &'static str) -> Self {
+        Self::string(key, label).with_widget(ParamWidget::Gradient)
+    }
+
+    pub fn code(key: &'static str, label: &'static str) -> Self {
+        Self::string(key, label).with_widget(ParamWidget::Code)
+    }
+
     pub fn string_enum(
         key: &'static str,
         label: &'static str,
@@ -116,6 +143,12 @@ impl ParamSpec {
 
     pub fn with_widget(mut self, widget: ParamWidget) -> Self {
         self.widget = widget;
+        self
+    }
+
+    pub fn with_path_kind(mut self, kind: ParamPathKind) -> Self {
+        self.path_kind = Some(kind);
+        self.widget = ParamWidget::Path;
         self
     }
 

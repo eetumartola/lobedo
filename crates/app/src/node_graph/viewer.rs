@@ -6,7 +6,7 @@ use egui::{vec2, Align2, Color32, FontId, Pos2, Rect, TextStyle, Ui};
 use egui_snarl::ui::{AnyPins, PinInfo, SnarlPin, SnarlViewer};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
-use lobedo_core::{Graph, NodeId, PinId};
+use lobedo_core::{BuiltinNodeKind, Graph, NodeId, PinId};
 
 use super::state::{
     GraphTransformState, HeaderButtonRects, NodeProgressView, PendingWire, SnarlNode,
@@ -161,7 +161,14 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
         let core_id = self.core_node_id(snarl, node);
         let (display_active, template_active, bypass_active, show_help) = core_id
             .and_then(|id| self.graph.node(id))
-            .map(|node| (node.display, node.template, node.bypass, node.name == "Wrangle"))
+            .map(|node| {
+                (
+                    node.display,
+                    node.template,
+                    node.bypass,
+                    node.builtin_kind() == Some(BuiltinNodeKind::Wrangle),
+                )
+            })
             .unwrap_or((false, false, false, false));
 
         let button_count = if show_help { 3usize } else { 2usize };

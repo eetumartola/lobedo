@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::nodes_builtin;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NodeId(u64);
 
@@ -192,6 +194,7 @@ impl Graph {
             Node {
                 id: node_id,
                 name: def.name,
+                kind_id: String::new(),
                 inputs: input_ids,
                 outputs: output_ids,
                 params: NodeParams::default(),
@@ -478,6 +481,36 @@ impl Graph {
         }
         renamed
     }
+
+    pub fn set_node_kind_id(&mut self, node_id: NodeId, kind_id: impl Into<String>) -> bool {
+        let Some(node) = self.nodes.get_mut(&node_id) else {
+            return false;
+        };
+        let next = kind_id.into();
+        if node.kind_id == next {
+            return false;
+        }
+        node.kind_id = next;
+        self.bump_revision();
+        true
+    }
+
+    pub fn ensure_node_kind_ids(&mut self) -> usize {
+        let mut updated = 0;
+        for node in self.nodes.values_mut() {
+            if !node.kind_id.is_empty() {
+                continue;
+            }
+            if let Some(kind) = nodes_builtin::builtin_kind_from_name(&node.name) {
+                node.kind_id = kind.id().to_string();
+                updated += 1;
+            }
+        }
+        if updated > 0 {
+            self.bump_revision();
+        }
+        updated
+    }
 }
 
 fn pin_types_compatible(from: PinType, to: PinType) -> bool {
@@ -497,6 +530,8 @@ fn pin_types_compatible(from: PinType, to: PinType) -> bool {
 pub struct Node {
     pub id: NodeId,
     pub name: String,
+    #[serde(default)]
+    pub kind_id: String,
     pub category: String,
     pub inputs: Vec<PinId>,
     pub outputs: Vec<PinId>,
@@ -511,6 +546,16 @@ pub struct Node {
     pub bypass: bool,
     #[serde(default)]
     pub position: Option<[f32; 2]>,
+}
+
+impl Node {
+    pub fn builtin_kind(&self) -> Option<nodes_builtin::BuiltinNodeKind> {
+        if !self.kind_id.is_empty() {
+            nodes_builtin::builtin_kind_from_id(&self.kind_id)
+        } else {
+            nodes_builtin::builtin_kind_from_name(&self.name)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

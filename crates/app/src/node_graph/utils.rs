@@ -32,6 +32,7 @@ pub(super) fn add_builtin_node(
 ) -> NodeId {
     let was_empty = graph.nodes().next().is_none();
     let core_id = graph.add_node(node_definition(kind));
+    let _ = graph.set_node_kind_id(core_id, kind.id());
     let params = default_params(kind);
     for (key, value) in params.values {
         let _ = graph.set_param(core_id, key, value);
@@ -53,7 +54,11 @@ pub(super) fn add_builtin_node_checked(
     kind: BuiltinNodeKind,
     pos: Pos2,
 ) -> Option<NodeId> {
-    if kind == BuiltinNodeKind::Output && graph.nodes().any(|node| node.name == "Output") {
+    if kind == BuiltinNodeKind::Output
+        && graph
+            .nodes()
+            .any(|node| node.builtin_kind() == Some(BuiltinNodeKind::Output))
+    {
         tracing::warn!("Only one Output node is supported right now.");
         return None;
     }

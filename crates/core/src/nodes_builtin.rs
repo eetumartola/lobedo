@@ -70,6 +70,79 @@ pub enum BuiltinNodeKind {
     Output,
 }
 
+impl BuiltinNodeKind {
+    pub fn id(self) -> &'static str {
+        match self {
+            BuiltinNodeKind::Box => "builtin:box",
+            BuiltinNodeKind::Grid => "builtin:grid",
+            BuiltinNodeKind::Sphere => "builtin:sphere",
+            BuiltinNodeKind::Tube => "builtin:tube",
+            BuiltinNodeKind::Circle => "builtin:circle",
+            BuiltinNodeKind::Curve => "builtin:curve",
+            BuiltinNodeKind::Sweep => "builtin:sweep",
+            BuiltinNodeKind::File => "builtin:file",
+            BuiltinNodeKind::ReadSplats => "builtin:read_splats",
+            BuiltinNodeKind::WriteSplats => "builtin:write_splats",
+            BuiltinNodeKind::GltfOutput => "builtin:gltf_output",
+            BuiltinNodeKind::BooleanSdf => "builtin:boolean_sdf",
+            BuiltinNodeKind::BooleanGeo => "builtin:boolean_geo",
+            BuiltinNodeKind::Delete => "builtin:delete",
+            BuiltinNodeKind::Prune => "builtin:prune",
+            BuiltinNodeKind::Regularize => "builtin:regularize",
+            BuiltinNodeKind::SplatLod => "builtin:splat_lod",
+            BuiltinNodeKind::SplatToMesh => "builtin:splat_to_mesh",
+            BuiltinNodeKind::SplatDeform => "builtin:splat_deform",
+            BuiltinNodeKind::SplatDelight => "builtin:splat_delight",
+            BuiltinNodeKind::SplatIntegrate => "builtin:splat_integrate",
+            BuiltinNodeKind::SplatHeal => "builtin:splat_heal",
+            BuiltinNodeKind::SplatOutlier => "builtin:splat_outlier",
+            BuiltinNodeKind::SplatCluster => "builtin:splat_cluster",
+            BuiltinNodeKind::SplatMerge => "builtin:splat_merge",
+            BuiltinNodeKind::VolumeFromGeometry => "builtin:volume_from_geometry",
+            BuiltinNodeKind::VolumeCombine => "builtin:volume_combine",
+            BuiltinNodeKind::VolumeBlur => "builtin:volume_blur",
+            BuiltinNodeKind::VolumeToMesh => "builtin:volume_to_mesh",
+            BuiltinNodeKind::Group => "builtin:group",
+            BuiltinNodeKind::GroupExpand => "builtin:group_expand",
+            BuiltinNodeKind::Transform => "builtin:transform",
+            BuiltinNodeKind::Fuse => "builtin:fuse",
+            BuiltinNodeKind::Ffd => "builtin:ffd",
+            BuiltinNodeKind::CopyTransform => "builtin:copy_transform",
+            BuiltinNodeKind::Merge => "builtin:merge",
+            BuiltinNodeKind::CopyToPoints => "builtin:copy_to_points",
+            BuiltinNodeKind::Scatter => "builtin:scatter",
+            BuiltinNodeKind::Normal => "builtin:normal",
+            BuiltinNodeKind::PolyFrame => "builtin:polyframe",
+            BuiltinNodeKind::Color => "builtin:color",
+            BuiltinNodeKind::Noise => "builtin:noise",
+            BuiltinNodeKind::ErosionNoise => "builtin:erosion_noise",
+            BuiltinNodeKind::Smooth => "builtin:smooth",
+            BuiltinNodeKind::Resample => "builtin:resample",
+            BuiltinNodeKind::UvTexture => "builtin:uv_texture",
+            BuiltinNodeKind::UvUnwrap => "builtin:uv_unwrap",
+            BuiltinNodeKind::UvView => "builtin:uv_view",
+            BuiltinNodeKind::Material => "builtin:material",
+            BuiltinNodeKind::Ray => "builtin:ray",
+            BuiltinNodeKind::AttributeNoise => "builtin:attribute_noise",
+            BuiltinNodeKind::AttributePromote => "builtin:attribute_promote",
+            BuiltinNodeKind::AttributeExpand => "builtin:attribute_expand",
+            BuiltinNodeKind::AttributeFromFeature => "builtin:attribute_from_feature",
+            BuiltinNodeKind::AttributeFromVolume => "builtin:attribute_from_volume",
+            BuiltinNodeKind::AttributeTransfer => "builtin:attribute_transfer",
+            BuiltinNodeKind::AttributeMath => "builtin:attribute_math",
+            BuiltinNodeKind::Wrangle => "builtin:wrangle",
+            BuiltinNodeKind::ObjOutput => "builtin:obj_output",
+            BuiltinNodeKind::Output => "builtin:output",
+        }
+    }
+}
+
+pub fn builtin_kind_from_id(id: &str) -> Option<BuiltinNodeKind> {
+    node_specs()
+        .iter()
+        .find_map(|spec| (spec.kind.id() == id).then_some(spec.kind))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputPolicy {
     None,
@@ -782,6 +855,12 @@ pub fn param_specs(kind: BuiltinNodeKind) -> Vec<ParamSpec> {
 
 pub fn param_specs_for_name(name: &str) -> Vec<ParamSpec> {
     builtin_kind_from_name(name)
+        .map(param_specs)
+        .unwrap_or_default()
+}
+
+pub fn param_specs_for_kind_id(kind_id: &str) -> Vec<ParamSpec> {
+    builtin_kind_from_id(kind_id)
         .map(param_specs)
         .unwrap_or_default()
 }

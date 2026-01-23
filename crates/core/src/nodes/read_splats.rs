@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::geometry_out;
-use crate::param_spec::ParamSpec;
+use crate::param_spec::{ParamPathKind, ParamSpec};
 use crate::splat::{load_splat_ply_with_mode, SplatGeo, SplatLoadMode};
 
 pub const NAME: &str = "Splat Read";
@@ -31,7 +31,7 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("path", "Path")
+        ParamSpec::path("path", "Path", ParamPathKind::ReadSplat)
             .with_help("Path or URL to a splat PLY file."),
         ParamSpec::int_enum(
             "read_mode",

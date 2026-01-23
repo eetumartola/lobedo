@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use crate::eval::{evaluate_from_with_progress, EvalReport, EvalState};
 use crate::geometry::Geometry;
 use crate::graph::{Graph, GraphError, NodeId};
-use crate::nodes_builtin::{builtin_kind_from_name, compute_geometry_node, input_policy, InputPolicy};
+use crate::nodes_builtin::{
+    builtin_kind_from_id, builtin_kind_from_name, compute_geometry_node, input_policy, InputPolicy,
+};
 use crate::progress::ProgressSink;
 
 #[derive(Debug, Default)]
@@ -52,8 +54,19 @@ pub fn evaluate_geometry_graph_with_progress(
         let node = graph
             .node(node_id)
             .ok_or_else(|| "missing node".to_string())?;
-        let kind = builtin_kind_from_name(&node.name)
-            .ok_or_else(|| format!("unknown node type {}", node.name))?;
+        let kind = if node.kind_id.is_empty() {
+            builtin_kind_from_name(&node.name)
+        } else {
+            builtin_kind_from_id(&node.kind_id)
+                .or_else(|| builtin_kind_from_name(&node.name))
+        }
+        .ok_or_else(|| {
+            if node.kind_id.is_empty() {
+                format!("unknown node type {}", node.name)
+            } else {
+                format!("unknown node kind {} ({})", node.kind_id, node.name)
+            }
+        })?;
 
         let mut input_geometries = Vec::with_capacity(node.inputs.len());
         let mut input_names = Vec::with_capacity(node.inputs.len());

@@ -6,7 +6,7 @@ use crate::assets;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::geometry_out;
-use crate::param_spec::ParamSpec;
+use crate::param_spec::{ParamPathKind, ParamSpec};
 use crate::gltf_io;
 
 pub const NAME: &str = "File";
@@ -30,7 +30,8 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
-    vec![ParamSpec::string("path", "Path").with_help("Path or URL to an OBJ or glTF file.")]
+    vec![ParamSpec::path("path", "Path", ParamPathKind::ReadMesh)
+        .with_help("Path or URL to an OBJ or glTF file.")]
 }
 
 pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {

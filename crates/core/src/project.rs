@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::graph::Graph;
 use crate::nodes;
 
-pub const PROJECT_VERSION: u32 = 2;
+pub const PROJECT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -27,6 +27,10 @@ impl Project {
         if self.version < 2 {
             self.graph.migrate_geometry_pins();
             self.version = 2;
+        }
+        if self.version < 3 {
+            self.graph.ensure_node_kind_ids();
+            self.version = 3;
         }
         self.graph
             .rename_nodes(nodes::read_splats::LEGACY_NAME, nodes::read_splats::NAME);

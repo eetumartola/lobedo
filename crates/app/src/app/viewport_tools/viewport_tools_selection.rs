@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke};
 use glam::{Mat4, Vec3};
 
-use lobedo_core::{AttributeDomain, NodeId, ParamValue};
+use lobedo_core::{AttributeDomain, BuiltinNodeKind, NodeId, ParamValue};
 
 use super::LobedoApp;
 use super::SelectionAction;
@@ -83,7 +83,7 @@ pub(super) fn group_selection_settings(
     node_id: NodeId,
 ) -> Option<(AttributeDomain, bool)> {
     let node = graph.node(node_id)?;
-    if node.name != "Group" {
+    if node.builtin_kind() != Some(BuiltinNodeKind::Group) {
         return None;
     }
     let domain = node.params.get_int("domain", 2).clamp(0, 2);

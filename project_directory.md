@@ -6,7 +6,7 @@ Functions: `setup_tracing` (L88-L90), `new` (L93-L132), `set_log_level` (L134-L1
 
 ## crates/app/src/app/eval.rs
 Description: Eval module.
-Functions: `refresh_dirty_nodes` (L45-L62), `mark_eval_dirty` (L64-L67), `evaluate_if_needed` (L69-L113), `evaluate_graph` (L115-L150), `poll_eval_job` (L152-L171), `start_eval_job` (L174-L215), `apply_eval_result` (L217-L244), `apply_scene` (L246-L253), `sync_selection_overlay` (L255-L294), `viewport_debug` (L296-L338), `viewport_fps` (L340-L351), `run_eval_job` (L354-L431), `scene_to_render_with_template` (L433-L475), `render_mesh_from_scene` (L477-L493), `render_splats_from_scene` (L495-L529), `render_curve_from_scene` (L531-L536), `render_volume_from_scene` (L538-L553), `render_mesh_from_mesh` (L555-L561), `render_materials_from_scene` (L565-L614), `load_render_texture` (L616-L631), `load_texture_bytes` (L633-L645), `collect_template_meshes` (L647-L682), `splat_merge_preview_mesh` (L684-L713), `merge_optional_meshes` (L715-L722), `merge_error_state` (L724-L746), `selection_shape_for_node` (L748-L779), `selection_shape_from_params` (L781-L813)
+Functions: `refresh_dirty_nodes` (L45-L62), `mark_eval_dirty` (L64-L67), `evaluate_if_needed` (L69-L113), `evaluate_graph` (L115-L150), `poll_eval_job` (L152-L171), `start_eval_job` (L174-L215), `apply_eval_result` (L217-L244), `apply_scene` (L246-L253), `sync_selection_overlay` (L255-L294), `viewport_debug` (L296-L338), `viewport_fps` (L340-L351), `run_eval_job` (L354-L431), `scene_to_render_with_template` (L433-L475), `render_mesh_from_scene` (L477-L493), `render_splats_from_scene` (L495-L529), `render_curve_from_scene` (L531-L536), `render_volume_from_scene` (L538-L553), `render_mesh_from_mesh` (L555-L561), `render_materials_from_scene` (L565-L614), `load_render_texture` (L616-L631), `load_texture_bytes` (L633-L645), `collect_template_meshes` (L647-L682), `splat_merge_preview_mesh` (L684-L713), `merge_optional_meshes` (L715-L722), `merge_error_state` (L724-L746), `selection_shape_for_node` (L748-L781), `selection_shape_from_params` (L783-L815)
 
 ## crates/app/src/app/io.rs
 Description: Io module.
@@ -18,7 +18,7 @@ Functions: `new` (L20-L24), `push_line` (L26-L32), `snapshot` (L34-L37), `make_w
 
 ## crates/app/src/app/node_info.rs
 Description: Node Info module.
-Functions: `show_node_info_panel` (L16-L60), `show_geometry_info` (L62-L183), `show_groups_section` (L185-L230), `show_group_table` (L232-L255), `show_mesh_info` (L257-L399), `attribute_type_label` (L402-L411), `attribute_domain_label` (L413-L420), `sh_order_label` (L422-L431)
+Functions: `show_node_info_panel` (L16-L60), `show_geometry_info` (L62-L184), `show_groups_section` (L186-L231), `show_group_table` (L233-L256), `show_mesh_info` (L258-L400), `attribute_type_label` (L403-L412), `attribute_domain_label` (L414-L421), `sh_order_label` (L423-L432)
 
 ## crates/app/src/app/spreadsheet.rs
 Description: Spreadsheet module.
@@ -30,7 +30,7 @@ Functions: `update` (L6-L27)
 
 ## crates/app/src/app/ui_central.rs
 Description: Ui Central module.
-Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L353), `show_spreadsheet_panel` (L355-L388), `show_right_panel` (L390-L476), `show_node_params_panel` (L478-L550), `show_node_graph_panel` (L552-L634), `show_splat_read_params` (L636-L666), `show_uv_view_params` (L668-L738), `mesh_corner_uvs` (L741-L741), `uv_bounds` (L776-L776), `sh_order_label` (L788-L797), `toggle_curve_draw` (L799-L805), `toggle_curve_edit` (L807-L813), `toggle_ffd_edit` (L815-L821), `toggle_group_select` (L823-L829), `selection_count` (L831-L839)
+Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L478), `show_node_params_panel` (L480-L552), `show_node_graph_panel` (L554-L636), `show_splat_read_params` (L638-L668), `show_uv_view_params` (L670-L740), `mesh_corner_uvs` (L743-L743), `uv_bounds` (L778-L778), `sh_order_label` (L790-L799), `toggle_curve_draw` (L801-L807), `toggle_curve_edit` (L809-L815), `toggle_ffd_edit` (L817-L823), `toggle_group_select` (L825-L831), `selection_count` (L833-L841)
 
 ## crates/app/src/app/ui_info_panels.rs
 Description: Ui Info Panels module.
@@ -38,7 +38,7 @@ Functions: `handle_info_panels` (L8-L54)
 
 ## crates/app/src/app/ui_inputs.rs
 Description: Ui Inputs module.
-Functions: `handle_keyboard_shortcuts` (L6-L109), `handle_tab_add_menu` (L111-L126)
+Functions: `handle_keyboard_shortcuts` (L7-L110), `handle_tab_add_menu` (L112-L127)
 
 ## crates/app/src/app/ui_preferences.rs
 Description: Ui Preferences module.
@@ -62,7 +62,7 @@ Functions: `sync_wgpu_renderer` (L8-L21), `handle_viewport_input` (L23-L187), `c
 
 ## crates/app/src/app/viewport_tools.rs
 Description: Viewport Tools module.
-Functions: `is_dragging` (L137-L146), `activate_curve_draw` (L150-L153), `activate_curve_edit` (L155-L161), `deactivate_curve_draw` (L163-L165), `deactivate_curve_edit` (L167-L169), `curve_draw_active` (L171-L175), `curve_edit_active` (L177-L181), `activate_ffd_edit` (L183-L192), `deactivate_ffd_edit` (L194-L196), `ffd_edit_active` (L198-L202), `activate_group_select` (L204-L212), `deactivate_group_select` (L214-L216), `group_select_active` (L218-L222), `group_select_node_id` (L224-L226), `selected_group_select_node` (L228-L240), `handle_viewport_tools_input` (L242-L715), `draw_viewport_tools` (L717-L746), `selected_transform_node` (L748-L756), `selected_box_node` (L758-L781), `input_node_for` (L785-L798)
+Functions: `is_dragging` (L137-L146), `activate_curve_draw` (L150-L153), `activate_curve_edit` (L155-L161), `deactivate_curve_draw` (L163-L165), `deactivate_curve_edit` (L167-L169), `curve_draw_active` (L171-L175), `curve_edit_active` (L177-L181), `activate_ffd_edit` (L183-L192), `deactivate_ffd_edit` (L194-L196), `ffd_edit_active` (L198-L202), `activate_group_select` (L204-L212), `deactivate_group_select` (L214-L216), `group_select_active` (L218-L222), `group_select_node_id` (L224-L226), `selected_group_select_node` (L228-L240), `handle_viewport_tools_input` (L242-L715), `draw_viewport_tools` (L717-L746), `selected_transform_node` (L748-L759), `selected_box_node` (L761-L784), `input_node_for` (L788-L801)
 
 ## crates/app/src/app/viewport_tools/viewport_tools_curve.rs
 Description: Viewport Tools Curve module.
@@ -130,7 +130,7 @@ Functions: None
 
 ## crates/app/src/node_graph/params.rs
 Description: Params module.
-Functions: `edit_param` (L21-L618), `edit_param_with_spec` (L620-L873), `edit_gradient_field` (L875-L1056), `endpoints_for` (L1058-L1077), `find_stop_index` (L1079-L1090), `color32_from_rgb` (L1092-L1092), `edit_path_field` (L1100-L1130), `file_pick_result` (L1153-L1155), `queue_file_pick` (L1158-L1161), `take_file_pick` (L1164-L1171), `path_picker_kind` (L1173-L1183), `open_path_picker_button` (L1185-L1242), `open_path_picker` (L1245-L1274), `param_row_with_label` (L1276-L1284), `param_row_with_height_label` (L1286-L1335), `combo_row_i32` (L1337-L1364), `combo_row_string` (L1366-L1396), `display_label` (L1398-L1736)
+Functions: `edit_param` (L21-L628), `edit_param_with_spec` (L630-L884), `edit_gradient_field` (L886-L1067), `endpoints_for` (L1069-L1088), `find_stop_index` (L1090-L1101), `color32_from_rgb` (L1103-L1103), `edit_path_field` (L1111-L1145), `path_picker_kind_from_spec` (L1157-L1166), `file_pick_result` (L1179-L1181), `queue_file_pick` (L1184-L1187), `take_file_pick` (L1190-L1197), `path_picker_kind` (L1199-L1212), `open_path_picker_button` (L1214-L1271), `open_path_picker` (L1274-L1303), `param_row_with_label` (L1305-L1313), `param_row_with_height_label` (L1315-L1364), `combo_row_i32` (L1366-L1393), `combo_row_string` (L1395-L1425), `display_label` (L1427-L1765)
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
@@ -138,7 +138,7 @@ Functions: `default` (L94-L136), `hit_test` (L153-L158), `reset` (L187-L189), `e
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L11-L630), `inspector_row_count` (L632-L645)
+Functions: `show_inspector` (L13-L637), `inspector_row_count` (L639-L652)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -154,11 +154,11 @@ Functions: `show_node_menu` (L11-L78), `open_add_menu` (L80-L90), `add_demo_grap
 
 ## crates/app/src/node_graph/utils.rs
 Description: Utils module.
-Functions: `pin_color` (L12-L23), `add_builtin_node` (L25-L46), `add_builtin_node_checked` (L48-L68), `core_input_pin` (L70-L76), `core_output_pin` (L78-L84), `find_input_of_type` (L86-L99), `find_output_of_type` (L101-L114), `point_segment_distance` (L116-L125), `point_snarl_wire_distance` (L127-L144), `submenu_menu_button` (L146-L165), `darken_color` (L167-L174), `format_submenu_label` (L176-L185), `wire_sample_count` (L187-L191), `adjust_frame_size` (L193-L208), `wire_bezier_5` (L210-L210), `sample_bezier_5` (L318-L318)
+Functions: `pin_color` (L12-L23), `add_builtin_node` (L25-L47), `add_builtin_node_checked` (L49-L73), `core_input_pin` (L75-L81), `core_output_pin` (L83-L89), `find_input_of_type` (L91-L104), `find_output_of_type` (L106-L119), `point_segment_distance` (L121-L130), `point_snarl_wire_distance` (L132-L149), `submenu_menu_button` (L151-L170), `darken_color` (L172-L179), `format_submenu_label` (L181-L190), `wire_sample_count` (L192-L196), `adjust_frame_size` (L198-L213), `wire_bezier_5` (L215-L215), `sample_bezier_5` (L323-L323)
 
 ## crates/app/src/node_graph/viewer.rs
 Description: Viewer module.
-Functions: `pin_rect` (L55-L69), `draw` (L71-L81), `core_node_id` (L85-L91), `core_pin_for_input` (L93-L96), `core_pin_for_output` (L98-L101), `node_frame` (L106-L124), `title` (L126-L131), `show_header` (L133-L366), `inputs` (L368-L373), `outputs` (L375-L380), `show_input` (L382-L404), `show_output` (L406-L428), `has_graph_menu` (L430-L432), `has_node_menu` (L434-L436), `has_dropped_wire_menu` (L438-L440), `show_dropped_wire_menu` (L442-L463), `show_node_menu` (L465-L474), `final_node_rect` (L476-L661), `current_transform` (L663-L675), `connect` (L677-L707), `disconnect` (L709-L724), `drop_outputs` (L726-L732), `drop_inputs` (L734-L740)
+Functions: `pin_rect` (L55-L69), `draw` (L71-L81), `core_node_id` (L85-L91), `core_pin_for_input` (L93-L96), `core_pin_for_output` (L98-L101), `node_frame` (L106-L124), `title` (L126-L131), `show_header` (L133-L373), `inputs` (L375-L380), `outputs` (L382-L387), `show_input` (L389-L411), `show_output` (L413-L435), `has_graph_menu` (L437-L439), `has_node_menu` (L441-L443), `has_dropped_wire_menu` (L445-L447), `show_dropped_wire_menu` (L449-L470), `show_node_menu` (L472-L481), `final_node_rect` (L483-L668), `current_transform` (L670-L682), `connect` (L684-L714), `disconnect` (L716-L731), `drop_outputs` (L733-L739), `drop_inputs` (L741-L747)
 
 ## crates/core/src/assets.rs
 Description: Assets module.
@@ -186,7 +186,7 @@ Functions: `new` (L20-L22), `with_mesh` (L24-L32), `with_splats` (L34-L42), `wit
 
 ## crates/core/src/geometry_eval.rs
 Description: Geometry Eval module.
-Functions: `new` (L22-L24), `geometry_for_node` (L26-L28), `evaluate_geometry_graph` (L31-L37), `evaluate_geometry_graph_with_progress` (L39-L154)
+Functions: `new` (L24-L26), `geometry_for_node` (L28-L30), `evaluate_geometry_graph` (L33-L39), `evaluate_geometry_graph_with_progress` (L41-L167)
 
 ## crates/core/src/gltf_io.rs
 Description: Gltf Io module.
@@ -198,7 +198,7 @@ Functions: `default` (L13-L26), `fmt` (L30-L47), `sample` (L51-L51), `endpoints`
 
 ## crates/core/src/graph.rs
 Description: Graph module.
-Functions: `default` (L27-L37), `nodes` (L41-L43), `node` (L45-L47), `revision` (L49-L51), `bump_revision` (L53-L55), `display_node` (L57-L62), `template_nodes` (L64-L70), `set_display_node` (L72-L90), `toggle_display_node` (L92-L103), `set_template_node` (L105-L115), `toggle_template_node` (L117-L125), `set_bypass_node` (L127-L138), `toggle_bypass_node` (L140-L149), `pin` (L151-L153), `add_node` (L155-L209), `remove_node` (L211-L229), `set_node_position` (L231-L234), `node_position` (L244-L244), `add_link` (L248-L278), `remove_link` (L280-L286), `links` (L288-L290), `remove_link_between` (L292-L306), `remove_links_for_pin` (L308-L317), `set_param` (L319-L344), `topo_sort_from` (L346-L365), `topo_sort_all` (L367-L384), `visit_node` (L386-L414), `upstream_nodes` (L416-L433), `node_for_pin` (L435-L437), `alloc_node_id` (L439-L443), `alloc_pin_id` (L445-L449), `alloc_link_id` (L451-L455), `migrate_geometry_pins` (L457-L469), `rename_nodes` (L471-L480), `pin_types_compatible` (L483-L494), `get_vec2` (L522-L522), `get_vec3` (L532-L532), `get_float` (L542-L551), `get_int` (L553-L561), `get_bool` (L563-L571), `get_string` (L573-L581), `demo_node` (L656-L669), `add_and_remove_node` (L672-L678), `rejects_incompatible_links` (L681-L710), `accepts_valid_links` (L713-L723), `node_def` (L725-L739), `topo_sort_orders_upstream_first` (L742-L763), `topo_sort_detects_cycles` (L766-L781)
+Functions: `default` (L29-L39), `nodes` (L43-L45), `node` (L47-L49), `revision` (L51-L53), `bump_revision` (L55-L57), `display_node` (L59-L64), `template_nodes` (L66-L72), `set_display_node` (L74-L92), `toggle_display_node` (L94-L105), `set_template_node` (L107-L117), `toggle_template_node` (L119-L127), `set_bypass_node` (L129-L140), `toggle_bypass_node` (L142-L151), `pin` (L153-L155), `add_node` (L157-L212), `remove_node` (L214-L232), `set_node_position` (L234-L237), `node_position` (L247-L247), `add_link` (L251-L281), `remove_link` (L283-L289), `links` (L291-L293), `remove_link_between` (L295-L309), `remove_links_for_pin` (L311-L320), `set_param` (L322-L347), `topo_sort_from` (L349-L368), `topo_sort_all` (L370-L387), `visit_node` (L389-L417), `upstream_nodes` (L419-L436), `node_for_pin` (L438-L440), `alloc_node_id` (L442-L446), `alloc_pin_id` (L448-L452), `alloc_link_id` (L454-L458), `migrate_geometry_pins` (L460-L472), `rename_nodes` (L474-L483), `set_node_kind_id` (L485-L496), `ensure_node_kind_ids` (L498-L513), `pin_types_compatible` (L516-L527), `builtin_kind` (L552-L558), `get_vec2` (L567-L567), `get_vec3` (L577-L577), `get_float` (L587-L596), `get_int` (L598-L606), `get_bool` (L608-L616), `get_string` (L618-L626), `demo_node` (L701-L714), `add_and_remove_node` (L717-L723), `rejects_incompatible_links` (L726-L755), `accepts_valid_links` (L758-L768), `node_def` (L770-L784), `topo_sort_orders_upstream_first` (L787-L808), `topo_sort_detects_cycles` (L811-L826)
 
 ## crates/core/src/groups.rs
 Description: Groups module.
@@ -306,7 +306,7 @@ Functions: `definition` (L29-L36), `default_params` (L38-L54), `param_specs` (L5
 
 ## crates/core/src/nodes/file.rs
 Description: File module.
-Functions: `definition` (L14-L21), `default_params` (L23-L30), `param_specs` (L32-L34), `compute` (L36-L42), `load_mesh` (L44-L55), `load_obj_mesh` (L57-L89), `load_obj_mesh_bytes` (L91-L105), `is_gltf_path` (L107-L119), `is_glb_bytes` (L121-L123), `build_mesh_from_models` (L125-L187)
+Functions: `definition` (L14-L21), `default_params` (L23-L30), `param_specs` (L32-L35), `compute` (L37-L43), `load_mesh` (L45-L56), `load_obj_mesh` (L58-L90), `load_obj_mesh_bytes` (L92-L106), `is_gltf_path` (L108-L120), `is_glb_bytes` (L122-L124), `build_mesh_from_models` (L126-L188)
 
 ## crates/core/src/nodes/fuse.rs
 Description: Fuse module.
@@ -314,7 +314,7 @@ Functions: `definition` (L16-L23), `default_params` (L25-L32), `param_specs` (L3
 
 ## crates/core/src/nodes/gltf_output.rs
 Description: Gltf Output module.
-Functions: `definition` (L10-L17), `default_params` (L19-L26), `param_specs` (L28-L30), `compute` (L32-L35)
+Functions: `definition` (L10-L17), `default_params` (L19-L26), `param_specs` (L28-L31), `compute` (L33-L36)
 
 ## crates/core/src/nodes/grid.rs
 Description: Grid module.
@@ -354,7 +354,7 @@ Functions: `definition` (L11-L18), `default_params` (L20-L28), `param_specs` (L3
 
 ## crates/core/src/nodes/obj_output.rs
 Description: Obj Output module.
-Functions: `definition` (L12-L19), `default_params` (L21-L28), `param_specs` (L30-L32), `compute` (L34-L37), `write_obj` (L40-L42), `write_obj` (L45-L193)
+Functions: `definition` (L12-L19), `default_params` (L21-L28), `param_specs` (L30-L33), `compute` (L35-L38), `write_obj` (L41-L43), `write_obj` (L46-L194)
 
 ## crates/core/src/nodes/output.rs
 Description: Output module.
@@ -490,7 +490,7 @@ Functions: `definition` (L11-L18), `default_params` (L20-L30), `param_specs` (L3
 
 ## crates/core/src/nodes_builtin.rs
 Description: Nodes Builtin module.
-Functions: `mesh_error_read_splats` (L90-L92), `mesh_error_curve` (L94-L96), `mesh_error_volume_blur` (L98-L100), `mesh_error_sweep` (L102-L104), `mesh_error_write_splats` (L106-L108), `mesh_error_splat_to_mesh` (L110-L112), `mesh_error_volume_from_geo` (L114-L116), `mesh_error_volume_combine` (L118-L120), `mesh_error_volume_to_mesh` (L122-L124), `mesh_error_attribute_from_volume` (L126-L128), `node_specs` (L673-L675), `node_spec` (L677-L682), `input_policy` (L684-L686), `name` (L689-L691), `builtin_kind_from_name` (L695-L703), `builtin_definitions` (L705-L710), `node_definition` (L712-L714), `default_params` (L716-L718), `param_specs` (L720-L781), `param_specs_for_name` (L783-L787), `compute_mesh_node` (L789-L795), `compute_geometry_node` (L797-L873), `compute_splat_node` (L875-L884), `apply_mesh_unary` (L886-L951), `apply_splat_only` (L953-L988), `apply_attribute_transfer` (L990-L995), `apply_delete` (L997-L1026), `apply_prune` (L1028-L1032), `apply_regularize` (L1034-L1038), `apply_splat_lod` (L1040-L1044), `apply_splat_heal` (L1046-L1048), `apply_splat_outlier` (L1050-L1054), `apply_splat_cluster` (L1056-L1060), `apply_splat_delight` (L1062-L1064), `filter_splats` (L1066-L1086), `apply_group` (L1088-L1113), `apply_group_expand` (L1115-L1140), `apply_transform` (L1142-L1183), `apply_copy_transform` (L1185-L1245), `apply_copy_to_points` (L1247-L1301), `apply_obj_output` (L1303-L1317), `apply_write_splats` (L1319-L1328), `merge_geometry` (L1330-L1340), `transform_applies_scale` (L1350-L1358), `merge_combines_meshes` (L1361-L1367), `scatter_produces_points` (L1370-L1382), `normal_recomputes_normals` (L1385-L1391)
+Functions: `id` (L74-L137), `builtin_kind_from_id` (L140-L144), `mesh_error_read_splats` (L163-L165), `mesh_error_curve` (L167-L169), `mesh_error_volume_blur` (L171-L173), `mesh_error_sweep` (L175-L177), `mesh_error_write_splats` (L179-L181), `mesh_error_splat_to_mesh` (L183-L185), `mesh_error_volume_from_geo` (L187-L189), `mesh_error_volume_combine` (L191-L193), `mesh_error_volume_to_mesh` (L195-L197), `mesh_error_attribute_from_volume` (L199-L201), `node_specs` (L746-L748), `node_spec` (L750-L755), `input_policy` (L757-L759), `name` (L762-L764), `builtin_kind_from_name` (L768-L776), `builtin_definitions` (L778-L783), `node_definition` (L785-L787), `default_params` (L789-L791), `param_specs` (L793-L854), `param_specs_for_name` (L856-L860), `param_specs_for_kind_id` (L862-L866), `compute_mesh_node` (L868-L874), `compute_geometry_node` (L876-L952), `compute_splat_node` (L954-L963), `apply_mesh_unary` (L965-L1030), `apply_splat_only` (L1032-L1067), `apply_attribute_transfer` (L1069-L1074), `apply_delete` (L1076-L1105), `apply_prune` (L1107-L1111), `apply_regularize` (L1113-L1117), `apply_splat_lod` (L1119-L1123), `apply_splat_heal` (L1125-L1127), `apply_splat_outlier` (L1129-L1133), `apply_splat_cluster` (L1135-L1139), `apply_splat_delight` (L1141-L1143), `filter_splats` (L1145-L1165), `apply_group` (L1167-L1192), `apply_group_expand` (L1194-L1219), `apply_transform` (L1221-L1262), `apply_copy_transform` (L1264-L1324), `apply_copy_to_points` (L1326-L1380), `apply_obj_output` (L1382-L1396), `apply_write_splats` (L1398-L1407), `merge_geometry` (L1409-L1419), `transform_applies_scale` (L1429-L1437), `merge_combines_meshes` (L1440-L1446), `scatter_produces_points` (L1449-L1461), `normal_recomputes_normals` (L1464-L1470)
 
 ## crates/core/src/noise.rs
 Description: Noise module.
@@ -502,7 +502,7 @@ Functions: `for_each_indexed_mut` (L7-L26), `try_for_each_indexed_mut` (L28-L48)
 
 ## crates/core/src/param_spec.rs
 Description: Param Spec module.
-Functions: `new` (L42-L52), `float` (L54-L56), `float_slider` (L58-L60), `int` (L62-L64), `int_slider` (L66-L68), `int_enum` (L70-L81), `bool` (L83-L85), `vec2` (L87-L89), `vec3` (L91-L93), `string` (L95-L97), `string_enum` (L99-L110), `with_help` (L112-L115), `with_widget` (L117-L120), `with_range` (L122-L128), `with_options` (L130-L136)
+Functions: `new` (L56-L67), `float` (L69-L71), `float_slider` (L73-L75), `int` (L77-L79), `int_slider` (L81-L83), `int_enum` (L85-L96), `bool` (L98-L100), `vec2` (L102-L104), `vec3` (L106-L108), `string` (L110-L112), `path` (L114-L116), `gradient` (L118-L120), `code` (L122-L124), `string_enum` (L126-L137), `with_help` (L139-L142), `with_widget` (L144-L147), `with_path_kind` (L149-L153), `with_range` (L155-L161), `with_options` (L163-L169)
 
 ## crates/core/src/param_templates.rs
 Description: Param Templates module.
@@ -514,7 +514,7 @@ Functions: `drop` (L30-L35), `set_progress_context` (L38-L41), `report_progress`
 
 ## crates/core/src/project.rs
 Description: Project module.
-Functions: `default` (L16-L22), `migrate_to_latest` (L26-L39), `default` (L56-L67), `default` (L88-L95), `default` (L107-L114), `default` (L164-L190)
+Functions: `default` (L16-L22), `migrate_to_latest` (L26-L43), `default` (L60-L71), `default` (L92-L99), `default` (L111-L118), `default` (L168-L194)
 
 ## crates/core/src/scene.rs
 Description: Scene module.

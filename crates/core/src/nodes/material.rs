@@ -6,7 +6,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
-use crate::param_spec::ParamSpec;
+use crate::param_spec::{ParamPathKind, ParamSpec};
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Material";
@@ -42,7 +42,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Metallic factor."),
         ParamSpec::float_slider("roughness", "Roughness", 0.0, 1.0)
             .with_help("Roughness factor."),
-        ParamSpec::string("base_color_tex", "Base Color Texture")
+        ParamSpec::path("base_color_tex", "Base Color Texture", ParamPathKind::ReadTexture)
             .with_help("Texture path or URL for base color."),
     ]
 }

@@ -51,15 +51,15 @@ pub use graph::{
 pub use mesh::{make_box, make_grid, make_tube, Aabb, Mesh};
 pub use material::{Material, MaterialLibrary};
 pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};
-pub use param_spec::{ParamKind, ParamOption, ParamRange, ParamSpec, ParamWidget};
+pub use param_spec::{ParamKind, ParamOption, ParamPathKind, ParamRange, ParamSpec, ParamWidget};
 pub use geometry_eval::{
     evaluate_geometry_graph, evaluate_geometry_graph_with_progress, GeometryEvalResult,
     GeometryEvalState,
 };
 pub use nodes_builtin::{
-    builtin_definitions, builtin_kind_from_name, compute_geometry_node, compute_mesh_node,
-    compute_splat_node, default_params, node_definition, node_specs, param_specs,
-    param_specs_for_name, BuiltinNodeKind, NodeSpec,
+    builtin_definitions, builtin_kind_from_id, builtin_kind_from_name, compute_geometry_node,
+    compute_mesh_node, compute_splat_node, default_params, node_definition, node_specs,
+    param_specs, param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, NodeSpec,
 };
 pub use nodes::obj_output::write_obj;
 pub use nodes::splat_merge::build_skirt_preview_mesh;

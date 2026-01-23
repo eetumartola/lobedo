@@ -1,5 +1,5 @@
 use eframe::egui;
-use lobedo_core::NodeId;
+use lobedo_core::{BuiltinNodeKind, NodeId};
 
 use super::spreadsheet::show_spreadsheet;
 use super::viewport_tools::input_node_for;
@@ -261,25 +261,25 @@ impl LobedoApp {
         let Some(node_id) = self.node_graph.selected_node_id() else {
             return;
         };
-        let (node_name, group_shape, group_selection) = {
+        let (node_kind, group_shape, group_selection) = {
             let Some(node) = self.project.graph.node(node_id) else {
                 return;
             };
-            let name = node.name.clone();
-            let shape = if name == "Group" {
+            let kind = node.builtin_kind();
+            let shape = if kind == Some(BuiltinNodeKind::Group) {
                 Some(node.params.get_string("shape", "box").to_lowercase())
             } else {
                 None
             };
-            let selection = if name == "Group" {
+            let selection = if kind == Some(BuiltinNodeKind::Group) {
                 Some(node.params.get_string("selection", "").to_string())
             } else {
                 None
             };
-            (name, shape, selection)
+            (kind, shape, selection)
         };
         let mut actions: Vec<ViewportAction> = Vec::new();
-        if node_name == "Curve" {
+        if node_kind == Some(BuiltinNodeKind::Curve) {
             actions.push((
                 "Add Curve",
                 self.curve_draw_active(node_id),
@@ -291,7 +291,7 @@ impl LobedoApp {
                 toggle_curve_edit,
             ));
         }
-        if node_name == "FFD" {
+        if node_kind == Some(BuiltinNodeKind::Ffd) {
             if input_node_for(&self.project.graph, node_id, 1).is_none() {
                 self.ensure_ffd_lattice_points(node_id);
             }
@@ -302,7 +302,9 @@ impl LobedoApp {
             ));
         }
         let mut footer = None;
-        if node_name == "Group" && group_shape.as_deref() == Some("selection") {
+        if node_kind == Some(BuiltinNodeKind::Group)
+            && group_shape.as_deref() == Some("selection")
+        {
             actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
             let count = selection_count(group_selection.as_deref().unwrap_or(""));
             footer = Some(format!("Selected: {}", count));
@@ -640,7 +642,7 @@ impl LobedoApp {
         let Some(node) = self.project.graph.node(node_id) else {
             return;
         };
-        if !matches!(node.name.as_str(), "Splat Read" | "Read Splats") {
+        if node.builtin_kind() != Some(BuiltinNodeKind::ReadSplats) {
             return;
         }
 
@@ -672,7 +674,7 @@ impl LobedoApp {
         let Some(node) = self.project.graph.node(node_id) else {
             return;
         };
-        if node.name != "UV View" {
+        if node.builtin_kind() != Some(BuiltinNodeKind::UvView) {
             return;
         }
 

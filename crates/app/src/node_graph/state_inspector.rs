@@ -1,7 +1,9 @@
 use egui::Ui;
 use std::collections::HashSet;
 
-use lobedo_core::{param_specs_for_name, Graph, ParamValue};
+use lobedo_core::{
+    param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, ParamValue,
+};
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
 use super::params::{edit_param, edit_param_with_spec};
@@ -29,6 +31,7 @@ impl NodeGraphState {
         };
 
         let node_name = node.name.clone();
+        let node_kind = node.builtin_kind();
         let node_category = node.category.clone();
         let param_values = node.params.values.clone();
         let title = format!("{} ({})", node_name, node_category);
@@ -58,13 +61,17 @@ impl NodeGraphState {
         ui.separator();
 
         let mut changed = false;
-        let param_specs = param_specs_for_name(&node_name);
+        let param_specs = if !node.kind_id.is_empty() {
+            param_specs_for_kind_id(&node.kind_id)
+        } else {
+            param_specs_for_name(&node_name)
+        };
         let mut spec_keys = HashSet::new();
         let shape = param_values.get("shape").and_then(|value| match value {
             ParamValue::String(value) => Some(value.to_lowercase()),
             _ => None,
         });
-        let color_mode = if node_name == "Color" {
+        let color_mode = if node_kind == Some(BuiltinNodeKind::Color) {
             Some(
                 param_values
                     .get("color_mode")
@@ -78,7 +85,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let ray_method = if node_name == "Ray" {
+        let ray_method = if node_kind == Some(BuiltinNodeKind::Ray) {
             Some(
                 param_values
                     .get("method")
@@ -92,7 +99,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let volume_from_mode = if node_name == "Volume from Geometry" {
+        let volume_from_mode = if node_kind == Some(BuiltinNodeKind::VolumeFromGeometry) {
             Some(
                 param_values
                     .get("mode")
@@ -105,7 +112,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_to_mesh_method = if node_name == "Splat to Mesh" {
+        let splat_to_mesh_method = if node_kind == Some(BuiltinNodeKind::SplatToMesh) {
             Some(
                 param_values
                     .get("algorithm")
@@ -119,7 +126,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_to_mesh_output = if node_name == "Splat to Mesh" {
+        let splat_to_mesh_output = if node_kind == Some(BuiltinNodeKind::SplatToMesh) {
             Some(
                 param_values
                     .get("output")
@@ -133,7 +140,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_delight_mode = if node_name == "Splat Delight" {
+        let splat_delight_mode = if node_kind == Some(BuiltinNodeKind::SplatDelight) {
             Some(
                 param_values
                     .get("delight_mode")
@@ -147,7 +154,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_delight_source_env = if node_name == "Splat Delight" {
+        let splat_delight_source_env = if node_kind == Some(BuiltinNodeKind::SplatDelight) {
             Some(
                 param_values
                     .get("source_env")
@@ -161,7 +168,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_delight_neutral_env = if node_name == "Splat Delight" {       
+        let splat_delight_neutral_env = if node_kind == Some(BuiltinNodeKind::SplatDelight) {       
             Some(
                 param_values
                     .get("neutral_env")
@@ -175,7 +182,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_integrate_mode = if node_name == "Splat Integrate" {
+        let splat_integrate_mode = if node_kind == Some(BuiltinNodeKind::SplatIntegrate) {
             Some(
                 param_values
                     .get("relight_mode")
@@ -189,7 +196,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_integrate_source_env = if node_name == "Splat Integrate" {
+        let splat_integrate_source_env = if node_kind == Some(BuiltinNodeKind::SplatIntegrate) {
             Some(
                 param_values
                     .get("source_env")
@@ -203,7 +210,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_integrate_target_env = if node_name == "Splat Integrate" {
+        let splat_integrate_target_env = if node_kind == Some(BuiltinNodeKind::SplatIntegrate) {
             Some(
                 param_values
                     .get("target_env")
@@ -217,7 +224,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_merge_method = if node_name == "Splat Merge" {
+        let splat_merge_method = if node_kind == Some(BuiltinNodeKind::SplatMerge) {
             Some(
                 param_values
                     .get("method")
@@ -231,7 +238,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_heal_method = if node_name == "Splat Heal" {
+        let splat_heal_method = if node_kind == Some(BuiltinNodeKind::SplatHeal) {
             Some(
                 param_values
                     .get("method")
@@ -245,7 +252,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let splat_cluster_method = if node_name == "Splat Cluster" {
+        let splat_cluster_method = if node_kind == Some(BuiltinNodeKind::SplatCluster) {
             Some(
                 param_values
                     .get("method")
@@ -259,7 +266,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let volume_to_mesh_mode = if node_name == "Volume to Mesh" {
+        let volume_to_mesh_mode = if node_kind == Some(BuiltinNodeKind::VolumeToMesh) {
             Some(
                 param_values
                     .get("mode")
@@ -272,7 +279,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let attr_promote_rename = if node_name == "Attribute Promote" {
+        let attr_promote_rename = if node_kind == Some(BuiltinNodeKind::AttributePromote) {
             Some(
                 param_values
                     .get("rename")
@@ -285,7 +292,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let attr_noise_type = if node_name == "Attribute Noise" {
+        let attr_noise_type = if node_kind == Some(BuiltinNodeKind::AttributeNoise) {
             Some(
                 param_values
                     .get("noise_type")
@@ -298,7 +305,7 @@ impl NodeGraphState {
         } else {
             None
         };
-        let attr_noise_fractal = if node_name == "Attribute Noise" {
+        let attr_noise_fractal = if node_kind == Some(BuiltinNodeKind::AttributeNoise) {
             Some(
                 param_values
                     .get("fractal_type")
@@ -313,7 +320,7 @@ impl NodeGraphState {
         };
 
         let should_skip = |key: &str| -> bool {
-            if node_name == "FFD" {
+            if node_kind == Some(BuiltinNodeKind::Ffd) {
                 if key == "lattice_points" {
                     return true;
                 }
@@ -330,7 +337,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if matches!(node_name.as_str(), "Group" | "Delete") {
+            if matches!(node_kind, Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete)) {
                 if key == "selection" {
                     return true;
                 }
@@ -352,10 +359,10 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Volume from Geometry" && key == "voxel_size" {
+            if node_kind == Some(BuiltinNodeKind::VolumeFromGeometry) && key == "voxel_size" {
                 return true;
             }
-            if node_name == "Volume from Geometry" {
+            if node_kind == Some(BuiltinNodeKind::VolumeFromGeometry) {
                 if let Some(mode) = volume_from_mode.as_deref() {
                     let is_density = !mode.contains("sdf");
                     match (is_density, key) {
@@ -365,7 +372,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Splat to Mesh" {
+            if node_kind == Some(BuiltinNodeKind::SplatToMesh) {
                 if let Some(output) = splat_to_mesh_output {
                     if output == 1 {
                         match key {
@@ -388,7 +395,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Volume to Mesh" {
+            if node_kind == Some(BuiltinNodeKind::VolumeToMesh) {
                 if let Some(mode) = volume_to_mesh_mode.as_deref() {
                     let is_density = !mode.contains("sdf");
                     match (is_density, key) {
@@ -398,7 +405,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Color" {
+            if node_kind == Some(BuiltinNodeKind::Color) {
                 if let Some(mode) = color_mode {
                     match (mode, key) {
                         (0, "attr") | (0, "gradient") => return true,
@@ -407,14 +414,14 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Ray" {
+            if node_kind == Some(BuiltinNodeKind::Ray) {
                 if let Some(method) = ray_method {
                     if method != 1 && key == "direction" {
                         return true;
                     }
                 }
             }
-            if node_name == "Splat Delight" {
+            if node_kind == Some(BuiltinNodeKind::SplatDelight) {
                 if let Some(mode) = splat_delight_mode {
                     match (mode, key) {
                         (0, "source_env")
@@ -448,7 +455,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Splat Integrate" {
+            if node_kind == Some(BuiltinNodeKind::SplatIntegrate) {
                 if let Some(mode) = splat_integrate_mode {
                     match (mode, key) {
                         (0, "albedo_max") | (0, "high_band_mode") => return true,
@@ -473,7 +480,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Splat Merge" {
+            if node_kind == Some(BuiltinNodeKind::SplatMerge) {
                 if let Some(method) = splat_merge_method {
                     match (method, key) {
                         (0, "skirt_max_dist")
@@ -487,7 +494,7 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Splat Heal" {
+            if node_kind == Some(BuiltinNodeKind::SplatHeal) {
                 if let Some(method) = splat_heal_method {
                     match (method, key) {
                         (0, "sdf_band")
@@ -502,7 +509,7 @@ impl NodeGraphState {
                     return true;
                 }
             }
-            if node_name == "Splat Cluster" {
+            if node_kind == Some(BuiltinNodeKind::SplatCluster) {
                 if let Some(method) = splat_cluster_method {
                     match (method, key) {
                         (0, "eps") | (0, "min_pts") => return true,
@@ -511,14 +518,14 @@ impl NodeGraphState {
                     }
                 }
             }
-            if node_name == "Attribute Promote" {
+            if node_kind == Some(BuiltinNodeKind::AttributePromote) {
                 if let Some(rename) = attr_promote_rename {
                     if !rename && key == "new_name" {
                         return true;
                     }
                 }
             }
-            if node_name == "Attribute Noise" {
+            if node_kind == Some(BuiltinNodeKind::AttributeNoise) {
                 if let Some(fractal) = attr_noise_fractal {
                     if fractal == 0
                         && matches!(key, "octaves" | "lacunarity" | "roughness")
@@ -549,7 +556,7 @@ impl NodeGraphState {
                     continue;
                 }
                 let (next_value, did_change) =
-                    edit_param_with_spec(ui, &node_name, spec, value);
+                    edit_param_with_spec(ui, &node_name, node_kind, spec, value);
                 if did_change
                     && graph
                         .set_param(node_id, spec.key.to_string(), next_value)
@@ -592,29 +599,29 @@ impl NodeGraphState {
             if should_skip(&key) {
                 continue;
             }
-            let (next_value, did_change) = edit_param(ui, &node_name, &key, value);
+            let (next_value, did_change) = edit_param(ui, &node_name, node_kind, &key, value);
             if did_change && graph.set_param(node_id, key, next_value).is_ok() {
                 changed = true;
             }
         }
 
         if matches!(
-            node_name.as_str(),
-            "OBJ Output" | "GLTF Output" | "Splat Write" | "Write Splats"
+            node_kind,
+            Some(BuiltinNodeKind::ObjOutput | BuiltinNodeKind::GltfOutput | BuiltinNodeKind::WriteSplats)
         ) {
             ui.separator();
-            let label = if node_name == "OBJ Output" {
+            let label = if node_kind == Some(BuiltinNodeKind::ObjOutput) {
                 "Write OBJ"
-            } else if node_name == "GLTF Output" {
+            } else if node_kind == Some(BuiltinNodeKind::GltfOutput) {
                 "Write GLTF"
             } else {
                 "Write PLY"
             };
             let can_write = !cfg!(target_arch = "wasm32");
             if ui.add_enabled(can_write, egui::Button::new(label)).clicked() {
-                let kind = if node_name == "OBJ Output" {
+                let kind = if node_kind == Some(BuiltinNodeKind::ObjOutput) {
                     WriteRequestKind::Obj
-                } else if node_name == "GLTF Output" {
+                } else if node_kind == Some(BuiltinNodeKind::GltfOutput) {
                     WriteRequestKind::Gltf
                 } else {
                     WriteRequestKind::Splat
@@ -644,3 +651,4 @@ impl NodeGraphState {
         }
     }
 }
+
