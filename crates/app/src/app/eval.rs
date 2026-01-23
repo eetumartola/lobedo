@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::SystemTime;
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread;
 
@@ -197,7 +199,7 @@ impl LobedoApp {
         self.eval_state_snapshot = self.eval_state.eval.clone();
         let eval_state = std::mem::take(&mut self.eval_state);
 
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = std::sync::mpsc::channel();
         thread::spawn(move || {
             let result = run_eval_job(
                 graph,
@@ -470,6 +472,7 @@ const MAX_MATERIAL_TEXTURES: usize = 64;
 #[derive(Clone, PartialEq, Eq)]
 enum TextureCacheToken {
     Static,
+    #[cfg(not(target_arch = "wasm32"))]
     FileMtime(SystemTime),
     UrlRevision(usize),
 }

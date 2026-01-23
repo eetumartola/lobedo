@@ -32,12 +32,12 @@ pub(super) fn edit_param(
         ParamValue::Float(mut v) => {
             let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let mut changed = false;
-                let spacing = 8.0;
                 let height = ui.spacing().interact_size.y;
-                let controls_width = ui.max_rect().width();
+                let controls_width = ui.available_width();
+                let (spacing, value_width, slider_width) =
+                    slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
-                let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                 if ui
                     .add_sized(
                         [value_width, height],
@@ -51,20 +51,19 @@ pub(super) fn edit_param(
                 }
                 ui.add_space(spacing);
                 let range = -1000.0..=1000.0;
-                let slider_width = (controls_width - value_width - spacing).max(120.0);
                 let min = *range.start();
                 let max = *range.end();
                 let mut slider_value = v.clamp(min, max);
+                let prev_slider_width = ui.spacing().slider_width;
+                ui.spacing_mut().slider_width = slider_width;
                 if ui
-                    .add_sized(
-                        [slider_width, height],
-                        egui::Slider::new(&mut slider_value, range).show_value(false),
-                    )
+                    .add(egui::Slider::new(&mut slider_value, range).show_value(false))
                     .changed()
                 {
                     v = slider_value;
                     changed = true;
                 }
+                ui.spacing_mut().slider_width = prev_slider_width;
                 ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
@@ -73,12 +72,12 @@ pub(super) fn edit_param(
         ParamValue::Int(mut v) => {
             let changed = param_row_with_label(ui, label, &display_label, help, |ui| {
                 let mut changed = false;
-                let spacing = 8.0;
                 let height = ui.spacing().interact_size.y;
-                let controls_width = ui.max_rect().width();
+                let controls_width = ui.available_width();
+                let (spacing, value_width, slider_width) =
+                    slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
-                let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                 if ui
                     .add_sized(
                         [value_width, height],
@@ -92,20 +91,19 @@ pub(super) fn edit_param(
                 }
                 ui.add_space(spacing);
                 let range = -1000..=1000;
-                let slider_width = (controls_width - value_width - spacing).max(120.0);
                 let min = *range.start();
                 let max = *range.end();
                 let mut slider_value = v.clamp(min, max);
+                let prev_slider_width = ui.spacing().slider_width;
+                ui.spacing_mut().slider_width = slider_width;
                 if ui
-                    .add_sized(
-                        [slider_width, height],
-                        egui::Slider::new(&mut slider_value, range).show_value(false),
-                    )
+                    .add(egui::Slider::new(&mut slider_value, range).show_value(false))
                     .changed()
                 {
                     v = slider_value;
                     changed = true;
                 }
+                ui.spacing_mut().slider_width = prev_slider_width;
                 ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
@@ -218,12 +216,12 @@ pub(super) fn edit_param_with_spec(
         (ParamKind::Float, ParamValue::Float(mut v)) => {
             let changed = param_row_with_label(ui, spec.key, &display_label, help, |ui| {
                 let mut changed = false;
-                let spacing = 8.0;
                 let height = ui.spacing().interact_size.y;
-                let controls_width = ui.max_rect().width();
+                let controls_width = ui.available_width();
+                let (spacing, value_width, slider_width) =
+                    slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
-                let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                 if ui
                     .add_sized(
                         [value_width, height],
@@ -240,20 +238,19 @@ pub(super) fn edit_param_with_spec(
                     Some(ParamRange::Float { min, max }) => min..=max,
                     _ => -1000.0..=1000.0,
                 };
-                let slider_width = (controls_width - value_width - spacing).max(120.0);
                 let min = *range.start();
                 let max = *range.end();
                 let mut slider_value = v.clamp(min, max);
+                let prev_slider_width = ui.spacing().slider_width;
+                ui.spacing_mut().slider_width = slider_width;
                 if ui
-                    .add_sized(
-                        [slider_width, height],
-                        egui::Slider::new(&mut slider_value, range).show_value(false),
-                    )
+                    .add(egui::Slider::new(&mut slider_value, range).show_value(false))
                     .changed()
                 {
                     v = slider_value;
                     changed = true;
                 }
+                ui.spacing_mut().slider_width = prev_slider_width;
                 ui.spacing_mut().item_spacing = prev_spacing;
                 changed
             });
@@ -282,12 +279,12 @@ pub(super) fn edit_param_with_spec(
             } else {
                 param_row_with_label(ui, spec.key, &display_label, help, |ui| {
                     let mut changed = false;
-                    let spacing = 8.0;
                     let height = ui.spacing().interact_size.y;
-                    let controls_width = ui.max_rect().width();
+                    let controls_width = ui.available_width();
+                    let (spacing, value_width, slider_width) =
+                        slider_layout_widths(controls_width);
                     let prev_spacing = ui.spacing().item_spacing;
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
-                    let value_width = ((controls_width - spacing * 2.0) / 3.0).clamp(52.0, 110.0);
                     if ui
                         .add_sized(
                             [value_width, height],
@@ -304,20 +301,19 @@ pub(super) fn edit_param_with_spec(
                         Some(ParamRange::Int { min, max }) => min..=max,
                         _ => -1000..=1000,
                     };
-                    let slider_width = (controls_width - value_width - spacing).max(120.0);
                     let min = *range.start();
                     let max = *range.end();
                     let mut slider_value = v.clamp(min, max);
+                    let prev_slider_width = ui.spacing().slider_width;
+                    ui.spacing_mut().slider_width = slider_width;
                     if ui
-                        .add_sized(
-                            [slider_width, height],
-                            egui::Slider::new(&mut slider_value, range).show_value(false),
-                        )
+                        .add(egui::Slider::new(&mut slider_value, range).show_value(false))
                         .changed()
                     {
                         v = slider_value;
                         changed = true;
                     }
+                    ui.spacing_mut().slider_width = prev_slider_width;
                     ui.spacing_mut().item_spacing = prev_spacing;
                     changed
                 })
@@ -864,6 +860,13 @@ fn param_row_with_label(
     param_row_with_height_label(ui, id, label, help, 36.0, add_controls)
 }
 
+fn slider_layout_widths(controls_width: f32) -> (f32, f32, f32) {
+    let spacing = 8.0;
+    let value_width = (controls_width * 0.2).clamp(44.0, 96.0);
+    let slider_width = (controls_width - value_width - spacing).max(120.0);
+    (spacing, value_width, slider_width)
+}
+
 fn param_row_with_height_label(
     ui: &mut Ui,
     _id: &str,
@@ -873,7 +876,7 @@ fn param_row_with_height_label(
     add_controls: impl FnOnce(&mut Ui) -> bool,
 ) -> bool {
     let total_width = ui.available_width();
-    let label_width = (total_width * 0.2).clamp(80.0, 160.0);
+    let label_width = label_width_for(ui, label).min((total_width * 0.35).max(80.0));
     let controls_width = (total_width - label_width).max(120.0);
     let mut changed = false;
     let (row_rect, _) = ui.allocate_exact_size(
@@ -913,6 +916,18 @@ fn param_row_with_height_label(
         },
     );
     changed
+}
+
+fn label_width_for(ui: &Ui, label: &str) -> f32 {
+    let font_id = ui
+        .style()
+        .text_styles
+        .get(&egui::TextStyle::Body)
+        .cloned()
+        .unwrap_or_else(|| egui::FontId::proportional(16.0));
+    let text_color = ui.visuals().text_color();
+    let galley = ui.fonts_mut(|f| f.layout_no_wrap(label.to_string(), font_id, text_color));
+    (galley.size().x + 12.0).clamp(60.0, 140.0)
 }
 
 fn combo_row_i32(

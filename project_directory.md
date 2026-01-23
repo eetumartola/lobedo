@@ -6,7 +6,7 @@ Functions: `setup_tracing` (L88-L90), `new` (L93-L132), `set_log_level` (L134-L1
 
 ## crates/app/src/app/eval.rs
 Description: Eval module.
-Functions: `refresh_dirty_nodes` (L45-L62), `mark_eval_dirty` (L64-L67), `evaluate_if_needed` (L69-L113), `evaluate_graph` (L115-L150), `poll_eval_job` (L152-L171), `start_eval_job` (L174-L215), `apply_eval_result` (L217-L244), `apply_scene` (L246-L253), `sync_selection_overlay` (L255-L294), `viewport_debug` (L296-L338), `viewport_fps` (L340-L351), `run_eval_job` (L354-L431), `scene_to_render_with_template` (L433-L462), `render_mesh_from_mesh` (L464-L466), `render_materials_from_scene` (L484-L533), `load_render_texture` (L535-L571), `texture_cache_token` (L573-L590), `load_texture_bytes` (L592-L604), `collect_template_meshes` (L606-L641), `splat_merge_preview_mesh` (L643-L672), `merge_optional_meshes` (L674-L681), `merge_error_state` (L683-L705), `selection_shape_for_node` (L707-L740), `selection_shape_from_params` (L742-L774)
+Functions: `refresh_dirty_nodes` (L47-L64), `mark_eval_dirty` (L66-L69), `evaluate_if_needed` (L71-L115), `evaluate_graph` (L117-L152), `poll_eval_job` (L154-L173), `start_eval_job` (L176-L217), `apply_eval_result` (L219-L246), `apply_scene` (L248-L255), `sync_selection_overlay` (L257-L296), `viewport_debug` (L298-L340), `viewport_fps` (L342-L353), `run_eval_job` (L356-L433), `scene_to_render_with_template` (L435-L464), `render_mesh_from_mesh` (L466-L468), `render_materials_from_scene` (L487-L536), `load_render_texture` (L538-L574), `texture_cache_token` (L576-L593), `load_texture_bytes` (L595-L607), `collect_template_meshes` (L609-L644), `splat_merge_preview_mesh` (L646-L675), `merge_optional_meshes` (L677-L684), `merge_error_state` (L686-L708), `selection_shape_for_node` (L710-L743), `selection_shape_from_params` (L745-L777)
 
 ## crates/app/src/app/io.rs
 Description: Io module.
@@ -114,7 +114,7 @@ Functions: None
 
 ## crates/app/src/node_graph/params.rs
 Description: Params module.
-Functions: `edit_param` (L21-L195), `edit_param_with_spec` (L197-L451), `edit_gradient_field` (L453-L634), `endpoints_for` (L636-L655), `find_stop_index` (L657-L668), `color32_from_rgb` (L670-L670), `edit_path_field` (L678-L712), `path_picker_kind_from_spec` (L724-L733), `file_pick_result` (L746-L748), `queue_file_pick` (L751-L754), `take_file_pick` (L757-L764), `open_path_picker_button` (L766-L823), `open_path_picker` (L826-L855), `param_row_with_label` (L857-L865), `param_row_with_height_label` (L867-L916), `combo_row_i32` (L918-L945), `combo_row_string` (L947-L977), `display_label` (L979-L981)
+Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gradient_field` (L449-L630), `endpoints_for` (L632-L651), `find_stop_index` (L653-L664), `color32_from_rgb` (L666-L666), `edit_path_field` (L674-L708), `path_picker_kind_from_spec` (L720-L729), `file_pick_result` (L742-L744), `queue_file_pick` (L747-L750), `take_file_pick` (L753-L760), `open_path_picker_button` (L762-L819), `open_path_picker` (L822-L851), `param_row_with_label` (L853-L861), `slider_layout_widths` (L863-L868), `param_row_with_height_label` (L870-L919), `label_width_for` (L921-L931), `combo_row_i32` (L933-L960), `combo_row_string` (L962-L992), `display_label` (L994-L996)
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
