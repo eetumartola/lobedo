@@ -43,7 +43,26 @@ impl Geometry {
 
     pub fn with_curve(points: Vec<[f32; 3]>, closed: bool) -> Self {
         let point_count = points.len();
-        let mesh = Mesh::with_positions_indices(points, Vec::new());
+        let mut mesh = Mesh::with_positions_indices(points, Vec::new());
+        if point_count > 0 {
+            let mut uvs = Vec::with_capacity(point_count);
+            let mut accum = 0.0f32;
+            uvs.push([0.0, 0.0]);
+            for i in 1..point_count {
+                let a = mesh.positions[i - 1];
+                let b = mesh.positions[i];
+                let dx = b[0] - a[0];
+                let dy = b[1] - a[1];
+                let dz = b[2] - a[2];
+                accum += (dx * dx + dy * dy + dz * dz).sqrt();
+                uvs.push([accum, 0.0]);
+            }
+            let _ = mesh.set_attribute(
+                AttributeDomain::Point,
+                "uv",
+                AttributeStorage::Vec2(uvs),
+            );
+        }
         let indices = (0..point_count as u32).collect();
         let curve = Curve::new(indices, closed);
         Self {
