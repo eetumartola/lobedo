@@ -1,9 +1,9 @@
 {
-  "version": 2,
+  "version": 3,
   "settings": {
     "viewport_split": 0.5,
     "viewport_sheet_split": 0.75,
-    "node_params_split": 0.15566906,
+    "node_params_split": 0.27685785,
     "panels": {
       "show_inspector": true,
       "show_spreadsheet": true,
@@ -12,13 +12,13 @@
     },
     "camera": {
       "target": [
-        -3.4101326,
-        -8.157695,
-        0.02822937
+        5.7935753,
+        -21.102064,
+        -29.43922
       ],
-      "distance": 76.64837,
-      "yaw": -18.030252,
-      "pitch": 0.48999983
+      "distance": 95.78157,
+      "yaw": -27.530567,
+      "pitch": 0.4000013
     },
     "render_debug": {
       "show_grid": true,
@@ -44,13 +44,16 @@
       "splat_rebuild_fps_enabled": false,
       "splat_rebuild_fps": 15.0,
       "splat_frustum_cull": true
-    }
+    },
+    "graph_notes": [],
+    "next_note_id": 2
   },
   "graph": {
     "nodes": {
       "1": {
         "id": 1,
         "name": "Grid",
+        "kind_id": "builtin:grid",
         "category": "Sources",
         "inputs": [],
         "outputs": [
@@ -66,22 +69,23 @@
               ]
             },
             "cols": {
-              "Int": 256
+              "Int": 320
             },
             "rows": {
-              "Int": 256
+              "Int": 320
             },
             "size": {
               "Vec2": [
-                100.0,
-                100.0
+                150.0,
+                150.0
               ]
             }
           }
         },
-        "param_version": 30,
+        "param_version": 34,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
           5.4883623,
           -152.56348
@@ -90,6 +94,7 @@
       "3": {
         "id": 3,
         "name": "Erosion Noise",
+        "kind_id": "builtin:erosion_noise",
         "category": "Operators",
         "inputs": [
           4
@@ -103,10 +108,10 @@
               "Bool": false
             },
             "erosion_branch_strength": {
-              "Float": 2.55
+              "Float": 2.1
             },
             "erosion_freq": {
-              "Float": 9.0
+              "Float": 13.5
             },
             "erosion_lacunarity": {
               "Float": 2.17
@@ -131,9 +136,10 @@
             }
           }
         },
-        "param_version": 219,
+        "param_version": 236,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
           579.13477,
           -135.05067
@@ -142,6 +148,7 @@
       "4": {
         "id": 4,
         "name": "Attribute Noise",
+        "kind_id": "builtin:attribute_noise",
         "category": "Operators",
         "inputs": [
           6
@@ -152,7 +159,7 @@
         "params": {
           "values": {
             "amplitude": {
-              "Float": 14.0
+              "Float": 9.0
             },
             "attr": {
               "String": "P"
@@ -164,7 +171,7 @@
               "Int": 0
             },
             "frequency": {
-              "Float": 0.01
+              "Float": 0.005
             },
             "group": {
               "String": ""
@@ -173,7 +180,7 @@
               "Int": 0
             },
             "noise_type": {
-              "Int": 0
+              "Int": 5
             },
             "offset": {
               "Vec3": [
@@ -183,21 +190,23 @@
               ]
             },
             "seed": {
-              "Int": 60
+              "Int": 45
             }
           }
         },
-        "param_version": 66,
+        "param_version": 105,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          285.6287,
-          -160.271
+          195.23993,
+          -154.16367
         ]
       },
       "5": {
         "id": 5,
         "name": "Color",
+        "kind_id": "builtin:color",
         "category": "Operators",
         "inputs": [
           8
@@ -237,14 +246,16 @@
         "param_version": 100,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1252.3524,
-          11.106659
+          1129.6318,
+          2.5162048
         ]
       },
       "6": {
         "id": 6,
         "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
         "category": "Operators",
         "inputs": [
           10,
@@ -272,6 +283,7 @@
         "param_version": 16,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
           899.73773,
           -21.63259
@@ -280,6 +292,7 @@
       "8": {
         "id": 8,
         "name": "Attribute from Feature",
+        "kind_id": "builtin:attribute_from_feature",
         "category": "Operators",
         "inputs": [
           15
@@ -309,14 +322,16 @@
         "param_version": 16,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1485.3638,
-          -9.411797
+          1421.5486,
+          -0.82134235
         ]
       },
       "16": {
         "id": 16,
         "name": "Sphere",
+        "kind_id": "builtin:sphere",
         "category": "Sources",
         "inputs": [],
         "outputs": [
@@ -345,14 +360,16 @@
         "param_version": 18,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          7.833195,
-          414.1916
+          -66.98963,
+          752.1009
         ]
       },
       "17": {
         "id": 17,
         "name": "Scatter",
+        "kind_id": "builtin:scatter",
         "category": "Operators",
         "inputs": [
           34
@@ -385,14 +402,16 @@
         "param_version": 8,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          322.73267,
-          391.9603
+          308.25085,
+          688.8377
         ]
       },
       "18": {
         "id": 18,
         "name": "Transform",
+        "kind_id": "builtin:transform",
         "category": "Operators",
         "inputs": [
           36
@@ -441,14 +460,16 @@
         "param_version": 12,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          306.98096,
-          234.95026
+          273.19006,
+          563.20514
         ]
       },
       "19": {
         "id": 19,
         "name": "Copy to Points",
+        "kind_id": "builtin:copy_to_points",
         "category": "Operators",
         "inputs": [
           38,
@@ -494,14 +515,16 @@
         "param_version": 6,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          634.56006,
-          338.16855
+          629.7328,
+          697.80096
         ]
       },
       "21": {
         "id": 21,
         "name": "Volume from Geometry",
+        "kind_id": "builtin:volume_from_geometry",
         "category": "Operators",
         "inputs": [
           43
@@ -531,14 +554,16 @@
         "param_version": 6,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          325.523,
-          586.01636
+          479.99585,
+          887.72107
         ]
       },
       "22": {
         "id": 22,
         "name": "Volume from Geometry",
+        "kind_id": "builtin:volume_from_geometry",
         "category": "Operators",
         "inputs": [
           45
@@ -568,14 +593,16 @@
         "param_version": 9,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          870.0465,
-          354.8564
+          995.55554,
+          796.5523
         ]
       },
       "23": {
         "id": 23,
         "name": "Volume Combine",
+        "kind_id": "builtin:volume_combine",
         "category": "Operators",
         "inputs": [
           47,
@@ -597,14 +624,16 @@
         "param_version": 6,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1237.2014,
-          411.40085
+          1337.036,
+          850.43243
         ]
       },
       "24": {
         "id": 24,
         "name": "Volume to Mesh",
+        "kind_id": "builtin:volume_to_mesh",
         "category": "Operators",
         "inputs": [
           50
@@ -628,14 +657,16 @@
         "param_version": 4,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1502.3455,
-          417.9195
+          1652.3038,
+          784.3319
         ]
       },
       "25": {
         "id": 25,
         "name": "Scatter",
+        "kind_id": "builtin:scatter",
         "category": "Operators",
         "inputs": [
           52
@@ -646,7 +677,7 @@
         "params": {
           "values": {
             "count": {
-              "Int": 500
+              "Int": 800
             },
             "density_attr": {
               "String": "density"
@@ -665,17 +696,19 @@
             }
           }
         },
-        "param_version": 58,
+        "param_version": 59,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          2512.3306,
-          10.880131
+          3631.9988,
+          44.92781
         ]
       },
       "26": {
         "id": 26,
         "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
         "category": "Operators",
         "inputs": [
           54,
@@ -687,7 +720,7 @@
         "params": {
           "values": {
             "code": {
-              "String": "@Cd = pow(1.0 - @gradient, 2.0);\n@density = @Cd.r;"
+              "String": "//@Cd = pow(1.0 - 4 * @gradient, 2.0);\n@density = @Cd.r;\n@density = @density * (1.0 - @river);\n@Cd = @density;"
             },
             "group": {
               "String": ""
@@ -700,17 +733,19 @@
             }
           }
         },
-        "param_version": 47,
+        "param_version": 121,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1810.3828,
-          -56.394196
+          2714.042,
+          -74.37921
         ]
       },
       "27": {
         "id": 27,
         "name": "Copy to Points",
+        "kind_id": "builtin:copy_to_points",
         "category": "Operators",
         "inputs": [
           57,
@@ -765,14 +800,16 @@
         "param_version": 23,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          2964.4573,
-          -115.92093
+          4089.8916,
+          -15.363937
         ]
       },
       "28": {
         "id": 28,
         "name": "Tube",
+        "kind_id": "builtin:tube",
         "category": "Sources",
         "inputs": [],
         "outputs": [
@@ -807,14 +844,16 @@
         "param_version": 37,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1249.8893,
-          -359.05518
+          784.50934,
+          -348.06198
         ]
       },
       "29": {
         "id": 29,
         "name": "Group",
+        "kind_id": "builtin:group",
         "category": "Operators",
         "inputs": [
           61
@@ -873,7 +912,7 @@
               "Bool": true
             },
             "selection": {
-              "String": "10 11 12 13 14"
+              "String": "5"
             },
             "shape": {
               "String": "selection"
@@ -887,17 +926,19 @@
             }
           }
         },
-        "param_version": 36,
+        "param_version": 39,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1407.1898,
-          -356.7313
+          1236.1841,
+          -353.0669
         ]
       },
       "30": {
         "id": 30,
         "name": "Transform",
+        "kind_id": "builtin:transform",
         "category": "Operators",
         "inputs": [
           63
@@ -946,14 +987,16 @@
         "param_version": 119,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1580.6615,
-          -358.79517
+          1445.6688,
+          -481.5159
         ]
       },
       "31": {
         "id": 31,
         "name": "Merge",
+        "kind_id": "builtin:merge",
         "category": "Operators",
         "inputs": [
           65,
@@ -968,14 +1011,16 @@
         "param_version": 0,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1908.5409,
-          -374.39688
+          1914.6769,
+          -478.70953
         ]
       },
       "32": {
         "id": 32,
         "name": "Transform",
+        "kind_id": "builtin:transform",
         "category": "Operators",
         "inputs": [
           68
@@ -1024,14 +1069,16 @@
         "param_version": 149,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          1755.368,
-          -210.57877
+          1709.9614,
+          -355.3892
         ]
       },
       "33": {
         "id": 33,
         "name": "Color",
+        "kind_id": "builtin:color",
         "category": "Operators",
         "inputs": [
           70
@@ -1046,7 +1093,7 @@
             },
             "color": {
               "Vec3": [
-                0.1,
+                0.3,
                 0.6,
                 0.3
               ]
@@ -1068,9 +1115,10 @@
             }
           }
         },
-        "param_version": 93,
+        "param_version": 97,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
           2129.566,
           -317.43445
@@ -1079,6 +1127,7 @@
       "34": {
         "id": 34,
         "name": "Transform",
+        "kind_id": "builtin:transform",
         "category": "Operators",
         "inputs": [
           72
@@ -1127,6 +1176,7 @@
         "param_version": 8,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
           2299.121,
           -244.07826
@@ -1135,6 +1185,7 @@
       "35": {
         "id": 35,
         "name": "Merge",
+        "kind_id": "builtin:merge",
         "category": "Operators",
         "inputs": [
           74,
@@ -1149,14 +1200,16 @@
         "param_version": 0,
         "display": true,
         "template": false,
+        "bypass": false,
         "position": [
-          3658.681,
-          202.55423
+          4743.7876,
+          203.14711
         ]
       },
       "36": {
         "id": 36,
         "name": "Attribute Noise",
+        "kind_id": "builtin:attribute_noise",
         "category": "Operators",
         "inputs": [
           77
@@ -1205,14 +1258,16 @@
         "param_version": 65,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          2050.8284,
-          -69.093254
+          3008.0254,
+          -52.385254
         ]
       },
       "37": {
         "id": 37,
         "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
         "category": "Operators",
         "inputs": [
           79,
@@ -1240,14 +1295,16 @@
         "param_version": 116,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          2265.58,
-          10.95701
+          3338.228,
+          9.048307
         ]
       },
       "38": {
         "id": 38,
         "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
         "category": "Operators",
         "inputs": [
           82,
@@ -1275,9 +1332,829 @@
         "param_version": 43,
         "display": false,
         "template": false,
+        "bypass": false,
         "position": [
-          3203.7375,
-          -119.7984
+          4324.0903,
+          -21.781769
+        ]
+      },
+      "40": {
+        "id": 40,
+        "name": "Normal",
+        "kind_id": "builtin:normal",
+        "category": "Operators",
+        "inputs": [
+          87
+        ],
+        "outputs": [
+          88
+        ],
+        "params": {
+          "values": {
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "threshold_deg": {
+              "Float": 70.0
+            }
+          }
+        },
+        "param_version": 11,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          410.45224,
+          -138.47096
+        ]
+      },
+      "41": {
+        "id": 41,
+        "name": "Fuse",
+        "kind_id": "builtin:fuse",
+        "category": "Operators",
+        "inputs": [
+          89
+        ],
+        "outputs": [
+          90
+        ],
+        "params": {
+          "values": {
+            "radius": {
+              "Float": 0.001
+            },
+            "unfuse": {
+              "Bool": false
+            }
+          }
+        },
+        "param_version": 2,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          1014.5918,
+          -354.67133
+        ]
+      },
+      "42": {
+        "id": 42,
+        "name": "Curve",
+        "kind_id": "builtin:curve",
+        "category": "Sources",
+        "inputs": [],
+        "outputs": [
+          91
+        ],
+        "params": {
+          "values": {
+            "closed": {
+              "Bool": false
+            },
+            "points": {
+              "String": "6.209292 0.000000 -30.067581; -3.472766 0.000000 -33.572998; -11.433577 0.000000 -39.849480; -21.715523 0.000000 -43.253250; -26.786068 0.000000 -50.537613; -28.998100 0.000000 -60.958279; -32.368767 0.000000 -66.500420; -40.341774 0.000000 -71.871475; -42.664913 0.000000 -76.521317; -42.864143 0.000000 -79.450752"
+            },
+            "subdivs": {
+              "Int": 8
+            }
+          }
+        },
+        "param_version": 97,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          476.18417,
+          150.31764
+        ]
+      },
+      "43": {
+        "id": 43,
+        "name": "Ray",
+        "kind_id": "builtin:ray",
+        "category": "Operators",
+        "inputs": [
+          92,
+          93
+        ],
+        "outputs": [
+          94
+        ],
+        "params": {
+          "values": {
+            "apply_transform": {
+              "Bool": true
+            },
+            "attr": {
+              "String": ""
+            },
+            "direction": {
+              "Vec3": [
+                0.0,
+                -1.0,
+                0.0
+              ]
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "hit_group": {
+              "String": "hit"
+            },
+            "max_distance": {
+              "Float": 510.0
+            },
+            "method": {
+              "Int": 1
+            },
+            "splat_density": {
+              "Float": 0.0
+            }
+          }
+        },
+        "param_version": 34,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          1230.3783,
+          241.32922
+        ]
+      },
+      "44": {
+        "id": 44,
+        "name": "Transform",
+        "kind_id": "builtin:transform",
+        "category": "Operators",
+        "inputs": [
+          95
+        ],
+        "outputs": [
+          96
+        ],
+        "params": {
+          "values": {
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "pivot": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "rotate_deg": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "scale": {
+              "Vec3": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "translate": {
+              "Vec3": [
+                0.0,
+                20.0,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 7,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          933.23584,
+          169.65042
+        ]
+      },
+      "46": {
+        "id": 46,
+        "name": "Sweep",
+        "kind_id": "builtin:sweep",
+        "category": "Operators",
+        "inputs": [
+          99,
+          100
+        ],
+        "outputs": [
+          101
+        ],
+        "params": {
+          "values": {
+            "path_closed": {
+              "Bool": false
+            },
+            "profile_closed": {
+              "Bool": true
+            },
+            "up": {
+              "Vec3": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 9,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2319.0972,
+          181.31
+        ]
+      },
+      "47": {
+        "id": 47,
+        "name": "Curve",
+        "kind_id": "builtin:curve",
+        "category": "Sources",
+        "inputs": [],
+        "outputs": [
+          102
+        ],
+        "params": {
+          "values": {
+            "closed": {
+              "Bool": false
+            },
+            "points": {
+              "String": "4.290798 0.000000 -25.540497; 6.991915 0.000000 -30.859787"
+            },
+            "subdivs": {
+              "Int": 8
+            }
+          }
+        },
+        "param_version": 5,
+        "display": false,
+        "template": true,
+        "bypass": false,
+        "position": [
+          1214.6497,
+          443.21982
+        ]
+      },
+      "51": {
+        "id": 51,
+        "name": "UV Texture",
+        "kind_id": "builtin:uv_texture",
+        "category": "Operators",
+        "inputs": [
+          110
+        ],
+        "outputs": [
+          111
+        ],
+        "params": {
+          "values": {
+            "axis": {
+              "Int": 1
+            },
+            "offset": {
+              "Vec2": [
+                0.0,
+                0.0
+              ]
+            },
+            "projection": {
+              "Int": 1
+            },
+            "scale": {
+              "Vec2": [
+                1.0,
+                1.0
+              ]
+            }
+          }
+        },
+        "param_version": 5,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          691.36224,
+          170.99828
+        ]
+      },
+      "52": {
+        "id": 52,
+        "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
+        "category": "Operators",
+        "inputs": [
+          112,
+          113
+        ],
+        "outputs": [
+          114
+        ],
+        "params": {
+          "values": {
+            "code": {
+              "String": "@width = 0.1;"
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "mode": {
+              "Int": 0
+            }
+          }
+        },
+        "param_version": 19,
+        "display": false,
+        "template": false,
+        "bypass": true,
+        "position": [
+          1395.2449,
+          238.65738
+        ]
+      },
+      "53": {
+        "id": 53,
+        "name": "Transform",
+        "kind_id": "builtin:transform",
+        "category": "Operators",
+        "inputs": [
+          115
+        ],
+        "outputs": [
+          116
+        ],
+        "params": {
+          "values": {
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "pivot": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "rotate_deg": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "scale": {
+              "Vec3": [
+                0.3,
+                1.0,
+                0.3
+              ]
+            },
+            "translate": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 42,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          1441.8575,
+          514.00244
+        ]
+      },
+      "54": {
+        "id": 54,
+        "name": "Sweep",
+        "kind_id": "builtin:sweep",
+        "category": "Operators",
+        "inputs": [
+          117,
+          118
+        ],
+        "outputs": [
+          119
+        ],
+        "params": {
+          "values": {
+            "path_closed": {
+              "Bool": false
+            },
+            "profile_closed": {
+              "Bool": true
+            },
+            "up": {
+              "Vec3": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 9,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          1725.4766,
+          456.30176
+        ]
+      },
+      "55": {
+        "id": 55,
+        "name": "Ray",
+        "kind_id": "builtin:ray",
+        "category": "Operators",
+        "inputs": [
+          120,
+          121
+        ],
+        "outputs": [
+          122
+        ],
+        "params": {
+          "values": {
+            "apply_transform": {
+              "Bool": false
+            },
+            "attr": {
+              "String": "river"
+            },
+            "direction": {
+              "Vec3": [
+                0.0,
+                -1.0,
+                0.0
+              ]
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "hit_group": {
+              "String": "hit_river"
+            },
+            "max_distance": {
+              "Float": 550.0
+            },
+            "method": {
+              "Int": 1
+            },
+            "splat_density": {
+              "Float": 0.0
+            }
+          }
+        },
+        "param_version": 37,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2351.7166,
+          335.73242
+        ]
+      },
+      "56": {
+        "id": 56,
+        "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
+        "category": "Operators",
+        "inputs": [
+          123,
+          124
+        ],
+        "outputs": [
+          125
+        ],
+        "params": {
+          "values": {
+            "code": {
+              "String": "@river = 1.0;"
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "mode": {
+              "Int": 0
+            }
+          }
+        },
+        "param_version": 16,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          1925.806,
+          467.50595
+        ]
+      },
+      "57": {
+        "id": 57,
+        "name": "Transform",
+        "kind_id": "builtin:transform",
+        "category": "Operators",
+        "inputs": [
+          126
+        ],
+        "outputs": [
+          127
+        ],
+        "params": {
+          "values": {
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "pivot": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "rotate_deg": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "scale": {
+              "Vec3": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "translate": {
+              "Vec3": [
+                0.0,
+                -10.0,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 7,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2137.6812,
+          457.1638
+        ]
+      },
+      "58": {
+        "id": 58,
+        "name": "Wrangle",
+        "kind_id": "builtin:wrangle",
+        "category": "Operators",
+        "inputs": [
+          128,
+          129
+        ],
+        "outputs": [
+          130
+        ],
+        "params": {
+          "values": {
+            "code": {
+              "String": "\n@P = @P - vec3(0, 4 * @river, 0);"
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "mode": {
+              "Int": 0
+            }
+          }
+        },
+        "param_version": 50,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2817.8374,
+          309.8149
+        ]
+      },
+      "59": {
+        "id": 59,
+        "name": "Smooth",
+        "kind_id": "builtin:smooth",
+        "category": "Operators",
+        "inputs": [
+          131
+        ],
+        "outputs": [
+          132
+        ],
+        "params": {
+          "values": {
+            "attr": {
+              "String": "river"
+            },
+            "domain": {
+              "Int": 0
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "iterations": {
+              "Int": 2
+            },
+            "radius": {
+              "Float": 2.0
+            },
+            "smooth_space": {
+              "Int": 0
+            },
+            "strength": {
+              "Float": 1.0
+            }
+          }
+        },
+        "param_version": 60,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2566.0286,
+          313.64267
+        ]
+      },
+      "60": {
+        "id": 60,
+        "name": "Merge",
+        "kind_id": "builtin:merge",
+        "category": "Operators",
+        "inputs": [
+          133,
+          134
+        ],
+        "outputs": [
+          135
+        ],
+        "params": {
+          "values": {}
+        },
+        "param_version": 0,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          3185.067,
+          258.60217
+        ]
+      },
+      "61": {
+        "id": 61,
+        "name": "Color",
+        "kind_id": "builtin:color",
+        "category": "Operators",
+        "inputs": [
+          136
+        ],
+        "outputs": [
+          137
+        ],
+        "params": {
+          "values": {
+            "attr": {
+              "String": "mask"
+            },
+            "color": {
+              "Vec3": [
+                0.5,
+                0.5,
+                1.0
+              ]
+            },
+            "color_mode": {
+              "Int": 0
+            },
+            "domain": {
+              "Int": 0
+            },
+            "gradient": {
+              "String": "0.000:0.000,0.000,0.000;1.000:1.000,1.000,1.000"
+            },
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            }
+          }
+        },
+        "param_version": 34,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2537.0798,
+          186.08409
+        ]
+      },
+      "62": {
+        "id": 62,
+        "name": "Transform",
+        "kind_id": "builtin:transform",
+        "category": "Operators",
+        "inputs": [
+          138
+        ],
+        "outputs": [
+          139
+        ],
+        "params": {
+          "values": {
+            "group": {
+              "String": ""
+            },
+            "group_type": {
+              "Int": 0
+            },
+            "pivot": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "rotate_deg": {
+              "Vec3": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "scale": {
+              "Vec3": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "translate": {
+              "Vec3": [
+                0.0,
+                -1.510753,
+                0.0
+              ]
+            }
+          }
+        },
+        "param_version": 20,
+        "display": false,
+        "template": false,
+        "bypass": false,
+        "position": [
+          2732.207,
+          207.97815
         ]
       }
     },
@@ -1715,6 +2592,314 @@
         "name": "out",
         "kind": "Output",
         "pin_type": "Geometry"
+      },
+      "87": {
+        "id": 87,
+        "node": 40,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "88": {
+        "id": 88,
+        "node": 40,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "89": {
+        "id": 89,
+        "node": 41,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "90": {
+        "id": 90,
+        "node": 41,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "91": {
+        "id": 91,
+        "node": 42,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "92": {
+        "id": 92,
+        "node": 43,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "93": {
+        "id": 93,
+        "node": 43,
+        "name": "target",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "94": {
+        "id": 94,
+        "node": 43,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "95": {
+        "id": 95,
+        "node": 44,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "96": {
+        "id": 96,
+        "node": 44,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "99": {
+        "id": 99,
+        "node": 46,
+        "name": "profile",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "100": {
+        "id": 100,
+        "node": 46,
+        "name": "path",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "101": {
+        "id": 101,
+        "node": 46,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "102": {
+        "id": 102,
+        "node": 47,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "110": {
+        "id": 110,
+        "node": 51,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "111": {
+        "id": 111,
+        "node": 51,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "112": {
+        "id": 112,
+        "node": 52,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "113": {
+        "id": 113,
+        "node": 52,
+        "name": "input1",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "114": {
+        "id": 114,
+        "node": 52,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "115": {
+        "id": 115,
+        "node": 53,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "116": {
+        "id": 116,
+        "node": 53,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "117": {
+        "id": 117,
+        "node": 54,
+        "name": "profile",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "118": {
+        "id": 118,
+        "node": 54,
+        "name": "path",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "119": {
+        "id": 119,
+        "node": 54,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "120": {
+        "id": 120,
+        "node": 55,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "121": {
+        "id": 121,
+        "node": 55,
+        "name": "target",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "122": {
+        "id": 122,
+        "node": 55,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "123": {
+        "id": 123,
+        "node": 56,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "124": {
+        "id": 124,
+        "node": 56,
+        "name": "input1",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "125": {
+        "id": 125,
+        "node": 56,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "126": {
+        "id": 126,
+        "node": 57,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "127": {
+        "id": 127,
+        "node": 57,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "128": {
+        "id": 128,
+        "node": 58,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "129": {
+        "id": 129,
+        "node": 58,
+        "name": "input1",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "130": {
+        "id": 130,
+        "node": 58,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "131": {
+        "id": 131,
+        "node": 59,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "132": {
+        "id": 132,
+        "node": 59,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "133": {
+        "id": 133,
+        "node": 60,
+        "name": "a",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "134": {
+        "id": 134,
+        "node": 60,
+        "name": "b",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "135": {
+        "id": 135,
+        "node": 60,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "136": {
+        "id": 136,
+        "node": 61,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "137": {
+        "id": 137,
+        "node": 61,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
+      },
+      "138": {
+        "id": 138,
+        "node": 62,
+        "name": "in",
+        "kind": "Input",
+        "pin_type": "Geometry"
+      },
+      "139": {
+        "id": 139,
+        "node": 62,
+        "name": "out",
+        "kind": "Output",
+        "pin_type": "Geometry"
       }
     },
     "links": {
@@ -1722,11 +2907,6 @@
         "id": 3,
         "from": 1,
         "to": 6
-      },
-      "4": {
-        "id": 4,
-        "from": 7,
-        "to": 4
       },
       "12": {
         "id": 12,
@@ -1788,16 +2968,6 @@
         "from": 9,
         "to": 15
       },
-      "40": {
-        "id": 40,
-        "from": 16,
-        "to": 54
-      },
-      "42": {
-        "id": 42,
-        "from": 60,
-        "to": 61
-      },
       "43": {
         "id": 43,
         "from": 62,
@@ -1853,11 +3023,6 @@
         "from": 81,
         "to": 52
       },
-      "59": {
-        "id": 59,
-        "from": 16,
-        "to": 80
-      },
       "61": {
         "id": 61,
         "from": 59,
@@ -1868,14 +3033,145 @@
         "from": 84,
         "to": 74
       },
-      "64": {
-        "id": 64,
+      "66": {
+        "id": 66,
+        "from": 7,
+        "to": 87
+      },
+      "67": {
+        "id": 67,
+        "from": 88,
+        "to": 4
+      },
+      "68": {
+        "id": 68,
+        "from": 60,
+        "to": 89
+      },
+      "69": {
+        "id": 69,
+        "from": 90,
+        "to": 61
+      },
+      "72": {
+        "id": 72,
+        "from": 96,
+        "to": 92
+      },
+      "73": {
+        "id": 73,
+        "from": 9,
+        "to": 93
+      },
+      "84": {
+        "id": 84,
+        "from": 102,
+        "to": 99
+      },
+      "85": {
+        "id": 85,
+        "from": 91,
+        "to": 110
+      },
+      "86": {
+        "id": 86,
+        "from": 111,
+        "to": 95
+      },
+      "88": {
+        "id": 88,
+        "from": 94,
+        "to": 112
+      },
+      "89": {
+        "id": 89,
+        "from": 114,
+        "to": 100
+      },
+      "90": {
+        "id": 90,
+        "from": 102,
+        "to": 115
+      },
+      "91": {
+        "id": 91,
+        "from": 116,
+        "to": 117
+      },
+      "92": {
+        "id": 92,
+        "from": 114,
+        "to": 118
+      },
+      "93": {
+        "id": 93,
         "from": 16,
+        "to": 120
+      },
+      "96": {
+        "id": 96,
+        "from": 119,
+        "to": 123
+      },
+      "98": {
+        "id": 98,
+        "from": 125,
+        "to": 126
+      },
+      "99": {
+        "id": 99,
+        "from": 127,
+        "to": 121
+      },
+      "102": {
+        "id": 102,
+        "from": 122,
+        "to": 131
+      },
+      "103": {
+        "id": 103,
+        "from": 132,
+        "to": 128
+      },
+      "105": {
+        "id": 105,
+        "from": 130,
+        "to": 134
+      },
+      "107": {
+        "id": 107,
+        "from": 101,
+        "to": 136
+      },
+      "110": {
+        "id": 110,
+        "from": 137,
+        "to": 138
+      },
+      "111": {
+        "id": 111,
+        "from": 139,
+        "to": 133
+      },
+      "112": {
+        "id": 112,
+        "from": 135,
         "to": 75
+      },
+      "113": {
+        "id": 113,
+        "from": 130,
+        "to": 54
+      },
+      "114": {
+        "id": 114,
+        "from": 130,
+        "to": 80
       }
     },
-    "next_node_id": 40,
-    "next_pin_id": 87,
-    "next_link_id": 66
+    "next_node_id": 63,
+    "next_pin_id": 140,
+    "next_link_id": 115,
+    "revision": 908
   }
 }
