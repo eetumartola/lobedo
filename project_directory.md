@@ -30,7 +30,7 @@ Functions: `update` (L6-L27)
 
 ## crates/app/src/app/ui_central.rs
 Description: Ui Central module.
-Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L478), `show_node_params_panel` (L480-L552), `show_node_graph_panel` (L554-L636), `show_splat_read_params` (L638-L668), `show_uv_view_params` (L670-L740), `mesh_corner_uvs` (L743-L743), `uv_bounds` (L778-L778), `sh_order_label` (L790-L799), `toggle_curve_draw` (L801-L807), `toggle_curve_edit` (L809-L815), `toggle_ffd_edit` (L817-L823), `toggle_group_select` (L825-L831), `selection_count` (L833-L841)
+Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L482), `show_node_params_panel` (L484-L556), `show_node_graph_panel` (L558-L640), `show_splat_read_params` (L642-L672), `show_uv_view_params` (L674-L744), `mesh_corner_uvs` (L747-L747), `uv_bounds` (L782-L782), `sh_order_label` (L794-L803), `toggle_curve_draw` (L805-L811), `toggle_curve_edit` (L813-L819), `toggle_ffd_edit` (L821-L827), `toggle_group_select` (L829-L835), `selection_count` (L837-L845)
 
 ## crates/app/src/app/ui_info_panels.rs
 Description: Ui Info Panels module.
@@ -122,7 +122,7 @@ Functions: `default` (L94-L136), `hit_test` (L153-L158), `reset` (L187-L189), `e
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L11-L216), `inspector_row_count` (L218-L231)
+Functions: `show_inspector` (L11-L238), `inspector_row_count` (L240-L253)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -294,7 +294,7 @@ Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L3
 
 ## crates/core/src/nodes/erosion_noise.rs
 Description: Erosion Noise module.
-Functions: `definition` (L33-L40), `default_params` (L42-L57), `param_specs` (L59-L99), `compute` (L101-L105), `apply_to_splats` (L107-L224), `apply_to_mesh` (L226-L342), `erosion_settings` (L344-L354), `uv_from_bounds` (L356-L360), `gradient_from_normal` (L362-L370), `apply_erosion` (L372-L391), `erosion` (L393-L420), `hash` (L422-L429), `vec2_fract` (L431-L433), `splat_bounds` (L435-L448)
+Functions: `definition` (L33-L40), `default_params` (L42-L57), `param_specs` (L59-L89), `compute` (L91-L95), `apply_to_splats` (L97-L214), `apply_to_mesh` (L216-L332), `erosion_settings` (L334-L344), `uv_from_bounds` (L346-L350), `gradient_from_normal` (L352-L360), `apply_erosion` (L362-L381), `erosion` (L383-L410), `hash` (L412-L419), `vec2_fract` (L421-L423), `splat_bounds` (L425-L438)
 
 ## crates/core/src/nodes/expand_utils.rs
 Description: Expand Utils module.

@@ -37,9 +37,31 @@ impl NodeGraphState {
         };
         let title = format!("{} ({})", node_name, node_category);
         let mut help_requested = false;
-        ui.horizontal(|ui| {
-            let response =
-                ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
+        let header_height = 32.0;
+        let help_width = 64.0;
+        let total_width = ui.available_width();
+        let (row_rect, _) =
+            ui.allocate_exact_size(egui::vec2(total_width, header_height), egui::Sense::hover());
+        let label_rect = egui::Rect::from_min_size(
+            row_rect.min,
+            egui::vec2((total_width - help_width).max(0.0), header_height),
+        );
+        let help_rect = egui::Rect::from_min_size(
+            egui::pos2(row_rect.max.x - help_width, row_rect.min.y),
+            egui::vec2(help_width, header_height),
+        );
+        let mut label_response = None;
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(label_rect)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                ui.set_min_height(header_height);
+                let response = ui.add(egui::Label::new(title).sense(egui::Sense::hover()));
+                label_response = Some(response);
+            },
+        );
+        if let Some(response) = label_response {
             if response.hovered() {
                 let help_key = if node.kind_id.is_empty() {
                     node.name.as_str()
@@ -50,17 +72,18 @@ impl NodeGraphState {
                     show_help_tooltip(ui.ctx(), response.rect, help);
                 }
             }
-            let available = ui.available_width();
-            ui.allocate_ui_with_layout(
-                egui::vec2(available, 0.0),
-                egui::Layout::right_to_left(egui::Align::Center),
-                |ui| {
-                    if ui.button("Help").clicked() {
-                        help_requested = true;
-                    }
-                },
-            );
-        });
+        }
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(help_rect)
+                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            |ui| {
+                ui.set_min_height(header_height);
+                if ui.add_sized([help_width - 4.0, header_height], egui::Button::new("Help")).clicked() {
+                    help_requested = true;
+                }
+            },
+        );
         if help_requested {
             self.help_page_node = Some(if node.kind_id.is_empty() {
                 node.name.clone()
@@ -68,7 +91,6 @@ impl NodeGraphState {
                 node.kind_id.clone()
             });
         }
-        ui.separator();
 
         let mut changed = false;
         let param_specs = if !node.kind_id.is_empty() {

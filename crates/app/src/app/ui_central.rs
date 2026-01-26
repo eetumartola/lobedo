@@ -398,6 +398,7 @@ impl LobedoApp {
     ) {
         let mut params_height = 0.0;
         let separator_height = 1.0;
+        let separator_drag_padding = 4.0;
         let min_params = 140.0;
         if self.project.settings.panels.show_inspector {
             let selected = self.node_graph.selected_node_id();
@@ -447,8 +448,11 @@ impl LobedoApp {
         };
 
         if params_ratio > 0.0 {
+            let drag_rect = separator_rect
+                .expand2(egui::vec2(0.0, separator_drag_padding))
+                .intersect(right_rect);
             let sep_response = ui.interact(
-                separator_rect,
+                drag_rect,
                 ui.make_persistent_id("node_split"),
                 egui::Sense::drag(),
             );
@@ -528,7 +532,7 @@ impl LobedoApp {
                     egui::TextStyle::Heading,
                     egui::FontId::proportional(18.0),
                 );
-                style.spacing.item_spacing = egui::vec2(10.0, 8.0);
+                style.spacing.item_spacing = egui::vec2(8.0, 4.0);
                 style.spacing.interact_size = egui::vec2(44.0, 26.0);
 
                 let max_height = ui.available_height();

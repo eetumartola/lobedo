@@ -58,7 +58,7 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::float_slider("erosion_strength", "Erosion Strength", 0.0, 1.0)
+        ParamSpec::float_slider("erosion_strength", "Erosion Str.", 0.0, 1.0)
             .with_help("Height offset strength."),
         ParamSpec::float_slider("erosion_freq", "Erosion Freq", 0.0, 30.0)
             .with_help("Erosion pattern frequency."),
@@ -68,19 +68,9 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Amplitude falloff per octave."),
         ParamSpec::float_slider("erosion_lacunarity", "Erosion Lacunarity", 1.0, 4.0)
             .with_help("Frequency growth per octave."),
-        ParamSpec::float_slider(
-            "erosion_slope_strength",
-            "Erosion Slope Strength",
-            0.0,
-            5.0,
-        )
+        ParamSpec::float_slider("erosion_slope_strength", "Erosion Slope Str.", 0.0, 5.0)
         .with_help("Slope influence on flow."),
-        ParamSpec::float_slider(
-            "erosion_branch_strength",
-            "Erosion Branch Strength",
-            0.0,
-            5.0,
-        )
+        ParamSpec::float_slider("erosion_branch_strength", "Erosion Branch Str.", 0.0, 5.0)
         .with_help("Branching influence on flow."),
         ParamSpec::bool("do_mask", "Output Mask").with_help("Write erosion mask to @mask."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),

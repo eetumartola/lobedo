@@ -82,7 +82,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Neighbor radius (0 = auto/1-ring)."),
         ParamSpec::int_slider("iterations", "Iterations", 0, 20)
             .with_help("Number of smoothing passes."),
-        ParamSpec::float_slider("strength", "Strength", 0.0, 1.0)
+        ParamSpec::float_slider("strength", "Str.", 0.0, 1.0)
             .with_help("Blend strength per pass."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
