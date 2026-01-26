@@ -446,6 +446,97 @@ pub(super) fn edit_param_with_spec(
     }
 }
 
+pub(super) fn edit_group_row(
+    ui: &mut Ui,
+    node_name: &str,
+    node_kind: Option<BuiltinNodeKind>,
+    group_spec: Option<&ParamSpec>,
+    group_type_spec: Option<&ParamSpec>,
+    group_value: ParamValue,
+    group_type_value: Option<ParamValue>,
+) -> (ParamValue, Option<ParamValue>, bool) {
+    let mut group = match group_value {
+        ParamValue::String(value) => value,
+        other => return (other, group_type_value, false),
+    };
+    let mut group_type = match group_type_value {
+        Some(ParamValue::Int(value)) => Some(value),
+        Some(other) => return (ParamValue::String(group), Some(other), false),
+        None => None,
+    };
+
+    let display_label = if let Some(spec) = group_spec {
+        if spec.label.is_empty() {
+            display_label(node_name, node_kind, spec.key)
+        } else {
+            spec.label.to_string()
+        }
+    } else {
+        display_label(node_name, node_kind, "group")
+    };
+    let mut help_owned = None;
+    let help = group_spec.and_then(|spec| spec.help).or_else(|| {
+        help_owned = param_help(node_name, "group");
+        help_owned.as_deref()
+    });
+    let options = group_type_options(group_type_spec);
+
+    let changed = param_row_with_label(ui, "group", &display_label, help, |ui| {
+        let mut changed = false;
+        let spacing = 8.0;
+        let height = ui.spacing().interact_size.y;
+        let controls_width = ui.available_width();
+        let prev_spacing = ui.spacing().item_spacing;
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
+
+        let combo_width = if group_type.is_some() {
+            (controls_width * 0.25).clamp(90.0, 140.0)
+        } else {
+            0.0
+        };
+        let text_width = if group_type.is_some() {
+            (controls_width - combo_width - spacing).max(120.0)
+        } else {
+            controls_width.max(160.0)
+        };
+        if ui
+            .add_sized(
+                [text_width, height],
+                egui::TextEdit::singleline(&mut group),
+            )
+            .changed()
+        {
+            changed = true;
+        }
+
+        if let Some(value) = group_type.as_mut() {
+            ui.add_space(spacing);
+            let selected = options
+                .iter()
+                .find(|(opt_value, _)| *opt_value == *value)
+                .map(|(_, label)| *label)
+                .unwrap_or("Group Type");
+            egui::ComboBox::from_id_salt((node_name, "group_type_inline"))
+                .selected_text(selected)
+                .width(combo_width)
+                .show_ui(ui, |ui| {
+                    for (opt_value, label) in options.iter().copied() {
+                        if ui.selectable_value(value, opt_value, label).changed() {
+                            changed = true;
+                        }
+                    }
+                });
+        }
+
+        ui.spacing_mut().item_spacing = prev_spacing;
+        changed
+    });
+
+    let group_value = ParamValue::String(group);
+    let group_type_value = group_type.map(ParamValue::Int);
+    (group_value, group_type_value, changed)
+}
+
 fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut String) -> bool {
     let mut gradient = parse_color_gradient(value);
     if gradient.stops.is_empty() {
@@ -989,6 +1080,26 @@ fn combo_row_string(
             });
         changed
     })
+}
+
+fn group_type_options(spec: Option<&ParamSpec>) -> Vec<(i32, &'static str)> {
+    let mut options = Vec::new();
+    if let Some(spec) = spec {
+        for option in &spec.options {
+            if let ParamOption::Int { value, label } = option {
+                options.push((*value, *label));
+            }
+        }
+    }
+    if options.is_empty() {
+        options = vec![
+            (0, "Auto"),
+            (1, "Vertex"),
+            (2, "Point"),
+            (3, "Primitive"),
+        ];
+    }
+    options
 }
 
 fn display_label(_node_name: &str, _node_kind: Option<BuiltinNodeKind>, key: &str) -> String {

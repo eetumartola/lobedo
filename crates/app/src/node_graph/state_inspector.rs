@@ -1,12 +1,10 @@
 use egui::Ui;
 use std::collections::HashSet;
 
-use lobedo_core::{
-    param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams,
-};
+use lobedo_core::{param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams};
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
-use super::params::{edit_param, edit_param_with_spec};
+use super::params::{edit_group_row, edit_param, edit_param_with_spec};
 use super::state::{NodeGraphState, WriteRequest, WriteRequestKind};
 
 impl NodeGraphState {
@@ -92,11 +90,46 @@ impl NodeGraphState {
         };
 
         let mut rendered_any = false;
+        let group_value = param_values.get("group").cloned();
+        let group_type_value = param_values.get("group_type").cloned();
+        if let Some(group_value) = group_value {
+            let group_spec = param_specs.iter().find(|spec| spec.key == "group");
+            let group_type_spec = param_specs.iter().find(|spec| spec.key == "group_type");
+            let (next_group, next_group_type, did_change) = edit_group_row(
+                ui,
+                &node_name,
+                node_kind,
+                group_spec,
+                group_type_spec,
+                group_value.clone(),
+                group_type_value.clone(),
+            );
+            if did_change {
+                if next_group != group_value {
+                    let _ = graph.set_param(node_id, "group".to_string(), next_group);
+                    changed = true;
+                }
+                if let Some(next_group_type) = next_group_type.clone() {
+                    if group_type_value.as_ref() != Some(&next_group_type) {
+                        let _ = graph.set_param(node_id, "group_type".to_string(), next_group_type);
+                        changed = true;
+                    }
+                }
+            }
+            rendered_any = true;
+            spec_keys.insert("group".to_string());
+            if group_type_value.is_some() || group_type_spec.is_some() {
+                spec_keys.insert("group_type".to_string());
+            }
+        }
         if !param_specs.is_empty() {
             for spec in &param_specs {
                 let Some(value) = param_values.get(spec.key).cloned() else {
                     continue;
                 };
+                if spec_keys.contains(spec.key) {
+                    continue;
+                }
                 spec_keys.insert(spec.key.to_string());
                 if !spec.is_visible(&visible_params) {
                     continue;

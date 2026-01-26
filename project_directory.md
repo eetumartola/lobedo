@@ -114,7 +114,7 @@ Functions: None
 
 ## crates/app/src/node_graph/params.rs
 Description: Params module.
-Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gradient_field` (L449-L630), `endpoints_for` (L632-L651), `find_stop_index` (L653-L664), `color32_from_rgb` (L666-L666), `edit_path_field` (L674-L708), `path_picker_kind_from_spec` (L720-L729), `file_pick_result` (L742-L744), `queue_file_pick` (L747-L750), `take_file_pick` (L753-L760), `open_path_picker_button` (L762-L819), `open_path_picker` (L822-L851), `param_row_with_label` (L853-L861), `slider_layout_widths` (L863-L868), `param_row_with_height_label` (L870-L919), `label_width_for` (L921-L931), `combo_row_i32` (L933-L960), `combo_row_string` (L962-L992), `display_label` (L994-L996)
+Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_group_row` (L449-L538), `edit_gradient_field` (L540-L721), `endpoints_for` (L723-L742), `find_stop_index` (L744-L755), `color32_from_rgb` (L757-L757), `edit_path_field` (L765-L799), `path_picker_kind_from_spec` (L811-L820), `file_pick_result` (L833-L835), `queue_file_pick` (L838-L841), `take_file_pick` (L844-L851), `open_path_picker_button` (L853-L910), `open_path_picker` (L913-L942), `param_row_with_label` (L944-L952), `slider_layout_widths` (L954-L959), `param_row_with_height_label` (L961-L1010), `label_width_for` (L1012-L1022), `combo_row_i32` (L1024-L1051), `combo_row_string` (L1053-L1083), `group_type_options` (L1085-L1103), `display_label` (L1105-L1107)
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
@@ -122,7 +122,7 @@ Functions: `default` (L94-L136), `hit_test` (L153-L158), `reset` (L187-L189), `e
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L13-L183), `inspector_row_count` (L185-L198)
+Functions: `show_inspector` (L11-L216), `inspector_row_count` (L218-L231)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
