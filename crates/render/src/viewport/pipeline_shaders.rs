@@ -20,6 +20,13 @@ struct Uniforms {
     light_params: vec4<f32>,
     debug_params: vec4<f32>,
     shadow_params: vec4<f32>,
+    splat_params: vec4<f32>,
+    splat_view_x: vec3<f32>,
+    _pad5: f32,
+    splat_view_y: vec3<f32>,
+    _pad6: f32,
+    splat_view_z: vec3<f32>,
+    _pad7: f32,
 };
 
 @group(0) @binding(0)
@@ -222,11 +229,11 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
 }
 
 struct SplatInput {
-    @location(0) center: vec3<f32>,
-    @location(1) offset: vec2<f32>,
-    @location(2) uv: vec2<f32>,
-    @location(3) color: vec4<f32>,
-    @location(4) scale: f32,
+    @location(0) corner: vec2<f32>,
+    @location(1) center: vec3<f32>,
+    @location(2) color: vec4<f32>,
+    @location(3) scale: vec3<f32>,
+    @location(4) rotation: vec4<f32>,
 };
 
 struct SplatOutput {
@@ -237,15 +244,131 @@ struct SplatOutput {
     @location(3) scale: f32,
 };
 
+const SPLAT_BILLBOARD_RADIUS: f32 = 3.0;
+
+fn quat_to_mat3(q: vec4<f32>) -> mat3x3<f32> {
+    let x = q.x;
+    let y = q.y;
+    let z = q.z;
+    let w = q.w;
+    let xx = x * x;
+    let yy = y * y;
+    let zz = z * z;
+    let xy = x * y;
+    let xz = x * z;
+    let yz = y * z;
+    let wx = w * x;
+    let wy = w * y;
+    let wz = w * z;
+    return mat3x3<f32>(
+        vec3<f32>(1.0 - 2.0 * (yy + zz), 2.0 * (xy + wz), 2.0 * (xz - wy)),
+        vec3<f32>(2.0 * (xy - wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz + wx)),
+        vec3<f32>(2.0 * (xz + wy), 2.0 * (yz - wx), 1.0 - 2.0 * (xx + yy)),
+    );
+}
+
+fn is_finite_f32(v: f32) -> bool {
+    return v == v && abs(v) < 1.0e20;
+}
+
+fn is_finite_vec4(v: vec4<f32>) -> bool {
+    return is_finite_f32(v.x) && is_finite_f32(v.y) && is_finite_f32(v.z) && is_finite_f32(v.w);
+}
+
 @vertex
 fn vs_splat(input: SplatInput) -> SplatOutput {
     var out: SplatOutput;
-    let clip = uniforms.view_proj * vec4<f32>(input.center, 1.0);
-    out.position = clip + vec4<f32>(input.offset * clip.w, 0.0, 0.0);
-    out.uv = input.uv;
     out.color = input.color;
     out.center = input.center;
-    out.scale = input.scale;
+    let scale_metric = max(max(input.scale.x, input.scale.y), input.scale.z);
+    out.scale = select(0.0, scale_metric, is_finite_f32(scale_metric));
+    let width = max(uniforms.splat_params.x, 1.0);
+    let height = max(uniforms.splat_params.y, 1.0);
+    let tan_half = max(tan(uniforms.splat_params.z * 0.5), 1.0e-6);
+    let fy = 0.5 * height / tan_half;
+    let fx = fy;
+    let view_rot = mat3x3<f32>(uniforms.splat_view_x, uniforms.splat_view_y, uniforms.splat_view_z);
+    let pos_view = view_rot * (input.center - uniforms.camera_pos);
+    let pos_cam = vec3<f32>(pos_view.x, pos_view.y, -pos_view.z);
+    let z = pos_cam.z;
+    if !(z > uniforms.splat_params.w) || !is_finite_f32(z) {
+        out.position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+        out.uv = vec2<f32>(0.0);
+        return out;
+    }
+    var quat = vec4<f32>(input.rotation.y, input.rotation.z, input.rotation.w, input.rotation.x);
+    if !is_finite_vec4(quat) {
+        quat = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    }
+    let len2 = dot(quat, quat);
+    if len2 < 1.0e-8 {
+        quat = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    } else {
+        quat = quat * (1.0 / sqrt(len2));
+    }
+    let rot = quat_to_mat3(quat);
+    let scale = input.scale;
+    let cov_local = mat3x3<f32>(
+        vec3<f32>(scale.x * scale.x, 0.0, 0.0),
+        vec3<f32>(0.0, scale.y * scale.y, 0.0),
+        vec3<f32>(0.0, 0.0, scale.z * scale.z),
+    );
+    let cov_world = rot * cov_local * transpose(rot);
+    let cov_view = view_rot * cov_world * transpose(view_rot);
+    let flip = mat3x3<f32>(
+        vec3<f32>(1.0, 0.0, 0.0),
+        vec3<f32>(0.0, 1.0, 0.0),
+        vec3<f32>(0.0, 0.0, -1.0),
+    );
+    let cov_cam = flip * cov_view * flip;
+    let inv_z = 1.0 / max(z, 1.0e-6);
+    let inv_z2 = inv_z * inv_z;
+    let j11 = fx * inv_z;
+    let j22 = fy * inv_z;
+    let j13 = -fx * pos_cam.x * inv_z2;
+    let j23 = -fy * pos_cam.y * inv_z2;
+    let r0 = vec3<f32>(j11, 0.0, j13);
+    let r1 = vec3<f32>(0.0, j22, j23);
+    let cov_r0 = cov_cam * r0;
+    let cov_r1 = cov_cam * r1;
+    let a = dot(r0, cov_r0);
+    let b = dot(r0, cov_r1);
+    let c = dot(r1, cov_r1);
+    let trace = a + c;
+    let delta = sqrt(max((a - c) * (a - c) + 4.0 * b * b, 0.0));
+    let lambda1 = max(0.5 * (trace + delta), 0.0);
+    let lambda2 = max(0.5 * (trace - delta), 0.0);
+    let sigma1 = sqrt(lambda1);
+    let sigma2 = sqrt(lambda2);
+    if sigma1 <= 0.0
+        || sigma2 <= 0.0
+        || !is_finite_f32(sigma1)
+        || !is_finite_f32(sigma2)
+    {
+        out.position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+        out.uv = vec2<f32>(0.0);
+        return out;
+    }
+    var v1: vec2<f32>;
+    if abs(b) > 1.0e-6 {
+        v1 = normalize(vec2<f32>(lambda1 - c, b));
+    } else if a >= c {
+        v1 = vec2<f32>(1.0, 0.0);
+    } else {
+        v1 = vec2<f32>(0.0, 1.0);
+    }
+    if dot(v1, v1) < 1.0e-6 {
+        v1 = vec2<f32>(1.0, 0.0);
+    }
+    let v2 = vec2<f32>(-v1.y, v1.x);
+    let axis1 = v1 * (sigma1 * SPLAT_BILLBOARD_RADIUS);
+    let axis2 = v2 * (sigma2 * SPLAT_BILLBOARD_RADIUS);
+    let axis1_ndc = vec2<f32>(axis1.x * 2.0 / width, axis1.y * 2.0 / height);
+    let axis2_ndc = vec2<f32>(axis2.x * 2.0 / width, axis2.y * 2.0 / height);
+    let clip = uniforms.view_proj * vec4<f32>(input.center, 1.0);
+    let ndc_offset = axis1_ndc * input.corner.x + axis2_ndc * input.corner.y;
+    out.position = clip + vec4<f32>(ndc_offset * clip.w, 0.0, 0.0);
+    out.uv = input.corner * SPLAT_BILLBOARD_RADIUS;
     return out;
 }
 

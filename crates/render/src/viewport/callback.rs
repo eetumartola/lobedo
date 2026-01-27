@@ -9,12 +9,10 @@ use egui::epaint::Rect;
 use egui_wgpu::wgpu::util::DeviceExt as _;
 use egui_wgpu::{CallbackResources, CallbackTrait};
 
-use super::callback_helpers::{
-    light_view_projection, sort_splats_by_depth, splat_color_from_sh,
-};
+use super::callback_helpers::{light_view_projection, splat_color_from_sh};
 use super::mesh::{
-    normals_vertices, point_cross_vertices_color, splat_billboard_vertices, splat_billboards,
-    splat_vertices_from_billboards, SplatBillboardInputs, SplatVertex,
+    normals_vertices, point_cross_vertices_color, splat_billboards, SplatBillboardInputs,
+    SplatInstance,
 };
 use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
 use super::{
@@ -55,6 +53,11 @@ impl CallbackTrait for ViewportCallback {
         let inv_view_proj = view_proj.inverse();
         let camera_pos = camera_position(self.camera);
         let target = glam::Vec3::from(self.camera.target);
+        let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
+        let view_rot = Mat3::from_mat4(view);
+        let view_rot_cols = view_rot.to_cols_array_2d();
+        let fov_y = 45_f32.to_radians();
+        let near_clip = (self.camera.distance * 0.01).clamp(0.02, 0.5);
         let forward = (target - camera_pos).normalize_or_zero();
         let mut right = forward.cross(Vec3::Y).normalize_or_zero();
         if right.length_squared() == 0.0 {
@@ -124,8 +127,8 @@ impl CallbackTrait for ViewportCallback {
                         pipeline.splat_color_cache_len = 0;
                         pipeline.splat_color_cache_scene = 0;
                         pipeline.splat_color_cache_sh0_is_coeff = false;
-                        pipeline.splat_buffers.clear();
-                        pipeline.splat_counts.clear();
+                        pipeline.splat_instance_buffers.clear();
+                        pipeline.splat_instance_counts.clear();
                         pipeline.splat_scissors.clear();
                         pipeline.splat_point_size = -1.0;
                         pipeline.splat_last_right = [0.0, 0.0, 0.0];
@@ -176,6 +179,13 @@ impl CallbackTrait for ViewportCallback {
                     shadow_texel,
                     normal_bias,
                 ],
+                splat_params: [width as f32, height as f32, fov_y, near_clip],
+                splat_view_x: view_rot_cols[0],
+                _pad5: 0.0,
+                splat_view_y: view_rot_cols[1],
+                _pad6: 0.0,
+                splat_view_z: view_rot_cols[2],
+                _pad7: 0.0,
             };
 
             queue.write_buffer(&pipeline.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
@@ -514,15 +524,12 @@ impl CallbackTrait for ViewportCallback {
                         }
                         &pipeline.splat_base_colors
                     };
-                    let vertex_bytes = std::mem::size_of::<SplatVertex>() as u64;
+                    let instance_bytes = std::mem::size_of::<SplatInstance>() as u64;
                     let max_buffer_size =
                         device.limits().max_buffer_size.min(SPLAT_BUFFER_SOFT_LIMIT);
-                    let splat_bytes = vertex_bytes.saturating_mul(6);
-                    let max_splats = (max_buffer_size / splat_bytes)
+                    let max_instances = (max_buffer_size / instance_bytes)
                         .min(u32::MAX as u64)
                         .max(1) as usize;
-                    let view = Mat4::look_at_rh(camera_pos, target, Vec3::Y);
-                    let near_clip = (self.camera.distance * 0.01).clamp(0.02, 0.5);
                     let allow_tile_binning =
                         self.debug.splat_tile_binning && !cfg!(target_arch = "wasm32");
                     let use_tile_binning = allow_tile_binning
@@ -531,16 +538,64 @@ impl CallbackTrait for ViewportCallback {
                     let mut buffers = Vec::new();
                     let mut counts = Vec::new();
                     let mut scissors = Vec::new();
+                    let make_instance = |idx: usize| -> Option<SplatInstance> {
+                        let center = *pipeline.splat_positions.get(idx)?;
+                        if !center[0].is_finite()
+                            || !center[1].is_finite()
+                            || !center[2].is_finite()
+                        {
+                            return None;
+                        }
+                        let scale = pipeline
+                            .splat_scales
+                            .get(idx)
+                            .copied()
+                            .unwrap_or([1.0, 1.0, 1.0]);
+                        if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite()
+                        {
+                            return None;
+                        }
+                        let rotation = pipeline
+                            .splat_rotations
+                            .get(idx)
+                            .copied()
+                            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+                        let rotation = if rotation.iter().all(|v| v.is_finite()) {
+                            rotation
+                        } else {
+                            [0.0, 0.0, 0.0, 1.0]
+                        };
+                        let color = base_colors
+                            .get(idx)
+                            .copied()
+                            .unwrap_or([1.0, 1.0, 1.0]);
+                        let alpha = pipeline
+                            .splat_opacity
+                            .get(idx)
+                            .copied()
+                            .unwrap_or(1.0)
+                            .clamp(0.0, 1.0);
+                        let color = [
+                            color[0].clamp(0.0, 1.0),
+                            color[1].clamp(0.0, 1.0),
+                            color[2].clamp(0.0, 1.0),
+                            alpha,
+                        ];
+                        Some(SplatInstance {
+                            center,
+                            color,
+                            scale,
+                            rotation,
+                        })
+                    };
                     if use_tile_binning {
                         let billboards = splat_billboards(SplatBillboardInputs {
                             positions: &pipeline.splat_positions,
-                            colors: base_colors,
-                            opacities: &pipeline.splat_opacity,
                             scales: &pipeline.splat_scales,
                             rotations: &pipeline.splat_rotations,
                             view,
                             viewport: [width as f32, height as f32],
-                            fov_y: 45_f32.to_radians(),
+                            fov_y,
                             world_transform,
                             near_clip,
                             frustum_cull: self.debug.splat_frustum_cull,
@@ -628,80 +683,104 @@ impl CallbackTrait for ViewportCallback {
                             let x1 = (x0 + tile_size).min(width);
                             let y1 = (y0 + tile_size).min(height);
                             let scissor = [x0, y0, (x1 - x0).max(1), (y1 - y0).max(1)];
-                            for chunk in bin.chunks(max_splats) {
-                                let splat_vertices =
-                                    splat_vertices_from_billboards(&billboards, Some(chunk));
-                                let count = splat_vertices.len() as u32;
+                            for chunk in bin.chunks(max_instances) {
+                                let mut instances = Vec::with_capacity(chunk.len());
+                                for &billboard_index in chunk {
+                                    if let Some(billboard) = billboards.get(billboard_index) {
+                                        if let Some(instance) = make_instance(billboard.index) {
+                                            instances.push(instance);
+                                        }
+                                    }
+                                }
+                                let count = instances.len() as u32;
                                 if count == 0 {
                                     continue;
                                 }
-                                let bytes = bytemuck::cast_slice(&splat_vertices);
-                                let buffer = device.create_buffer_init(
-                                    &egui_wgpu::wgpu::util::BufferInitDescriptor {
-                                        label: Some("lobedo_splat_vertices"),
-                                        contents: bytes,
-                                        usage: egui_wgpu::wgpu::BufferUsages::VERTEX
-                                            | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-                                    },
-                                );
+                                let bytes = bytemuck::cast_slice(&instances);
+                                let buffer_index = buffers.len();
+                                let buffer = match pipeline
+                                    .splat_instance_buffers
+                                    .get(buffer_index)
+                                {
+                                    Some(existing) if existing.size() >= bytes.len() as u64 => {
+                                        queue.write_buffer(existing, 0, bytes);
+                                        existing.clone()
+                                    }
+                                    _ => device.create_buffer_init(
+                                        &egui_wgpu::wgpu::util::BufferInitDescriptor {
+                                            label: Some("lobedo_splat_instances"),
+                                            contents: bytes,
+                                            usage: egui_wgpu::wgpu::BufferUsages::VERTEX
+                                                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+                                        },
+                                    ),
+                                };
                                 buffers.push(buffer);
                                 counts.push(count);
                                 scissors.push(scissor);
                             }
                         }
                     } else {
-                        let sorted = sort_splats_by_depth(
-                            &pipeline.splat_positions,
-                            base_colors,
-                            &pipeline.splat_opacity,
-                            &pipeline.splat_scales,
-                            &pipeline.splat_rotations,
-                            camera_pos,
-                            forward,
-                            world_transform,
-                        );
-                        let mut positions = Vec::with_capacity(sorted.len());
-                        let mut colors = Vec::with_capacity(sorted.len());
-                        let mut opacity = Vec::with_capacity(sorted.len());
-                        let mut scales = Vec::with_capacity(sorted.len());
-                        let mut rotations = Vec::with_capacity(sorted.len());
-                        for entry in sorted {
-                            positions.push(entry.position);
-                            colors.push(entry.color);
-                            opacity.push(entry.opacity);
-                            scales.push(entry.scale);
-                            rotations.push(entry.rotation);
-                        }
-                        for (chunk_index, chunk_range) in
-                            (0..positions.len()).step_by(max_splats).enumerate()
-                        {
-                            let end = (chunk_range + max_splats).min(positions.len());
-                            let splat_vertices = splat_billboard_vertices(SplatBillboardInputs {
-                                positions: &positions[chunk_range..end],
-                                colors: &colors[chunk_range..end],
-                                opacities: &opacity[chunk_range..end],
-                                scales: &scales[chunk_range..end],
-                                rotations: &rotations[chunk_range..end],
+                        let mut order: Vec<(usize, f32)> = Vec::new();
+                        if self.debug.splat_frustum_cull {
+                            let billboards = splat_billboards(SplatBillboardInputs {
+                                positions: &pipeline.splat_positions,
+                                scales: &pipeline.splat_scales,
+                                rotations: &pipeline.splat_rotations,
                                 view,
                                 viewport: [width as f32, height as f32],
-                                fov_y: 45_f32.to_radians(),
+                                fov_y,
                                 world_transform,
                                 near_clip,
-                                frustum_cull: self.debug.splat_frustum_cull,
+                                frustum_cull: true,
                             });
-                            let count = splat_vertices.len() as u32;
+                            order.reserve(billboards.len());
+                            for billboard in &billboards {
+                                let center = Vec3::from(billboard.center);
+                                let depth = (center - camera_pos).dot(forward);
+                                order.push((billboard.index, depth));
+                            }
+                        } else {
+                            order.reserve(pipeline.splat_positions.len());
+                            for (idx, position) in
+                                pipeline.splat_positions.iter().enumerate()
+                            {
+                                let center = Vec3::from(*position);
+                                let depth = (center - camera_pos).dot(forward);
+                                order.push((idx, depth));
+                            }
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            order.sort_by(|a, b| {
+                                b.1.partial_cmp(&a.1)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                        }
+                        for chunk in order.chunks(max_instances) {
+                            let mut instances = Vec::with_capacity(chunk.len());
+                            for (idx, _depth) in chunk {
+                                if let Some(instance) = make_instance(*idx) {
+                                    instances.push(instance);
+                                }
+                            }
+                            let count = instances.len() as u32;
                             if count == 0 {
                                 continue;
                             }
-                            let bytes = bytemuck::cast_slice(&splat_vertices);
-                            let buffer = match pipeline.splat_buffers.get(chunk_index) {
+                            let bytes = bytemuck::cast_slice(&instances);
+                            let buffer_index = buffers.len();
+                            let buffer = match pipeline
+                                .splat_instance_buffers
+                                .get(buffer_index)
+                            {
                                 Some(existing) if existing.size() >= bytes.len() as u64 => {
                                     queue.write_buffer(existing, 0, bytes);
                                     existing.clone()
                                 }
                                 _ => device.create_buffer_init(
                                     &egui_wgpu::wgpu::util::BufferInitDescriptor {
-                                        label: Some("lobedo_splat_vertices"),
+                                        label: Some("lobedo_splat_instances"),
                                         contents: bytes,
                                         usage: egui_wgpu::wgpu::BufferUsages::VERTEX
                                             | egui_wgpu::wgpu::BufferUsages::COPY_DST,
@@ -712,8 +791,8 @@ impl CallbackTrait for ViewportCallback {
                             counts.push(count);
                         }
                     }
-                    pipeline.splat_buffers = buffers;
-                    pipeline.splat_counts = counts;
+                    pipeline.splat_instance_buffers = buffers;
+                    pipeline.splat_instance_counts = counts;
                     pipeline.splat_scissors = scissors;
                     pipeline.splat_point_size = 0.0;
                     pipeline.splat_last_right = right.to_array();
@@ -722,7 +801,7 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.splat_last_viewport = [width, height];
                     pipeline.last_splat_rebuild = Some(now);
                 }
-                if !pipeline.splat_buffers.is_empty() {
+                if !pipeline.splat_instance_buffers.is_empty() {
                     let splat_pipeline = if matches!(
                         self.debug.shading_mode,
                         ViewportShadingMode::SplatOverdraw
@@ -734,14 +813,15 @@ impl CallbackTrait for ViewportCallback {
                     render_pass.set_pipeline(splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                     render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
                     let use_scissors = !pipeline.splat_scissors.is_empty()
-                        && pipeline.splat_scissors.len() == pipeline.splat_counts.len()
-                        && pipeline.splat_scissors.len() == pipeline.splat_buffers.len();
+                        && pipeline.splat_scissors.len() == pipeline.splat_instance_counts.len()
+                        && pipeline.splat_scissors.len() == pipeline.splat_instance_buffers.len();
                     if use_scissors {
                         for ((buffer, count), scissor) in pipeline
-                            .splat_buffers
+                            .splat_instance_buffers
                             .iter()
-                            .zip(pipeline.splat_counts.iter())
+                            .zip(pipeline.splat_instance_counts.iter())
                             .zip(pipeline.splat_scissors.iter())
                         {
                             if *count == 0 {
@@ -753,21 +833,21 @@ impl CallbackTrait for ViewportCallback {
                                 scissor[2],
                                 scissor[3],
                             );
-                            render_pass.set_vertex_buffer(0, buffer.slice(..));
-                            render_pass.draw(0..*count, 0..1);
+                            render_pass.set_vertex_buffer(1, buffer.slice(..));
+                            render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                         }
                         render_pass.set_scissor_rect(0, 0, width, height);
                     } else {
                         for (buffer, count) in pipeline
-                            .splat_buffers
+                            .splat_instance_buffers
                             .iter()
-                            .zip(pipeline.splat_counts.iter())
+                            .zip(pipeline.splat_instance_counts.iter())
                         {
                             if *count == 0 {
                                 continue;
                             }
-                            render_pass.set_vertex_buffer(0, buffer.slice(..));
-                            render_pass.draw(0..*count, 0..1);
+                            render_pass.set_vertex_buffer(1, buffer.slice(..));
+                            render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                         }
                     }
                 }
@@ -775,19 +855,20 @@ impl CallbackTrait for ViewportCallback {
 
             if self.debug.splat_depth_prepass
                 && self.debug.show_splats
-                && !pipeline.splat_buffers.is_empty()
+                && !pipeline.splat_instance_buffers.is_empty()
             {
                 render_pass.set_pipeline(&pipeline.splat_depth_pipeline);
                 render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                 render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
                 let use_scissors = !pipeline.splat_scissors.is_empty()
-                    && pipeline.splat_scissors.len() == pipeline.splat_counts.len()
-                    && pipeline.splat_scissors.len() == pipeline.splat_buffers.len();
+                    && pipeline.splat_scissors.len() == pipeline.splat_instance_counts.len()
+                    && pipeline.splat_scissors.len() == pipeline.splat_instance_buffers.len();
                 if use_scissors {
                     for ((buffer, count), scissor) in pipeline
-                        .splat_buffers
+                        .splat_instance_buffers
                         .iter()
-                        .zip(pipeline.splat_counts.iter())
+                        .zip(pipeline.splat_instance_counts.iter())
                         .zip(pipeline.splat_scissors.iter())
                     {
                         if *count == 0 {
@@ -799,21 +880,21 @@ impl CallbackTrait for ViewportCallback {
                             scissor[2],
                             scissor[3],
                         );
-                        render_pass.set_vertex_buffer(0, buffer.slice(..));
-                        render_pass.draw(0..*count, 0..1);
+                        render_pass.set_vertex_buffer(1, buffer.slice(..));
+                        render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                     }
                     render_pass.set_scissor_rect(0, 0, width, height);
                 } else {
                     for (buffer, count) in pipeline
-                        .splat_buffers
+                        .splat_instance_buffers
                         .iter()
-                        .zip(pipeline.splat_counts.iter())
+                        .zip(pipeline.splat_instance_counts.iter())
                     {
                         if *count == 0 {
                             continue;
                         }
-                        render_pass.set_vertex_buffer(0, buffer.slice(..));
-                        render_pass.draw(0..*count, 0..1);
+                        render_pass.set_vertex_buffer(1, buffer.slice(..));
+                        render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                     }
                 }
             }

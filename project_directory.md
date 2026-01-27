@@ -602,15 +602,15 @@ Functions: `mesh` (L33-L38), `splats` (L40-L45), `curves` (L47-L55), `volume` (L
 
 ## crates/render/src/viewport/callback.rs
 Description: Callback module.
-Functions: `prepare` (L38-L862), `paint` (L864-L901)
+Functions: `prepare` (L36-L943), `paint` (L945-L982)
 
 ## crates/render/src/viewport/callback_helpers.rs
 Description: Callback Helpers module.
-Functions: `sort_splats_by_depth` (L15-L16), `light_view_projection` (L58-L58), `sh_basis_l1` (L134-L134), `sh_basis_l2` (L141-L141), `sh_basis_l3` (L154-L154), `splat_color_from_sh` (L169-L170)
+Functions: `light_view_projection` (L3-L3), `sh_basis_l1` (L79-L79), `sh_basis_l2` (L86-L86), `sh_basis_l3` (L99-L99), `splat_color_from_sh` (L114-L115)
 
 ## crates/render/src/viewport/mesh.rs
 Description: Mesh module.
-Functions: `cube_mesh` (L73-L126), `mesh_bounds` (L128-L128), `bounds_from_positions` (L140-L140), `build_vertices` (L155-L245), `normals_vertices` (L247-L267), `point_cross_vertices_color` (L269-L270), `point_cross_vertices_with_colors` (L308-L309), `splat_billboard_vertices` (L348-L353), `splat_billboards` (L355-L526), `splat_vertices_from_billboards` (L528-L582), `wireframe_vertices` (L584-L584), `wireframe_vertices_ngon` (L624-L625), `curve_vertices` (L664-L664), `bounds_vertices` (L693-L693), `bounds_vertices_with_color` (L697-L698), `selection_shape_vertices` (L745-L824), `circle_vertices` (L826-L832), `grid_and_axes` (L853-L912)
+Functions: `splat_corner_vertices` (L71-L71), `cube_mesh` (L102-L155), `mesh_bounds` (L157-L157), `bounds_from_positions` (L169-L169), `build_vertices` (L184-L274), `normals_vertices` (L276-L296), `point_cross_vertices_color` (L298-L299), `point_cross_vertices_with_colors` (L337-L338), `splat_billboards` (L377-L523), `wireframe_vertices` (L525-L525), `wireframe_vertices_ngon` (L565-L566), `curve_vertices` (L605-L605), `bounds_vertices` (L634-L634), `bounds_vertices_with_color` (L638-L639), `selection_shape_vertices` (L686-L765), `circle_vertices` (L767-L773), `grid_and_axes` (L794-L853)
 
 ## crates/render/src/viewport/mod.rs
 Description: Viewport module.
@@ -618,7 +618,7 @@ Functions: `default` (L86-L97), `new` (L111-L123), `paint_callback` (L125-L142),
 
 ## crates/render/src/viewport/pipeline.rs
 Description: Pipeline module.
-Functions: `new` (L147-L1022), `ensure_offscreen_targets` (L1025-L1059)
+Functions: `new` (L157-L1073), `ensure_offscreen_targets` (L1076-L1110)
 
 ## crates/render/src/viewport/pipeline_scene.rs
 Description: Pipeline Scene module.
@@ -626,7 +626,7 @@ Functions: `apply_scene_to_pipeline` (L13-L219), `merged_scene_splats` (L221-L28
 
 ## crates/render/src/viewport/pipeline_shaders.rs
 Description: Pipeline Shaders module.
-Functions: `vs_main` (L81-L90), `shadow_factor` (L92-L120), `shade_surface` (L122-L154), `material_albedo` (L156-L167), `fs_main` (L170-L188), `vs_shadow` (L195-L199), `vs_line` (L212-L217), `fs_line` (L220-L222), `vs_splat` (L241-L250), `fs_splat` (L253-L292), `vs_volume` (L300-L315), `intersect_aabb` (L317-L324), `sample_volume_density` (L326-L350), `fs_volume` (L353-L395), `vs_blit` (L411-L426), `fs_blit` (L429-L431), `create_main_shader` (L434-L439), `create_blit_shader` (L441-L446)
+Functions: `vs_main` (L88-L97), `shadow_factor` (L99-L127), `shade_surface` (L129-L161), `material_albedo` (L163-L174), `fs_main` (L177-L195), `vs_shadow` (L202-L206), `vs_line` (L219-L224), `fs_line` (L227-L229), `quat_to_mat3` (L249-L268), `is_finite_f32` (L270-L272), `is_finite_vec4` (L274-L276), `vs_splat` (L279-L373), `fs_splat` (L376-L415), `vs_volume` (L423-L438), `intersect_aabb` (L440-L447), `sample_volume_density` (L449-L473), `fs_volume` (L476-L518), `vs_blit` (L534-L549), `fs_blit` (L552-L554), `create_main_shader` (L557-L562), `create_blit_shader` (L564-L569)
 
 ## crates/render/src/viewport/pipeline_targets.rs
 Description: Pipeline Targets module.

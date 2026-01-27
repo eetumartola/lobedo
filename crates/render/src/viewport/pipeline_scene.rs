@@ -83,8 +83,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_base_colors.clear();
         pipeline.splat_color_cache_len = 0;
         pipeline.splat_point_size = -1.0;
-        pipeline.splat_buffers.clear();
-        pipeline.splat_counts.clear();
+        pipeline.splat_instance_buffers.clear();
+        pipeline.splat_instance_counts.clear();
         pipeline.splat_scissors.clear();
         if pipeline.mesh_vertices.is_empty() {
             pipeline.mesh_bounds = bounds_from_positions(&pipeline.splat_positions);
@@ -100,8 +100,8 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_rotations.clear();
         pipeline.splat_base_colors.clear();
         pipeline.splat_color_cache_len = 0;
-        pipeline.splat_buffers.clear();
-        pipeline.splat_counts.clear();
+        pipeline.splat_instance_buffers.clear();
+        pipeline.splat_instance_counts.clear();
         pipeline.splat_scissors.clear();
         pipeline.splat_point_size = -1.0;
     }

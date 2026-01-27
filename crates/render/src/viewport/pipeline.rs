@@ -8,7 +8,8 @@ use crate::mesh_cache::GpuMeshCache;
 
 use super::mesh::{
     bounds_vertices, cube_mesh, grid_and_axes, normals_vertices, point_cross_vertices_color,
-    LineVertex, SplatVertex, Vertex, LINE_ATTRIBUTES, SPLAT_ATTRIBUTES, VERTEX_ATTRIBUTES,
+    splat_corner_vertices, LineVertex, SplatCorner, SplatInstance, Vertex, LINE_ATTRIBUTES,
+    SPLAT_CORNER_ATTRIBUTES, SPLAT_INSTANCE_ATTRIBUTES, VERTEX_ATTRIBUTES,
 };
 use super::pipeline_shaders::{create_blit_shader, create_main_shader};
 use super::pipeline_targets::{create_offscreen_targets, create_shadow_targets};
@@ -37,6 +38,13 @@ pub(super) struct Uniforms {
     pub(super) light_params: [f32; 4],
     pub(super) debug_params: [f32; 4],
     pub(super) shadow_params: [f32; 4],
+    pub(super) splat_params: [f32; 4],
+    pub(super) splat_view_x: [f32; 3],
+    pub(super) _pad5: f32,
+    pub(super) splat_view_y: [f32; 3],
+    pub(super) _pad6: f32,
+    pub(super) splat_view_z: [f32; 3],
+    pub(super) _pad7: f32,
 }
 
 #[repr(C)]
@@ -115,8 +123,10 @@ pub(super) struct PipelineState {
     pub(super) splat_color_cache_len: usize,
     pub(super) splat_color_cache_sh0_is_coeff: bool,
     pub(super) splat_point_size: f32,
-    pub(super) splat_buffers: Vec<egui_wgpu::wgpu::Buffer>,
-    pub(super) splat_counts: Vec<u32>,
+    pub(super) splat_corner_buffer: egui_wgpu::wgpu::Buffer,
+    pub(super) splat_corner_count: u32,
+    pub(super) splat_instance_buffers: Vec<egui_wgpu::wgpu::Buffer>,
+    pub(super) splat_instance_counts: Vec<u32>,
     pub(super) splat_scissors: Vec<[u32; 4]>,
     pub(super) splat_last_right: [f32; 3],
     pub(super) splat_last_up: [f32; 3],
@@ -171,6 +181,13 @@ impl PipelineState {
                     light_params: [1.0, 0.4, 0.5, 0.15],
                     debug_params: [0.0, 0.5, 20.0, 4.0],
                     shadow_params: [0.0, 0.002, 0.0, 0.0],
+                    splat_params: [1.0, 1.0, 45_f32.to_radians(), 0.02],
+                    splat_view_x: [1.0, 0.0, 0.0],
+                    _pad5: 0.0,
+                    splat_view_y: [0.0, 1.0, 0.0],
+                    _pad6: 0.0,
+                    splat_view_z: [0.0, 0.0, 1.0],
+                    _pad7: 0.0,
                 }),
                 usage: egui_wgpu::wgpu::BufferUsages::UNIFORM
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
@@ -596,12 +613,20 @@ impl PipelineState {
                     module: &shader,
                     entry_point: Some("vs_splat"),
                     compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<SplatVertex>()
-                            as egui_wgpu::wgpu::BufferAddress,
-                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
-                        attributes: &SPLAT_ATTRIBUTES,
-                    }],
+                    buffers: &[
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatCorner>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                            attributes: &SPLAT_CORNER_ATTRIBUTES,
+                        },
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatInstance>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Instance,
+                            attributes: &SPLAT_INSTANCE_ATTRIBUTES,
+                        },
+                    ],
                 },
                 fragment: Some(egui_wgpu::wgpu::FragmentState {
                     module: &shader,
@@ -638,12 +663,20 @@ impl PipelineState {
                     module: &shader,
                     entry_point: Some("vs_splat"),
                     compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<SplatVertex>()
-                            as egui_wgpu::wgpu::BufferAddress,
-                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
-                        attributes: &SPLAT_ATTRIBUTES,
-                    }],
+                    buffers: &[
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatCorner>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                            attributes: &SPLAT_CORNER_ATTRIBUTES,
+                        },
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatInstance>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Instance,
+                            attributes: &SPLAT_INSTANCE_ATTRIBUTES,
+                        },
+                    ],
                 },
                 fragment: Some(egui_wgpu::wgpu::FragmentState {
                     module: &shader,
@@ -680,12 +713,20 @@ impl PipelineState {
                     module: &shader,
                     entry_point: Some("vs_splat"),
                     compilation_options: egui_wgpu::wgpu::PipelineCompilationOptions::default(),
-                    buffers: &[egui_wgpu::wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<SplatVertex>()
-                            as egui_wgpu::wgpu::BufferAddress,
-                        step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
-                        attributes: &SPLAT_ATTRIBUTES,
-                    }],
+                    buffers: &[
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatCorner>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Vertex,
+                            attributes: &SPLAT_CORNER_ATTRIBUTES,
+                        },
+                        egui_wgpu::wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<SplatInstance>()
+                                as egui_wgpu::wgpu::BufferAddress,
+                            step_mode: egui_wgpu::wgpu::VertexStepMode::Instance,
+                            attributes: &SPLAT_INSTANCE_ATTRIBUTES,
+                        },
+                    ],
                 },
                 fragment: Some(egui_wgpu::wgpu::FragmentState {
                     module: &shader,
@@ -929,6 +970,14 @@ impl PipelineState {
             contents: bytemuck::cast_slice(&axes_vertices),
             usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
         });
+        let splat_corner_vertices = splat_corner_vertices();
+        let splat_corner_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_splat_corners"),
+                contents: bytemuck::cast_slice(&splat_corner_vertices),
+                usage: egui_wgpu::wgpu::BufferUsages::VERTEX,
+            });
+        let splat_corner_count = splat_corner_vertices.len() as u32;
 
         Self {
             mesh_pipeline,
@@ -988,8 +1037,10 @@ impl PipelineState {
             splat_color_cache_len: 0,
             splat_color_cache_sh0_is_coeff: false,
             splat_point_size: -1.0,
-            splat_buffers: Vec::new(),
-            splat_counts: Vec::new(),
+            splat_corner_buffer,
+            splat_corner_count,
+            splat_instance_buffers: Vec::new(),
+            splat_instance_counts: Vec::new(),
             splat_scissors: Vec::new(),
             splat_last_right: [0.0, 0.0, 0.0],
             splat_last_up: [0.0, 0.0, 0.0],

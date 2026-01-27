@@ -65,6 +65,9 @@ Status: done | in progress | not started
 - **R3**: Debug modes (opacity/scale/depth/overdraw) (done)
 - **R4**: SH evaluation degree 2/3 (done)
 - **R5**: Sorting strategy v2 (GPU/tile binning) (done)
+- **R6**: GPU OIT for splats (accum/reveal buffers + composite pass) (not started)
+- **R7**: Evaluate GPU-side sorting alternatives (not started)
+- **R8**: Performance/quality validation for OIT vs CPU sorting (not started)
 
 ## Epic N - Nodes
 - **N1**: Splat Read/Splat Write (PLY) (done)
