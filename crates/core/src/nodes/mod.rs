@@ -47,6 +47,7 @@ pub mod splat_lod;
 pub mod splat_merge;
 pub mod splat_utils;
 pub mod splat_outlier;
+pub mod splat_outlier_sdf;
 pub mod sweep;
 pub mod volume_from_geo;
 pub mod volume_from_splats;

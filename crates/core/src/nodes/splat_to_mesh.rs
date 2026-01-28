@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use glam::{Mat3, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 use lin_alg::f32::Vec3 as McVec3;
 use mcubes::{MarchingCubes, MeshSide};
 
@@ -13,6 +13,7 @@ use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 use crate::volume::{Volume, VolumeKind};
+use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Splat to Mesh";
 
@@ -34,7 +35,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("splats")],
+        inputs: vec![geometry_in("splats"), geometry_in("sdf")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -130,10 +131,25 @@ pub fn apply_to_geometry(
     let Some(splats) = input.merged_splats() else {
         return Err("Splat to Mesh requires splat geometry on input 0".to_string());
     };
+    let external_sdf = if let Some(geo) = inputs.get(1) {
+        let Some(volume) = geo.volumes.first() else {
+            return Err("Splat to Mesh SDF input requires a volume".to_string());
+        };
+        if volume.kind != VolumeKind::Sdf {
+            return Err("Splat to Mesh SDF input requires an SDF volume".to_string());
+        }
+        Some(volume)
+    } else {
+        None
+    };
 
     let output_mode = params.get_int("output", DEFAULT_OUTPUT_MODE).clamp(0, 1);
     if output_mode == 1 {
-        let volume = splats_to_sdf(params, &splats)?;
+        let volume = if let Some(volume) = external_sdf {
+            volume.clone()
+        } else {
+            splats_to_sdf(params, &splats)?
+        };
         let mut meshes = Vec::new();
         if let Some(existing) = input.merged_mesh() {
             meshes.push(existing);
@@ -155,7 +171,12 @@ pub fn apply_to_geometry(
         });
     }
 
-    let mesh = splats_to_mesh(params, &splats)?;
+    let mesh = if let Some(volume) = external_sdf {
+        let iso = params.get_float("surface_iso", DEFAULT_SURFACE_ISO);
+        crate::nodes::volume_to_mesh::volume_to_mesh(volume, iso, false)?
+    } else {
+        splats_to_mesh(params, &splats)?
+    };
     let mut meshes = Vec::new();
     if let Some(existing) = input.merged_mesh() {
         if mesh.positions.is_empty() && mesh.indices.is_empty() {
@@ -265,6 +286,96 @@ fn splats_to_sdf(params: &NodeParams, splats: &SplatGeo) -> Result<Volume, Strin
     );
     volume.sdf_band = grid.spec.dx.max(1.0e-6) * 2.0;
     Ok(volume)
+}
+
+pub(crate) fn sdf_grid_from_volume(
+    volume: &Volume,
+    target_spec: Option<&GridSpec>,
+) -> Result<SplatGrid, String> {
+    if volume.kind != VolumeKind::Sdf {
+        return Err("Expected SDF volume".to_string());
+    }
+    let spec = if let Some(spec) = target_spec {
+        GridSpec {
+            min: spec.min,
+            dx: spec.dx,
+            nx: spec.nx,
+            ny: spec.ny,
+            nz: spec.nz,
+        }
+    } else {
+        grid_spec_from_volume(volume)
+    };
+    let iso = 0.0;
+    let inside_is_greater = false;
+    if spec.nx == 0 || spec.ny == 0 || spec.nz == 0 {
+        return Ok(SplatGrid {
+            values: Vec::new(),
+            color_grid: None,
+            spec,
+            iso,
+            inside_is_greater,
+        });
+    }
+
+    let values = if target_spec.is_none()
+        && volume_matches_spec(volume, &spec)
+        && volume.transform == Mat4::IDENTITY
+    {
+        volume.values.clone()
+    } else {
+        sample_volume_to_grid(volume, &spec)
+    };
+
+    Ok(SplatGrid {
+        values,
+        color_grid: None,
+        spec,
+        iso,
+        inside_is_greater,
+    })
+}
+
+fn grid_spec_from_volume(volume: &Volume) -> GridSpec {
+    GridSpec {
+        min: Vec3::from(volume.origin),
+        dx: volume.voxel_size.max(1.0e-6),
+        nx: volume.dims[0] as usize,
+        ny: volume.dims[1] as usize,
+        nz: volume.dims[2] as usize,
+    }
+}
+
+fn volume_matches_spec(volume: &Volume, spec: &GridSpec) -> bool {
+    let origin = Vec3::from(volume.origin);
+    volume.dims[0] as usize == spec.nx
+        && volume.dims[1] as usize == spec.ny
+        && volume.dims[2] as usize == spec.nz
+        && (volume.voxel_size - spec.dx).abs() < 1.0e-6
+        && (origin - spec.min).length() < 1.0e-4
+}
+
+fn sample_volume_to_grid(volume: &Volume, spec: &GridSpec) -> Vec<f32> {
+    let total = spec.nx * spec.ny * spec.nz;
+    if total == 0 {
+        return Vec::new();
+    }
+    let mut values = vec![0.0f32; total];
+    let sampler = VolumeSampler::new(volume);
+    let nx = spec.nx;
+    let ny = spec.ny;
+    let slice = nx * ny;
+    let min = spec.min;
+    let dx = spec.dx;
+    parallel::for_each_indexed_mut(&mut values, |idx, slot| {
+        let iz = idx / slice;
+        let rem = idx - iz * slice;
+        let iy = rem / nx;
+        let ix = rem - iy * nx;
+        let pos = min + Vec3::new(ix as f32 * dx, iy as f32 * dx, iz as f32 * dx);
+        *slot = sampler.sample_world(pos);
+    });
+    values
 }
 
 pub(crate) fn build_splat_grid(

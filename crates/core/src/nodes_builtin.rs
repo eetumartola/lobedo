@@ -32,6 +32,7 @@ pub enum BuiltinNodeKind {
     SplatIntegrate,
     SplatHeal,
     SplatOutlier,
+    MeshOutliersSdf,
     SplatCluster,
     SplatMerge,
     VolumeFromGeometry,
@@ -401,7 +402,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_geometry: nodes::splat_to_mesh::apply_to_geometry,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatDeform,
@@ -457,7 +458,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_geometry: apply_splat_heal,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatOutlier,
@@ -469,6 +470,20 @@ static NODE_SPECS: &[NodeSpec] = &[
         param_specs: nodes::splat_outlier::param_specs,
         compute_mesh: nodes::splat_outlier::compute,
         compute_geometry: apply_splat_outlier,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::MeshOutliersSdf,
+        id: "builtin:mesh_outliers_sdf",
+        name: nodes::splat_outlier_sdf::NAME,
+        aliases: &[],
+        definition: nodes::splat_outlier_sdf::definition,
+        default_params: nodes::splat_outlier_sdf::default_params,
+        param_specs: nodes::splat_outlier_sdf::param_specs,
+        compute_mesh: nodes::splat_outlier_sdf::compute,
+        compute_geometry: apply_mesh_outliers_sdf,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
@@ -1411,6 +1426,10 @@ fn apply_splat_outlier(params: &NodeParams, inputs: &[Geometry]) -> Result<Geome
     apply_splat_only(params, inputs, |params, splat| {
         Ok(nodes::splat_outlier::apply_to_splats(params, splat))
     })
+}
+
+fn apply_mesh_outliers_sdf(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    nodes::splat_outlier_sdf::apply_to_geometry(params, inputs)
 }
 
 fn apply_splat_cluster(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

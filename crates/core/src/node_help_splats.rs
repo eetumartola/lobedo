@@ -93,8 +93,12 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "Density (Iso) voxelizes Gaussian density and extracts a surface with marching cubes.",
                 "Ellipsoid (Smooth Min) blends analytic ellipsoids; it can be noisy for meshes but useful for SDFs.",
                 "Use Output to choose Mesh or SDF Volume depending on downstream needs.",
+                "If an SDF input is connected, it replaces the internal SDF build.",
             ],
-            inputs: &["splats: Splat geometry."],
+            inputs: &[
+                "splats: Splat geometry.",
+                "sdf: Optional SDF volume to use instead of internal conversion.",
+            ],
             outputs: &["out: Mesh or SDF volume."],
             parameters: &[
                 ("output", "Output type: Mesh extracts a surface; SDF Volume outputs a signed distance grid."),
@@ -198,7 +202,10 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "SDF Patch evaluates an ellipsoid SDF band and places splats near the implied surface while skipping occupied voxels.",
                 "Use Heal Bounds to limit work to a box or sphere; Preview Surface can output a debug mesh of the healed surface.",
             ],
-            inputs: &["in: Splat geometry."],
+            inputs: &[
+                "in: Splat geometry.",
+                "sdf: Optional SDF volume for SDF Patch and preview.",
+            ],
             outputs: &["out: Healed splats (original + new)."],
             parameters: &[
                 ("group", "Optional group to restrict healing."),
@@ -243,6 +250,26 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 ("eps", "Neighborhood radius for clustering (<= 0 uses auto spacing)."),
                 ("min_pts", "Minimum neighbors for a core splat."),
                 ("min_cluster_size", "Remove clusters smaller than this size (0 disables)."),
+            ],
+        }),
+        BuiltinNodeKind::MeshOutliersSdf => Some(NodeHelpPage {
+            name: "Mesh Outliers SDF",
+            description: &[
+                "Cull splats that are too far from an SDF surface.",
+                "Distance is measured as the absolute SDF value in world units.",
+                "Useful for trimming splats that drift away from a clean surface.",
+            ],
+            inputs: &[
+                "splats: Splat geometry to filter.",
+                "sdf: SDF volume used for distance checks.",
+            ],
+            outputs: &["out: Filtered splats."],
+            parameters: &[
+                ("group", "Optional group to restrict culling."),
+                ("group_type", "Group domain to use."),
+                ("threshold", "Maximum allowed distance from the SDF iso."),
+                ("iso", "SDF iso value to measure from (0 = surface)."),
+                ("abs_distance", "Use absolute distance from iso (default off)."),
             ],
         }),
         BuiltinNodeKind::SplatCluster => Some(NodeHelpPage {

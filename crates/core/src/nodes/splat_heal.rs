@@ -6,12 +6,15 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::splat_to_mesh::{build_splat_grid, GridSpec, SplatOutputMode};
+use crate::nodes::splat_to_mesh::{
+    build_splat_grid, sdf_grid_from_volume, GridSpec, SplatOutputMode,
+};
 use crate::nodes::splat_utils::{split_splats_by_group, SpatialHash};
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
 
 pub const NAME: &str = "Splat Heal";
 
@@ -44,7 +47,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("in")],
+        inputs: vec![geometry_in("in"), geometry_in("sdf")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -201,6 +204,17 @@ pub fn apply_to_geometry(
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
+    let external_sdf = if let Some(geo) = inputs.get(1) {
+        let Some(volume) = geo.volumes.first() else {
+            return Err("Splat Heal SDF input requires a volume".to_string());
+        };
+        if volume.kind != VolumeKind::Sdf {
+            return Err("Splat Heal SDF input requires an SDF volume".to_string());
+        }
+        Some(volume)
+    } else {
+        None
+    };
 
     let mut meshes = Vec::new();
     if let Some(mesh) = input.merged_mesh() {
@@ -208,12 +222,12 @@ pub fn apply_to_geometry(
     }
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
-        splats.push(apply_to_splats(params, splat)?);
+        splats.push(apply_to_splats(params, splat, external_sdf)?);
     }
 
     if params.get_bool("preview_surface", DEFAULT_PREVIEW_SURFACE) {
         if let Some(splat) = input.merged_splats() {
-            if let Ok(Some(preview)) = build_preview_surface(params, &splat) {
+            if let Ok(Some(preview)) = build_preview_surface(params, &splat, external_sdf) {
                 meshes.push(preview);
             }
         }
@@ -233,7 +247,11 @@ pub fn apply_to_geometry(
     })
 }
 
-pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGeo, String> {
+pub fn apply_to_splats(
+    params: &NodeParams,
+    splats: &SplatGeo,
+    external_sdf: Option<&Volume>,
+) -> Result<SplatGeo, String> {
     if splats.is_empty() {
         return Ok(splats.clone());
     }
@@ -252,7 +270,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
 
     let method = params.get_int("method", DEFAULT_METHOD).clamp(0, 1);
     let new_splats = match method {
-        1 => heal_sdf_patch(params, &source)?,
+        1 => heal_sdf_patch(params, &source, external_sdf)?,
         _ => heal_voxel_close(params, &source)?,
     };
     if new_splats.is_empty() {
@@ -316,15 +334,24 @@ fn heal_voxel_close(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSpl
     ))
 }
 
-fn heal_sdf_patch(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSplat>, String> {
+fn heal_sdf_patch(
+    params: &NodeParams,
+    source: &SplatGeo,
+    external_sdf: Option<&Volume>,
+) -> Result<Vec<NewSplat>, String> {
     let density = build_density_grid(params, source)?;
     if density.values.is_empty() {
         return Ok(Vec::new());
     }
-    let sdf = build_sdf_grid(params, source)?;
-    if !grid_spec_matches(&density.spec, &sdf.spec) {
-        return Err("Splat Heal: density/SDF grids have mismatched resolution".to_string());
-    }
+    let sdf = if let Some(volume) = external_sdf {
+        sdf_grid_from_volume(volume, Some(&density.spec))?
+    } else {
+        let sdf = build_sdf_grid(params, source)?;
+        if !grid_spec_matches(&density.spec, &sdf.spec) {
+            return Err("Splat Heal: density/SDF grids have mismatched resolution".to_string());
+        }
+        sdf
+    };
 
     let mut candidates = vec![0u8; density.values.len()];
     let mut band = params.get_float("sdf_band", DEFAULT_SDF_BAND);
@@ -368,6 +395,7 @@ fn heal_sdf_patch(params: &NodeParams, source: &SplatGeo) -> Result<Vec<NewSplat
 fn build_preview_surface(
     params: &NodeParams,
     splats: &SplatGeo,
+    external_sdf: Option<&Volume>,
 ) -> Result<Option<Mesh>, String> {
     if splats.is_empty() {
         return Ok(None);
@@ -375,6 +403,10 @@ fn build_preview_surface(
     let method = params.get_int("method", DEFAULT_METHOD).clamp(0, 1);
     match method {
         1 => {
+            if let Some(volume) = external_sdf {
+                let mesh = crate::nodes::volume_to_mesh::volume_to_mesh(volume, 0.0, false)?;
+                return Ok(Some(mesh));
+            }
             let sdf = build_sdf_grid(params, splats)?;
             if sdf.values.is_empty() {
                 return Ok(None);
