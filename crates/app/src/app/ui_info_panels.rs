@@ -18,6 +18,7 @@ impl LobedoApp {
             let hover_pos = ctx.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.latest_pos()));
             if let Some(pos) = hover_pos {
                 if let Some(node_id) = self.node_graph.node_at_screen_pos(pos) {
+                    self.queue_info_eval(node_id);
                     self.held_info_panel = Some(NodeInfoPanel {
                         node_id,
                         screen_pos: pos,
@@ -32,6 +33,7 @@ impl LobedoApp {
         }
 
         if let Some(request) = self.node_graph.take_info_request() {
+            self.queue_info_eval(request.node_id);
             self.info_panel = Some(NodeInfoPanel {
                 node_id: request.node_id,
                 screen_pos: request.screen_pos,

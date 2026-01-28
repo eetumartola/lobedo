@@ -27,6 +27,7 @@ impl LobedoApp {
         self.fit_nodes_on_load = false;
         self.undo_stack.clear();
         self.pending_undo = None;
+        self.pending_info_nodes.clear();
         self.eval_dirty = true;
         self.pending_scene = None;
         self.last_scene = None;
@@ -216,6 +217,7 @@ impl LobedoApp {
         self.fit_nodes_on_load = true;
         self.undo_stack.clear();
         self.pending_undo = None;
+        self.pending_info_nodes.clear();
         self.eval_dirty = true;
         self.pending_scene = None;
         self.last_scene = None;

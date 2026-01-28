@@ -1,7 +1,9 @@
 use egui::Ui;
 use std::collections::HashSet;
 
-use lobedo_core::{param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams};
+use lobedo_core::{
+    param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams, ParamWidget,
+};
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
 use super::params::{edit_group_row, edit_param, edit_param_with_spec};
@@ -237,19 +239,123 @@ impl NodeGraphState {
         changed
     }
 
-    pub fn inspector_row_count(&self, graph: &Graph) -> usize {
+    pub fn inspector_desired_height(&self, graph: &Graph) -> f32 {
+        let row_height = 36.0;
+        let separator_height = 8.0;
+        let item_spacing = 6.0;
         let Some(node_id) = self.selected_node else {
-            return 1;
+            return row_height;
         };
         let Some(node) = graph.node(node_id) else {
-            return 1;
+            return row_height;
         };
-        let count = node.params.values.len();
-        if count == 0 {
-            1
+
+        let node_name = node.name.clone();
+        let node_kind = node.builtin_kind();
+        let param_values = node.params.values.clone();
+        let visible_params = NodeParams {
+            values: param_values.clone(),
+        };
+        let param_specs = if !node.kind_id.is_empty() {
+            param_specs_for_kind_id(&node.kind_id)
         } else {
-            count
+            param_specs_for_name(&node_name)
+        };
+
+        let mut heights = Vec::new();
+        let mut spec_keys = HashSet::new();
+        let should_skip = |key: &str| -> bool {
+            if matches!(node_kind, Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete))
+                && key == "selection"
+            {
+                return true;
+            }
+            if node_kind == Some(BuiltinNodeKind::VolumeFromGeometry) && key == "voxel_size" {
+                return true;
+            }
+            false
+        };
+
+        let group_value = param_values.get("group").cloned();
+        let group_type_value = param_values.get("group_type").cloned();
+        if group_value.is_some() {
+            heights.push(row_height);
+            spec_keys.insert("group".to_string());
+            if group_type_value.is_some()
+                || param_specs.iter().any(|spec| spec.key == "group_type")
+            {
+                spec_keys.insert("group_type".to_string());
+            }
         }
+
+        let row_height_for_spec = |spec: &lobedo_core::ParamSpec| match spec.widget {
+            ParamWidget::Gradient => 112.0,
+            ParamWidget::Code => 120.0,
+            _ => row_height,
+        };
+
+        if !param_specs.is_empty() {
+            for spec in &param_specs {
+                let Some(_value) = param_values.get(spec.key) else {
+                    continue;
+                };
+                if spec_keys.contains(spec.key) {
+                    continue;
+                }
+                spec_keys.insert(spec.key.to_string());
+                if !spec.is_visible(&visible_params) {
+                    continue;
+                }
+                heights.push(row_height_for_spec(spec));
+            }
+            if param_values.len() > spec_keys.len() {
+                heights.push(separator_height);
+            }
+        }
+
+        let mut param_keys: Vec<String> = param_values
+            .keys()
+            .filter(|key| !spec_keys.contains(*key))
+            .cloned()
+            .collect();
+        param_keys.sort_by(|a, b| {
+            let priority = |key: &str| match key {
+                "group" => 0,
+                "group_type" => 1,
+                _ => 2,
+            };
+            let pa = priority(a);
+            let pb = priority(b);
+            pa.cmp(&pb).then_with(|| a.cmp(b))
+        });
+        for key in param_keys {
+            if should_skip(&key) {
+                continue;
+            }
+            heights.push(row_height);
+        }
+
+        if matches!(
+            node_kind,
+            Some(
+                BuiltinNodeKind::ObjOutput
+                    | BuiltinNodeKind::GltfOutput
+                    | BuiltinNodeKind::WriteSplats
+            )
+        ) {
+            heights.push(separator_height);
+            heights.push(row_height);
+            if cfg!(target_arch = "wasm32") {
+                heights.push(row_height);
+            }
+        }
+
+        if heights.is_empty() {
+            return row_height;
+        }
+
+        let rows = heights.len() as f32;
+        heights.iter().sum::<f32>() + item_spacing * (rows - 1.0).max(0.0)
     }
 }
 

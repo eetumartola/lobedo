@@ -68,6 +68,38 @@ impl LobedoApp {
         self.last_param_change = Some(Instant::now());
     }
 
+    pub(super) fn queue_info_eval(&mut self, node_id: NodeId) {
+        if self.eval_state.geometry_for_node(node_id).is_some() {
+            return;
+        }
+        if self.eval_job.is_some() {
+            self.pending_info_nodes.insert(node_id);
+            return;
+        }
+        self.cook_info_node(node_id);
+    }
+
+    fn cook_pending_info_nodes(&mut self) {
+        if self.eval_job.is_some() || self.pending_info_nodes.is_empty() {
+            return;
+        }
+        let nodes: Vec<NodeId> = self.pending_info_nodes.drain().collect();
+        for node_id in nodes {
+            self.cook_info_node(node_id);
+        }
+    }
+
+    fn cook_info_node(&mut self, node_id: NodeId) {
+        if self.eval_state.geometry_for_node(node_id).is_some() {
+            return;
+        }
+        if let Err(err) =
+            lobedo_core::evaluate_geometry_graph(&self.project.graph, node_id, &mut self.eval_state)
+        {
+            tracing::warn!("node info eval failed for {node_id:?}: {err:?}");
+        }
+    }
+
     pub(super) fn evaluate_if_needed(&mut self, ctx: &egui::Context) {
         let url_revision = lobedo_core::url_revision();
         if url_revision != self.last_url_revision {
@@ -223,6 +255,7 @@ impl LobedoApp {
             || self.project.graph.display_node() != Some(result.display_node)
         {
             self.eval_dirty = true;
+            self.cook_pending_info_nodes();
             return;
         }
 
@@ -243,6 +276,7 @@ impl LobedoApp {
             self.last_scene = None;
             self.last_template_mesh = None;
         }
+        self.cook_pending_info_nodes();
     }
 
     pub(super) fn apply_scene(&mut self, scene: RenderScene) {

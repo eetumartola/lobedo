@@ -6,7 +6,7 @@
     "node_params_split": 0.27685785,
     "panels": {
       "show_inspector": true,
-      "show_spreadsheet": true,
+      "show_spreadsheet": false,
       "show_debug": false,
       "show_console": false
     },

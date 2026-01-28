@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU8;
 use std::sync::Arc;
@@ -70,6 +71,7 @@ pub(crate) struct LobedoApp {
     info_panel: Option<NodeInfoPanel>,
     held_info_panel: Option<NodeInfoPanel>,
     wrangle_help_panel: Option<WrangleHelpPanel>,
+    pending_info_nodes: HashSet<lobedo_core::NodeId>,
     undo_stack: UndoStack,
     pending_undo: Option<UndoSnapshot>,
     spreadsheet_mode: SpreadsheetMode,
@@ -121,6 +123,7 @@ impl LobedoApp {
             info_panel: None,
             held_info_panel: None,
             wrangle_help_panel: None,
+            pending_info_nodes: HashSet::new(),
             undo_stack: UndoStack::new(),
             pending_undo: None,
             spreadsheet_mode: SpreadsheetMode::Mesh,
@@ -184,6 +187,7 @@ impl LobedoApp {
         self.eval_dirty = true;
         self.last_param_change = None;
         self.info_panel = None;
+        self.pending_info_nodes.clear();
     }
 
     fn update_window_title(&mut self, ctx: &egui::Context) {

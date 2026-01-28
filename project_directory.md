@@ -2,15 +2,15 @@
 
 ## crates/app/src/app.rs
 Description: App module.
-Functions: `setup_tracing` (L88-L90), `new` (L93-L132), `set_log_level` (L134-L144), `snapshot_undo` (L146-L153), `queue_undo_snapshot` (L155-L163), `flush_pending_undo` (L165-L169), `restore_snapshot` (L171-L187), `update_window_title` (L189-L204), `try_undo` (L206-L212), `try_redo` (L214-L220)
+Functions: `setup_tracing` (L90-L92), `new` (L95-L135), `set_log_level` (L137-L147), `snapshot_undo` (L149-L156), `queue_undo_snapshot` (L158-L166), `flush_pending_undo` (L168-L172), `restore_snapshot` (L174-L191), `update_window_title` (L193-L208), `try_undo` (L210-L216), `try_redo` (L218-L224)
 
 ## crates/app/src/app/eval.rs
 Description: Eval module.
-Functions: `refresh_dirty_nodes` (L47-L64), `mark_eval_dirty` (L66-L69), `evaluate_if_needed` (L71-L115), `evaluate_graph` (L117-L152), `poll_eval_job` (L154-L173), `start_eval_job` (L176-L217), `apply_eval_result` (L219-L246), `apply_scene` (L248-L255), `sync_selection_overlay` (L257-L296), `viewport_debug` (L298-L340), `viewport_fps` (L342-L353), `run_eval_job` (L356-L433), `scene_to_render_with_template` (L435-L464), `render_mesh_from_mesh` (L466-L468), `render_materials_from_scene` (L487-L536), `load_render_texture` (L538-L574), `texture_cache_token` (L576-L593), `load_texture_bytes` (L595-L607), `collect_template_meshes` (L609-L644), `splat_merge_preview_mesh` (L646-L675), `merge_optional_meshes` (L677-L684), `merge_error_state` (L686-L708), `selection_shape_for_node` (L710-L743), `selection_shape_from_params` (L745-L777)
+Functions: `refresh_dirty_nodes` (L47-L64), `mark_eval_dirty` (L66-L69), `queue_info_eval` (L71-L80), `cook_pending_info_nodes` (L82-L90), `cook_info_node` (L92-L101), `evaluate_if_needed` (L103-L147), `evaluate_graph` (L149-L184), `poll_eval_job` (L186-L205), `start_eval_job` (L208-L249), `apply_eval_result` (L251-L280), `apply_scene` (L282-L289), `sync_selection_overlay` (L291-L330), `viewport_debug` (L332-L374), `viewport_fps` (L376-L387), `run_eval_job` (L390-L467), `scene_to_render_with_template` (L469-L498), `render_mesh_from_mesh` (L500-L502), `render_materials_from_scene` (L521-L570), `load_render_texture` (L572-L608), `texture_cache_token` (L610-L627), `load_texture_bytes` (L629-L641), `collect_template_meshes` (L643-L678), `splat_merge_preview_mesh` (L680-L709), `merge_optional_meshes` (L711-L718), `merge_error_state` (L720-L742), `selection_shape_for_node` (L744-L777), `selection_shape_from_params` (L779-L811)
 
 ## crates/app/src/app/io.rs
 Description: Io module.
-Functions: `new_project` (L23-L35), `save_project_to` (L38-L42), `save_project_to` (L46-L51), `load_project_from` (L54-L57), `load_project_from` (L61-L66), `try_load_default_graph` (L68-L95), `handle_write_request` (L98-L100), `handle_write_request` (L103-L165), `open_project_dialog` (L168-L183), `save_project_dialog` (L186-L202), `load_project_from_bytes` (L204-L224)
+Functions: `new_project` (L23-L36), `save_project_to` (L39-L43), `save_project_to` (L47-L52), `load_project_from` (L55-L58), `load_project_from` (L62-L67), `try_load_default_graph` (L69-L96), `handle_write_request` (L99-L101), `handle_write_request` (L104-L166), `open_project_dialog` (L169-L184), `save_project_dialog` (L187-L203), `load_project_from_bytes` (L205-L226)
 
 ## crates/app/src/app/logging.rs
 Description: Logging module.
@@ -30,11 +30,11 @@ Functions: `update` (L6-L27)
 
 ## crates/app/src/app/ui_central.rs
 Description: Ui Central module.
-Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L482), `show_node_params_panel` (L484-L556), `show_node_graph_panel` (L558-L640), `show_splat_read_params` (L642-L672), `show_uv_view_params` (L674-L744), `mesh_corner_uvs` (L747-L747), `uv_bounds` (L782-L782), `sh_order_label` (L794-L803), `toggle_curve_draw` (L805-L811), `toggle_curve_edit` (L813-L819), `toggle_ffd_edit` (L821-L827), `toggle_group_select` (L829-L835), `selection_count` (L837-L845)
+Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L487), `show_node_params_panel` (L489-L561), `show_node_graph_panel` (L563-L645), `show_splat_read_params` (L647-L677), `show_uv_view_params` (L679-L749), `mesh_corner_uvs` (L752-L752), `uv_bounds` (L787-L787), `sh_order_label` (L799-L808), `toggle_curve_draw` (L810-L816), `toggle_curve_edit` (L818-L824), `toggle_ffd_edit` (L826-L832), `toggle_group_select` (L834-L840), `selection_count` (L842-L850)
 
 ## crates/app/src/app/ui_info_panels.rs
 Description: Ui Info Panels module.
-Functions: `handle_info_panels` (L8-L54)
+Functions: `handle_info_panels` (L8-L56)
 
 ## crates/app/src/app/ui_inputs.rs
 Description: Ui Inputs module.
@@ -122,7 +122,7 @@ Functions: `default` (L94-L136), `hit_test` (L153-L158), `reset` (L187-L189), `e
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L11-L238), `inspector_row_count` (L240-L253)
+Functions: `show_inspector` (L13-L240), `inspector_desired_height` (L242-L359)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.

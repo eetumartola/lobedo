@@ -397,28 +397,33 @@ impl LobedoApp {
         undo_pushed: &mut bool,
     ) {
         let mut params_height = 0.0;
-        let separator_height = 1.0;
+        let separator_height = 6.0;
         let separator_drag_padding = 4.0;
-        let min_params = 140.0;
+        let min_params = 20.0;
+        let max_ratio = 0.85;
+        let max_auto_ratio = 0.6;
+        let min_ratio = if right_rect.height() > 0.0 {
+            (min_params / right_rect.height()).min(max_ratio)
+        } else {
+            0.0
+        };
         if self.project.settings.panels.show_inspector {
             let selected = self.node_graph.selected_node_id();
-            let rows = self.node_graph.inspector_row_count(&self.project.graph);
-            let row_height = 36.0;
-            let header_height = 46.0;
-            let padding = 40.0;
-            let desired_height = header_height + rows as f32 * row_height + padding;
-            let max = right_rect.height() * 0.85;
-            let target = desired_height.clamp(min_params, max.max(min_params));
-            if selected != self.last_selected_node
-                || (self.project.settings.node_params_split * right_rect.height()) < target
-            {
+            let content_height = self
+                .node_graph
+                .inspector_desired_height(&self.project.graph);
+            let header_height = 32.0;
+            let padding = 24.0;
+            let desired_height = header_height + content_height + padding;
+            let max = right_rect.height() * max_auto_ratio;
+            if selected != self.last_selected_node {
                 let clamped = desired_height.clamp(min_params, max.max(min_params));
                 self.project.settings.node_params_split =
-                    (clamped / right_rect.height()).clamp(0.1, 0.85);
+                    (clamped / right_rect.height()).clamp(min_ratio, max_auto_ratio);
                 self.last_selected_node = selected;
             }
             params_height = (right_rect.height()
-                * self.project.settings.node_params_split.clamp(0.1, 0.85))
+                * self.project.settings.node_params_split.clamp(min_ratio, max_ratio))
             .clamp(min_params, right_rect.height() * 0.85);
         }
         let params_ratio = if params_height > 0.0 { 1.0 } else { 0.0 };
@@ -461,17 +466,9 @@ impl LobedoApp {
                     let local =
                         (pos.y - right_rect.min.y).clamp(min_params, right_rect.height() * 0.85);
                     self.project.settings.node_params_split =
-                        (local / right_rect.height()).clamp(0.1, 0.85);
+                        (local / right_rect.height()).clamp(min_ratio, max_ratio);
                 }
             }
-            let stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(70, 70, 70));
-            ui.painter().line_segment(
-                [
-                    egui::pos2(separator_rect.left(), separator_rect.center().y),
-                    egui::pos2(separator_rect.right(), separator_rect.center().y),
-                ],
-                stroke,
-            );
         }
 
         if params_ratio > 0.0 {
@@ -479,6 +476,14 @@ impl LobedoApp {
         }
 
         self.show_node_graph_panel(ui, graph_rect, pointer_down, undo_pushed);
+
+        if params_ratio > 0.0 {
+            ui.painter().rect_filled(
+                separator_rect,
+                0.0,
+                egui::Color32::from_rgb(70, 70, 70),
+            );
+        }
     }
 
     fn show_node_params_panel(
