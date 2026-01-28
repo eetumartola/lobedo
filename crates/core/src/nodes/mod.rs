@@ -49,6 +49,7 @@ pub mod splat_utils;
 pub mod splat_outlier;
 pub mod sweep;
 pub mod volume_from_geo;
+pub mod volume_from_splats;
 pub mod volume_combine;
 pub mod volume_blur;
 pub mod volume_to_mesh;

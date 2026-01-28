@@ -35,6 +35,7 @@ pub enum BuiltinNodeKind {
     SplatCluster,
     SplatMerge,
     VolumeFromGeometry,
+    VolumeFromSplats,
     VolumeCombine,
     VolumeBlur,
     VolumeToMesh,
@@ -131,6 +132,10 @@ fn mesh_error_splat_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Me
 
 fn mesh_error_volume_from_geo(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Volume from Geometry outputs volume primitives, not meshes".to_string())
+}
+
+fn mesh_error_volume_from_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Volume from Splats outputs volume primitives, not meshes".to_string())
 }
 
 fn mesh_error_volume_combine(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -506,6 +511,20 @@ static NODE_SPECS: &[NodeSpec] = &[
         param_specs: nodes::volume_from_geo::param_specs,
         compute_mesh: mesh_error_volume_from_geo,
         compute_geometry: nodes::volume_from_geo::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Volume"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::VolumeFromSplats,
+        id: "builtin:volume_from_splats",
+        name: nodes::volume_from_splats::NAME,
+        aliases: &[],
+        definition: nodes::volume_from_splats::definition,
+        default_params: nodes::volume_from_splats::default_params,
+        param_specs: nodes::volume_from_splats::param_specs,
+        compute_mesh: mesh_error_volume_from_splats,
+        compute_geometry: nodes::volume_from_splats::apply_to_geometry,
         compute_splat: splat_error_not_output,
         menu_group: Some("Volume"),
         input_policy: InputPolicy::RequireAll,
