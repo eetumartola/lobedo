@@ -11,13 +11,16 @@ use crate::nodes::{
     geometry_out,
     group_utils::splat_group_mask,
     require_mesh_input,
-    splat_lighting_utils::{average_env_coeffs, estimate_splat_normals, selected},
+    splat_lighting_utils::{
+        average_env_coeffs, estimate_splat_normals, estimate_splat_normals_from_sdf, selected,
+    },
 };
 use crate::parallel;
 use crate::param_spec::ParamSpec;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
 
 pub const NAME: &str = "Splat Delight";
 
@@ -39,7 +42,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("splats"), geometry_in("env")],
+        inputs: vec![geometry_in("splats"), geometry_in("env"), geometry_in("sdf")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -140,7 +143,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         .with_help("Zero SH bands above this order."),
         ParamSpec::float_slider("albedo_max", "Albedo Max", 0.0, 4.0)
             .with_help("Maximum albedo clamp for irradiance divide.")
-            .visible_when_int("delight_mode", 2),
+            .visible_when_int_in("delight_mode", &[2, 3]),
     ]
 }
 
@@ -153,12 +156,13 @@ pub fn apply_to_splats_with_env(
     params: &NodeParams,
     splats: &SplatGeo,
     env_splats: Option<&SplatGeo>,
+    sdf: Option<&Volume>,
 ) -> SplatGeo {
     if splats.is_empty() {
         return splats.clone();
     }
     let mut output = splats.clone();
-    apply_to_splats_in_place(params, &mut output, env_splats);
+    apply_to_splats_in_place(params, &mut output, env_splats, sdf);
     output
 }
 
@@ -167,6 +171,17 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         return Ok(Geometry::default());
     };
     let env_splats = inputs.get(1).and_then(|geo| geo.merged_splats());
+    let sdf = if let Some(geo) = inputs.get(2) {
+        let Some(volume) = geo.volumes.first() else {
+            return Err("Splat Delight SDF input requires a volume".to_string());
+        };
+        if volume.kind != VolumeKind::Sdf {
+            return Err("Splat Delight SDF input requires an SDF volume".to_string());
+        }
+        Some(volume)
+    } else {
+        None
+    };
 
     let mut meshes = Vec::new();
     if let Some(mesh) = input.merged_mesh() {
@@ -174,7 +189,12 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     }
     let mut splats = Vec::with_capacity(input.splats.len());
     for splat in &input.splats {
-        splats.push(apply_to_splats_with_env(params, splat, env_splats.as_ref()));
+        splats.push(apply_to_splats_with_env(
+            params,
+            splat,
+            env_splats.as_ref(),
+            sdf,
+        ));
     }
     let curves = if meshes.is_empty() {
         Vec::new()
@@ -194,12 +214,13 @@ fn apply_to_splats_in_place(
     params: &NodeParams,
     splats: &mut SplatGeo,
     env_splats: Option<&SplatGeo>,
+    sdf: Option<&Volume>,
 ) {
     let Some(mask) = splat_group_mask(splats, params, AttributeDomain::Point) else {
-        apply_to_splats_internal(params, splats, None, env_splats);
+        apply_to_splats_internal(params, splats, None, env_splats, sdf);
         return;
     };
-    apply_to_splats_internal(params, splats, Some(&mask), env_splats);
+    apply_to_splats_internal(params, splats, Some(&mask), env_splats, sdf);
 }
 
 fn apply_to_splats_internal(
@@ -207,6 +228,7 @@ fn apply_to_splats_internal(
     splats: &mut SplatGeo,
     mask: Option<&[bool]>,
     env_splats: Option<&SplatGeo>,
+    sdf: Option<&Volume>,
 ) {
     let sh_coeffs = splats.sh_coeffs;
     let count = splats.len();
@@ -260,7 +282,11 @@ fn apply_to_splats_internal(
             let env_l2 = env_l2_from_coeffs(&source_env);
             let eps = eps_from_env(&env_l2, eps_scale);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
-            let normals = estimate_splat_normals(splats);
+            let normals = if let Some(volume) = sdf {
+                estimate_splat_normals_from_sdf(splats, volume)
+            } else {
+                estimate_splat_normals(splats)
+            };
 
             for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
@@ -288,6 +314,14 @@ fn apply_to_splats_internal(
             let eps = eps_from_env(&source_env, eps_scale);
             let (ratio_min, ratio_max) = ratio_bounds(params);
             let ratios = build_ratio_table(&source_env, &neutral_env, eps, ratio_min, ratio_max);
+            let use_sdf_normals = sdf.is_some();
+            let env_l2 = env_l2_from_coeffs(&source_env);
+            let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
+            let normals = if let Some(volume) = sdf {
+                estimate_splat_normals_from_sdf(splats, volume)
+            } else {
+                Vec::new()
+            };
 
             for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
@@ -295,12 +329,29 @@ fn apply_to_splats_internal(
                 }
                 if rest.is_empty() {
                     let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
-                    sh0[0] *= ratio[0];
-                    sh0[1] *= ratio[1];
-                    sh0[2] *= ratio[2];
+                    if use_sdf_normals {
+                        let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
+                        let irradiance = irradiance_from_env_l2(n, &env_l2);
+                        let avg = splat_dc_color_from(sh0, sh_coeffs);
+                        let albedo = clamp_color(divide_color(avg, irradiance, eps), 0.0, albedo_max);
+                        set_splat_dc_color_into(sh0, sh_coeffs, albedo);
+                    } else {
+                        sh0[0] *= ratio[0];
+                        sh0[1] *= ratio[1];
+                        sh0[2] *= ratio[2];
+                    }
                     return;
                 }
-                apply_ratio_to_arrays(sh0, rest, &ratios);
+                if use_sdf_normals {
+                    let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
+                    let irradiance = irradiance_from_env_l2(n, &env_l2);
+                    let avg = splat_dc_color_from(sh0, sh_coeffs);
+                    let albedo = clamp_color(divide_color(avg, irradiance, eps), 0.0, albedo_max);
+                    set_splat_dc_color_into(sh0, sh_coeffs, albedo);
+                    apply_ratio_to_sh_rest_slice(rest, &ratios);
+                } else {
+                    apply_ratio_to_arrays(sh0, rest, &ratios);
+                }
                 apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
                 clamp_sh_order_slice(rest, max_coeffs);
             });
@@ -352,6 +403,15 @@ fn apply_ratio_to_arrays(sh0: &mut [f32; 3], rest: &mut [[f32; 3]], ratios: &[[f
     sh0[0] *= ratio[0];
     sh0[1] *= ratio[1];
     sh0[2] *= ratio[2];
+    for (coeff, slot) in rest.iter_mut().enumerate() {
+        let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
+        slot[0] *= ratio[0];
+        slot[1] *= ratio[1];
+        slot[2] *= ratio[2];
+    }
+}
+
+fn apply_ratio_to_sh_rest_slice(rest: &mut [[f32; 3]], ratios: &[[f32; 3]]) {
     for (coeff, slot) in rest.iter_mut().enumerate() {
         let ratio = ratios.get(coeff + 1).copied().unwrap_or([1.0, 1.0, 1.0]);
         slot[0] *= ratio[0];

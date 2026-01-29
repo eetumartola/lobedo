@@ -11,13 +11,16 @@ use crate::nodes::{
     geometry_out,
     group_utils::splat_group_mask,
     require_mesh_input,
-    splat_lighting_utils::{average_env_coeffs, estimate_splat_normals, selected},
+    splat_lighting_utils::{
+        average_env_coeffs, estimate_splat_normals, estimate_splat_normals_from_sdf, selected,
+    },
 };
 use crate::parallel;
 use crate::param_spec::ParamSpec;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
 
 pub const NAME: &str = "Splat Integrate";
 
@@ -39,7 +42,7 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("source"), geometry_in("target")],
+        inputs: vec![geometry_in("source"), geometry_in("target"), geometry_in("sdf")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -154,6 +157,17 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     };
     let target = inputs.get(1);
     let target_splats = target.and_then(|geo| geo.merged_splats());
+    let sdf = if let Some(geo) = inputs.get(2) {
+        let Some(volume) = geo.volumes.first() else {
+            return Err("Splat Integrate SDF input requires a volume".to_string());
+        };
+        if volume.kind != VolumeKind::Sdf {
+            return Err("Splat Integrate SDF input requires an SDF volume".to_string());
+        }
+        Some(volume)
+    } else {
+        None
+    };
 
     let mut meshes = Vec::new();
     if let Some(mesh) = source.merged_mesh() {
@@ -162,7 +176,12 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
 
     let mut splats = Vec::with_capacity(source.splats.len());
     for splat in &source.splats {
-        splats.push(apply_to_splats(params, splat, target_splats.as_ref()));
+        splats.push(apply_to_splats(
+            params,
+            splat,
+            target_splats.as_ref(),
+            sdf,
+        ));
     }
 
     let curves = if meshes.is_empty() { Vec::new() } else { source.curves.clone() };
@@ -179,6 +198,7 @@ fn apply_to_splats(
     params: &NodeParams,
     splats: &SplatGeo,
     target: Option<&SplatGeo>,
+    sdf: Option<&Volume>,
 ) -> SplatGeo {
     if splats.is_empty() {
         return splats.clone();
@@ -186,7 +206,7 @@ fn apply_to_splats(
     let mut output = splats.clone();
     let mask = splat_group_mask(&output, params, AttributeDomain::Point);
     let mask = mask.as_deref();
-    apply_to_splats_internal(params, &mut output, mask, target);
+    apply_to_splats_internal(params, &mut output, mask, target, sdf);
     output
 }
 
@@ -195,6 +215,7 @@ fn apply_to_splats_internal(
     splats: &mut SplatGeo,
     mask: Option<&[bool]>,
     target: Option<&SplatGeo>,
+    sdf: Option<&Volume>,
 ) {
     let sh_coeffs = splats.sh_coeffs;
     let count = splats.len();
@@ -239,7 +260,11 @@ fn apply_to_splats_internal(
         1 => {
             let env_l2 = env_l2_from_coeffs(&target_env);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
-            let normals = estimate_splat_normals(splats);
+            let normals = if let Some(volume) = sdf {
+                estimate_splat_normals_from_sdf(splats, volume)
+            } else {
+                estimate_splat_normals(splats)
+            };
             for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
                     return;
@@ -263,7 +288,11 @@ fn apply_to_splats_internal(
         _ => {
             let env_l2 = env_l2_from_coeffs(&target_env);
             let albedo_max = params.get_float("albedo_max", 2.0).max(0.0);
-            let normals = estimate_splat_normals(splats);
+            let normals = if let Some(volume) = sdf {
+                estimate_splat_normals_from_sdf(splats, volume)
+            } else {
+                estimate_splat_normals(splats)
+            };
             for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
                 if !selected(mask, idx) {
                     return;

@@ -140,10 +140,13 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "Irradiance Divide estimates diffuse irradiance from SH and normals, then solves for per-splat albedo.",
                 "Env Splat uses the second input as the environment (for delighting a cut-out from a larger scan).",
                 "Uniform modes apply a constant environment; Custom uses the provided color.",
+                "An optional SDF input provides higher-quality normals for irradiance-based modes.",
+                "When SDF is connected in Env Splat mode, DC is derived from irradiance while higher bands use ratios.",
             ],
             inputs: &[
                 "in: Splat geometry.",
                 "env: Optional environment splats for Env Splat mode.",
+                "sdf: Optional SDF volume for improved normals.",
             ],
             outputs: &["out: Delit splats."],
             parameters: &[
@@ -171,10 +174,12 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "Diffuse replaces lighting using irradiance only (albedo-like relighting).",
                 "Hybrid relights DC via irradiance and preserves or scales higher bands.",
                 "Use the target splat input to transfer lighting from another scan.",
+                "An optional SDF input provides higher-quality normals for irradiance-based modes.",
             ],
             inputs: &[
                 "source: Splat geometry to relight.",
                 "target: Optional target splats for lighting.",
+                "sdf: Optional SDF volume for improved normals.",
             ],
             outputs: &["out: Relit splats."],
             parameters: &[
@@ -299,8 +304,13 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "Feather fades overlapping splats based on distance and blends the two inputs.",
                 "Skirt generates new bridging splats between nearby pairs to fill gaps at the seam.",
                 "Use seam parameters to control opacity, scale, and whether to use DC-only SH.",
+                "An optional SDF input can filter seam splats toward the surface.",
             ],
-            inputs: &["a: First splat model.", "b: Second splat model."],
+            inputs: &[
+                "a: First splat model.",
+                "b: Second splat model.",
+                "sdf: Optional SDF volume to guide seam placement.",
+            ],
             outputs: &["out: Merged splats."],
             parameters: &[
                 ("method", "Join method: Feather or Skirt."),
@@ -313,6 +323,10 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 ("seam_scale", "Scale multiplier for seam splats."),
                 ("seam_dc_only", "Use DC-only SH for seam splats."),
                 ("preview_skirt", "Preview skirt geometry as wireframe when selected."),
+                (
+                    "sdf_band_scale",
+                    "Scale the SDF band used to keep seam splats near the surface (0 disables).",
+                ),
             ],
         }),
         _ => None,

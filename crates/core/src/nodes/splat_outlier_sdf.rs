@@ -130,11 +130,11 @@ pub fn apply_to_splats(
     if !threshold.is_finite() {
         return Ok(splats.clone());
     }
-    if threshold < 0.0 {
-        threshold = 0.0;
-    }
     let iso = params.get_float("iso", DEFAULT_ISO);
     let use_abs = params.get_bool("abs_distance", DEFAULT_ABS);
+    if use_abs && threshold < 0.0 {
+        threshold = 0.0;
+    }
 
     let sampler = VolumeSampler::new(volume);
     let mut keep_flags = vec![true; splats.len()];

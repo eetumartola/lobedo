@@ -10,6 +10,8 @@ use crate::nodes::splat_utils::SpatialHash;
 use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
+use crate::volume_sampling::VolumeSampler;
 
 pub const NAME: &str = "Splat Merge";
 
@@ -23,12 +25,13 @@ const DEFAULT_SEAM_ALPHA: f32 = 0.5;
 const DEFAULT_SEAM_SCALE: f32 = 1.0;
 const DEFAULT_SEAM_DC_ONLY: bool = true;
 const DEFAULT_PREVIEW_SKIRT: bool = false;
+const DEFAULT_SDF_BAND_SCALE: f32 = 1.0;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("a"), geometry_in("b")],
+        inputs: vec![geometry_in("a"), geometry_in("b"), geometry_in("sdf")],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -46,6 +49,10 @@ pub fn default_params() -> NodeParams {
             ("seam_scale".to_string(), ParamValue::Float(DEFAULT_SEAM_SCALE)),
             ("seam_dc_only".to_string(), ParamValue::Bool(DEFAULT_SEAM_DC_ONLY)),
             ("preview_skirt".to_string(), ParamValue::Bool(DEFAULT_PREVIEW_SKIRT)),
+            (
+                "sdf_band_scale".to_string(),
+                ParamValue::Float(DEFAULT_SDF_BAND_SCALE),
+            ),
         ]),
     }
 }
@@ -79,6 +86,9 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::bool("preview_skirt", "Preview Skirt")
             .with_help("Preview skirt geometry as a wireframe when selected.")
             .visible_when_int("method", 1),
+        ParamSpec::float_slider("sdf_band_scale", "SDF Band Scale", 0.0, 10.0)
+            .with_help("Scale the SDF band used to keep seam splats near the surface (0 disables).")
+            .visible_when_int("method", 1),
     ]
 }
 
@@ -101,10 +111,21 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     let Some(splats_b) = target.merged_splats() else {
         return Err("Splat Merge requires splats on input 1".to_string());
     };
+    let sdf = if let Some(geo) = inputs.get(2) {
+        let Some(volume) = geo.volumes.first() else {
+            return Err("Splat Merge SDF input requires a volume".to_string());
+        };
+        if volume.kind != VolumeKind::Sdf {
+            return Err("Splat Merge SDF input requires an SDF volume".to_string());
+        }
+        Some(volume)
+    } else {
+        None
+    };
 
     let method = params.get_int("method", DEFAULT_METHOD).clamp(0, 1);
     let merged = match method {
-        1 => merge_skirt(params, &splats_a, &splats_b),
+        1 => merge_skirt(params, &splats_a, &splats_b, sdf),
         _ => merge_feather(params, &splats_a, &splats_b),
     };
 
@@ -155,7 +176,7 @@ fn merge_feather(params: &NodeParams, a: &SplatGeo, b: &SplatGeo) -> SplatGeo {
     crate::geometry::merge_splats(&[a_scaled, b_scaled])
 }
 
-fn merge_skirt(params: &NodeParams, a: &SplatGeo, b: &SplatGeo) -> SplatGeo {
+fn merge_skirt(params: &NodeParams, a: &SplatGeo, b: &SplatGeo, sdf: Option<&Volume>) -> SplatGeo {
     if a.is_empty() && b.is_empty() {
         return SplatGeo::default();
     }
@@ -184,7 +205,7 @@ fn merge_skirt(params: &NodeParams, a: &SplatGeo, b: &SplatGeo) -> SplatGeo {
         apply_weights(&mut b_scaled, &weights_b);
     }
 
-    let seam = build_skirt_splats(params, a, b, &nearest_a);
+    let seam = build_skirt_splats(params, a, b, &nearest_a, sdf);
     let mut merged = crate::geometry::merge_splats(&[a_scaled, b_scaled]);
     append_seam_splats(&mut merged, &seam);
     merged
@@ -260,6 +281,7 @@ fn build_skirt_splats(
     a: &SplatGeo,
     b: &SplatGeo,
     nearest: &[Option<NearestHit>],
+    sdf: Option<&Volume>,
 ) -> SplatGeo {
     let max_dist = params
         .get_float("skirt_max_dist", DEFAULT_SKIRT_MAX_DIST)
@@ -277,6 +299,13 @@ fn build_skirt_splats(
         .get_float("seam_scale", DEFAULT_SEAM_SCALE)
         .max(0.01);
     let dc_only = params.get_bool("seam_dc_only", DEFAULT_SEAM_DC_ONLY);
+    let sdf_band_scale = params
+        .get_float("sdf_band_scale", DEFAULT_SDF_BAND_SCALE)
+        .max(0.0);
+    let sdf_band = sdf
+        .map(|volume| volume.sdf_band.max(1.0e-6) * sdf_band_scale)
+        .unwrap_or(0.0);
+    let sdf_sampler = sdf.map(VolumeSampler::new);
 
     if a.is_empty() || b.is_empty() || max_dist <= 0.0 || max_new == 0 {
         return SplatGeo::default();
@@ -315,6 +344,20 @@ fn build_skirt_splats(
         for step_idx in 0..count {
             let t = (step_idx + 1) as f32 / (count + 1) as f32;
             let position = pos_a.lerp(pos_b, t);
+            let sdf_weight = if sdf_band > 0.0 {
+                if let Some(sampler) = sdf_sampler {
+                    let dist = sampler.sample_world(position).abs();
+                    let weight = 1.0 - smoothstep(0.0, sdf_band, dist);
+                    if weight <= 0.0 {
+                        continue;
+                    }
+                    weight
+                } else {
+                    1.0
+                }
+            } else {
+                1.0
+            };
             let rotation = rot_a.slerp(rot_b, t);
             let log_scale = scale_a.lerp(scale_b, t);
             let sigma = Vec3::new(
@@ -329,7 +372,7 @@ fn build_skirt_splats(
             );
 
             let profile = 1.0 - (2.0 * t - 1.0).abs();
-            let alpha = (seam_alpha * profile).clamp(1.0e-4, 1.0 - 1.0e-4);
+            let alpha = (seam_alpha * profile * sdf_weight).clamp(1.0e-4, 1.0 - 1.0e-4);
             let op = logit(alpha);
 
             let sh0_a = a.sh0.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
@@ -613,7 +656,7 @@ mod tests {
                 ("skirt_max_new".to_string(), ParamValue::Int(3)),
             ]),
         };
-        let merged = merge_skirt(&params, &a, &b);
+        let merged = merge_skirt(&params, &a, &b, None);
         assert!(merged.len() >= 2);
     }
 }

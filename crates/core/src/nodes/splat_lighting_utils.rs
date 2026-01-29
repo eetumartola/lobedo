@@ -1,7 +1,10 @@
 use glam::{Quat, Vec3};
 
 use crate::attributes::{AttributeDomain, AttributeRef};
+use crate::parallel;
 use crate::splat::SplatGeo;
+use crate::volume::{Volume, VolumeKind};
+use crate::volume_sampling::VolumeSampler;
 
 pub fn selected(mask: Option<&[bool]>, idx: usize) -> bool {
     mask.map(|mask| mask.get(idx).copied().unwrap_or(false))
@@ -82,4 +85,35 @@ pub fn estimate_splat_normals(splats: &SplatGeo) -> Vec<Vec3> {
             normal
         })
         .collect()
+}
+
+pub fn estimate_splat_normals_from_sdf(splats: &SplatGeo, volume: &Volume) -> Vec<Vec3> {
+    if splats.is_empty() {
+        return Vec::new();
+    }
+    if volume.kind != VolumeKind::Sdf {
+        return estimate_splat_normals(splats);
+    }
+
+    let step = volume.voxel_size.max(1.0e-3);
+    let mut normals = vec![Vec3::Y; splats.len()];
+    let sampler = VolumeSampler::new(volume);
+    let dx = Vec3::new(step, 0.0, 0.0);
+    let dy = Vec3::new(0.0, step, 0.0);
+    let dz = Vec3::new(0.0, 0.0, step);
+
+    parallel::for_each_indexed_mut(&mut normals, |idx, slot| {
+        let pos = Vec3::from(splats.positions[idx]);
+        let gx = sampler.sample_world(pos + dx) - sampler.sample_world(pos - dx);
+        let gy = sampler.sample_world(pos + dy) - sampler.sample_world(pos - dy);
+        let gz = sampler.sample_world(pos + dz) - sampler.sample_world(pos - dz);
+        let grad = Vec3::new(gx, gy, gz);
+        if grad.length_squared().is_finite() && grad.length_squared() > 1.0e-12 {
+            *slot = grad.normalize();
+        } else {
+            *slot = Vec3::Y;
+        }
+    });
+
+    normals
 }

@@ -218,7 +218,7 @@ Functions: `node_help_page` (L5-L53)
 
 ## crates/core/src/node_help_splats.rs
 Description: Node Help Splats module.
-Functions: `node_help_page` (L5-L320)
+Functions: `node_help_page` (L5-L334)
 
 ## crates/core/src/node_help_volumes.rs
 Description: Node Help Volumes module.
@@ -406,7 +406,7 @@ Functions: `definition` (L22-L29), `default_params` (L31-L41), `param_specs` (L4
 
 ## crates/core/src/nodes/splat_delight.rs
 Description: Splat Delight module.
-Functions: `definition` (L38-L45), `default_params` (L47-L71), `param_specs` (L73-L145), `compute` (L147-L150), `apply_to_splats_with_env` (L152-L163), `apply_to_geometry` (L165-L191), `apply_to_splats_in_place` (L193-L203), `apply_to_splats_internal` (L205-L312), `sh_coeffs_for_order` (L314-L321), `zero_sh_rest_slice` (L323-L323), `clamp_sh_order_slice` (L329-L329), `apply_high_band_gain_slice` (L338-L338), `apply_ratio_to_arrays` (L350-L350), `for_each_splat_mut` (L363-L364), `ratio_bounds` (L395-L408), `build_ratio_table` (L410-L411), `build_env_coeffs` (L440-L445), `match_env_coeffs` (L466-L466), `uniform_env_coeffs` (L480-L480), `eps_from_env` (L493-L493), `env_l2_from_coeffs` (L509-L509), `irradiance_from_env_l2` (L519-L519), `splat_dc_color_from` (L551-L551), `set_splat_dc_color_into` (L561-L561), `divide_color` (L570-L570), `clamp_color` (L583-L583), `band0_only_clears_sh_rest` (L606-L619), `irradiance_divide_updates_dc` (L622-L633)
+Functions: `definition` (L41-L48), `default_params` (L50-L74), `param_specs` (L76-L148), `compute` (L150-L153), `apply_to_splats_with_env` (L155-L167), `apply_to_geometry` (L169-L211), `apply_to_splats_in_place` (L213-L224), `apply_to_splats_internal` (L226-L363), `sh_coeffs_for_order` (L365-L372), `zero_sh_rest_slice` (L374-L374), `clamp_sh_order_slice` (L380-L380), `apply_high_band_gain_slice` (L389-L389), `apply_ratio_to_arrays` (L401-L401), `apply_ratio_to_sh_rest_slice` (L414-L414), `for_each_splat_mut` (L423-L424), `ratio_bounds` (L455-L468), `build_ratio_table` (L470-L471), `build_env_coeffs` (L500-L505), `match_env_coeffs` (L526-L526), `uniform_env_coeffs` (L540-L540), `eps_from_env` (L553-L553), `env_l2_from_coeffs` (L569-L569), `irradiance_from_env_l2` (L579-L579), `splat_dc_color_from` (L611-L611), `set_splat_dc_color_into` (L621-L621), `divide_color` (L630-L630), `clamp_color` (L643-L643), `band0_only_clears_sh_rest` (L666-L679), `irradiance_divide_updates_dc` (L682-L693)
 
 ## crates/core/src/nodes/splat_heal.rs
 Description: Splat Heal module.
@@ -414,11 +414,11 @@ Functions: `definition` (L46-L53), `default_params` (L55-L110), `param_specs` (L
 
 ## crates/core/src/nodes/splat_integrate.rs
 Description: Splat Integrate module.
-Functions: `definition` (L38-L45), `default_params` (L47-L72), `param_specs` (L74-L144), `compute` (L146-L149), `apply_to_geometry` (L151-L176), `apply_to_splats` (L178-L191), `apply_to_splats_internal` (L193-L294), `sh_coeffs_for_order` (L296-L303), `zero_sh_rest_slice` (L305-L305), `clamp_sh_order_slice` (L311-L311), `apply_high_band_gain_slice` (L320-L320), `apply_ratio_to_arrays` (L332-L332), `apply_ratio_to_sh_rest_slice` (L345-L345), `for_each_splat_mut` (L354-L355), `ratio_bounds` (L386-L399), `build_ratio_table` (L401-L402), `build_env_coeffs` (L431-L436), `build_target_env_coeffs` (L458-L458), `uniform_env_coeffs` (L466-L466), `eps_from_env` (L479-L479), `env_l2_from_coeffs` (L495-L495), `irradiance_from_env_l2` (L505-L505), `splat_dc_color_from` (L536-L536), `set_splat_dc_color_into` (L546-L546), `multiply_color` (L555-L555), `clamp_color` (L559-L559), `integrate_ratio_scales_sh0` (L583-L606)
+Functions: `definition` (L41-L48), `default_params` (L50-L75), `param_specs` (L77-L147), `compute` (L149-L152), `apply_to_geometry` (L154-L195), `apply_to_splats` (L197-L211), `apply_to_splats_internal` (L213-L323), `sh_coeffs_for_order` (L325-L332), `zero_sh_rest_slice` (L334-L334), `clamp_sh_order_slice` (L340-L340), `apply_high_band_gain_slice` (L349-L349), `apply_ratio_to_arrays` (L361-L361), `apply_ratio_to_sh_rest_slice` (L374-L374), `for_each_splat_mut` (L383-L384), `ratio_bounds` (L415-L428), `build_ratio_table` (L430-L431), `build_env_coeffs` (L460-L465), `build_target_env_coeffs` (L487-L487), `uniform_env_coeffs` (L495-L495), `eps_from_env` (L508-L508), `env_l2_from_coeffs` (L524-L524), `irradiance_from_env_l2` (L534-L534), `splat_dc_color_from` (L565-L565), `set_splat_dc_color_into` (L575-L575), `multiply_color` (L584-L584), `clamp_color` (L588-L588), `integrate_ratio_scales_sh0` (L612-L635)
 
 ## crates/core/src/nodes/splat_lighting_utils.rs
 Description: Splat Lighting Utils module.
-Functions: `selected` (L6-L9), `average_env_coeffs` (L11-L11), `estimate_splat_normals` (L50-L85)
+Functions: `selected` (L9-L12), `average_env_coeffs` (L14-L14), `estimate_splat_normals` (L53-L88), `estimate_splat_normals_from_sdf` (L90-L119)
 
 ## crates/core/src/nodes/splat_lod.rs
 Description: Splat Lod module.
@@ -426,7 +426,7 @@ Functions: `definition` (L20-L27), `default_params` (L29-L38), `param_specs` (L4
 
 ## crates/core/src/nodes/splat_merge.rs
 Description: Splat Merge module.
-Functions: `definition` (L27-L34), `default_params` (L36-L51), `param_specs` (L53-L83), `compute` (L85-L88), `apply_to_geometry` (L90-L128), `merge_feather` (L130-L156), `merge_skirt` (L158-L191), `build_skirt_preview_mesh` (L193-L244), `push_preview_segment` (L246-L247), `build_skirt_splats` (L258-L371), `append_seam_splats` (L373-L432), `extend_attribute_defaults` (L434-L465), `extend_group_defaults` (L467-L474), `apply_weights` (L476-L499), `nearest_distances` (L507-L508), `splat_rest_coeff` (L534-L534), `weight_from_distance` (L545-L550), `smoothstep` (L552-L558), `lerp_vec3` (L560-L560), `quat_from_splat` (L568-L568), `sigmoid` (L578-L580), `logit` (L582-L585), `merge_feather_keeps_counts` (L592-L600), `merge_skirt_adds_splats` (L603-L618)
+Functions: `definition` (L30-L37), `default_params` (L39-L58), `param_specs` (L60-L93), `compute` (L95-L98), `apply_to_geometry` (L100-L149), `merge_feather` (L151-L177), `merge_skirt` (L179-L212), `build_skirt_preview_mesh` (L214-L265), `push_preview_segment` (L267-L268), `build_skirt_splats` (L279-L414), `append_seam_splats` (L416-L475), `extend_attribute_defaults` (L477-L508), `extend_group_defaults` (L510-L517), `apply_weights` (L519-L542), `nearest_distances` (L550-L551), `splat_rest_coeff` (L577-L577), `weight_from_distance` (L588-L593), `smoothstep` (L595-L601), `lerp_vec3` (L603-L603), `quat_from_splat` (L611-L611), `sigmoid` (L621-L623), `logit` (L625-L628), `merge_feather_keeps_counts` (L635-L643), `merge_skirt_adds_splats` (L646-L661)
 
 ## crates/core/src/nodes/splat_outlier.rs
 Description: Splat Outlier module.

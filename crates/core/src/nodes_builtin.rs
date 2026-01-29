@@ -360,7 +360,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_geometry: apply_prune,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(2),
     },
     NodeSpec {
         kind: BuiltinNodeKind::Regularize,
@@ -444,7 +444,7 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_geometry: nodes::splat_integrate::apply_to_geometry,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
-        input_policy: InputPolicy::RequireAll,
+        input_policy: InputPolicy::RequireAtLeast(1),
     },
     NodeSpec {
         kind: BuiltinNodeKind::SplatHeal,
