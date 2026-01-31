@@ -6,3 +6,6 @@ members = [
   "crates/render",
   "crates/app",
 ]
+
+[patch.crates-io]
+lin_alg = { path = "vendor/lin_alg" }

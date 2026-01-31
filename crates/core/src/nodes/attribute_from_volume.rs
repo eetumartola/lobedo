@@ -155,7 +155,7 @@ fn apply_to_mesh(
     });
 
     mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Volume error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Volume error: {err:?}"))?;
     Ok(())
 }
 
@@ -191,7 +191,7 @@ fn apply_to_splats(
 
     splats
         .set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Volume error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Volume error: {err:?}"))?;
     Ok(())
 }
 

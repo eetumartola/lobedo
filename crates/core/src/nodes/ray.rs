@@ -392,7 +392,7 @@ fn apply_hit_attributes_mesh(
                     }
                 }
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Float(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Int => {
                 let mut out = existing_int_attr_mesh(mesh, AttributeDomain::Point, &name, count);
@@ -407,7 +407,7 @@ fn apply_hit_attributes_mesh(
                     }
                 }
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Int(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec2 => {
                 let mut out = existing_vec2_attr_mesh(mesh, AttributeDomain::Point, &name, count);
@@ -422,7 +422,7 @@ fn apply_hit_attributes_mesh(
                     }
                 }
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec2(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec3 => {
                 let mut out = existing_vec3_attr_mesh(mesh, AttributeDomain::Point, &name, count);
@@ -437,7 +437,7 @@ fn apply_hit_attributes_mesh(
                     }
                 }
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec3(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec4 => {
                 let mut out = existing_vec4_attr_mesh(mesh, AttributeDomain::Point, &name, count);
@@ -452,7 +452,7 @@ fn apply_hit_attributes_mesh(
                     }
                 }
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::String => {}
         }
@@ -495,7 +495,7 @@ fn apply_hit_attributes_splats(
                 }
                 splats
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Float(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Int => {
                 let mut out =
@@ -512,7 +512,7 @@ fn apply_hit_attributes_splats(
                 }
                 splats
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Int(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec2 => {
                 let mut out =
@@ -529,7 +529,7 @@ fn apply_hit_attributes_splats(
                 }
                 splats
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec2(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec3 => {
                 let mut out =
@@ -546,7 +546,7 @@ fn apply_hit_attributes_splats(
                 }
                 splats
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec3(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::Vec4 => {
                 let mut out =
@@ -563,7 +563,7 @@ fn apply_hit_attributes_splats(
                 }
                 splats
                     .set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(out))
-                    .map_err(|err| format!("Ray error: {:?}", err))?;
+                    .map_err(|err| format!("Ray error: {err:?}"))?;
             }
             AttributeType::String => {}
         }

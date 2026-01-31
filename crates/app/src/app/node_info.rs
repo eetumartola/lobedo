@@ -380,7 +380,7 @@ impl LobedoApp {
                 attribute_domain_label(domain),
                 group.len()
             ));
-            egui::Grid::new(format!("node_info_attr_{:?}", domain))
+            egui::Grid::new(format!("node_info_attr_{domain:?}"))
                 .num_columns(3)
                 .spacing([10.0, 4.0])
                 .show(ui, |ui| {
@@ -427,6 +427,6 @@ fn sh_order_label(sh_coeffs: usize) -> String {
         let max_l = order - 1;
         format!("L{} ({} bands)", max_l, max_l + 1)
     } else {
-        format!("Partial ({} coeffs)", total)
+        format!("Partial ({total} coeffs)")
     }
 }

@@ -611,8 +611,7 @@ fn build_grid_spec(
     let total = nx as u64 * ny as u64 * nz as u64;
     if total > MAX_GRID_POINTS {
         return Err(format!(
-            "Splat to Mesh grid too large ({} points). Increase voxel size.",
-            total
+            "Splat to Mesh grid too large ({total} points). Increase voxel size."
         ));
     }
 

@@ -15,6 +15,17 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             outputs: &["out: Mesh geometry from file."],
             parameters: &[("path", "Path or URL to an OBJ or glTF/GLB file.")],
         }),
+        BuiltinNodeKind::Image => Some(NodeHelpPage {
+            name: "Image",
+            description: &[
+                "Loads an image from disk or URL and outputs it as an image stream.",
+                "The image is decoded to RGB float data (0-1) for downstream ML nodes.",
+                "Use this as the entry point for DepthPro and segmentation pipelines.",
+            ],
+            inputs: &[],
+            outputs: &["image: Decoded RGB image."],
+            parameters: &[("path", "Path or URL to a PNG/JPEG image.")],
+        }),
         BuiltinNodeKind::ObjOutput => Some(NodeHelpPage {
             name: "OBJ Output",
             description: &[

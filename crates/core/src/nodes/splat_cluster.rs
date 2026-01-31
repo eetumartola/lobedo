@@ -150,7 +150,7 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
             attr_name.to_string(),
             AttributeStorage::Int(values),
         )
-        .map_err(|err| format!("Splat Cluster error: {:?}", err))?;
+        .map_err(|err| format!("Splat Cluster error: {err:?}"))?;
     Ok(output)
 }
 

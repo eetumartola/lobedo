@@ -99,8 +99,7 @@ pub fn try_alloc_f32(count: usize, context: &str) -> Result<Vec<f32>, String> {
         .map_err(|_| {
             let mb = bytes as f32 / (1024.0 * 1024.0);
             format!(
-                "{context}: not enough memory for {} voxels (~{:.1} MB)",
-                count, mb
+                "{context}: not enough memory for {count} voxels (~{mb:.1} MB)"
             )
         })?;
     values.resize(count, 0.0);

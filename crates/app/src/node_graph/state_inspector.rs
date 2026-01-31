@@ -1,5 +1,7 @@
 use egui::Ui;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::TryRecvError;
 
 use lobedo_core::{
     param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams, ParamWidget,
@@ -7,10 +9,19 @@ use lobedo_core::{
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
 use super::params::{edit_group_row, edit_param, edit_param_with_spec};
-use super::state::{NodeGraphState, WriteRequest, WriteRequestKind};
+use super::state::{ModelDownloadResult, NodeGraphState, WriteRequest, WriteRequestKind};
+
+const DEPTHPRO_MODEL_URL: &str = "https://huggingface.co/Jens-Duttke/DepthPro-ONNX-HighPerf/blob/main/depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
+const DEPTHPRO_MODEL_FILENAME: &str = "depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
+const DEPTHPRO_MODEL_DIR: &str = "models/depthpro";
+const ONNX_RUNTIME_URL: &str = "https://files.pythonhosted.org/packages/c0/b4/569d298f9fc4d286c11c45e85d9ffa9e877af12ace98af8cab52396e8f46/onnxruntime-1.23.2-cp312-cp312-win_amd64.whl";
+const ONNX_RUNTIME_DIR: &str = "models/onnxruntime";
+const ONNX_RUNTIME_DLL: &str = "onnxruntime.dll";
 
 impl NodeGraphState {
     pub fn show_inspector(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
+        self.poll_model_download();
+        self.poll_runtime_download();
         if let Some(help_key) = self.help_page_node.clone() {
             let mut open = true;
             show_help_page_window(ui.ctx(), &help_key, &mut open);
@@ -37,7 +48,7 @@ impl NodeGraphState {
         let visible_params = NodeParams {
             values: param_values.clone(),
         };
-        let title = format!("{} ({})", node_name, node_category);
+        let title = format!("{node_name} ({node_category})");
         let mut help_requested = false;
         let header_height = 32.0;
         let help_width = 64.0;
@@ -208,6 +219,95 @@ impl NodeGraphState {
             }
         }
 
+        if node_kind == Some(BuiltinNodeKind::DepthImage) {
+            ui.separator();
+            let runtime_dir = onnxruntime_dir_path();
+            let runtime_path = onnxruntime_dylib_path();
+            let runtime_exists = {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    runtime_path.exists()
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    false
+                }
+            };
+            let can_runtime_download =
+                !cfg!(target_arch = "wasm32") && cfg!(target_os = "windows");
+            let runtime_label = if runtime_exists {
+                "Re-download ONNX Runtime"
+            } else {
+                "Download ONNX Runtime"
+            };
+            if ui
+                .add_enabled(
+                    can_runtime_download && !self.runtime_download.active,
+                    egui::Button::new(runtime_label),
+                )
+                .clicked()
+            {
+                self.start_onnxruntime_download(runtime_dir);
+            }
+            let runtime_status = if self.runtime_download.active {
+                self.runtime_download
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "Downloading ONNX Runtime...".to_string())
+            } else if let Some(message) = self.runtime_download.message.as_ref() {
+                message.clone()
+            } else if !can_runtime_download {
+                "Runtime downloads are only available on Windows desktop builds.".to_string()
+            } else {
+                String::new()
+            };
+            if !runtime_status.is_empty() {
+                ui.label(runtime_status);
+            }
+
+            let model_path = depthpro_model_path();
+            let model_exists = {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    model_path.exists()
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    false
+                }
+            };
+            let can_download = !cfg!(target_arch = "wasm32");
+            let label = if model_exists {
+                "Re-download Model"
+            } else {
+                "Download Model"
+            };
+            if ui
+                .add_enabled(
+                    can_download && !self.model_download.active,
+                    egui::Button::new(label),
+                )
+                .clicked()
+            {
+                self.start_depthpro_download(model_path);
+            }
+            let status = if self.model_download.active {
+                self.model_download
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "Downloading DepthPro model...".to_string())
+            } else if let Some(message) = self.model_download.message.as_ref() {
+                message.clone()
+            } else if !can_download {
+                "Model downloads are not available in web builds.".to_string()
+            } else {
+                String::new()
+            };
+            if !status.is_empty() {
+                ui.label(status);
+            }
+        }
+
         if matches!(
             node_kind,
             Some(BuiltinNodeKind::ObjOutput | BuiltinNodeKind::GltfOutput | BuiltinNodeKind::WriteSplats)
@@ -237,6 +337,96 @@ impl NodeGraphState {
         }
 
         changed
+    }
+
+    fn poll_model_download(&mut self) {
+        let Some(receiver) = &self.model_download.receiver else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok(result) => {
+                self.model_download.active = false;
+                self.model_download.receiver = None;
+                self.model_download.message = Some(result.message);
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.model_download.active = false;
+                self.model_download.receiver = None;
+                self.model_download.message =
+                    Some("Model download failed: connection lost.".to_string());
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+    }
+
+    fn poll_runtime_download(&mut self) {
+        let Some(receiver) = &self.runtime_download.receiver else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok(result) => {
+                self.runtime_download.active = false;
+                self.runtime_download.receiver = None;
+                self.runtime_download.message = Some(result.message);
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.runtime_download.active = false;
+                self.runtime_download.receiver = None;
+                self.runtime_download.message =
+                    Some("Runtime download failed: connection lost.".to_string());
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+    }
+
+    fn start_depthpro_download(&mut self, path: PathBuf) {
+        if self.model_download.active {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.model_download.active = false;
+            self.model_download.message =
+                Some("Model downloads are not available in web builds.".to_string());
+            let _ = path;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::sync::mpsc;
+            self.model_download.active = true;
+            self.model_download.message = Some("Starting download...".to_string());
+            let (tx, rx) = mpsc::channel();
+            self.model_download.receiver = Some(rx);
+            std::thread::spawn(move || {
+                let result = download_depthpro_model(DEPTHPRO_MODEL_URL, &path);
+                let _ = tx.send(result);
+            });
+        }
+    }
+
+    fn start_onnxruntime_download(&mut self, dir: PathBuf) {
+        if self.runtime_download.active {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.runtime_download.active = false;
+            self.runtime_download.message =
+                Some("Runtime downloads are not available in web builds.".to_string());
+            let _ = dir;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::sync::mpsc;
+            self.runtime_download.active = true;
+            self.runtime_download.message = Some("Starting download...".to_string());
+            let (tx, rx) = mpsc::channel();
+            self.runtime_download.receiver = Some(rx);
+            std::thread::spawn(move || {
+                let result = download_onnxruntime_runtime(ONNX_RUNTIME_URL, &dir);
+                let _ = tx.send(result);
+            });
+        }
     }
 
     pub fn inspector_desired_height(&self, graph: &Graph) -> f32 {
@@ -335,6 +525,24 @@ impl NodeGraphState {
             heights.push(row_height);
         }
 
+        if node_kind == Some(BuiltinNodeKind::DepthImage) {
+            heights.push(separator_height);
+            heights.push(row_height);
+            let show_status = self.model_download.active
+                || self.model_download.message.is_some()
+                || cfg!(target_arch = "wasm32");
+            if show_status {
+                heights.push(row_height);
+            }
+            heights.push(row_height);
+            let show_runtime_status = self.runtime_download.active
+                || self.runtime_download.message.is_some()
+                || cfg!(target_arch = "wasm32");
+            if show_runtime_status {
+                heights.push(row_height);
+            }
+        }
+
         if matches!(
             node_kind,
             Some(
@@ -356,6 +564,143 @@ impl NodeGraphState {
 
         let rows = heights.len() as f32;
         heights.iter().sum::<f32>() + item_spacing * (rows - 1.0).max(0.0)
+    }
+}
+
+fn depthpro_model_path() -> PathBuf {
+    PathBuf::from(DEPTHPRO_MODEL_DIR).join(DEPTHPRO_MODEL_FILENAME)
+}
+
+fn onnxruntime_dir_path() -> PathBuf {
+    PathBuf::from(ONNX_RUNTIME_DIR)
+}
+
+fn onnxruntime_dylib_path() -> PathBuf {
+    onnxruntime_dir_path().join(ONNX_RUNTIME_DLL)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn normalize_download_url(url: &str) -> String {
+    if url.contains("huggingface.co") {
+        let mut out = url.replace("/blob/", "/resolve/");
+        if !out.contains("download=") {
+            let sep = if out.contains('?') { "&" } else { "?" };
+            out = format!("{out}{sep}download=1");
+        }
+        return out;
+    }
+    url.to_string()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_depthpro_model(url: &str, path: &Path) -> ModelDownloadResult {
+    use std::io::Write;
+
+    let download_result = (|| -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+        let temp_path = path.with_extension("download");
+        if temp_path.exists() {
+            let _ = std::fs::remove_file(&temp_path);
+        }
+        let download_url = normalize_download_url(url);
+        let response = ureq::get(&download_url)
+            .call()
+            .map_err(|err| format!("Request failed: {err}"))?;
+        let mut reader = response.into_reader();
+        let mut file = std::fs::File::create(&temp_path).map_err(|err| err.to_string())?;
+        std::io::copy(&mut reader, &mut file).map_err(|err| err.to_string())?;
+        file.flush().map_err(|err| err.to_string())?;
+        if path.exists() {
+            std::fs::remove_file(path).map_err(|err| err.to_string())?;
+        }
+        std::fs::rename(&temp_path, path).map_err(|err| err.to_string())?;
+        Ok(())
+    })();
+
+    match download_result {
+        Ok(()) => ModelDownloadResult {
+            message: format!("Downloaded model to {}", path.display()),
+        },
+        Err(err) => ModelDownloadResult {
+            message: format!("Model download failed: {err}"),
+        },
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_onnxruntime_runtime(url: &str, dir: &Path) -> ModelDownloadResult {
+    use std::io::{Read, Write};
+    use zip::ZipArchive;
+
+    let download_result = (|| -> Result<(), String> {
+        let temp_dir = dir.with_extension("download");
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).map_err(|err| err.to_string())?;
+        }
+        std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
+
+        let response = ureq::get(url)
+            .call()
+            .map_err(|err| format!("Request failed: {err}"))?;
+        let mut bytes = Vec::new();
+        response
+            .into_reader()
+            .read_to_end(&mut bytes)
+            .map_err(|err| err.to_string())?;
+        let cursor = std::io::Cursor::new(bytes);
+        let mut archive = ZipArchive::new(cursor).map_err(|err| err.to_string())?;
+
+        let mut extracted_any = false;
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|err| err.to_string())?;
+            let name = file.name();
+            if !name.ends_with(".dll") {
+                continue;
+            }
+            let Some(filename) = Path::new(name).file_name() else {
+                continue;
+            };
+            let out_path = temp_dir.join(filename);
+            let mut out_file = std::fs::File::create(&out_path).map_err(|err| err.to_string())?;
+            std::io::copy(&mut file, &mut out_file).map_err(|err| err.to_string())?;
+            out_file.flush().map_err(|err| err.to_string())?;
+            extracted_any = true;
+        }
+
+        if !extracted_any {
+            return Err("No DLLs found in ONNX Runtime package.".to_string());
+        }
+
+        if dir.exists() {
+            std::fs::remove_dir_all(dir).map_err(|err| err.to_string())?;
+        }
+        std::fs::rename(&temp_dir, dir).map_err(|err| err.to_string())?;
+        Ok(())
+    })();
+
+    match download_result {
+        Ok(()) => ModelDownloadResult {
+            message: format!("Downloaded ONNX Runtime to {}", dir.display()),
+        },
+        Err(err) => ModelDownloadResult {
+            message: format!("Runtime download failed: {err}"),
+        },
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn download_depthpro_model(_url: &str, _path: &Path) -> ModelDownloadResult {
+    ModelDownloadResult {
+        message: "Model downloads are not available in web builds.".to_string(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn download_onnxruntime_runtime(_url: &str, _dir: &Path) -> ModelDownloadResult {
+    ModelDownloadResult {
+        message: "Runtime downloads are not available in web builds.".to_string(),
     }
 }
 

@@ -56,15 +56,20 @@ pub mod volume_blur;
 pub mod volume_to_mesh;
 pub mod write_splats;
 pub mod delete;
+pub mod depth_image;
+pub mod depth_to_splats;
 pub mod scatter;
 pub mod sphere;
 pub mod smooth;
+pub mod splat_divide;
 pub mod transform;
 pub mod tube;
 pub mod uv_texture;
 pub mod uv_unwrap;
 pub mod uv_view;
 pub mod wrangle;
+pub mod image;
+pub mod image_preview;
 
 use std::collections::BTreeMap;
 
@@ -78,10 +83,24 @@ pub fn geometry_in(name: &str) -> PinDefinition {
     }
 }
 
+pub fn image_in(name: &str) -> PinDefinition {
+    PinDefinition {
+        name: name.to_string(),
+        pin_type: PinType::Image,
+    }
+}
+
 pub fn geometry_out(name: &str) -> PinDefinition {
     PinDefinition {
         name: name.to_string(),
         pin_type: PinType::Geometry,
+    }
+}
+
+pub fn image_out(name: &str) -> PinDefinition {
+    PinDefinition {
+        name: name.to_string(),
+        pin_type: PinType::Image,
     }
 }
 

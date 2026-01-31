@@ -224,7 +224,7 @@ fn build_project_from_plan(plan: &HeadlessPlan) -> Result<Project, String> {
         project
             .graph
             .add_link(from_pin, to_pin)
-            .map_err(|err| format!("link error: {:?}", err))?;
+            .map_err(|err| format!("link error: {err:?}"))?;
     }
 
     Ok(project)
@@ -261,12 +261,12 @@ fn validate_topo_sort(project: &Project, output_node_name: &str) -> Result<(), S
         .nodes()
         .find(|node| node.name == output_node_name)
         .map(|node| node.id)
-        .ok_or_else(|| format!("output node {} not found", output_node_name))?;
+        .ok_or_else(|| format!("output node {output_node_name} not found"))?;
 
     let order = project
         .graph
         .topo_sort_from(node_id)
-        .map_err(|err| format!("topo sort failed: {:?}", err))?;
+        .map_err(|err| format!("topo sort failed: {err:?}"))?;
     tracing::info!("headless: topo order {:?}", order);
     Ok(())
 }

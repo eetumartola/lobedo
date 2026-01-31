@@ -8,6 +8,7 @@ mod geometry_eval;
 mod gltf_io;
 mod groups;
 mod graph;
+mod image_data;
 mod mesh;
 mod mesh_primitives;
 mod mesh_eval;
@@ -52,6 +53,7 @@ pub use graph::{
     Graph, GraphError, Link, LinkId, Node, NodeDefinition, NodeId, NodeParams, ParamValue, Pin,
     PinDefinition, PinId, PinKind, PinType,
 };
+pub use image_data::ImageData;
 pub use mesh::{make_box, make_grid, make_tube, Aabb, Mesh};
 pub use material::{Material, MaterialLibrary};
 pub use mesh_eval::{evaluate_mesh_graph, MeshEvalResult, MeshEvalState};

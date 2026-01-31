@@ -109,6 +109,20 @@ Status: done | in progress | not started
 - **M3**: Backproject -> points (not started)
 - **M4**: Fit splats (not started)
 
+## Epic I - Image → Splats (ONNX, single-view)
+- **I1**: Add Image pin type + core image data model (color/depth/segmentation) (done)
+- **I2**: Support per-pin outputs in graph evaluation (multi-output node values) (done)
+- **I3**: Image node (file/URL input → image output) (done)
+- **I4**: Depth Image node: DepthPro ONNX inference + dummy segmentation output (done)
+- **I5**: Depth → Splats node (unprojection, normals-from-depth, Gaussian init) (done)
+- **I6**: Splat Divide node (split SplatGeo by attribute, default segment_id) (done)
+- **I7**: Model discovery in `models/sam` + `models/depthpro` (first model wins) (in progress: depthpro only)
+- **I8**: Depth scaling parameter (inverse → linear depth) + FOV parameterization (done)
+- **I9**: Add node help + parameter docs for new image/onnx nodes (done)
+- **I10**: Tests for image decode + depth-to-splat math (in progress)
+- **I11**: SAM segmentation integration (later) (not started)
+- **I12**: Smarter sampling (stride/target count, later) (not started)
+
 ## Epic Q - Quality and UX
 - **Q1**: Golden test assets + screenshot tests (native) (not started)
 - **Q2**: Project format migration + versioning (done)

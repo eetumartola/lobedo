@@ -187,7 +187,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 "mask",
                 AttributeStorage::Float(mask_values),
             )
-            .map_err(|err| format!("Erosion Noise error: {:?}", err))?;
+            .map_err(|err| format!("Erosion Noise error: {err:?}"))?;
     } else {
         let mut new_positions = base_positions.clone();
         parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {
@@ -304,7 +304,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
             "mask",
             AttributeStorage::Float(mask_values),
         )
-        .map_err(|err| format!("Erosion Noise error: {:?}", err))?;
+        .map_err(|err| format!("Erosion Noise error: {err:?}"))?;
     } else {
         let mut new_positions = base_positions.clone();
         parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {

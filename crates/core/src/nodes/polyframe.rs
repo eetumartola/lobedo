@@ -336,7 +336,7 @@ fn apply_polyframe(params: &NodeParams, input: &mut Mesh, curves: &[Curve]) -> R
                 normal_name,
                 AttributeStorage::Vec3(normal_values),
             )
-            .map_err(|err| format!("PolyFrame normal attribute error: {:?}", err))?;
+            .map_err(|err| format!("PolyFrame normal attribute error: {err:?}"))?;
     }
     if !tangent_values.is_empty() {
         input
@@ -345,7 +345,7 @@ fn apply_polyframe(params: &NodeParams, input: &mut Mesh, curves: &[Curve]) -> R
                 tangent_name,
                 AttributeStorage::Vec3(tangent_values),
             )
-            .map_err(|err| format!("PolyFrame tangent attribute error: {:?}", err))?;
+            .map_err(|err| format!("PolyFrame tangent attribute error: {err:?}"))?;
     }
     if !bitangent_values.is_empty() {
         input
@@ -354,7 +354,7 @@ fn apply_polyframe(params: &NodeParams, input: &mut Mesh, curves: &[Curve]) -> R
                 bitangent_name,
                 AttributeStorage::Vec3(bitangent_values),
             )
-            .map_err(|err| format!("PolyFrame bitangent attribute error: {:?}", err))?;
+            .map_err(|err| format!("PolyFrame bitangent attribute error: {err:?}"))?;
     }
 
     Ok(())

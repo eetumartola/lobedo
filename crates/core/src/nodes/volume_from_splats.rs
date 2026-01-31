@@ -257,8 +257,7 @@ pub fn apply_to_geometry(
     let total = dims[0] as u64 * dims[1] as u64 * dims[2] as u64;
     if total == 0 || total > MAX_GRID_POINTS {
         return Err(format!(
-            "Volume grid too large ({} voxels, max {})",
-            total, MAX_GRID_POINTS
+            "Volume grid too large ({total} voxels, max {MAX_GRID_POINTS})"
         ));
     }
 

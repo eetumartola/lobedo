@@ -740,6 +740,7 @@ pub struct PinDefinition {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PinType {
     Geometry,
+    Image,
     Mesh,
     Splats,
     Float,
@@ -910,9 +911,9 @@ mod tests {
         NodeDefinition {
             name: name.to_string(),
             category: "Demo".to_string(),
-            inputs: (0..inputs).map(|i| make_pin(&format!("in{}", i))).collect(),
+            inputs: (0..inputs).map(|i| make_pin(&format!("in{i}"))).collect(),
             outputs: (0..outputs)
-                .map(|i| make_pin(&format!("out{}", i)))
+                .map(|i| make_pin(&format!("out{i}")))
                 .collect(),
         }
     }

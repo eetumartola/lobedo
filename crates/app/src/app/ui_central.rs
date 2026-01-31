@@ -307,7 +307,7 @@ impl LobedoApp {
         {
             actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
             let count = selection_count(group_selection.as_deref().unwrap_or(""));
-            footer = Some(format!("Selected: {}", count));
+            footer = Some(format!("Selected: {count}"));
         }
         if actions.is_empty() {
             return;
@@ -803,7 +803,7 @@ fn sh_order_label(sh_coeffs: usize) -> String {
         let max_l = order - 1;
         format!("L{} ({} bands)", max_l, max_l + 1)
     } else {
-        format!("Partial ({} coeffs)", total)
+        format!("Partial ({total} coeffs)")
     }
 }
 

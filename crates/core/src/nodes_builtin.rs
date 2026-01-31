@@ -17,6 +17,10 @@ pub enum BuiltinNodeKind {
     Curve,
     Sweep,
     File,
+    Image,
+    ImagePreview,
+    DepthImage,
+    DepthToSplats,
     ReadSplats,
     WriteSplats,
     GltfOutput,
@@ -35,6 +39,7 @@ pub enum BuiltinNodeKind {
     MeshOutliersSdf,
     SplatCluster,
     SplatMerge,
+    SplatDivide,
     VolumeFromGeometry,
     VolumeFromSplats,
     VolumeCombine,
@@ -123,6 +128,26 @@ fn mesh_error_sweep(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, Stri
     Err("Sweep requires curve/mesh geometry inputs".to_string())
 }
 
+fn mesh_error_image(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Image nodes output images, not meshes".to_string())
+}
+
+fn mesh_error_image_preview(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Image Preview outputs geometry, not meshes".to_string())
+}
+
+fn mesh_error_depth_image(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Depth Image outputs images, not meshes".to_string())
+}
+
+fn mesh_error_depth_to_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Depth to Splats outputs splat geometry, not meshes".to_string())
+}
+
+fn mesh_error_splat_divide(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("Splat Divide outputs splat geometry, not meshes".to_string())
+}
+
 fn mesh_error_write_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Splat Write expects splat geometry, not meshes".to_string())
 }
@@ -149,6 +174,25 @@ fn mesh_error_volume_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<M
 
 fn mesh_error_attribute_from_volume(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Attribute from Volume requires volume input, not meshes".to_string())
+}
+
+fn geometry_error_image(_params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Err("Image nodes output images, not geometry".to_string())
+}
+
+fn geometry_error_image_preview(
+    _params: &NodeParams,
+    _inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    Err("Image Preview requires image input".to_string())
+}
+
+fn geometry_error_depth_image(_params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Err("Depth Image outputs images, not geometry".to_string())
+}
+
+fn geometry_error_depth_to_splats(_params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+    Err("Depth to Splats requires image inputs".to_string())
 }
 
 static NODE_SPECS: &[NodeSpec] = &[
@@ -263,6 +307,62 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_splat: splat_error_not_output,
         menu_group: Some("IO"),
         input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::Image,
+        id: "builtin:image",
+        name: nodes::image::NAME,
+        aliases: &[],
+        definition: nodes::image::definition,
+        default_params: nodes::image::default_params,
+        param_specs: nodes::image::param_specs,
+        compute_mesh: mesh_error_image,
+        compute_geometry: geometry_error_image,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::ImagePreview,
+        id: "builtin:image_preview",
+        name: nodes::image_preview::NAME,
+        aliases: &[],
+        definition: nodes::image_preview::definition,
+        default_params: nodes::image_preview::default_params,
+        param_specs: nodes::image_preview::param_specs,
+        compute_mesh: mesh_error_image_preview,
+        compute_geometry: geometry_error_image_preview,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("IO"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::DepthImage,
+        id: "builtin:depth_image",
+        name: nodes::depth_image::NAME,
+        aliases: &[],
+        definition: nodes::depth_image::definition,
+        default_params: nodes::depth_image::default_params,
+        param_specs: nodes::depth_image::param_specs,
+        compute_mesh: mesh_error_depth_image,
+        compute_geometry: geometry_error_depth_image,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("ML"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::DepthToSplats,
+        id: "builtin:depth_to_splats",
+        name: nodes::depth_to_splats::NAME,
+        aliases: &[],
+        definition: nodes::depth_to_splats::definition,
+        default_params: nodes::depth_to_splats::default_params,
+        param_specs: nodes::depth_to_splats::param_specs,
+        compute_mesh: mesh_error_depth_to_splats,
+        compute_geometry: geometry_error_depth_to_splats,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("ML"),
+        input_policy: InputPolicy::RequireAll,
     },
     NodeSpec {
         kind: BuiltinNodeKind::ReadSplats,
@@ -512,6 +612,20 @@ static NODE_SPECS: &[NodeSpec] = &[
         param_specs: nodes::splat_merge::param_specs,
         compute_mesh: nodes::splat_merge::compute,
         compute_geometry: nodes::splat_merge::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::SplatDivide,
+        id: "builtin:splat_divide",
+        name: nodes::splat_divide::NAME,
+        aliases: &[],
+        definition: nodes::splat_divide::definition,
+        default_params: nodes::splat_divide::default_params,
+        param_specs: nodes::splat_divide::param_specs,
+        compute_mesh: mesh_error_splat_divide,
+        compute_geometry: nodes::splat_divide::apply_to_geometry,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
@@ -1034,7 +1148,7 @@ fn node_spec(kind: BuiltinNodeKind) -> &'static NodeSpec {
     NODE_SPECS
         .iter()
         .find(|spec| spec.kind == kind)
-        .unwrap_or_else(|| panic!("missing node spec for {:?}", kind))
+        .unwrap_or_else(|| panic!("missing node spec for {kind:?}"))
 }
 
 pub fn input_policy(kind: BuiltinNodeKind) -> InputPolicy {

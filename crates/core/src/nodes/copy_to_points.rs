@@ -476,7 +476,7 @@ fn apply_inherit_attributes(
                     source.name.clone(),
                     AttributeStorage::Float(vec![value; point_count]),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Int(value) => {
                 mesh.set_attribute(
@@ -484,7 +484,7 @@ fn apply_inherit_attributes(
                     source.name.clone(),
                     AttributeStorage::Int(vec![value; point_count]),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec2(value) => {
                 mesh.set_attribute(
@@ -492,7 +492,7 @@ fn apply_inherit_attributes(
                     source.name.clone(),
                     AttributeStorage::Vec2(vec![value; point_count]),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec3(value) => {
                 mesh.set_attribute(
@@ -500,7 +500,7 @@ fn apply_inherit_attributes(
                     source.name.clone(),
                     AttributeStorage::Vec3(vec![value; point_count]),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec4(value) => {
                 mesh.set_attribute(
@@ -508,7 +508,7 @@ fn apply_inherit_attributes(
                     source.name.clone(),
                     AttributeStorage::Vec4(vec![value; point_count]),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::StringTable { values, index } => {
                 mesh.set_attribute(
@@ -519,7 +519,7 @@ fn apply_inherit_attributes(
                         vec![index; point_count],
                     )),
                 )
-                .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
         }
     }
@@ -544,7 +544,7 @@ fn apply_inherit_attributes_splats(
                         source.name.clone(),
                         AttributeStorage::Float(vec![value; point_count]),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Int(value) => {
                 splats
@@ -553,7 +553,7 @@ fn apply_inherit_attributes_splats(
                         source.name.clone(),
                         AttributeStorage::Int(vec![value; point_count]),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec2(value) => {
                 splats
@@ -562,7 +562,7 @@ fn apply_inherit_attributes_splats(
                         source.name.clone(),
                         AttributeStorage::Vec2(vec![value; point_count]),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec3(value) => {
                 splats
@@ -571,7 +571,7 @@ fn apply_inherit_attributes_splats(
                         source.name.clone(),
                         AttributeStorage::Vec3(vec![value; point_count]),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::Vec4(value) => {
                 splats
@@ -580,7 +580,7 @@ fn apply_inherit_attributes_splats(
                         source.name.clone(),
                         AttributeStorage::Vec4(vec![value; point_count]),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
             InheritValue::StringTable { values, index } => {
                 splats
@@ -592,7 +592,7 @@ fn apply_inherit_attributes_splats(
                             vec![index; point_count],
                         )),
                     )
-                    .map_err(|err| format!("Copy to Points inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Copy to Points inherit error: {err:?}"))?;
             }
         }
     }
@@ -611,7 +611,7 @@ fn apply_copy_index_attribute(
     }
     let values = vec![copy_idx as i32; count];
     mesh.set_attribute(domain, name, AttributeStorage::Int(values))
-        .map_err(|err| format!("Copy to Points attribute error: {:?}", err))?;
+        .map_err(|err| format!("Copy to Points attribute error: {err:?}"))?;
     Ok(())
 }
 
@@ -633,7 +633,7 @@ fn apply_copy_index_attribute_splats(
     let values = vec![copy_idx as i32; count];
     splats
         .set_attribute(domain, name, AttributeStorage::Int(values))
-        .map_err(|err| format!("Copy to Points attribute error: {:?}", err))?;
+        .map_err(|err| format!("Copy to Points attribute error: {err:?}"))?;
     Ok(())
 }
 

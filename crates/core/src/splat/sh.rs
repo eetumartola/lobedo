@@ -135,6 +135,7 @@ fn rotate_sh_band_7(coeffs: &mut [[f32; 3]], mat: &[[f32; 7]; 7]) {
     }
 }
 
+#[allow(clippy::needless_range_loop)]
 fn compute_sh_rotation_matrix<const N: usize>(
     rot: Mat3,
     basis: fn(Vec3) -> [f32; N],

@@ -428,7 +428,7 @@ impl<'a> WrangleContext<'a> {
         match expr {
             Expr::Literal(value) => Ok(*value),
             Expr::Attr(name) => self.read_attr(name, idx),
-            Expr::Ident(name) => Err(format!("Unknown identifier '{}'", name)),
+            Expr::Ident(name) => Err(format!("Unknown identifier '{name}'")),
             Expr::Swizzle { expr, mask } => {
                 let value = self.eval_expr(expr, idx)?;
                 swizzle_value(value, mask)
@@ -509,7 +509,7 @@ impl<'a> WrangleContext<'a> {
             "vec2" => build_vec(args, idx, 2, self),
             "vec3" => build_vec(args, idx, 3, self),
             "vec4" => build_vec(args, idx, 4, self),
-            _ => Err(format!("Unknown function '{}'", name)),
+            _ => Err(format!("Unknown function '{name}'")),
         }
     }
 
@@ -1014,7 +1014,7 @@ impl<'a> SplatWrangleContext<'a> {
         match expr {
             Expr::Literal(value) => Ok(*value),
             Expr::Attr(name) => self.read_attr(name, idx),
-            Expr::Ident(name) => Err(format!("Unknown identifier '{}'", name)),
+            Expr::Ident(name) => Err(format!("Unknown identifier '{name}'")),
             Expr::Swizzle { expr, mask } => {
                 let value = self.eval_expr(expr, idx)?;
                 swizzle_value(value, mask)
@@ -1095,7 +1095,7 @@ impl<'a> SplatWrangleContext<'a> {
             "vec2" => build_vec_splats(args, idx, 2, self),
             "vec3" => build_vec_splats(args, idx, 3, self),
             "vec4" => build_vec_splats(args, idx, 4, self),
-            _ => Err(format!("Unknown function '{}'", name)),
+            _ => Err(format!("Unknown function '{name}'")),
         }
     }
 
@@ -1520,7 +1520,7 @@ fn apply_written(
 ) -> Result<(), String> {
     for (name, storage) in written {
         mesh.set_attribute(domain, name, storage)
-            .map_err(|err| format!("Wrangle attribute error: {:?}", err))?;
+            .map_err(|err| format!("Wrangle attribute error: {err:?}"))?;
     }
     Ok(())
 }
@@ -1533,7 +1533,7 @@ fn apply_written_splats(
     for (name, storage) in written {
         splats
             .set_attribute(domain, name, storage)
-            .map_err(|err| format!("Wrangle attribute error: {:?}", err))?;
+            .map_err(|err| format!("Wrangle attribute error: {err:?}"))?;
     }
     Ok(())
 }
@@ -1648,7 +1648,7 @@ fn swizzle_value(value: Value, mask: &str) -> Result<Value, String> {
             'y' | 'g' => 1,
             'z' | 'b' => 2,
             'w' | 'a' => 3,
-            _ => return Err(format!("Invalid swizzle component '{}'", ch)),
+            _ => return Err(format!("Invalid swizzle component '{ch}'")),
         };
         indices.push(idx);
     }
@@ -1779,7 +1779,7 @@ fn build_vec(
         }
         out
     } else {
-        return Err(format!("vec{} expects 1 or {} arguments", size, size));
+        return Err(format!("vec{size} expects 1 or {size} arguments"));
     };
 
     let mut floats = Vec::with_capacity(size);
@@ -1813,7 +1813,7 @@ fn build_vec_splats(
         }
         out
     } else {
-        return Err(format!("vec{} expects 1 or {} arguments", size, size));
+        return Err(format!("vec{size} expects 1 or {size} arguments"));
     };
 
     let mut floats = Vec::with_capacity(size);

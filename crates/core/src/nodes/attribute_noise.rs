@@ -200,7 +200,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
             });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Float(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
         1 => {
             let mut values = existing_vec2_attr_splats(splats, domain, attr, count);
@@ -235,7 +235,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
             });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Vec2(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
         _ => {
             let mut values = existing_vec3_attr_splats(splats, domain, attr, count);
@@ -284,7 +284,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
             });
             splats
                 .set_attribute(domain, attr, AttributeStorage::Vec3(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
     }
 
@@ -345,7 +345,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 *value += n * amplitude;
             });
             mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
         1 => {
             let mut values = existing_vec2_attr_mesh(mesh, domain, attr, count);
@@ -379,7 +379,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 value[1] += n1 * amplitude;
             });
             mesh.set_attribute(domain, attr, AttributeStorage::Vec2(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
         _ => {
             let mut values = existing_vec3_attr_mesh(mesh, domain, attr, count);
@@ -427,7 +427,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 value[2] += n2 * amplitude;
             });
             mesh.set_attribute(domain, attr, AttributeStorage::Vec3(values))
-                .map_err(|err| format!("Attribute Noise error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Noise error: {err:?}"))?;
         }
     }
 

@@ -118,11 +118,11 @@ Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gr
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
-Functions: `default` (L94-L136), `hit_test` (L153-L158), `reset` (L187-L189), `error_message` (L191-L193), `take_write_request` (L195-L197), `show` (L199-L314), `take_changed` (L316-L320), `take_layout_changed` (L322-L326), `handle_header_click` (L328-L369), `compute_dim_nodes` (L371-L391), `preflight_flag_click` (L393-L412), `add_note` (L415-L429), `show_notes` (L431-L567), `set_error_state` (L569-L572), `set_dirty_nodes` (L574-L580), `selected_node_id` (L582-L584), `selected_note_id` (L586-L588), `delete_selected_note` (L590-L601), `delete_selected_node` (L603-L608), `delete_node` (L610-L646), `node_at_screen_pos` (L648-L656), `take_info_request` (L658-L660), `take_wrangle_help_request` (L662-L664), `zoom_at` (L666-L680), `fit_to_rect` (L682-L708), `progress_sink` (L710-L717), `progress_snapshot` (L719-L726), `on_event` (L730-L766), `snapshot` (L768-L793)
+Functions: `default` (L107-L151), `hit_test` (L169-L174), `reset` (L203-L205), `error_message` (L207-L209), `take_write_request` (L211-L213), `show` (L215-L330), `take_changed` (L332-L336), `take_layout_changed` (L338-L342), `handle_header_click` (L344-L385), `compute_dim_nodes` (L387-L407), `preflight_flag_click` (L409-L428), `add_note` (L431-L445), `show_notes` (L447-L583), `set_error_state` (L585-L588), `set_dirty_nodes` (L590-L596), `selected_node_id` (L598-L600), `selected_note_id` (L602-L604), `delete_selected_note` (L606-L617), `delete_selected_node` (L619-L624), `delete_node` (L626-L662), `node_at_screen_pos` (L664-L672), `take_info_request` (L674-L676), `take_wrangle_help_request` (L678-L680), `zoom_at` (L682-L696), `fit_to_rect` (L698-L724), `progress_sink` (L726-L733), `progress_snapshot` (L735-L742), `on_event` (L746-L782), `snapshot` (L784-L809)
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L13-L240), `inspector_desired_height` (L242-L359)
+Functions: `show_inspector` (L22-L340), `poll_model_download` (L342-L360), `poll_runtime_download` (L362-L380), `start_depthpro_download` (L382-L405), `start_onnxruntime_download` (L407-L430), `inspector_desired_height` (L432-L567), `depthpro_model_path` (L570-L572), `onnxruntime_dir_path` (L574-L576), `onnxruntime_dylib_path` (L578-L580), `normalize_download_url` (L583-L593), `download_depthpro_model` (L596-L630), `download_onnxruntime_runtime` (L633-L691), `download_depthpro_model` (L694-L698), `download_onnxruntime_runtime` (L701-L705)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -138,7 +138,7 @@ Functions: `show_node_menu` (L11-L78), `open_add_menu` (L80-L90), `add_demo_grap
 
 ## crates/app/src/node_graph/utils.rs
 Description: Utils module.
-Functions: `pin_color` (L12-L23), `add_builtin_node` (L25-L47), `add_builtin_node_checked` (L49-L73), `core_input_pin` (L75-L81), `core_output_pin` (L83-L89), `find_input_of_type` (L91-L104), `find_output_of_type` (L106-L119), `point_segment_distance` (L121-L130), `point_snarl_wire_distance` (L132-L149), `submenu_menu_button` (L151-L170), `darken_color` (L172-L179), `format_submenu_label` (L181-L190), `wire_sample_count` (L192-L196), `adjust_frame_size` (L198-L213), `wire_bezier_5` (L215-L215), `sample_bezier_5` (L323-L323)
+Functions: `pin_color` (L12-L24), `add_builtin_node` (L26-L48), `add_builtin_node_checked` (L50-L74), `core_input_pin` (L76-L82), `core_output_pin` (L84-L90), `find_input_of_type` (L92-L105), `find_output_of_type` (L107-L120), `point_segment_distance` (L122-L131), `point_snarl_wire_distance` (L133-L150), `submenu_menu_button` (L152-L171), `darken_color` (L173-L180), `format_submenu_label` (L182-L191), `wire_sample_count` (L193-L197), `adjust_frame_size` (L199-L214), `wire_bezier_5` (L216-L216), `sample_bezier_5` (L324-L324)
 
 ## crates/app/src/node_graph/viewer.rs
 Description: Viewer module.
@@ -146,7 +146,7 @@ Functions: `pin_rect` (L55-L69), `draw` (L71-L81), `core_node_id` (L85-L91), `co
 
 ## crates/core/src/assets.rs
 Description: Assets module.
-Functions: `store_bytes` (L28-L38), `load_bytes` (L40-L53), `is_url` (L55-L59), `url_revision` (L61-L63), `load_url_bytes` (L66-L88), `load_url_bytes` (L91-L108), `start_url_fetch` (L111-L161), `clear_pending` (L164-L168), `register_url_progress` (L184-L206), `begin_url_progress` (L209-L225), `finish_url_progress` (L228-L239), `defer_progress_start` (L242-L247)
+Functions: `store_bytes` (L28-L38), `store_bytes_with_key` (L40-L49), `load_bytes` (L51-L64), `is_url` (L66-L70), `url_revision` (L72-L74), `load_url_bytes` (L77-L99), `load_url_bytes` (L102-L119), `start_url_fetch` (L122-L172), `clear_pending` (L175-L179), `register_url_progress` (L195-L217), `begin_url_progress` (L220-L236), `finish_url_progress` (L239-L250), `defer_progress_start` (L253-L258)
 
 ## crates/core/src/attributes.rs
 Description: Attributes module.
@@ -170,7 +170,7 @@ Functions: `new` (L20-L22), `with_mesh` (L24-L32), `with_splats` (L34-L42), `wit
 
 ## crates/core/src/geometry_eval.rs
 Description: Geometry Eval module.
-Functions: `new` (L24-L26), `geometry_for_node` (L28-L30), `evaluate_geometry_graph` (L33-L39), `evaluate_geometry_graph_with_progress` (L41-L167)
+Functions: `new` (L27-L29), `geometry_for_node` (L31-L33), `image_for_pin` (L35-L37), `evaluate_geometry_graph` (L40-L46), `evaluate_geometry_graph_with_progress` (L48-L306)
 
 ## crates/core/src/gltf_io.rs
 Description: Gltf Io module.
@@ -182,11 +182,15 @@ Functions: `default` (L13-L26), `fmt` (L30-L47), `sample` (L51-L51), `endpoints`
 
 ## crates/core/src/graph.rs
 Description: Graph module.
-Functions: `clear` (L23-L26), `insert` (L28-L34), `remove` (L36-L44), `input_link` (L46-L48), `output_links` (L50-L52), `default` (L70-L81), `nodes` (L85-L87), `node` (L89-L91), `revision` (L93-L95), `bump_revision` (L97-L99), `rebuild_link_index` (L101-L106), `display_node` (L108-L113), `template_nodes` (L115-L121), `set_display_node` (L123-L141), `toggle_display_node` (L143-L154), `set_template_node` (L156-L166), `toggle_template_node` (L168-L176), `set_bypass_node` (L178-L189), `toggle_bypass_node` (L191-L200), `pin` (L202-L204), `add_node` (L206-L261), `remove_node` (L263-L290), `set_node_position` (L292-L295), `node_position` (L305-L305), `add_link` (L309-L334), `remove_link` (L336-L342), `links` (L344-L346), `remove_link_between` (L348-L361), `remove_links_for_pin` (L363-L383), `set_param` (L385-L410), `topo_sort_from` (L412-L431), `topo_sort_all` (L433-L450), `visit_node` (L452-L480), `upstream_nodes` (L482-L502), `node_for_pin` (L504-L506), `input_node` (L508-L514), `input_link` (L516-L519), `alloc_node_id` (L521-L525), `alloc_pin_id` (L527-L531), `alloc_link_id` (L533-L537), `remove_link_internal` (L539-L545), `migrate_geometry_pins` (L547-L559), `rename_nodes` (L561-L570), `set_node_kind_id` (L572-L583), `ensure_node_kind_ids` (L585-L600), `pin_types_compatible` (L603-L614), `builtin_kind` (L639-L645), `get_vec2` (L654-L654), `get_vec3` (L664-L664), `get_float` (L674-L683), `get_int` (L685-L693), `get_bool` (L695-L703), `get_string` (L705-L713), `demo_node` (L788-L801), `add_and_remove_node` (L804-L810), `rejects_incompatible_links` (L813-L842), `accepts_valid_links` (L845-L855), `input_node_tracks_links` (L858-L870), `rebuild_link_index_restores_input_lookup` (L873-L887), `remove_node_clears_links` (L890-L902), `node_def` (L904-L918), `topo_sort_orders_upstream_first` (L921-L942), `topo_sort_detects_cycles` (L945-L960)
+Functions: `clear` (L23-L26), `insert` (L28-L34), `remove` (L36-L44), `input_link` (L46-L48), `output_links` (L50-L52), `default` (L70-L81), `nodes` (L85-L87), `node` (L89-L91), `revision` (L93-L95), `bump_revision` (L97-L99), `rebuild_link_index` (L101-L106), `display_node` (L108-L113), `template_nodes` (L115-L121), `set_display_node` (L123-L141), `toggle_display_node` (L143-L154), `set_template_node` (L156-L166), `toggle_template_node` (L168-L176), `set_bypass_node` (L178-L189), `toggle_bypass_node` (L191-L200), `pin` (L202-L204), `add_node` (L206-L261), `remove_node` (L263-L290), `set_node_position` (L292-L295), `node_position` (L305-L305), `add_link` (L309-L334), `remove_link` (L336-L342), `links` (L344-L346), `remove_link_between` (L348-L361), `remove_links_for_pin` (L363-L383), `set_param` (L385-L410), `topo_sort_from` (L412-L431), `topo_sort_all` (L433-L450), `visit_node` (L452-L480), `upstream_nodes` (L482-L502), `node_for_pin` (L504-L506), `input_node` (L508-L514), `input_link` (L516-L519), `alloc_node_id` (L521-L525), `alloc_pin_id` (L527-L531), `alloc_link_id` (L533-L537), `remove_link_internal` (L539-L545), `migrate_geometry_pins` (L547-L559), `rename_nodes` (L561-L570), `set_node_kind_id` (L572-L583), `ensure_node_kind_ids` (L585-L600), `pin_types_compatible` (L603-L614), `builtin_kind` (L639-L645), `get_vec2` (L654-L654), `get_vec3` (L664-L664), `get_float` (L674-L683), `get_int` (L685-L693), `get_bool` (L695-L703), `get_string` (L705-L713), `demo_node` (L789-L802), `add_and_remove_node` (L805-L811), `rejects_incompatible_links` (L814-L843), `accepts_valid_links` (L846-L856), `input_node_tracks_links` (L859-L871), `rebuild_link_index_restores_input_lookup` (L874-L888), `remove_node_clears_links` (L891-L903), `node_def` (L905-L919), `topo_sort_orders_upstream_first` (L922-L943), `topo_sort_detects_cycles` (L946-L961)
 
 ## crates/core/src/groups.rs
 Description: Groups module.
 Functions: `build_group_mask` (L3-L47), `group_expr_matches` (L49-L65), `parse_group_tokens` (L67-L84), `glob_match` (L86-L88), `glob_match_inner` (L90-L118)
+
+## crates/core/src/image_data.rs
+Description: Image Data module.
+Functions: `width` (L21-L27), `height` (L29-L35), `len` (L37-L39), `is_empty` (L41-L43), `rgb_data` (L45-L50), `depth_data` (L52-L57), `seg_data` (L59-L64), `same_size` (L66-L68), `from_rgb` (L70-L81), `from_depth` (L83-L94), `from_seg` (L96-L107)
 
 ## crates/core/src/lib.rs
 Description: Lib module.
@@ -210,15 +214,15 @@ Functions: `make_box` (L5-L5), `make_grid` (L34-L34), `make_uv_sphere` (L73-L127
 
 ## crates/core/src/node_help.rs
 Description: Node Help module.
-Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L746)
+Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L781)
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
-Functions: `node_help_page` (L5-L53)
+Functions: `node_help_page` (L5-L64)
 
 ## crates/core/src/node_help_splats.rs
 Description: Node Help Splats module.
-Functions: `node_help_page` (L5-L334)
+Functions: `node_help_page` (L5-L345)
 
 ## crates/core/src/node_help_volumes.rs
 Description: Node Help Volumes module.
@@ -246,7 +250,7 @@ Functions: `definition` (L27-L34), `default_params` (L36-L57), `param_specs` (L5
 
 ## crates/core/src/nodes/attribute_promote.rs
 Description: Attribute Promote module.
-Functions: `from_params` (L36-L50), `definition` (L53-L60), `default_params` (L62-L75), `param_specs` (L77-L130), `compute` (L132-L137), `apply_to_mesh` (L139-L195), `apply_to_splats` (L197-L264), `source_domain_from_params` (L266-L273), `target_domain_from_params` (L275-L282), `collect_attribute_names_mesh` (L284-L300), `collect_attribute_names_splats` (L302-L318), `resolve_attribute_patterns` (L320-L336), `resolve_output_name` (L338-L354), `promote_attribute` (L356-L391), `promote_f32` (L393-L432), `promote_i32` (L434-L475), `promote_string_table` (L477-L516), `promote_string` (L518-L535), `mode_string` (L537-L554), `median_string` (L556-L563), `promote_vec2` (L565-L566), `promote_vec3` (L591-L592), `promote_vec4` (L620-L621), `promote_scalar` (L652-L670), `mode_f32` (L672-L692), `median_f32` (L694-L701), `mode_i32` (L703-L720), `median_i32` (L722-L728), `build_mapping` (L730-L842), `build_mapping_with_piece` (L844-L860), `build_mapping_splats` (L862-L891), `build_mapping_with_piece_splats` (L893-L910), `piece_keys_mesh` (L912-L941), `piece_keys_splats` (L943-L972), `mapping_from_piece_keys` (L974-L982), `apply_piece_to_mapping` (L984-L999), `glob_match` (L1001-L1003), `glob_match_inner` (L1005-L1033)
+Functions: `from_params` (L36-L50), `definition` (L53-L60), `default_params` (L62-L75), `param_specs` (L77-L130), `compute` (L132-L137), `apply_to_mesh` (L139-L195), `apply_to_splats` (L197-L264), `source_domain_from_params` (L266-L273), `target_domain_from_params` (L275-L282), `collect_attribute_names_mesh` (L284-L300), `collect_attribute_names_splats` (L302-L318), `resolve_attribute_patterns` (L320-L336), `resolve_output_name` (L338-L354), `promote_attribute` (L356-L391), `promote_f32` (L393-L432), `promote_i32` (L434-L475), `promote_string_table` (L477-L516), `promote_string` (L518-L535), `mode_string` (L537-L554), `median_string` (L556-L563), `promote_vec2` (L565-L566), `promote_vec3` (L591-L592), `promote_vec4` (L620-L621), `promote_scalar` (L652-L670), `mode_f32` (L672-L692), `median_f32` (L694-L701), `mode_i32` (L703-L720), `median_i32` (L722-L728), `build_mapping` (L730-L842), `build_mapping_with_piece` (L844-L860), `build_mapping_splats` (L862-L891), `build_mapping_with_piece_splats` (L893-L910), `piece_keys_mesh` (L912-L940), `piece_keys_splats` (L942-L970), `mapping_from_piece_keys` (L972-L980), `apply_piece_to_mapping` (L982-L997), `glob_match` (L999-L1001), `glob_match_inner` (L1003-L1031)
 
 ## crates/core/src/nodes/attribute_transfer.rs
 Description: Attribute Transfer module.
@@ -258,11 +262,11 @@ Functions: `domain_from_params` (L8-L15), `parse_attribute_list` (L17-L23), `mes
 
 ## crates/core/src/nodes/boolean.rs
 Description: Boolean module.
-Functions: `definition` (L25-L32), `default_params` (L34-L47), `param_specs` (L49-L76), `compute` (L78-L82), `apply_to_geometry` (L84-L139), `boolean_mesh_mesh` (L141-L151), `mesh_to_sdf` (L153-L169), `combine_sdf` (L171-L234), `sdf_to_mesh` (L236-L263), `dims_from_size` (L265-L265)
+Functions: `definition` (L25-L32), `default_params` (L34-L47), `param_specs` (L49-L76), `compute` (L78-L82), `apply_to_geometry` (L84-L139), `boolean_mesh_mesh` (L141-L151), `mesh_to_sdf` (L153-L169), `combine_sdf` (L171-L233), `sdf_to_mesh` (L235-L262), `dims_from_size` (L264-L264)
 
 ## crates/core/src/nodes/boolean_geo.rs
 Description: Boolean Geo module.
-Functions: `definition` (L20-L27), `default_params` (L29-L36), `param_specs` (L38-L59), `compute` (L61-L65), `apply_to_geometry` (L67-L143), `cutter_inner_surface` (L145-L180), `boolean_mesh_mesh` (L182-L225), `try_trivial_boolean` (L227-L270), `containment_flags` (L272-L272), `flatten_positions` (L290-L298), `has_sdf_volume` (L300-L302), `find_sdf_volume` (L304-L306), `clip_mesh_with_sdf` (L308-L476), `build_polygon_samples` (L478-L513), `manifold_from_mesh` (L515-L618), `quantize_position` (L620-L620), `bounding_center` (L629-L629), `append_mesh_with_defaults` (L643-L727), `extend_attribute_storage` (L729-L753), `build_triangle_list` (L762-L772), `is_inside_mesh` (L774-L779), `winding_number` (L781-L801), `clip_polygon` (L809-L834), `clip_intersection` (L836-L844), `new` (L859-L917), `transfer_attributes_from_sources` (L927-L995), `build_point_samples` (L997-L1003), `build_corner_samples` (L1005-L1014), `build_prim_samples` (L1016-L1025), `nearest_triangle` (L1027-L1056), `distance2_point_aabb` (L1058-L1065), `transfer_domain_attributes` (L1067-L1162), `transfer_detail_attributes` (L1164-L1175), `collect_attribute_schema` (L1177-L1203), `register_attr` (L1205-L1223), `push` (L1233-L1243), `sample_float` (L1246-L1268), `sample_int` (L1270-L1294), `sample_vec2` (L1296-L1301), `sample_vec3` (L1334-L1339), `sample_vec4` (L1358-L1363), `sample_string` (L1382-L1406), `transfer_groups` (L1408-L1430), `sample_group` (L1432-L1459), `mesh_attribute_indices` (L1461-L1465), `sample_face_index` (L1483-L1485), `barycentric_max_index` (L1487-L1487), `lerp_f32` (L1500-L1500), `lerp_vec2` (L1507-L1508), `lerp_vec3` (L1521-L1522), `lerp_vec4` (L1536-L1537), `closest_point_on_triangle` (L1552-L1552)
+Functions: `definition` (L20-L27), `default_params` (L29-L36), `param_specs` (L38-L59), `compute` (L61-L65), `apply_to_geometry` (L67-L143), `cutter_inner_surface` (L145-L180), `boolean_mesh_mesh` (L182-L226), `try_trivial_boolean` (L228-L271), `containment_flags` (L273-L273), `flatten_positions` (L291-L299), `has_sdf_volume` (L301-L303), `find_sdf_volume` (L305-L307), `clip_mesh_with_sdf` (L309-L477), `build_polygon_samples` (L479-L514), `manifold_from_mesh` (L516-L619), `quantize_position` (L621-L621), `bounding_center` (L630-L630), `append_mesh_with_defaults` (L644-L728), `extend_attribute_storage` (L730-L754), `build_triangle_list` (L763-L773), `is_inside_mesh` (L775-L780), `winding_number` (L782-L802), `clip_polygon` (L810-L835), `clip_intersection` (L837-L845), `new` (L860-L918), `transfer_attributes_from_sources` (L928-L996), `build_point_samples` (L998-L1004), `build_corner_samples` (L1006-L1015), `build_prim_samples` (L1017-L1026), `nearest_triangle` (L1028-L1057), `distance2_point_aabb` (L1059-L1066), `transfer_domain_attributes` (L1068-L1163), `transfer_detail_attributes` (L1165-L1176), `collect_attribute_schema` (L1178-L1204), `register_attr` (L1206-L1224), `push` (L1234-L1244), `sample_float` (L1247-L1269), `sample_int` (L1271-L1295), `sample_vec2` (L1297-L1302), `sample_vec3` (L1335-L1340), `sample_vec4` (L1359-L1364), `sample_string` (L1383-L1407), `transfer_groups` (L1409-L1431), `sample_group` (L1433-L1460), `mesh_attribute_indices` (L1462-L1466), `sample_face_index` (L1484-L1486), `barycentric_max_index` (L1488-L1488), `lerp_f32` (L1501-L1501), `lerp_vec2` (L1508-L1509), `lerp_vec3` (L1522-L1523), `lerp_vec4` (L1537-L1538), `closest_point_on_triangle` (L1553-L1553)
 
 ## crates/core/src/nodes/box_node.rs
 Description: Box Node module.
@@ -291,6 +295,14 @@ Functions: `definition` (L10-L17), `default_params` (L19-L27), `param_specs` (L2
 ## crates/core/src/nodes/delete.rs
 Description: Delete module.
 Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L35-L53), `compute` (L55-L58), `compute_with_mapping` (L65-L71), `delete_mesh_with_mapping` (L73-L175), `filter_point_cloud` (L177-L211), `filter_mesh_attributes` (L213-L250), `filter_mesh_groups` (L252-L286), `filter_group_values` (L288-L296), `filter_attribute_storage` (L298-L355), `build_index_mapping` (L357-L369), `is_inside` (L371-L418)
+
+## crates/core/src/nodes/depth_image.rs
+Description: Depth Image module.
+Functions: `definition` (L33-L44), `default_params` (L46-L54), `param_specs` (L56-L63), `compute` (L65-L127), `run_depthpro` (L130-L234), `find_model_path` (L237-L262), `resolve_ort_dylib_path` (L284-L315), `ensure_ort_initialized` (L318-L347), `run_model_tensor` (L350-L413), `finite_min_max` (L415-L433)
+
+## crates/core/src/nodes/depth_to_splats.rs
+Description: Depth To Splats module.
+Functions: `definition` (L22-L33), `default_params` (L35-L44), `param_specs` (L46-L57), `compute` (L59-L175), `unproject` (L177-L191), `normal_from_depth` (L194-L251), `depth_to_splats_writes_segment_id` (L258-L276)
 
 ## crates/core/src/nodes/erosion_noise.rs
 Description: Erosion Noise module.
@@ -332,6 +344,14 @@ Functions: `definition` (L15-L22), `default_params` (L24-L34), `param_specs` (L3
 Description: Group Utils module.
 Functions: `group_type_from_params` (L18-L25), `mask_has_any` (L27-L32), `mesh_group_mask` (L34-L48), `splat_group_mask` (L50-L88), `splat_group_map_with_intrinsic` (L90-L100), `select_group_domain` (L102-L117), `map_group_mask` (L119-L241)
 
+## crates/core/src/nodes/image.rs
+Description: Image module.
+Functions: `definition` (L13-L20), `default_params` (L22-L26), `param_specs` (L28-L31), `compute` (L33-L39), `load_image` (L41-L64), `decode_image_bytes` (L66-L72)
+
+## crates/core/src/nodes/image_preview.rs
+Description: Image Preview module.
+Functions: `definition` (L16-L23), `default_params` (L25-L29), `param_specs` (L31-L33), `compute` (L35-L82), `image_hash` (L84-L93), `encode_preview_texture` (L95-L119)
+
 ## crates/core/src/nodes/material.rs
 Description: Material module.
 Functions: `definition` (L16-L23), `default_params` (L25-L35), `param_specs` (L37-L48), `compute` (L50-L55), `apply_to_geometry` (L57-L91), `build_material` (L93-L104), `assign_material_mesh` (L106-L115), `assign_material_splats` (L117-L126)
@@ -342,7 +362,7 @@ Functions: `definition` (L8-L15), `default_params` (L17-L19), `param_specs` (L21
 
 ## crates/core/src/nodes/mod.rs
 Description: Nodes module.
-Functions: `geometry_in` (L74-L79), `geometry_out` (L81-L86), `require_mesh_input` (L88-L97), `recompute_mesh_normals` (L99-L120), `selection_shape_params` (L122-L138)
+Functions: `geometry_in` (L79-L84), `image_in` (L86-L91), `geometry_out` (L93-L98), `image_out` (L100-L105), `require_mesh_input` (L107-L116), `recompute_mesh_normals` (L118-L139), `selection_shape_params` (L141-L157)
 
 ## crates/core/src/nodes/noise.rs
 Description: Noise module.
@@ -408,6 +428,10 @@ Functions: `definition` (L22-L29), `default_params` (L31-L41), `param_specs` (L4
 Description: Splat Delight module.
 Functions: `definition` (L41-L48), `default_params` (L50-L74), `param_specs` (L76-L148), `compute` (L150-L153), `apply_to_splats_with_env` (L155-L167), `apply_to_geometry` (L169-L211), `apply_to_splats_in_place` (L213-L224), `apply_to_splats_internal` (L226-L363), `sh_coeffs_for_order` (L365-L372), `zero_sh_rest_slice` (L374-L374), `clamp_sh_order_slice` (L380-L380), `apply_high_band_gain_slice` (L389-L389), `apply_ratio_to_arrays` (L401-L401), `apply_ratio_to_sh_rest_slice` (L414-L414), `for_each_splat_mut` (L423-L424), `ratio_bounds` (L455-L468), `build_ratio_table` (L470-L471), `build_env_coeffs` (L500-L505), `match_env_coeffs` (L526-L526), `uniform_env_coeffs` (L540-L540), `eps_from_env` (L553-L553), `env_l2_from_coeffs` (L569-L569), `irradiance_from_env_l2` (L579-L579), `splat_dc_color_from` (L611-L611), `set_splat_dc_color_into` (L621-L621), `divide_color` (L630-L630), `clamp_color` (L643-L643), `band0_only_clears_sh_rest` (L666-L679), `irradiance_divide_updates_dc` (L682-L693)
 
+## crates/core/src/nodes/splat_divide.rs
+Description: Splat Divide module.
+Functions: `definition` (L12-L19), `default_params` (L21-L28), `param_specs` (L30-L33), `apply_to_geometry` (L35-L109)
+
 ## crates/core/src/nodes/splat_heal.rs
 Description: Splat Heal module.
 Functions: `definition` (L46-L53), `default_params` (L55-L110), `param_specs` (L112-L193), `compute` (L195-L198), `apply_to_geometry` (L200-L248), `apply_to_splats` (L250-L293), `heal_voxel_close` (L301-L335), `heal_sdf_patch` (L337-L393), `build_preview_surface` (L395-L443), `build_density_grid` (L445-L448), `build_sdf_grid` (L450-L453), `grid_params_from` (L455-L499), `grid_spec_matches` (L501-L507), `occupancy_from_grid` (L509-L517), `close_occupancy` (L519-L525), `dilate_occupancy` (L527-L571), `erode_occupancy` (L573-L620), `collect_new_splats` (L622-L691), `project_to_surface` (L699-L721), `grid_index` (L723-L725), `grid_sample` (L727-L733), `grid_gradient` (L735-L747), `is_surface_voxel` (L749-L782), `heal_bounds_contains` (L784-L804), `append_new_splats` (L806-L890), `append_attributes_from_source` (L892-L903), `append_attribute_storage` (L905-L973), `append_attribute_defaults` (L975-L998), `append_groups_from_source` (L1000-L1016), `sigmoid` (L1018-L1020), `logit` (L1022-L1025)
@@ -438,7 +462,7 @@ Functions: `definition` (L20-L27), `default_params` (L29-L42), `param_specs` (L4
 
 ## crates/core/src/nodes/splat_to_mesh.rs
 Description: Splat To Mesh module.
-Functions: `definition` (L34-L41), `default_params` (L43-L73), `param_specs` (L75-L122), `apply_to_geometry` (L124-L204), `m2` (L217-L224), `default` (L228-L237), `splats_to_mesh` (L253-L275), `splats_to_sdf` (L277-L289), `sdf_grid_from_volume` (L291-L337), `grid_spec_from_volume` (L339-L347), `volume_matches_spec` (L349-L356), `sample_volume_to_grid` (L358-L379), `build_splat_grid` (L381-L486), `new` (L502-L507), `add` (L509-L509), `build_samples` (L518-L571), `build_grid_spec` (L573-L626), `rasterize_density` (L628-L681), `rasterize_smoothmin` (L683-L759), `grid_index` (L761-L763), `marching_cubes` (L765-L810), `sanitize_grid` (L812-L819), `blur_grid` (L821-L846), `blur_grid_raw` (L848-L859), `blur_color_grid` (L861-L873), `blur_axis_x` (L875-L888), `blur_color_axis_x` (L890-L890), `blur_axis_y` (L910-L923), `blur_color_axis_y` (L925-L925), `blur_axis_z` (L945-L957), `blur_color_axis_z` (L959-L959), `sample_color_grid` (L978-L978), `marching_cubes_extracts_surface` (L1054-L1080), `splat_to_sdf_outputs_volume` (L1083-L1091)
+Functions: `definition` (L34-L41), `default_params` (L43-L73), `param_specs` (L75-L122), `apply_to_geometry` (L124-L204), `m2` (L217-L224), `default` (L228-L237), `splats_to_mesh` (L253-L275), `splats_to_sdf` (L277-L289), `sdf_grid_from_volume` (L291-L337), `grid_spec_from_volume` (L339-L347), `volume_matches_spec` (L349-L356), `sample_volume_to_grid` (L358-L379), `build_splat_grid` (L381-L486), `new` (L502-L507), `add` (L509-L509), `build_samples` (L518-L571), `build_grid_spec` (L573-L625), `rasterize_density` (L627-L680), `rasterize_smoothmin` (L682-L758), `grid_index` (L760-L762), `marching_cubes` (L764-L809), `sanitize_grid` (L811-L818), `blur_grid` (L820-L845), `blur_grid_raw` (L847-L858), `blur_color_grid` (L860-L872), `blur_axis_x` (L874-L887), `blur_color_axis_x` (L889-L889), `blur_axis_y` (L909-L922), `blur_color_axis_y` (L924-L924), `blur_axis_z` (L944-L956), `blur_color_axis_z` (L958-L958), `sample_color_grid` (L977-L977), `marching_cubes_extracts_surface` (L1053-L1079), `splat_to_sdf_outputs_volume` (L1082-L1090)
 
 ## crates/core/src/nodes/splat_utils.rs
 Description: Splat Utils module.
@@ -474,15 +498,15 @@ Functions: `definition` (L13-L20), `default_params` (L22-L29), `param_specs` (L3
 
 ## crates/core/src/nodes/volume_combine.rs
 Description: Volume Combine module.
-Functions: `definition` (L18-L25), `default_params` (L27-L34), `param_specs` (L36-L58), `apply_to_geometry` (L60-L87), `combine_volumes` (L89-L160), `combine_scalar` (L162-L171), `dims_from_size` (L173-L173)
+Functions: `definition` (L18-L25), `default_params` (L27-L34), `param_specs` (L36-L58), `apply_to_geometry` (L60-L87), `combine_volumes` (L89-L159), `combine_scalar` (L161-L170), `dims_from_size` (L172-L172)
 
 ## crates/core/src/nodes/volume_from_geo.rs
 Description: Volume From Geo module.
-Functions: `definition` (L20-L27), `default_params` (L29-L42), `param_specs` (L44-L59), `apply_to_geometry` (L61-L199), `gather_geometry` (L217-L288), `dims_from_size` (L290-L290), `distance_to_triangle` (L298-L301), `is_inside_mesh` (L303-L309), `winding_number` (L311-L331), `closest_point_on_triangle` (L333-L333), `splat_radius` (L402-L402)
+Functions: `definition` (L20-L27), `default_params` (L29-L42), `param_specs` (L44-L59), `apply_to_geometry` (L61-L198), `gather_geometry` (L216-L287), `dims_from_size` (L289-L289), `distance_to_triangle` (L297-L300), `is_inside_mesh` (L302-L308), `winding_number` (L310-L330), `closest_point_on_triangle` (L332-L332), `splat_radius` (L401-L401)
 
 ## crates/core/src/nodes/volume_from_splats.rs
 Description: Volume From Splats module.
-Functions: `definition` (L30-L37), `default_params` (L39-L102), `param_specs` (L104-L167), `apply_to_geometry` (L169-L372), `gather_splats` (L393-L486), `dims_from_size` (L488-L488), `splat_radius` (L496-L497), `flood_fill_inside` (L533-L535), `splat_rotation` (L642-L642), `ellipsoid_signed_distance` (L654-L706), `distance_gradient_magnitude` (L708-L708), `filter_outliers` (L748-L806), `cell_key` (L808-L815)
+Functions: `definition` (L30-L37), `default_params` (L39-L102), `param_specs` (L104-L167), `apply_to_geometry` (L169-L371), `gather_splats` (L392-L485), `dims_from_size` (L487-L487), `splat_radius` (L495-L496), `flood_fill_inside` (L532-L534), `splat_rotation` (L641-L641), `ellipsoid_signed_distance` (L653-L705), `distance_gradient_magnitude` (L707-L707), `filter_outliers` (L747-L805), `cell_key` (L807-L814)
 
 ## crates/core/src/nodes/volume_to_mesh.rs
 Description: Volume To Mesh module.
@@ -498,7 +522,7 @@ Functions: `definition` (L11-L18), `default_params` (L20-L30), `param_specs` (L3
 
 ## crates/core/src/nodes_builtin.rs
 Description: Nodes Builtin module.
-Functions: `id` (L77-L79), `builtin_kind_from_id` (L82-L86), `mesh_error_read_splats` (L110-L112), `mesh_error_curve` (L114-L116), `mesh_error_volume_blur` (L118-L120), `mesh_error_sweep` (L122-L124), `mesh_error_write_splats` (L126-L128), `mesh_error_splat_to_mesh` (L130-L132), `mesh_error_volume_from_geo` (L134-L136), `mesh_error_volume_from_splats` (L138-L140), `mesh_error_volume_combine` (L142-L144), `mesh_error_volume_to_mesh` (L146-L148), `mesh_error_attribute_from_volume` (L150-L152), `node_specs` (L1025-L1027), `menu_group` (L1029-L1031), `node_spec` (L1033-L1038), `input_policy` (L1040-L1042), `name` (L1045-L1047), `builtin_kind_from_name` (L1051-L1059), `builtin_definitions` (L1061-L1066), `node_definition` (L1068-L1070), `default_params` (L1072-L1074), `param_specs` (L1076-L1078), `param_specs_for_name` (L1080-L1084), `param_specs_for_kind_id` (L1086-L1090), `compute_mesh_node` (L1092-L1098), `compute_geometry_node` (L1100-L1106), `compute_geometry_box` (L1108-L1110), `compute_geometry_grid` (L1112-L1114), `compute_geometry_sphere` (L1116-L1118), `compute_geometry_tube` (L1120-L1122), `compute_geometry_circle` (L1124-L1126), `compute_geometry_curve` (L1128-L1131), `compute_geometry_file` (L1133-L1135), `compute_geometry_read_splats` (L1137-L1142), `compute_geometry_merge` (L1144-L1146), `compute_geometry_output` (L1148-L1150), `compute_geometry_normal` (L1152-L1154), `compute_geometry_color` (L1156-L1158), `compute_geometry_noise` (L1160-L1162), `compute_geometry_erosion_noise` (L1164-L1169), `compute_geometry_smooth` (L1171-L1173), `compute_geometry_uv_texture` (L1175-L1180), `compute_geometry_uv_unwrap` (L1182-L1187), `compute_geometry_uv_view` (L1189-L1191), `compute_geometry_attribute_noise` (L1193-L1198), `compute_geometry_attribute_promote` (L1200-L1205), `compute_geometry_attribute_expand` (L1207-L1212), `compute_geometry_attribute_from_feature` (L1214-L1219), `compute_geometry_attribute_math` (L1221-L1226), `compute_splat_node` (L1228-L1234), `compute_splat_read_splats` (L1236-L1241), `splat_error_not_output` (L1243-L1248), `apply_mesh_unary` (L1250-L1319), `apply_splat_only` (L1321-L1360), `apply_attribute_transfer` (L1362-L1367), `apply_delete` (L1369-L1401), `apply_prune` (L1403-L1407), `apply_regularize` (L1409-L1413), `apply_splat_lod` (L1415-L1419), `apply_splat_heal` (L1421-L1423), `apply_splat_outlier` (L1425-L1429), `apply_mesh_outliers_sdf` (L1431-L1433), `apply_splat_cluster` (L1435-L1439), `apply_splat_delight` (L1441-L1443), `filter_splats` (L1445-L1465), `apply_group` (L1467-L1496), `apply_group_expand` (L1498-L1527), `apply_transform` (L1529-L1571), `apply_copy_transform` (L1573-L1637), `apply_copy_to_points` (L1639-L1693), `apply_obj_output` (L1695-L1709), `apply_write_splats` (L1711-L1720), `merge_geometry` (L1722-L1732), `transform_applies_scale` (L1742-L1750), `merge_combines_meshes` (L1753-L1759), `scatter_produces_points` (L1762-L1774), `normal_recomputes_normals` (L1777-L1783), `node_specs_cover_definitions` (L1786-L1788), `node_spec_ids_are_unique` (L1791-L1796)
+Functions: `id` (L82-L84), `builtin_kind_from_id` (L87-L91), `mesh_error_read_splats` (L115-L117), `mesh_error_curve` (L119-L121), `mesh_error_volume_blur` (L123-L125), `mesh_error_sweep` (L127-L129), `mesh_error_image` (L131-L133), `mesh_error_image_preview` (L135-L137), `mesh_error_depth_image` (L139-L141), `mesh_error_depth_to_splats` (L143-L145), `mesh_error_splat_divide` (L147-L149), `mesh_error_write_splats` (L151-L153), `mesh_error_splat_to_mesh` (L155-L157), `mesh_error_volume_from_geo` (L159-L161), `mesh_error_volume_from_splats` (L163-L165), `mesh_error_volume_combine` (L167-L169), `mesh_error_volume_to_mesh` (L171-L173), `mesh_error_attribute_from_volume` (L175-L177), `geometry_error_image` (L179-L181), `geometry_error_image_preview` (L183-L188), `geometry_error_depth_image` (L190-L192), `geometry_error_depth_to_splats` (L194-L196), `node_specs` (L1139-L1141), `menu_group` (L1143-L1145), `node_spec` (L1147-L1152), `input_policy` (L1154-L1156), `name` (L1159-L1161), `builtin_kind_from_name` (L1165-L1173), `builtin_definitions` (L1175-L1180), `node_definition` (L1182-L1184), `default_params` (L1186-L1188), `param_specs` (L1190-L1192), `param_specs_for_name` (L1194-L1198), `param_specs_for_kind_id` (L1200-L1204), `compute_mesh_node` (L1206-L1212), `compute_geometry_node` (L1214-L1220), `compute_geometry_box` (L1222-L1224), `compute_geometry_grid` (L1226-L1228), `compute_geometry_sphere` (L1230-L1232), `compute_geometry_tube` (L1234-L1236), `compute_geometry_circle` (L1238-L1240), `compute_geometry_curve` (L1242-L1245), `compute_geometry_file` (L1247-L1249), `compute_geometry_read_splats` (L1251-L1256), `compute_geometry_merge` (L1258-L1260), `compute_geometry_output` (L1262-L1264), `compute_geometry_normal` (L1266-L1268), `compute_geometry_color` (L1270-L1272), `compute_geometry_noise` (L1274-L1276), `compute_geometry_erosion_noise` (L1278-L1283), `compute_geometry_smooth` (L1285-L1287), `compute_geometry_uv_texture` (L1289-L1294), `compute_geometry_uv_unwrap` (L1296-L1301), `compute_geometry_uv_view` (L1303-L1305), `compute_geometry_attribute_noise` (L1307-L1312), `compute_geometry_attribute_promote` (L1314-L1319), `compute_geometry_attribute_expand` (L1321-L1326), `compute_geometry_attribute_from_feature` (L1328-L1333), `compute_geometry_attribute_math` (L1335-L1340), `compute_splat_node` (L1342-L1348), `compute_splat_read_splats` (L1350-L1355), `splat_error_not_output` (L1357-L1362), `apply_mesh_unary` (L1364-L1433), `apply_splat_only` (L1435-L1474), `apply_attribute_transfer` (L1476-L1481), `apply_delete` (L1483-L1515), `apply_prune` (L1517-L1521), `apply_regularize` (L1523-L1527), `apply_splat_lod` (L1529-L1533), `apply_splat_heal` (L1535-L1537), `apply_splat_outlier` (L1539-L1543), `apply_mesh_outliers_sdf` (L1545-L1547), `apply_splat_cluster` (L1549-L1553), `apply_splat_delight` (L1555-L1557), `filter_splats` (L1559-L1579), `apply_group` (L1581-L1610), `apply_group_expand` (L1612-L1641), `apply_transform` (L1643-L1685), `apply_copy_transform` (L1687-L1751), `apply_copy_to_points` (L1753-L1807), `apply_obj_output` (L1809-L1823), `apply_write_splats` (L1825-L1834), `merge_geometry` (L1836-L1846), `transform_applies_scale` (L1856-L1864), `merge_combines_meshes` (L1867-L1873), `scatter_produces_points` (L1876-L1888), `normal_recomputes_normals` (L1891-L1897), `node_specs_cover_definitions` (L1900-L1902), `node_spec_ids_are_unique` (L1905-L1910)
 
 ## crates/core/src/noise.rs
 Description: Noise module.
@@ -522,7 +546,7 @@ Functions: `drop` (L30-L35), `set_progress_context` (L38-L41), `report_progress`
 
 ## crates/core/src/project.rs
 Description: Project module.
-Functions: `default` (L16-L22), `migrate_to_latest` (L26-L44), `default` (L61-L72), `default` (L93-L100), `default` (L112-L119), `default` (L169-L195), `migrate_rebuilds_link_index_and_kind_ids` (L204-L229)
+Functions: `default` (L16-L22), `migrate_to_latest` (L26-L44), `default` (L61-L72), `default` (L93-L100), `default` (L112-L119), `default` (L169-L195), `migrate_rebuilds_link_index_and_kind_ids` (L204-L231)
 
 ## crates/core/src/scene.rs
 Description: Scene module.
@@ -542,7 +566,7 @@ Functions: `with_len` (L27-L39), `with_len_and_sh` (L41-L48), `len` (L50-L52), `
 
 ## crates/core/src/splat/sh.rs
 Description: Sh module.
-Functions: `build_sh_rotation_matrices` (L11-L29), `sh_max_band` (L31-L42), `rotate_sh_bands` (L44-L69), `rotate_sh_band_3` (L72-L72), `rotate_sh_band_5` (L87-L87), `rotate_sh_band_7` (L111-L111), `compute_sh_rotation_matrix` (L138-L140), `identity_matrix` (L183-L183), `pseudo_inverse` (L192-L234), `invert_square` (L237-L295), `sh_basis_l1` (L318-L318), `sh_basis_l2` (L325-L325), `sh_basis_l3` (L338-L338), `sh_sample_dirs` (L353-L373)
+Functions: `build_sh_rotation_matrices` (L11-L29), `sh_max_band` (L31-L42), `rotate_sh_bands` (L44-L69), `rotate_sh_band_3` (L72-L72), `rotate_sh_band_5` (L87-L87), `rotate_sh_band_7` (L111-L111), `compute_sh_rotation_matrix` (L139-L141), `identity_matrix` (L184-L184), `pseudo_inverse` (L193-L235), `invert_square` (L238-L296), `sh_basis_l1` (L319-L319), `sh_basis_l2` (L326-L326), `sh_basis_l3` (L339-L339), `sh_sample_dirs` (L354-L374)
 
 ## crates/core/src/splat/tests.rs
 Description: Tests module.
@@ -554,7 +578,7 @@ Functions: `transform` (L10-L102), `transform_masked` (L104-L207), `apply_linear
 
 ## crates/core/src/splat/validate.rs
 Description: Validate module.
-Functions: `normalize_on_load` (L8-L12), `normalized_for_save` (L14-L20), `normalize_rotations` (L22-L32), `normalize_log_scales` (L34-L43), `normalize_logit_opacity` (L45-L54), `is_finite_at` (L56-L108), `validate` (L110-L204), `rotation_is_normalized` (L207-L207), `log_scale_in_range` (L218-L218), `logit_in_range` (L229-L233), `logit` (L235-L238)
+Functions: `normalize_on_load` (L8-L12), `normalized_for_save` (L14-L20), `normalize_rotations` (L22-L32), `normalize_log_scales` (L34-L43), `normalize_logit_opacity` (L45-L54), `is_finite_at` (L56-L108), `validate` (L110-L202), `rotation_is_normalized` (L205-L205), `log_scale_in_range` (L216-L216), `logit_in_range` (L227-L231), `logit` (L233-L236)
 
 ## crates/core/src/splat_eval.rs
 Description: Splat Eval module.
@@ -566,7 +590,7 @@ Functions: `size` (L39-L46), `load_splat_ply` (L63-L65), `load_splat_ply_with_mo
 
 ## crates/core/src/volume.rs
 Description: Volume module.
-Functions: `new` (L22-L24), `len` (L41-L43), `is_empty` (L45-L47), `local_bounds` (L49-L58), `world_bounds` (L60-L80), `value_index` (L82-L86), `try_alloc_f32` (L89-L108)
+Functions: `new` (L22-L24), `len` (L41-L43), `is_empty` (L45-L47), `local_bounds` (L49-L58), `world_bounds` (L60-L80), `value_index` (L82-L86), `try_alloc_f32` (L89-L107)
 
 ## crates/core/src/volume_sampling.rs
 Description: Volume Sampling module.

@@ -201,7 +201,7 @@ impl LobedoApp {
                                     computed, report.cache_hits, report.cache_misses
                                 ));
                                 if let Some(ms) = self.last_eval_ms {
-                                    ui.label(format!("Last eval: {:.2} ms", ms));
+                                    ui.label(format!("Last eval: {ms:.2} ms"));
                                 }
                                 if !report.output_valid {
                                     ui.colored_label(egui::Color32::RED, "Output invalid");
@@ -250,7 +250,7 @@ impl LobedoApp {
                                         if ui
                                             .selectable_label(
                                                 self.log_level == level,
-                                                format!("{:?}", level),
+                                                format!("{level:?}"),
                                             )
                                             .clicked()
                                         {

@@ -141,7 +141,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
 
     let modifies_positions = domain == AttributeDomain::Point && attr == "P";
     mesh.set_attribute(domain, attr, storage)
-        .map_err(|err| format!("Attribute Expand error: {:?}", err))?;
+        .map_err(|err| format!("Attribute Expand error: {err:?}"))?;
     if modifies_positions {
         recompute_mesh_normals(mesh);
     }
@@ -212,7 +212,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
 
     splats
         .set_attribute(domain, attr, storage)
-        .map_err(|err| format!("Attribute Expand error: {:?}", err))?;
+        .map_err(|err| format!("Attribute Expand error: {err:?}"))?;
     Ok(())
 }
 

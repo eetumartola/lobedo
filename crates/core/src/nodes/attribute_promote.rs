@@ -182,7 +182,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
         let storage = promote_attribute(attr_ref, &mapping, method);
         if let Some(storage) = storage {
             mesh.set_attribute(target_domain, out_name, storage)
-                .map_err(|err| format!("Attribute Promote error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Promote error: {err:?}"))?;
             if delete_original {
                 let _ = mesh.remove_attribute(source_domain, attr_name);
             }
@@ -254,7 +254,7 @@ pub(crate) fn apply_to_splats(
         if let Some(storage) = storage {
             splats
                 .set_attribute(target_domain, out_name, storage)
-                .map_err(|err| format!("Attribute Promote error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Promote error: {err:?}"))?;
             if delete_original {
                 let _ = splats.attributes.remove(source_domain, attr_name);
             }
@@ -917,8 +917,7 @@ fn piece_keys_mesh(
     let target_len = mesh.attribute_domain_len(domain);
     let Some(attr) = mesh.attribute(domain, piece_attr) else {
         return Err(format!(
-            "Attribute Promote: piece attribute '{}' not found on {:?}",
-            piece_attr, domain
+            "Attribute Promote: piece attribute '{piece_attr}' not found on {domain:?}"
         ));
     };
     match attr {
@@ -948,8 +947,7 @@ fn piece_keys_splats(
     let target_len = splats.attribute_domain_len(domain);
     let Some(attr) = splats.attribute(domain, piece_attr) else {
         return Err(format!(
-            "Attribute Promote: piece attribute '{}' not found on {:?}",
-            piece_attr, domain
+            "Attribute Promote: piece attribute '{piece_attr}' not found on {domain:?}"
         ));
     };
     match attr {

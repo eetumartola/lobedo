@@ -11,13 +11,16 @@ glam = "0.27"
 tracing = "0.1"
 tobj = "4"
 mcubes = "0.1.7"
-lin_alg = "1.3.5"
+lin_alg = { version = "1.3", default-features = false, features = ["no_std"] }
 gltf = "1.4"
 boolmesh = { version = "0.1.3", features = ["f32"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+half = "2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = "1"
 ureq = "2"
+ort = { version = "2.0.0-rc.11", default-features = false, features = ["half", "load-dynamic", "download-binaries", "copy-dylibs", "tls-native"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1"

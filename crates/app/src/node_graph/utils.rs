@@ -12,6 +12,7 @@ use super::state::SnarlNode;
 pub(super) fn pin_color(pin_type: PinType) -> Color32 {
     match pin_type {
         PinType::Geometry => Color32::from_rgb(80, 160, 255),
+        PinType::Image => Color32::from_rgb(255, 200, 90),
         PinType::Mesh => Color32::from_rgb(100, 190, 255),
         PinType::Splats => Color32::from_rgb(255, 120, 120),
         PinType::Float => Color32::from_rgb(220, 180, 90),

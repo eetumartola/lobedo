@@ -732,7 +732,7 @@ fn merge_error_state(
                 nodes.insert(*node);
                 messages
                     .entry(*node)
-                    .or_insert_with(|| format!("Upstream error in nodes: {:?}", upstream));
+                    .or_insert_with(|| format!("Upstream error in nodes: {upstream:?}"));
                 for upstream_node in upstream {
                     nodes.insert(*upstream_node);
                 }

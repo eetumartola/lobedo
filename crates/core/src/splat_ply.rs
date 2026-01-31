@@ -135,7 +135,7 @@ pub fn save_splat_ply_with_format(
 
     if normalized.sh_coeffs > 0 {
         for i in 0..(normalized.sh_coeffs * 3) {
-            writeln!(file, "property float f_rest_{}", i).map_err(|err| err.to_string())?;
+            writeln!(file, "property float f_rest_{i}").map_err(|err| err.to_string())?;
         }
     }
 

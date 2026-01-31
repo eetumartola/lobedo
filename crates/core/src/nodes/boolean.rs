@@ -190,8 +190,7 @@ fn combine_sdf(a: &Volume, b: &Volume, op: i32, max_dim: u32) -> Result<Volume, 
     let total = dims[0] as u64 * dims[1] as u64 * dims[2] as u64;
     if total == 0 || total > MAX_GRID_POINTS {
         return Err(format!(
-            "Boolean SDF volume grid too large ({} voxels, max {})",
-            total, MAX_GRID_POINTS
+            "Boolean SDF volume grid too large ({total} voxels, max {MAX_GRID_POINTS})"
         ));
     }
 

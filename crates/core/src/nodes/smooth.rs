@@ -141,35 +141,35 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                     smooth_scalar(values, &neighbors, mask.as_deref(), iterations, strength);
                 splats
                     .set_attribute(domain, attr, AttributeStorage::Float(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Int(values) => {
                 let smoothed =
                     smooth_int(values, &neighbors, mask.as_deref(), iterations, strength);
                 splats
                     .set_attribute(domain, attr, AttributeStorage::Int(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec2(values) => {
                 let smoothed =
                     smooth_vec2(values, &neighbors, mask.as_deref(), iterations, strength);
                 splats
                     .set_attribute(domain, attr, AttributeStorage::Vec2(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec3(values) => {
                 let smoothed =
                     smooth_vec3(values, &neighbors, mask.as_deref(), iterations, strength);
                 splats
                     .set_attribute(domain, attr, AttributeStorage::Vec3(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec4(values) => {
                 let smoothed =
                     smooth_vec4(values, &neighbors, mask.as_deref(), iterations, strength);
                 splats
                     .set_attribute(domain, attr, AttributeStorage::Vec4(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::StringTable(_) => {}
         }
@@ -211,31 +211,31 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 let smoothed =
                     smooth_scalar(values, &neighbors, mask.as_deref(), iterations, strength);
                 mesh.set_attribute(domain, attr, AttributeStorage::Float(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Int(values) => {
                 let smoothed =
                     smooth_int(values, &neighbors, mask.as_deref(), iterations, strength);
                 mesh.set_attribute(domain, attr, AttributeStorage::Int(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec2(values) => {
                 let smoothed =
                     smooth_vec2(values, &neighbors, mask.as_deref(), iterations, strength);
                 mesh.set_attribute(domain, attr, AttributeStorage::Vec2(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec3(values) => {
                 let smoothed =
                     smooth_vec3(values, &neighbors, mask.as_deref(), iterations, strength);
                 mesh.set_attribute(domain, attr, AttributeStorage::Vec3(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::Vec4(values) => {
                 let smoothed =
                     smooth_vec4(values, &neighbors, mask.as_deref(), iterations, strength);
                 mesh.set_attribute(domain, attr, AttributeStorage::Vec4(smoothed))
-                    .map_err(|err| format!("Smooth error: {:?}", err))?;
+                    .map_err(|err| format!("Smooth error: {err:?}"))?;
             }
             AttributeRef::StringTable(_) => {}
         }

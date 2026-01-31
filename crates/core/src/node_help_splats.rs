@@ -329,6 +329,17 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 ),
             ],
         }),
+        BuiltinNodeKind::SplatDivide => Some(NodeHelpPage {
+            name: "Splat Divide",
+            description: &[
+                "Splits splats into multiple primitives based on an attribute value.",
+                "Each unique attribute value becomes its own SplatGeo in the output.",
+                "Use it to separate segment_id or cluster_id groups for editing.",
+            ],
+            inputs: &["in: Geometry with splats to split."],
+            outputs: &["out: Geometry with split splat primitives."],
+            parameters: &[("attr", "Attribute to split by (default segment_id).")],
+        }),
         _ => None,
     }
 }

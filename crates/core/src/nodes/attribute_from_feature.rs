@@ -245,7 +245,7 @@ fn apply_area_mesh(
     }
 
     mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Feature error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Feature error: {err:?}"))?;
     Ok(())
 }
 
@@ -356,7 +356,7 @@ fn apply_gradient_mesh(
     }
 
     mesh.set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Feature error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Feature error: {err:?}"))?;
     Ok(())
 }
 
@@ -415,7 +415,7 @@ fn apply_area_splats(
 
     splats
         .set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Feature error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Feature error: {err:?}"))?;
     Ok(())
 }
 
@@ -463,7 +463,7 @@ fn apply_gradient_splats(
 
     splats
         .set_attribute(domain, attr, AttributeStorage::Float(values))
-        .map_err(|err| format!("Attribute from Feature error: {:?}", err))?;
+        .map_err(|err| format!("Attribute from Feature error: {err:?}"))?;
     Ok(())
 }
 

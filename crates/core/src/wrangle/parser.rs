@@ -179,7 +179,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token::Ident(ident));
             }
             _ => {
-                return Err(format!("Unexpected character '{}'", c));
+                return Err(format!("Unexpected character '{c}'"));
             }
         }
     }
@@ -358,14 +358,14 @@ impl Parser {
                 self.expect(Token::RParen)?;
                 Ok(expr)
             }
-            other => Err(format!("Unexpected token {:?}", other)),
+            other => Err(format!("Unexpected token {other:?}")),
         }
     }
 
     fn expect(&mut self, token: Token) -> Result<(), String> {
         match self.next() {
             Some(t) if t == token => Ok(()),
-            other => Err(format!("Expected {:?}, got {:?}", token, other)),
+            other => Err(format!("Expected {token:?}, got {other:?}")),
         }
     }
 

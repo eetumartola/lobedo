@@ -768,23 +768,23 @@ fn apply_inherit_buffers(mesh: &mut Mesh, buffers: Vec<InheritBuffer>) -> Result
         match buffer {
             InheritBuffer::Float { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Float(values))
-                    .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::Int { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Int(values))
-                    .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::Vec2 { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec2(values))
-                    .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::Vec3 { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec3(values))
-                    .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::Vec4 { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(values))
-                    .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::StringTable { name, values, indices } => {
                 mesh.set_attribute(
@@ -792,7 +792,7 @@ fn apply_inherit_buffers(mesh: &mut Mesh, buffers: Vec<InheritBuffer>) -> Result
                     name,
                     AttributeStorage::StringTable(StringTableAttribute::new(values, indices)),
                 )
-                .map_err(|err| format!("Scatter inherit error: {:?}", err))?;
+                .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
         }
     }

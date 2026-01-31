@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -58,6 +58,8 @@ pub struct NodeGraphState {
     pub(super) node_menu_screen_pos: Pos2,
     pub(super) node_menu_node: Option<NodeId>,
     pub(super) pending_write_request: Option<WriteRequest>,
+    pub(super) model_download: ModelDownloadState,
+    pub(super) runtime_download: ModelDownloadState,
     pub(super) progress_state: Arc<Mutex<NodeProgressState>>,
     pub(super) selected_note: Option<u64>,
     pub(super) last_changed: bool,
@@ -88,6 +90,17 @@ pub enum WriteRequestKind {
 pub struct WriteRequest {
     pub node_id: NodeId,
     pub kind: WriteRequestKind,
+}
+
+#[derive(Default)]
+pub(super) struct ModelDownloadState {
+    pub(super) active: bool,
+    pub(super) receiver: Option<mpsc::Receiver<ModelDownloadResult>>,
+    pub(super) message: Option<String>,
+}
+
+pub(super) struct ModelDownloadResult {
+    pub(super) message: String,
 }
 
 impl Default for NodeGraphState {
@@ -128,6 +141,8 @@ impl Default for NodeGraphState {
             node_menu_screen_pos: Pos2::new(0.0, 0.0),
             node_menu_node: None,
             pending_write_request: None,
+            model_download: ModelDownloadState::default(),
+            runtime_download: ModelDownloadState::default(),
             progress_state: Arc::new(Mutex::new(NodeProgressState::default())),
             selected_note: None,
             last_changed: false,
@@ -135,6 +150,7 @@ impl Default for NodeGraphState {
         }
     }
 }
+
 
 pub(super) struct NodeMenuRequest {
     pub(super) node_id: NodeId,

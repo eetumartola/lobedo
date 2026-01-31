@@ -197,7 +197,7 @@ impl LobedoApp {
                     .file_name()
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_else(|| "project.json".to_string());
-                format!("Lobedo - {}", name)
+                format!("Lobedo - {name}")
             }
             None => "Lobedo - Unsaved".to_string(),
         };

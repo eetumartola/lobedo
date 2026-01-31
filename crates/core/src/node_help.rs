@@ -131,6 +131,41 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 ("closed", "Close the curve loop."),
             ],
         }),
+        BuiltinNodeKind::DepthImage => Some(NodeHelpPage {
+            name: "Depth Image",
+            description: &[
+                "Runs DepthPro on the input image to produce a depth map.",
+                "Outputs the original color image, a linear depth image, and a placeholder segmentation map.",
+                "Depth is derived from inverse depth using the Depth Scale parameter.",
+            ],
+            inputs: &["image: Input RGB image."],
+            outputs: &[
+                "color: Pass-through RGB image.",
+                "depth: Linear depth image.",
+                "segmentation: Placeholder segment ids (single segment).",
+            ],
+            parameters: &[("depth_scale", "Scale factor to convert inverse depth to linear depth.")],
+        }),
+        BuiltinNodeKind::DepthToSplats => Some(NodeHelpPage {
+            name: "Depth to Splats",
+            description: &[
+                "Converts color + depth images into a Gaussian splat model.",
+                "Normals are estimated from depth gradients and used to orient splats.",
+                "Segmentation is optional and stored as a segment_id attribute on splats.",
+            ],
+            inputs: &[
+                "color: RGB image.",
+                "depth: Linear depth image.",
+                "segmentation: Optional segment id image (R32U).",
+            ],
+            outputs: &["out: Geometry with splat primitives."],
+            parameters: &[
+                ("fov_deg", "Horizontal field of view used for unprojection."),
+                ("scale_k", "Pixel footprint scale multiplier for splat size."),
+                ("scale_tau", "Depth-axis scale ratio relative to XY size."),
+                ("opacity", "Initial opacity (alpha) for splats."),
+            ],
+        }),
         BuiltinNodeKind::BooleanSdf => Some(NodeHelpPage {
             name: "Boolean SDF",
             description: &[

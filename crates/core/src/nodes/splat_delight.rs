@@ -672,7 +672,7 @@ mod tests {
         let params = NodeParams {
             values: BTreeMap::from([("delight_mode".to_string(), ParamValue::Int(0))]),
         };
-        let out = apply_to_splats_with_env(&params, &splats, None);
+        let out = apply_to_splats_with_env(&params, &splats, None, None);
         assert_eq!(out.sh_rest[0], [0.0, 0.0, 0.0]);
         assert_eq!(out.sh_rest[1], [0.0, 0.0, 0.0]);
         assert_eq!(out.sh_rest[2], [0.0, 0.0, 0.0]);
@@ -688,7 +688,7 @@ mod tests {
                 ("source_env".to_string(), ParamValue::Int(1)),
             ]),
         };
-        let out = apply_to_splats_with_env(&params, &splats, None);
+        let out = apply_to_splats_with_env(&params, &splats, None, None);
         assert!(out.sh0[0][0].is_finite());
     }
 }

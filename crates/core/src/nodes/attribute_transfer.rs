@@ -384,31 +384,31 @@ fn apply_transfer_to_mesh(
                 let mut out = existing_float_attr_mesh(mesh, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Float(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Int { positions: src_pos, values } => {
                 let mut out = existing_int_attr_mesh(mesh, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Int(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec2 { positions: src_pos, values } => {
                 let mut out = existing_vec2_attr_mesh(mesh, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec2(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec3 { positions: src_pos, values } => {
                 let mut out = existing_vec3_attr_mesh(mesh, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec3(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec4 { positions: src_pos, values } => {
                 let mut out = existing_vec4_attr_mesh(mesh, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 mesh.set_attribute(domain, name, AttributeStorage::Vec4(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::StringTable { positions: src_pos, values } => {
                 let existing = mesh.attribute(domain, name);
@@ -451,7 +451,7 @@ fn apply_transfer_to_mesh(
                     name,
                     AttributeStorage::StringTable(StringTableAttribute::new(table, out)),
                 )
-                .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
         }
     }
@@ -495,35 +495,35 @@ fn apply_transfer_to_splats(
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Float(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Int { positions: src_pos, values } => {
                 let mut out = existing_int_attr_splats(splats, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Int(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec2 { positions: src_pos, values } => {
                 let mut out = existing_vec2_attr_splats(splats, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec2(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec3 { positions: src_pos, values } => {
                 let mut out = existing_vec3_attr_splats(splats, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec3(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::Vec4 { positions: src_pos, values } => {
                 let mut out = existing_vec4_attr_splats(splats, domain, name, count);
                 transfer_values(&positions, src_pos, values, mask.as_deref(), &mut out);
                 splats
                     .set_attribute(domain, name, AttributeStorage::Vec4(out))
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
             AttributeSamples::StringTable { positions: src_pos, values } => {
                 let existing = splats.attribute(domain, name);
@@ -567,7 +567,7 @@ fn apply_transfer_to_splats(
                         name,
                         AttributeStorage::StringTable(StringTableAttribute::new(table, out)),
                     )
-                    .map_err(|err| format!("Attribute Transfer error: {:?}", err))?;
+                    .map_err(|err| format!("Attribute Transfer error: {err:?}"))?;
             }
         }
     }

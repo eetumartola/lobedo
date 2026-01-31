@@ -28,9 +28,20 @@ use web_sys::Response;
 pub fn store_bytes(name: String, data: Vec<u8>) -> String {
     let id = NEXT_ASSET_ID.fetch_add(1, Ordering::Relaxed);
     let key = if name.trim().is_empty() {
-        format!("mem://{}", id)
+        format!("mem://{id}")
     } else {
-        format!("mem://{}::{}", id, name)
+        format!("mem://{id}::{name}")
+    };
+    let store = ASSET_STORE.get_or_init(|| Mutex::new(HashMap::new()));
+    store.lock().expect("asset store lock").insert(key.clone(), data);
+    key
+}
+
+pub fn store_bytes_with_key(key: String, data: Vec<u8>) -> String {
+    let key = if key.starts_with("mem://") {
+        key
+    } else {
+        format!("mem://{key}")
     };
     let store = ASSET_STORE.get_or_init(|| Mutex::new(HashMap::new()));
     store.lock().expect("asset store lock").insert(key.clone(), data);

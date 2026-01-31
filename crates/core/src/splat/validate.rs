@@ -182,8 +182,7 @@ impl SplatGeo {
             for (name, values) in self.groups.map(domain) {
                 if values.len() != count {
                     return Err(format!(
-                        "SplatGeo group '{}' has invalid length",
-                        name
+                        "SplatGeo group '{name}' has invalid length"
                     ));
                 }
             }
@@ -194,8 +193,7 @@ impl SplatGeo {
                 let actual = storage.len();
                 if expected != 0 && actual != expected {
                     return Err(format!(
-                        "SplatGeo attribute '{}' has invalid length",
-                        name
+                        "SplatGeo attribute '{name}' has invalid length"
                     ));
                 }
             }

@@ -14,7 +14,7 @@ pub fn node_help(help_key: &str) -> Option<&'static str> {
 pub fn param_help(_node_name: &str, param: &str) -> Option<Cow<'static, str>> {
     common_param_help(param)
         .map(Cow::Borrowed)
-        .or_else(|| Some(Cow::Owned(format!("{} parameter.", param))))
+        .or_else(|| Some(Cow::Owned(format!("{param} parameter."))))
 }
 
 pub fn show_help_page_window(ctx: &Context, help_key: &str, open: &mut bool) {
@@ -68,7 +68,7 @@ fn show_list_section(ui: &mut egui::Ui, title: &str, items: &[&str]) {
         ui.add_space(4.0);
     } else {
         for item in items {
-            ui.label(format!("• {}", item));
+            ui.label(format!("• {item}"));
         }
         ui.add_space(4.0);
     }

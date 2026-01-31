@@ -202,8 +202,10 @@ mod tests {
 
     #[test]
     fn migrate_rebuilds_link_index_and_kind_ids() {
-        let mut project = Project::default();
-        project.version = 1;
+        let mut project = Project {
+            version: 1,
+            ..Default::default()
+        };
 
         let a = project
             .graph

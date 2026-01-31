@@ -112,7 +112,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     input
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
-        .map_err(|err| format!("Color attribute error: {:?}", err))?;
+        .map_err(|err| format!("Color attribute error: {err:?}"))?;
     Ok(input)
 }
 
@@ -144,7 +144,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
 
     splats
         .set_attribute(domain, "Cd", AttributeStorage::Vec3(values))
-        .map_err(|err| format!("Color attribute error: {:?}", err))?;
+        .map_err(|err| format!("Color attribute error: {err:?}"))?;
     Ok(())
 }
 

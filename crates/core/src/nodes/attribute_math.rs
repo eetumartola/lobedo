@@ -132,7 +132,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let modifies_positions = settings.domain == AttributeDomain::Point && settings.result == "P";
     input
         .set_attribute(settings.domain, settings.result.as_str(), storage)
-        .map_err(|err| format!("Attribute Math error: {:?}", err))?;
+        .map_err(|err| format!("Attribute Math error: {err:?}"))?;
     if modifies_positions {
         recompute_mesh_normals(&mut input);
     }
@@ -169,7 +169,7 @@ pub(crate) fn apply_to_splats(
     };
     splats
         .set_attribute(settings.domain, settings.result, storage)
-        .map_err(|err| format!("Attribute Math error: {:?}", err))?;
+        .map_err(|err| format!("Attribute Math error: {err:?}"))?;
     Ok(())
 }
 
