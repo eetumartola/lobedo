@@ -214,8 +214,11 @@ fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Resul
     }
     let indices = manifold
         .get_indices()
-        .into_iter()
-        .map(|idx| idx as u32)
+        .iter()
+        .flat_map(|idx| {
+            let [a, b, c] = idx.to_array();
+            [a as u32, b as u32, c as u32]
+        })
         .collect::<Vec<_>>();
     let mut mesh = Mesh::with_positions_indices(positions, indices);
 

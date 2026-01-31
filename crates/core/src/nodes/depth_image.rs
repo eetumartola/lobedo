@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
@@ -89,6 +90,16 @@ pub fn compute(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
+        let signature = input_signature(rgb, width, height, depth_scale, debug);
+        if let Some(cache) = DEPTH_ERROR_CACHE.get() {
+            if let Ok(guard) = cache.lock() {
+                if let Some(last) = guard.as_ref() {
+                    if last.signature == signature {
+                        return Err(last.message.clone());
+                    }
+                }
+            }
+        }
         let mut inv_depth = run_depthpro(rgb, width, height, debug)?;
         let (mut min_inv, mut max_inv) = finite_min_max(&inv_depth)
             .ok_or_else(|| "DepthPro output contained no finite values".to_string())?;
@@ -107,9 +118,14 @@ pub fn compute(
             }
         }
         if (max_inv - min_inv).abs() < INV_DEPTH_RANGE_EPS {
-            return Err(format!(
+            let message = format!(
                 "DepthPro output is nearly constant (min={min_inv:.6}, max={max_inv:.6}, input_min={input_min:.6}, input_max={input_max:.6})."
-            ));
+            );
+            let cache = DEPTH_ERROR_CACHE.get_or_init(|| Mutex::new(None));
+            if let Ok(mut guard) = cache.lock() {
+                *guard = Some(DepthErrorCache { signature, message: message.clone() });
+            }
+            return Err(message);
         }
         let mut depth = Vec::with_capacity(inv_depth.len());
         for value in inv_depth {
@@ -122,6 +138,15 @@ pub fn compute(
         }
         let depth = ImageData::from_depth(width, height, depth)?;
         let seg = ImageData::from_seg(width, height, vec![0u32; (width * height) as usize])?;
+        if let Some(cache) = DEPTH_ERROR_CACHE.get() {
+            if let Ok(mut guard) = cache.lock() {
+                if let Some(last) = guard.as_ref() {
+                    if last.signature == signature {
+                        *guard = None;
+                    }
+                }
+            }
+        }
         Ok((color, depth, seg))
     }
 }
@@ -228,9 +253,25 @@ fn run_depthpro(rgb: &[f32], width: u32, height: u32, debug: bool) -> Result<Vec
     )
     .ok_or_else(|| "Depth output buffer size mismatch".to_string())?;
     let cropped = crop_imm(&output_image, pad_x, pad_y, new_w, new_h).to_image();
-    let resized =
-        resize(&cropped, width, height, FilterType::Triangle);
-    Ok(resized.into_raw())
+    if debug {
+        let raw = cropped.as_raw();
+        if let Some((min_crop, max_crop)) = finite_min_max(raw) {
+            eprintln!(
+                "Depth Image debug: cropped range=[{:.6}, {:.6}]",
+                min_crop, max_crop
+            );
+        }
+    }
+    let raw = resize_depth(cropped.as_raw(), new_w, new_h, width, height);
+    if debug {
+        if let Some((min_resize, max_resize)) = finite_min_max(&raw) {
+            eprintln!(
+                "Depth Image debug: resized range=[{:.6}, {:.6}]",
+                min_resize, max_resize
+            );
+        }
+    }
+    Ok(raw)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -279,6 +320,15 @@ enum OrtInitState {
 
 #[cfg(not(target_arch = "wasm32"))]
 static ORT_INIT: OnceLock<Mutex<OrtInitState>> = OnceLock::new();
+
+#[cfg(not(target_arch = "wasm32"))]
+struct DepthErrorCache {
+    signature: u64,
+    message: String,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+static DEPTH_ERROR_CACHE: OnceLock<Mutex<Option<DepthErrorCache>>> = OnceLock::new();
 
 #[cfg(not(target_arch = "wasm32"))]
 fn resolve_ort_dylib_path() -> Result<PathBuf, String> {
@@ -430,4 +480,72 @@ fn finite_min_max(values: &[f32]) -> Option<(f32, f32)> {
     } else {
         None
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn input_signature(rgb: &[f32], width: u32, height: u32, depth_scale: f32, debug: bool) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    width.hash(&mut hasher);
+    height.hash(&mut hasher);
+    depth_scale.to_bits().hash(&mut hasher);
+    debug.hash(&mut hasher);
+    let stride = (rgb.len() / 1024).max(1);
+    for idx in (0..rgb.len()).step_by(stride) {
+        rgb[idx].to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn resize_depth(
+    input: &[f32],
+    in_w: u32,
+    in_h: u32,
+    out_w: u32,
+    out_h: u32,
+) -> Vec<f32> {
+    if in_w == 0 || in_h == 0 || out_w == 0 || out_h == 0 {
+        return Vec::new();
+    }
+    if in_w == out_w && in_h == out_h {
+        return input.to_vec();
+    }
+
+    let scale_x = in_w as f32 / out_w as f32;
+    let scale_y = in_h as f32 / out_h as f32;
+    let mut out = vec![0.0f32; (out_w * out_h) as usize];
+
+    let sample = |x: i32, y: i32| -> f32 {
+        let xx = x.clamp(0, (in_w - 1) as i32) as u32;
+        let yy = y.clamp(0, (in_h - 1) as i32) as u32;
+        let idx = (yy * in_w + xx) as usize;
+        let value = input.get(idx).copied().unwrap_or(0.0);
+        if value.is_finite() { value } else { 0.0 }
+    };
+
+    for y in 0..out_h {
+        let src_y = (y as f32 + 0.5) * scale_y - 0.5;
+        let y0 = src_y.floor() as i32;
+        let y1 = y0 + 1;
+        let wy = src_y - y0 as f32;
+        let wy0 = 1.0 - wy;
+        for x in 0..out_w {
+            let src_x = (x as f32 + 0.5) * scale_x - 0.5;
+            let x0 = src_x.floor() as i32;
+            let x1 = x0 + 1;
+            let wx = src_x - x0 as f32;
+            let wx0 = 1.0 - wx;
+
+            let v00 = sample(x0, y0);
+            let v10 = sample(x1, y0);
+            let v01 = sample(x0, y1);
+            let v11 = sample(x1, y1);
+            let v0 = v00 * wx0 + v10 * wx;
+            let v1 = v01 * wx0 + v11 * wx;
+            let value = v0 * wy0 + v1 * wy;
+            out[(y * out_w + x) as usize] = value;
+        }
+    }
+
+    out
 }
