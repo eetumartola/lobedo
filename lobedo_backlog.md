@@ -109,19 +109,30 @@ Status: done | in progress | not started
 - **M3**: Backproject -> points (not started)
 - **M4**: Fit splats (not started)
 
-## Epic I - Image → Splats (ONNX, single-view)
+## Epic I - Image -> Splats (ONNX, single-view)
 - **I1**: Add Image pin type + core image data model (color/depth/segmentation) (done)
 - **I2**: Support per-pin outputs in graph evaluation (multi-output node values) (done)
-- **I3**: Image node (file/URL input → image output) (done)
+- **I3**: Image node (file/URL input -> image output) (done)
 - **I4**: Depth Image node: DepthPro ONNX inference + dummy segmentation output (done)
-- **I5**: Depth → Splats node (unprojection, normals-from-depth, Gaussian init) (done)
+- **I5**: Depth -> Splats node (unprojection, normals-from-depth, Gaussian init) (done)
 - **I6**: Splat Divide node (split SplatGeo by attribute, default segment_id) (done)
 - **I7**: Model discovery in `models/sam` + `models/depthpro` (first model wins) (in progress: depthpro only)
-- **I8**: Depth scaling parameter (inverse → linear depth) + FOV parameterization (done)
+- **I8**: Depth scaling parameter (inverse -> linear depth) + FOV parameterization (done)
 - **I9**: Add node help + parameter docs for new image/onnx nodes (done)
 - **I10**: Tests for image decode + depth-to-splat math (in progress)
 - **I11**: SAM segmentation integration (later) (not started)
 - **I12**: Smarter sampling (stride/target count, later) (not started)
+
+## Epic WL - WorldLabs API nodes
+- **WL1**: Define WorldLabs Generate node spec + params (Text/Image modes, model, seed, tags, privacy, output format/res) (done)
+- **WL2**: App settings for WorldLabs API key + base URL (default marble/v1) (not started)
+- **WL3**: World generation job flow (POST /worlds:generate, poll /operations/{id}, handle errors/timeouts) (done)
+- **WL4**: Image upload flow (media-assets:prepare_upload + PUT upload + media_asset_id) with file/URL sources (not started)
+- **WL5**: Fetch world assets + import splats (prefer PLY URLs; optional SPZ support) (in progress)
+- **WL5b**: Add SPZ import support for WorldLabs splat assets (not started)
+- **WL6**: Download caching + request hashing to avoid regenerating on unchanged params (done)
+- **WL7**: UI/UX polish (progress, cancel, error messaging, credit errors) (not started)
+- **WL8**: Tests (request serialization, polling state machine, asset selection) (not started)
 
 ## Epic Q - Quality and UX
 - **Q1**: Golden test assets + screenshot tests (native) (not started)
@@ -148,3 +159,4 @@ Status: done | in progress | not started
 - **V1**: Shared viewport tool framework (done)
 - **V2**: Transform gizmo (move/rotate/scale) for Transform node (done)
 - **V3**: Curve node with viewport draw tool (done)
+

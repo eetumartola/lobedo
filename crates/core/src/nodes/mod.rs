@@ -55,6 +55,7 @@ pub mod volume_combine;
 pub mod volume_blur;
 pub mod volume_to_mesh;
 pub mod write_splats;
+pub mod worldlabs_generate;
 pub mod delete;
 pub mod depth_image;
 pub mod depth_to_splats;

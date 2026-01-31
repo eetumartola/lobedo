@@ -4,6 +4,7 @@ use crate::mesh::MeshGroups;
 pub use crate::splat_ply::{
     load_splat_ply_with_mode, save_splat_ply_with_format, SplatLoadMode, SplatSaveFormat,
 };
+pub use crate::splat_spz::load_splat_spz_with_mode;
 
 const SPLAT_LOG_SCALE_MIN: f32 = -10.0;
 const SPLAT_LOG_SCALE_MAX: f32 = 10.0;

@@ -28,6 +28,7 @@ mod project;
 mod scene;
 mod splat;
 mod splat_ply;
+mod splat_spz;
 mod splat_eval;
 mod volume;
 mod volume_sampling;

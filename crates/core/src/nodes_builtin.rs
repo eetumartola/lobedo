@@ -22,6 +22,7 @@ pub enum BuiltinNodeKind {
     DepthImage,
     DepthToSplats,
     ReadSplats,
+    WorldLabsGenerate,
     WriteSplats,
     GltfOutput,
     BooleanSdf,
@@ -114,6 +115,10 @@ pub struct NodeSpec {
 
 fn mesh_error_read_splats(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     Err("Splat Read outputs splat geometry, not meshes".to_string())
+}
+
+fn mesh_error_worldlabs_generate(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+    Err("WorldLabs Generate outputs splat geometry, not meshes".to_string())
 }
 
 fn mesh_error_curve(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -375,6 +380,20 @@ static NODE_SPECS: &[NodeSpec] = &[
         compute_mesh: mesh_error_read_splats,
         compute_geometry: compute_geometry_read_splats,
         compute_splat: compute_splat_read_splats,
+        menu_group: Some("IO"),
+        input_policy: InputPolicy::None,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::WorldLabsGenerate,
+        id: "builtin:worldlabs_generate",
+        name: nodes::worldlabs_generate::NAME,
+        aliases: &[],
+        definition: nodes::worldlabs_generate::definition,
+        default_params: nodes::worldlabs_generate::default_params,
+        param_specs: nodes::worldlabs_generate::param_specs,
+        compute_mesh: mesh_error_worldlabs_generate,
+        compute_geometry: compute_geometry_worldlabs_generate,
+        compute_splat: compute_splat_worldlabs_generate,
         menu_group: Some("IO"),
         input_policy: InputPolicy::None,
     },
@@ -1255,6 +1274,13 @@ fn compute_geometry_read_splats(
     Ok(Geometry::with_splats(nodes::read_splats::compute(params)?))
 }
 
+fn compute_geometry_worldlabs_generate(
+    params: &NodeParams,
+    _inputs: &[Geometry],
+) -> Result<Geometry, String> {
+    Ok(Geometry::with_splats(nodes::worldlabs_generate::compute(params)?))
+}
+
 fn compute_geometry_merge(_params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     merge_geometry(inputs)
 }
@@ -1352,6 +1378,13 @@ fn compute_splat_read_splats(
     _inputs: &[SplatGeo],
 ) -> Result<SplatGeo, String> {
     nodes::read_splats::compute(params)
+}
+
+fn compute_splat_worldlabs_generate(
+    params: &NodeParams,
+    _inputs: &[SplatGeo],
+) -> Result<SplatGeo, String> {
+    nodes::worldlabs_generate::compute(params)
 }
 
 fn splat_error_not_output(

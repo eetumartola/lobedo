@@ -1,10 +1,12 @@
 use egui::Ui;
+use serde_json::json;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::TryRecvError;
 
 use lobedo_core::{
-    param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams, ParamWidget,
+    param_specs_for_kind_id, param_specs_for_name, BuiltinNodeKind, Graph, NodeParams, ParamValue,
+    ParamWidget,
 };
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
@@ -336,6 +338,52 @@ impl NodeGraphState {
             }
         }
 
+        if node_kind == Some(BuiltinNodeKind::WorldLabsGenerate) {
+            ui.separator();
+            let can_generate = !cfg!(target_arch = "wasm32");
+            if ui
+                .add_enabled(can_generate, egui::Button::new("Generate"))
+                .clicked()
+            {
+                let snapshot = json!({
+                    "mode": visible_params.get_int("mode", 0),
+                    "text_prompt": visible_params.get_string("text_prompt", ""),
+                    "image_path": visible_params.get_string("image_path", ""),
+                    "auto_enhance": visible_params.get_bool("auto_enhance", true),
+                    "is_pano": visible_params.get_bool("is_pano", false),
+                    "model": visible_params.get_int("model", 0),
+                    "seed": visible_params.get_int("seed", -1),
+                    "tags": visible_params.get_string("tags", ""),
+                    "display_name": visible_params.get_string("display_name", ""),
+                });
+                let snapshot_text = snapshot.to_string();
+                if graph
+                    .set_param(
+                        node_id,
+                        "request_snapshot".to_string(),
+                        ParamValue::String(snapshot_text),
+                    )
+                    .is_ok()
+                {
+                    changed = true;
+                }
+                let next_token = visible_params.get_int("request_token", 0).saturating_add(1);
+                if graph
+                    .set_param(
+                        node_id,
+                        "request_token".to_string(),
+                        ParamValue::Int(next_token),
+                    )
+                    .is_ok()
+                {
+                    changed = true;
+                }
+            }
+            if !can_generate {
+                ui.label("WorldLabs Generate is not available in web builds.");
+            }
+        }
+
         changed
     }
 
@@ -551,6 +599,14 @@ impl NodeGraphState {
                     | BuiltinNodeKind::WriteSplats
             )
         ) {
+            heights.push(separator_height);
+            heights.push(row_height);
+            if cfg!(target_arch = "wasm32") {
+                heights.push(row_height);
+            }
+        }
+
+        if node_kind == Some(BuiltinNodeKind::WorldLabsGenerate) {
             heights.push(separator_height);
             heights.push(row_height);
             if cfg!(target_arch = "wasm32") {

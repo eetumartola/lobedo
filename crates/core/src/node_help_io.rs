@@ -48,6 +48,29 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             outputs: &["out: Pass-through geometry."],
             parameters: &[("path", "Output glTF/GLB file path.")],
         }),
+        BuiltinNodeKind::WorldLabsGenerate => Some(NodeHelpPage {
+            name: "WorldLabs Generate",
+            description: &[
+                "Generates a Gaussian splat model using the WorldLabs API.",
+                "Uses Text or Image mode; image inputs can be local files or URLs.",
+                "Generation runs when the Generate button is pressed.",
+                "Set environment variable WLT_API_KEY (or WORLDLABS_API_KEY) with your API key.",
+                "Outputs splats from PLY or SPZ assets when available.",
+            ],
+            inputs: &[],
+            outputs: &["out: Generated splat geometry."],
+            parameters: &[
+                ("mode", "Generation mode (Text or Image)."),
+                ("text_prompt", "Text prompt (required for text mode)."),
+                ("image_path", "Image file path or URL (image mode)."),
+                ("auto_enhance", "Allow recaptioning to improve prompts."),
+                ("is_pano", "Treat the image as a panorama."),
+                ("model", "WorldLabs model selection."),
+                ("seed", "Seed for deterministic output (-1 for random)."),
+                ("tags", "Optional tags (comma or space separated)."),
+                ("display_name", "Optional display name."),
+            ],
+        }),
         BuiltinNodeKind::Output => Some(NodeHelpPage {
             name: "Output",
             description: &[
