@@ -16,6 +16,7 @@ const DEPTH_EPS: f32 = 1.0e-6;
 const INPUT_RANGE_EPS: f32 = 1.0e-6;
 const INV_DEPTH_RANGE_EPS: f32 = 1.0e-5;
 const ORT_RUNTIME_DIR: &str = "models/onnxruntime";
+const ORT_DIRECTML_RUNTIME_DIR: &str = "models/onnxruntime-directml";
 
 #[cfg(target_os = "windows")]
 const ORT_DYLIB_NAME: &str = "onnxruntime.dll";
@@ -46,20 +47,19 @@ pub fn definition() -> NodeDefinition {
 
 pub fn default_params() -> NodeParams {
     NodeParams {
-        values: BTreeMap::from([(
-            "depth_scale".to_string(),
-            ParamValue::Float(1.0),
-        ),
-        ("debug".to_string(), ParamValue::Bool(false))]),
+        values: BTreeMap::from([
+            ("debug".to_string(), ParamValue::Bool(false)),
+            ("directml_device_id".to_string(), ParamValue::Int(0)),
+        ]),
     }
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::float("depth_scale", "Depth Scale")
-            .with_help("Scale factor applied when converting inverse depth to linear depth."),
         ParamSpec::bool("debug", "Debug")
             .with_help("Print extra DepthPro diagnostics to the console."),
+        ParamSpec::int("directml_device_id", "DirectML Device")
+            .with_help("DirectML device id to use on Windows (0 = default adapter)."),
     ]
 }
 
@@ -67,8 +67,8 @@ pub fn compute(
     params: &NodeParams,
     input: &ImageData,
 ) -> Result<(ImageData, ImageData, ImageData), String> {
-    let depth_scale = params.get_float("depth_scale", 1.0);
     let debug = params.get_bool("debug", false);
+    let directml_device_id = params.get_int("directml_device_id", 0);
     let (rgb, width, height) = input
         .rgb_data()
         .ok_or_else(|| "Depth Image requires an RGB image input".to_string())?;
@@ -77,20 +77,22 @@ pub fn compute(
         .ok_or_else(|| "Depth Image input contained no finite values".to_string())?;
     if debug {
         eprintln!(
-            "Depth Image debug: input size={}x{}, range=[{:.6}, {:.6}], depth_scale={}",
-            width, height, input_min, input_max, depth_scale
+            "Depth Image debug: input size={}x{}, range=[{:.6}, {:.6}]",
+            width, height, input_min, input_max
         );
+        if params.values.contains_key("depth_scale") {
+            eprintln!("Depth Image debug: depth_scale is ignored (moved to Depth to Splats).");
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
     {
-        let _ = depth_scale;
         return Err("Depth Image is not supported in web builds".to_string());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let signature = input_signature(rgb, width, height, depth_scale, debug);
+        let signature = input_signature(rgb, width, height, debug);
         if let Some(cache) = DEPTH_ERROR_CACHE.get() {
             if let Ok(guard) = cache.lock() {
                 if let Some(last) = guard.as_ref() {
@@ -100,7 +102,7 @@ pub fn compute(
                 }
             }
         }
-        let mut inv_depth = run_depthpro(rgb, width, height, debug)?;
+        let mut inv_depth = run_depthpro(rgb, width, height, debug, directml_device_id)?;
         let (mut min_inv, mut max_inv) = finite_min_max(&inv_depth)
             .ok_or_else(|| "DepthPro output contained no finite values".to_string())?;
         if max_inv <= 0.0 || min_inv < 0.0 {
@@ -130,11 +132,19 @@ pub fn compute(
         let mut depth = Vec::with_capacity(inv_depth.len());
         for value in inv_depth {
             let inv = if value.is_finite() { value.max(DEPTH_EPS) } else { DEPTH_EPS };
-            let mut z = if depth_scale != 0.0 { depth_scale / inv } else { 0.0 };
+            let mut z = if inv > 0.0 { 1.0 / inv } else { 0.0 };
             if !z.is_finite() {
                 z = 0.0;
             }
             depth.push(z);
+        }
+        if debug {
+            if let Some((min_depth, max_depth)) = finite_min_max(&depth) {
+                eprintln!(
+                    "Depth Image debug: linear depth range=[{:.6}, {:.6}]",
+                    min_depth, max_depth
+                );
+            }
         }
         let depth = ImageData::from_depth(width, height, depth)?;
         let seg = ImageData::from_seg(width, height, vec![0u32; (width * height) as usize])?;
@@ -152,7 +162,13 @@ pub fn compute(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn run_depthpro(rgb: &[f32], width: u32, height: u32, debug: bool) -> Result<Vec<f32>, String> {
+fn run_depthpro(
+    rgb: &[f32],
+    width: u32,
+    height: u32,
+    debug: bool,
+    directml_device_id: i32,
+) -> Result<Vec<f32>, String> {
     use half::f16;
     use image::{ImageBuffer, Luma, Rgb};
     use image::imageops::{crop_imm, overlay, resize, FilterType};
@@ -224,7 +240,7 @@ fn run_depthpro(rgb: &[f32], width: u32, height: u32, debug: bool) -> Result<Vec
     ))
     .map_err(|err| err.to_string())?;
 
-    let output_data = run_model_tensor(&model_path, input_tensor, debug)?;
+    let output_data = run_model_tensor(&model_path, input_tensor, debug, directml_device_id)?;
     let output_f32: Vec<f32> = output_data.iter().map(|v| v.to_f32()).collect();
     if debug {
         if let Some((min_out, max_out)) = finite_min_max(&output_f32) {
@@ -305,6 +321,7 @@ fn find_model_path() -> Result<PathBuf, String> {
 #[cfg(not(target_arch = "wasm32"))]
 struct DepthModelCache {
     path: PathBuf,
+    directml_device_id: i32,
     session: Session,
 }
 
@@ -344,6 +361,7 @@ fn resolve_ort_dylib_path() -> Result<PathBuf, String> {
     }
 
     let mut candidates = Vec::new();
+    candidates.push(PathBuf::from(ORT_DIRECTML_RUNTIME_DIR).join(ORT_DYLIB_NAME));
     candidates.push(PathBuf::from(ORT_RUNTIME_DIR).join(ORT_DYLIB_NAME));
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -360,7 +378,7 @@ fn resolve_ort_dylib_path() -> Result<PathBuf, String> {
     }
 
     Err(format!(
-        "ONNX Runtime >= 1.23.x not found. Place {ORT_DYLIB_NAME} into {ORT_RUNTIME_DIR} or set ORT_DYLIB_PATH."
+        "ONNX Runtime >= 1.23.x not found. Place {ORT_DYLIB_NAME} into {ORT_DIRECTML_RUNTIME_DIR} or {ORT_RUNTIME_DIR}, or set ORT_DYLIB_PATH."
     ))
 }
 
@@ -401,22 +419,32 @@ fn run_model_tensor(
     path: &Path,
     input: ort::value::Tensor<half::f16>,
     debug: bool,
+    directml_device_id: i32,
 ) -> Result<Vec<half::f16>, String> {
     let store = DEPTH_MODEL.get_or_init(|| Mutex::new(None));
     let mut guard = store.lock().map_err(|_| "Depth model lock poisoned".to_string())?;
     let needs_reload = guard
         .as_ref()
-        .map(|cache| cache.path != path)
+        .map(|cache| cache.path != path || cache.directml_device_id != directml_device_id)
         .unwrap_or(true);
     if needs_reload {
         let mut builder = Session::builder().map_err(|err| err.to_string())?;
         #[cfg(target_os = "windows")]
         {
-            let directml = ort::ep::DirectML::default();
-            if directml.is_available().unwrap_or(false) {
+            let directml = ort::ep::DirectML::default().with_device_id(directml_device_id);
+            let available = directml.is_available().unwrap_or(false);
+            if debug {
+                eprintln!(
+                    "Depth Image debug: DirectML available={available}, device_id={directml_device_id}"
+                );
+            }
+            if available {
                 builder = builder
                     .with_execution_providers([directml.build()])
                     .map_err(|err| format!("Failed to enable DirectML: {err}"))?;
+                if debug {
+                    eprintln!("Depth Image debug: DirectML requested");
+                }
             }
         }
         let session = builder
@@ -441,6 +469,7 @@ fn run_model_tensor(
         }
         *guard = Some(DepthModelCache {
             path: path.to_path_buf(),
+            directml_device_id,
             session,
         });
     }
@@ -483,11 +512,10 @@ fn finite_min_max(values: &[f32]) -> Option<(f32, f32)> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn input_signature(rgb: &[f32], width: u32, height: u32, depth_scale: f32, debug: bool) -> u64 {
+fn input_signature(rgb: &[f32], width: u32, height: u32, debug: bool) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     width.hash(&mut hasher);
     height.hash(&mut hasher);
-    depth_scale.to_bits().hash(&mut hasher);
     debug.hash(&mut hasher);
     let stride = (rgb.len() / 1024).max(1);
     for idx in (0..rgb.len()).step_by(stride) {

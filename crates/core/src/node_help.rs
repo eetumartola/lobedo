@@ -136,7 +136,6 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             description: &[
                 "Runs DepthPro on the input image to produce a depth map.",
                 "Outputs the original color image, a linear depth image, and a placeholder segmentation map.",
-                "Depth is derived from inverse depth using the Depth Scale parameter.",
             ],
             inputs: &["image: Input RGB image."],
             outputs: &[
@@ -144,7 +143,10 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
                 "depth: Linear depth image.",
                 "segmentation: Placeholder segment ids (single segment).",
             ],
-            parameters: &[("depth_scale", "Scale factor to convert inverse depth to linear depth.")],
+            parameters: &[
+                ("debug", "Print extra DepthPro diagnostics to the console."),
+                ("directml_device_id", "DirectML device id on Windows (0 = default adapter)."),
+            ],
         }),
         BuiltinNodeKind::DepthToSplats => Some(NodeHelpPage {
             name: "Depth to Splats",
@@ -161,6 +163,7 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             outputs: &["out: Geometry with splat primitives."],
             parameters: &[
                 ("fov_deg", "Horizontal field of view used for unprojection."),
+                ("depth_scale", "Scale factor applied to depth before unprojection."),
                 ("scale_k", "Pixel footprint scale multiplier for splat size."),
                 ("scale_tau", "Depth-axis scale ratio relative to XY size."),
                 ("opacity", "Initial opacity (alpha) for splats."),

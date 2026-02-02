@@ -13,6 +13,7 @@ use crate::splat::SplatGeo;
 pub const NAME: &str = "Depth to Splats";
 
 const DEFAULT_FOV_DEG: f32 = 60.0;
+const DEFAULT_DEPTH_SCALE: f32 = 1.0;
 const DEFAULT_SCALE_K: f32 = 1.6;
 const DEFAULT_SCALE_TAU: f32 = 0.1;
 const DEFAULT_ALPHA: f32 = 0.1;
@@ -36,6 +37,7 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("fov_deg".to_string(), ParamValue::Float(DEFAULT_FOV_DEG)),
+            ("depth_scale".to_string(), ParamValue::Float(DEFAULT_DEPTH_SCALE)),
             ("scale_k".to_string(), ParamValue::Float(DEFAULT_SCALE_K)),
             ("scale_tau".to_string(), ParamValue::Float(DEFAULT_SCALE_TAU)),
             ("opacity".to_string(), ParamValue::Float(DEFAULT_ALPHA)),
@@ -47,6 +49,8 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::float_slider("fov_deg", "FOV (deg)", 10.0, 160.0)
             .with_help("Horizontal field of view used for unprojection."),
+        ParamSpec::float_slider("depth_scale", "Depth Scale", 0.01, 200.0)
+            .with_help("Scale factor applied to depth values before unprojection."),
         ParamSpec::float_slider("scale_k", "Scale K", 0.1, 4.0)
             .with_help("Pixel footprint scale multiplier for splat size."),
         ParamSpec::float_slider("scale_tau", "Scale Tau", 0.01, 0.5)
@@ -85,6 +89,9 @@ pub fn compute(
     };
 
     let fov = params.get_float("fov_deg", DEFAULT_FOV_DEG).clamp(1.0, 179.0);
+    let depth_scale = params
+        .get_float("depth_scale", DEFAULT_DEPTH_SCALE)
+        .max(0.0);
     let fov_rad = fov.to_radians();
     let fx = 0.5 * width as f32 / (0.5 * fov_rad).tan();
     let fy = fx.max(1.0e-6);
@@ -114,13 +121,24 @@ pub fn compute(
     for y in 0..height {
         for x in 0..width {
             let idx = (y * width + x) as usize;
-            let z = depth_data[idx];
+            let z = depth_data[idx] * depth_scale;
             if !z.is_finite() || z <= 0.0 {
                 continue;
             }
 
             let position = unproject(x, y, z, fx, fy, cx, cy);
-            let normal = normal_from_depth(x, y, width, height, depth_data, fx, fy, cx, cy);
+            let normal = normal_from_depth(
+                x,
+                y,
+                width,
+                height,
+                depth_data,
+                depth_scale,
+                fx,
+                fy,
+                cx,
+                cy,
+            );
             let quat = Quat::from_rotation_arc(Vec3::Y, normal);
 
             let sx = (scale_k * z / fx).max(1.0e-6);
@@ -197,6 +215,7 @@ fn normal_from_depth(
     width: u32,
     height: u32,
     depth: &[f32],
+    depth_scale: f32,
     fx: f32,
     fy: f32,
     cx: f32,
@@ -208,14 +227,14 @@ fn normal_from_depth(
     let y1 = (y + 1).min(height - 1);
 
     let idx = |xx: u32, yy: u32| -> usize { (yy * width + xx) as usize };
-    let z = depth[idx(x, y)];
+    let z = depth[idx(x, y)] * depth_scale;
     if !z.is_finite() || z <= 0.0 {
         return Vec3::Y;
     }
-    let zx0 = depth[idx(x0, y)];
-    let zx1 = depth[idx(x1, y)];
-    let zy0 = depth[idx(x, y0)];
-    let zy1 = depth[idx(x, y1)];
+    let zx0 = depth[idx(x0, y)] * depth_scale;
+    let zx1 = depth[idx(x1, y)] * depth_scale;
+    let zy0 = depth[idx(x, y0)] * depth_scale;
+    let zy1 = depth[idx(x, y1)] * depth_scale;
 
     let p = unproject(x, y, z, fx, fy, cx, cy);
     let px0 = if zx0.is_finite() && zx0 > 0.0 {

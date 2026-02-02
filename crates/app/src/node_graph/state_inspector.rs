@@ -17,13 +17,21 @@ const DEPTHPRO_MODEL_URL: &str = "https://huggingface.co/Jens-Duttke/DepthPro-ON
 const DEPTHPRO_MODEL_FILENAME: &str = "depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
 const DEPTHPRO_MODEL_DIR: &str = "models/depthpro";
 const ONNX_RUNTIME_URL: &str = "https://files.pythonhosted.org/packages/c0/b4/569d298f9fc4d286c11c45e85d9ffa9e877af12ace98af8cab52396e8f46/onnxruntime-1.23.2-cp312-cp312-win_amd64.whl";
+const ONNX_DIRECTML_PYPI: &str = "https://pypi.org/pypi/onnxruntime-directml/json";
 const ONNX_RUNTIME_DIR: &str = "models/onnxruntime";
+const ONNX_DIRECTML_DIR: &str = "models/onnxruntime-directml";
 const ONNX_RUNTIME_DLL: &str = "onnxruntime.dll";
 
 impl NodeGraphState {
-    pub fn show_inspector(&mut self, ui: &mut Ui, graph: &mut Graph) -> bool {
+    pub fn show_inspector(
+        &mut self,
+        ui: &mut Ui,
+        graph: &mut Graph,
+        eval_state: Option<&lobedo_core::GeometryEvalState>,
+    ) -> bool {
         self.poll_model_download();
         self.poll_runtime_download();
+        self.poll_directml_download();
         if let Some(help_key) = self.help_page_node.clone() {
             let mut open = true;
             show_help_page_window(ui.ctx(), &help_key, &mut open);
@@ -225,10 +233,22 @@ impl NodeGraphState {
             ui.separator();
             let runtime_dir = onnxruntime_dir_path();
             let runtime_path = onnxruntime_dylib_path();
+            let directml_dir = onnxruntime_directml_dir_path();
+            let directml_path = onnxruntime_directml_dylib_path();
             let runtime_exists = {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     runtime_path.exists()
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    false
+                }
+            };
+            let directml_exists = {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    directml_path.exists()
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
@@ -251,12 +271,28 @@ impl NodeGraphState {
             {
                 self.start_onnxruntime_download(runtime_dir);
             }
+            let directml_label = if directml_exists {
+                "Re-download DirectML Runtime"
+            } else {
+                "Download DirectML Runtime"
+            };
+            if ui
+                .add_enabled(
+                    can_runtime_download && !self.directml_download.active,
+                    egui::Button::new(directml_label),
+                )
+                .clicked()
+            {
+                self.start_directml_download(directml_dir);
+            }
             let runtime_status = if self.runtime_download.active {
                 self.runtime_download
                     .message
                     .clone()
                     .unwrap_or_else(|| "Downloading ONNX Runtime...".to_string())
             } else if let Some(message) = self.runtime_download.message.as_ref() {
+                message.clone()
+            } else if let Some(message) = self.directml_download.message.as_ref() {
                 message.clone()
             } else if !can_runtime_download {
                 "Runtime downloads are only available on Windows desktop builds.".to_string()
@@ -307,6 +343,13 @@ impl NodeGraphState {
             };
             if !status.is_empty() {
                 ui.label(status);
+            }
+        }
+
+        if node_kind == Some(BuiltinNodeKind::ImagePreview) {
+            if let Some(range_label) = image_preview_range_label(graph, node_id, eval_state) {
+                ui.separator();
+                ui.label(range_label);
             }
         }
 
@@ -477,6 +520,51 @@ impl NodeGraphState {
         }
     }
 
+    fn poll_directml_download(&mut self) {
+        let Some(receiver) = &self.directml_download.receiver else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok(result) => {
+                self.directml_download.active = false;
+                self.directml_download.receiver = None;
+                self.directml_download.message = Some(result.message);
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.directml_download.active = false;
+                self.directml_download.receiver = None;
+                self.directml_download.message =
+                    Some("DirectML download failed: connection lost.".to_string());
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+    }
+
+    fn start_directml_download(&mut self, dir: PathBuf) {
+        if self.directml_download.active {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.directml_download.active = false;
+            self.directml_download.message =
+                Some("Runtime downloads are not available in web builds.".to_string());
+            let _ = dir;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::sync::mpsc;
+            self.directml_download.active = true;
+            self.directml_download.message = Some("Starting download...".to_string());
+            let (tx, rx) = mpsc::channel();
+            self.directml_download.receiver = Some(rx);
+            std::thread::spawn(move || {
+                let result = download_directml_runtime(ONNX_DIRECTML_PYPI, &dir);
+                let _ = tx.send(result);
+            });
+        }
+    }
+
     pub fn inspector_desired_height(&self, graph: &Graph) -> f32 {
         let row_height = 36.0;
         let separator_height = 8.0;
@@ -585,10 +673,17 @@ impl NodeGraphState {
             heights.push(row_height);
             let show_runtime_status = self.runtime_download.active
                 || self.runtime_download.message.is_some()
+                || self.directml_download.active
+                || self.directml_download.message.is_some()
                 || cfg!(target_arch = "wasm32");
             if show_runtime_status {
                 heights.push(row_height);
             }
+        }
+
+        if node_kind == Some(BuiltinNodeKind::ImagePreview) {
+            heights.push(separator_height);
+            heights.push(row_height);
         }
 
         if matches!(
@@ -633,6 +728,14 @@ fn onnxruntime_dir_path() -> PathBuf {
 
 fn onnxruntime_dylib_path() -> PathBuf {
     onnxruntime_dir_path().join(ONNX_RUNTIME_DLL)
+}
+
+fn onnxruntime_directml_dir_path() -> PathBuf {
+    PathBuf::from(ONNX_DIRECTML_DIR)
+}
+
+fn onnxruntime_directml_dylib_path() -> PathBuf {
+    onnxruntime_directml_dir_path().join(ONNX_RUNTIME_DLL)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -687,56 +790,7 @@ fn download_depthpro_model(url: &str, path: &Path) -> ModelDownloadResult {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn download_onnxruntime_runtime(url: &str, dir: &Path) -> ModelDownloadResult {
-    use std::io::{Read, Write};
-    use zip::ZipArchive;
-
-    let download_result = (|| -> Result<(), String> {
-        let temp_dir = dir.with_extension("download");
-        if temp_dir.exists() {
-            std::fs::remove_dir_all(&temp_dir).map_err(|err| err.to_string())?;
-        }
-        std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
-
-        let response = ureq::get(url)
-            .call()
-            .map_err(|err| format!("Request failed: {err}"))?;
-        let mut bytes = Vec::new();
-        response
-            .into_reader()
-            .read_to_end(&mut bytes)
-            .map_err(|err| err.to_string())?;
-        let cursor = std::io::Cursor::new(bytes);
-        let mut archive = ZipArchive::new(cursor).map_err(|err| err.to_string())?;
-
-        let mut extracted_any = false;
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).map_err(|err| err.to_string())?;
-            let name = file.name();
-            if !name.ends_with(".dll") {
-                continue;
-            }
-            let Some(filename) = Path::new(name).file_name() else {
-                continue;
-            };
-            let out_path = temp_dir.join(filename);
-            let mut out_file = std::fs::File::create(&out_path).map_err(|err| err.to_string())?;
-            std::io::copy(&mut file, &mut out_file).map_err(|err| err.to_string())?;
-            out_file.flush().map_err(|err| err.to_string())?;
-            extracted_any = true;
-        }
-
-        if !extracted_any {
-            return Err("No DLLs found in ONNX Runtime package.".to_string());
-        }
-
-        if dir.exists() {
-            std::fs::remove_dir_all(dir).map_err(|err| err.to_string())?;
-        }
-        std::fs::rename(&temp_dir, dir).map_err(|err| err.to_string())?;
-        Ok(())
-    })();
-
-    match download_result {
+    match download_runtime_zip(url, dir) {
         Ok(()) => ModelDownloadResult {
             message: format!("Downloaded ONNX Runtime to {}", dir.display()),
         },
@@ -744,6 +798,114 @@ fn download_onnxruntime_runtime(url: &str, dir: &Path) -> ModelDownloadResult {
             message: format!("Runtime download failed: {err}"),
         },
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_directml_runtime(url: &str, dir: &Path) -> ModelDownloadResult {
+    let download_result = (|| -> Result<(), String> {
+        let response = ureq::get(url)
+            .call()
+            .map_err(|err| format!("Request failed: {err}"))?;
+        let body = response
+            .into_string()
+            .map_err(|err| format!("Failed to read response: {err}"))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&body).map_err(|err| format!("JSON parse failed: {err}"))?;
+        let releases = value
+            .get("releases")
+            .and_then(|v| v.as_object())
+            .ok_or_else(|| "PyPI JSON missing releases".to_string())?;
+        let mut versions: Vec<String> = releases.keys().cloned().collect();
+        versions.sort_by(|a, b| compare_versions(a, b).reverse());
+        let preferred_tags = ["cp312", "cp311", "cp310", "cp39", "cp38"];
+        let mut selected_url = None;
+        for version in versions {
+            let files = match releases.get(&version).and_then(|v| v.as_array()) {
+                Some(files) => files,
+                None => continue,
+            };
+            for tag in preferred_tags {
+                if let Some(file) = files.iter().find(|entry| {
+                    entry
+                        .get("filename")
+                        .and_then(|v| v.as_str())
+                        .map(|name| name.contains("win_amd64") && name.contains(tag))
+                        .unwrap_or(false)
+                }) {
+                    if let Some(url) = file.get("url").and_then(|v| v.as_str()) {
+                        selected_url = Some(url.to_string());
+                        break;
+                    }
+                }
+            }
+            if selected_url.is_some() {
+                break;
+            }
+        }
+        let Some(selected_url) = selected_url else {
+            return Err("No suitable DirectML wheel found in PyPI metadata.".to_string());
+        };
+        download_runtime_zip(&selected_url, dir)
+    })();
+
+    match download_result {
+        Ok(()) => ModelDownloadResult {
+            message: format!("Downloaded DirectML runtime to {}", dir.display()),
+        },
+        Err(err) => ModelDownloadResult {
+            message: format!("DirectML download failed: {err}"),
+        },
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_runtime_zip(url: &str, dir: &Path) -> Result<(), String> {
+    use std::io::{Read, Write};
+    use zip::ZipArchive;
+
+    let temp_dir = dir.with_extension("download");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).map_err(|err| err.to_string())?;
+    }
+    std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
+
+    let response = ureq::get(url)
+        .call()
+        .map_err(|err| format!("Request failed: {err}"))?;
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .read_to_end(&mut bytes)
+        .map_err(|err| err.to_string())?;
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = ZipArchive::new(cursor).map_err(|err| err.to_string())?;
+
+    let mut extracted_any = false;
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|err| err.to_string())?;
+        let name = file.name();
+        if !name.ends_with(".dll") {
+            continue;
+        }
+        let Some(filename) = Path::new(name).file_name() else {
+            continue;
+        };
+        let out_path = temp_dir.join(filename);
+        let mut out_file = std::fs::File::create(&out_path).map_err(|err| err.to_string())?;
+        std::io::copy(&mut file, &mut out_file).map_err(|err| err.to_string())?;
+        out_file.flush().map_err(|err| err.to_string())?;
+        extracted_any = true;
+    }
+
+    if !extracted_any {
+        return Err("No DLLs found in ONNX Runtime package.".to_string());
+    }
+
+    if dir.exists() {
+        std::fs::remove_dir_all(dir).map_err(|err| err.to_string())?;
+    }
+    std::fs::rename(&temp_dir, dir).map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -758,5 +920,91 @@ fn download_onnxruntime_runtime(_url: &str, _dir: &Path) -> ModelDownloadResult 
     ModelDownloadResult {
         message: "Runtime downloads are not available in web builds.".to_string(),
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn download_directml_runtime(_url: &str, _dir: &Path) -> ModelDownloadResult {
+    ModelDownloadResult {
+        message: "Runtime downloads are not available in web builds.".to_string(),
+    }
+}
+
+fn image_preview_range_label(
+    graph: &Graph,
+    node_id: lobedo_core::NodeId,
+    eval_state: Option<&lobedo_core::GeometryEvalState>,
+) -> Option<String> {
+    let eval_state = eval_state?;
+    let node = graph.node(node_id)?;
+    let input_pin = node.inputs.first().copied()?;
+    let link = graph.input_link(input_pin)?;
+    let image = eval_state.image_for_pin(link.from)?;
+    match image {
+        lobedo_core::ImageData::RgbF32 { data, .. } => {
+            let (min, max) = finite_min_max_f32(data)?;
+            Some(format!("Input range (RGB): [{min:.6}, {max:.6}]"))
+        }
+        lobedo_core::ImageData::R32F { data, .. } => {
+            let (min, max) = finite_min_max_f32(data)?;
+            Some(format!("Input range (Depth): [{min:.6}, {max:.6}]"))
+        }
+        lobedo_core::ImageData::R32U { data, .. } => {
+            let (min, max) = finite_min_max_u32(data)?;
+            Some(format!("Input range (Seg): [{min:.0}, {max:.0}]"))
+        }
+    }
+}
+
+fn finite_min_max_f32(values: &[f32]) -> Option<(f32, f32)> {
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    for &value in values {
+        if value.is_finite() {
+            if value < min {
+                min = value;
+            }
+            if value > max {
+                max = value;
+            }
+        }
+    }
+    if min.is_finite() && max.is_finite() {
+        Some((min, max))
+    } else {
+        None
+    }
+}
+
+fn finite_min_max_u32(values: &[u32]) -> Option<(f32, f32)> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut min = u32::MAX;
+    let mut max = u32::MIN;
+    for &value in values {
+        min = min.min(value);
+        max = max.max(value);
+    }
+    Some((min as f32, max as f32))
+}
+
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse = |s: &str| {
+        s.split('.')
+            .map(|part| part.parse::<i32>().unwrap_or(0))
+            .collect::<Vec<_>>()
+    };
+    let aa = parse(a);
+    let bb = parse(b);
+    let len = aa.len().max(bb.len());
+    for i in 0..len {
+        let av = *aa.get(i).unwrap_or(&0);
+        let bv = *bb.get(i).unwrap_or(&0);
+        match av.cmp(&bv) {
+            std::cmp::Ordering::Equal => continue,
+            other => return other,
+        }
+    }
+    std::cmp::Ordering::Equal
 }
 

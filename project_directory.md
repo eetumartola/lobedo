@@ -30,7 +30,7 @@ Functions: `update` (L6-L27)
 
 ## crates/app/src/app/ui_central.rs
 Description: Ui Central module.
-Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L487), `show_node_params_panel` (L489-L561), `show_node_graph_panel` (L563-L645), `show_splat_read_params` (L647-L677), `show_uv_view_params` (L679-L749), `mesh_corner_uvs` (L752-L752), `uv_bounds` (L787-L787), `sh_order_label` (L799-L808), `toggle_curve_draw` (L810-L816), `toggle_curve_edit` (L818-L824), `toggle_ffd_edit` (L826-L832), `toggle_group_select` (L834-L840), `selection_count` (L842-L850)
+Functions: `show_central_panel` (L11-L31), `split_central_rect` (L33-L63), `show_left_panel` (L65-L126), `show_viewport_panel` (L128-L187), `show_viewport_toolbar` (L189-L252), `show_viewport_node_actions` (L254-L355), `show_spreadsheet_panel` (L357-L390), `show_right_panel` (L392-L487), `show_node_params_panel` (L489-L564), `show_node_graph_panel` (L566-L648), `show_splat_read_params` (L650-L680), `show_uv_view_params` (L682-L752), `mesh_corner_uvs` (L755-L755), `uv_bounds` (L790-L790), `sh_order_label` (L802-L811), `toggle_curve_draw` (L813-L819), `toggle_curve_edit` (L821-L827), `toggle_ffd_edit` (L829-L835), `toggle_group_select` (L837-L843), `selection_count` (L845-L853)
 
 ## crates/app/src/app/ui_info_panels.rs
 Description: Ui Info Panels module.
@@ -118,11 +118,11 @@ Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gr
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
-Functions: `default` (L107-L151), `hit_test` (L169-L174), `reset` (L203-L205), `error_message` (L207-L209), `take_write_request` (L211-L213), `show` (L215-L330), `take_changed` (L332-L336), `take_layout_changed` (L338-L342), `handle_header_click` (L344-L385), `compute_dim_nodes` (L387-L407), `preflight_flag_click` (L409-L428), `add_note` (L431-L445), `show_notes` (L447-L583), `set_error_state` (L585-L588), `set_dirty_nodes` (L590-L596), `selected_node_id` (L598-L600), `selected_note_id` (L602-L604), `delete_selected_note` (L606-L617), `delete_selected_node` (L619-L624), `delete_node` (L626-L662), `node_at_screen_pos` (L664-L672), `take_info_request` (L674-L676), `take_wrangle_help_request` (L678-L680), `zoom_at` (L682-L696), `fit_to_rect` (L698-L724), `progress_sink` (L726-L733), `progress_snapshot` (L735-L742), `on_event` (L746-L782), `snapshot` (L784-L809)
+Functions: `default` (L108-L153), `hit_test` (L171-L176), `reset` (L205-L207), `error_message` (L209-L211), `take_write_request` (L213-L215), `show` (L217-L332), `take_changed` (L334-L338), `take_layout_changed` (L340-L344), `handle_header_click` (L346-L387), `compute_dim_nodes` (L389-L409), `preflight_flag_click` (L411-L430), `add_note` (L433-L447), `show_notes` (L449-L585), `set_error_state` (L587-L590), `set_dirty_nodes` (L592-L598), `selected_node_id` (L600-L602), `selected_note_id` (L604-L606), `delete_selected_note` (L608-L619), `delete_selected_node` (L621-L626), `delete_node` (L628-L664), `node_at_screen_pos` (L666-L674), `take_info_request` (L676-L678), `take_wrangle_help_request` (L680-L682), `zoom_at` (L684-L698), `fit_to_rect` (L700-L726), `progress_sink` (L728-L735), `progress_snapshot` (L737-L744), `on_event` (L748-L784), `snapshot` (L786-L811)
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L24-L388), `poll_model_download` (L390-L408), `poll_runtime_download` (L410-L428), `start_depthpro_download` (L430-L453), `start_onnxruntime_download` (L455-L478), `inspector_desired_height` (L480-L623), `depthpro_model_path` (L626-L628), `onnxruntime_dir_path` (L630-L632), `onnxruntime_dylib_path` (L634-L636), `normalize_download_url` (L639-L649), `download_depthpro_model` (L652-L686), `download_onnxruntime_runtime` (L689-L747), `download_depthpro_model` (L750-L754), `download_onnxruntime_runtime` (L757-L761)
+Functions: `show_inspector` (L26-L431), `poll_model_download` (L433-L451), `poll_runtime_download` (L453-L471), `start_depthpro_download` (L473-L496), `start_onnxruntime_download` (L498-L521), `poll_directml_download` (L523-L541), `start_directml_download` (L543-L566), `inspector_desired_height` (L568-L718), `depthpro_model_path` (L721-L723), `onnxruntime_dir_path` (L725-L727), `onnxruntime_dylib_path` (L729-L731), `onnxruntime_directml_dir_path` (L733-L735), `onnxruntime_directml_dylib_path` (L737-L739), `normalize_download_url` (L742-L752), `download_depthpro_model` (L755-L789), `download_onnxruntime_runtime` (L792-L801), `download_directml_runtime` (L804-L859), `download_runtime_zip` (L862-L909), `download_depthpro_model` (L912-L916), `download_onnxruntime_runtime` (L919-L923), `download_directml_runtime` (L926-L930), `image_preview_range_label` (L932-L956), `finite_min_max_f32` (L958-L976), `finite_min_max_u32` (L978-L989), `compare_versions` (L991-L1009)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -214,7 +214,7 @@ Functions: `make_box` (L5-L5), `make_grid` (L34-L34), `make_uv_sphere` (L73-L127
 
 ## crates/core/src/node_help.rs
 Description: Node Help module.
-Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L781)
+Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L784)
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
@@ -298,11 +298,11 @@ Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L3
 
 ## crates/core/src/nodes/depth_image.rs
 Description: Depth Image module.
-Functions: `definition` (L34-L45), `default_params` (L47-L55), `param_specs` (L57-L64), `compute` (L66-L152), `run_depthpro` (L155-L275), `find_model_path` (L278-L303), `resolve_ort_dylib_path` (L334-L365), `ensure_ort_initialized` (L368-L397), `run_model_tensor` (L400-L463), `finite_min_max` (L465-L483), `input_signature` (L486-L497), `resize_depth` (L500-L551)
+Functions: `definition` (L35-L46), `default_params` (L48-L55), `param_specs` (L57-L64), `compute` (L66-L162), `run_depthpro` (L165-L291), `find_model_path` (L294-L319), `resolve_ort_dylib_path` (L351-L383), `ensure_ort_initialized` (L386-L415), `run_model_tensor` (L418-L492), `finite_min_max` (L494-L512), `input_signature` (L515-L525), `resize_depth` (L528-L579)
 
 ## crates/core/src/nodes/depth_to_splats.rs
 Description: Depth To Splats module.
-Functions: `definition` (L22-L33), `default_params` (L35-L44), `param_specs` (L46-L57), `compute` (L59-L175), `unproject` (L177-L191), `normal_from_depth` (L194-L251), `depth_to_splats_writes_segment_id` (L258-L276)
+Functions: `definition` (L23-L34), `default_params` (L36-L46), `param_specs` (L48-L61), `compute` (L63-L193), `unproject` (L195-L209), `normal_from_depth` (L212-L270), `depth_to_splats_writes_segment_id` (L277-L295)
 
 ## crates/core/src/nodes/erosion_noise.rs
 Description: Erosion Noise module.
@@ -350,7 +350,7 @@ Functions: `definition` (L13-L20), `default_params` (L22-L26), `param_specs` (L2
 
 ## crates/core/src/nodes/image_preview.rs
 Description: Image Preview module.
-Functions: `definition` (L16-L23), `default_params` (L25-L29), `param_specs` (L31-L33), `compute` (L35-L82), `image_hash` (L84-L93), `encode_preview_texture` (L95-L119)
+Functions: `definition` (L16-L23), `default_params` (L25-L32), `param_specs` (L34-L41), `compute` (L43-L105), `image_hash` (L107-L127), `encode_preview_texture` (L129-L153), `finite_min_max` (L155-L173), `finite_min_max_u32` (L175-L187), `map_rgb` (L189-L202), `map_scalar_to_rgb` (L204-L214), `map_scalar_to_rgb_u32` (L216-L225), `normalize_range` (L227-L233)
 
 ## crates/core/src/nodes/material.rs
 Description: Material module.

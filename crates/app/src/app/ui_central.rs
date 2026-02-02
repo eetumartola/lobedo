@@ -543,7 +543,10 @@ impl LobedoApp {
                 let max_height = ui.available_height();
                 egui::ScrollArea::vertical().max_height(max_height).show(ui, |ui| {
                     let snapshot = self.snapshot_undo();
-                    if self.node_graph.show_inspector(ui, &mut self.project.graph) {
+                    if self
+                        .node_graph
+                        .show_inspector(ui, &mut self.project.graph, Some(&self.eval_state))
+                    {
                         self.mark_eval_dirty();
                         if !*undo_pushed {
                             self.queue_undo_snapshot(snapshot, pointer_down);
