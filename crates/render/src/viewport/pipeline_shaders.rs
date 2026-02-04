@@ -291,7 +291,8 @@ fn vs_splat(input: SplatInput) -> SplatOutput {
     let pos_view = view_rot * (input.center - uniforms.camera_pos);
     let pos_cam = vec3<f32>(pos_view.x, pos_view.y, -pos_view.z);
     let z = pos_cam.z;
-    if !(z > uniforms.splat_params.w) || !is_finite_f32(z) {
+    let min_z = uniforms.splat_params.w + out.scale * SPLAT_BILLBOARD_RADIUS;
+    if !(z > min_z) || !is_finite_f32(z) {
         out.position = vec4<f32>(2.0, 2.0, 2.0, 1.0);
         out.uv = vec2<f32>(0.0);
         return out;

@@ -114,34 +114,32 @@ impl LobedoApp {
                                     }
                                 });
 
-                            if *shading == ShadingMode::Depth {
-                                ui.horizontal(|ui| {
-                                    ui.label("Near");
-                                    ui.add(
-                                        egui::DragValue::new(
-                                            &mut self.project.settings.render_debug.depth_near,
-                                        )
-                                        .speed(0.1)
-                                        .update_while_editing(false)
-                                        .range(0.01..=1000.0),
-                                    );
-                                });
-                                ui.horizontal(|ui| {
-                                    ui.label("Far");
-                                    ui.add(
-                                        egui::DragValue::new(
-                                            &mut self.project.settings.render_debug.depth_far,
-                                        )
-                                        .speed(0.1)
-                                        .update_while_editing(false)
-                                        .range(0.01..=5000.0),
-                                    );
-                                });
-                                let near = self.project.settings.render_debug.depth_near;
-                                let far = self.project.settings.render_debug.depth_far;
-                                if far <= near + 0.01 {
-                                    self.project.settings.render_debug.depth_far = near + 0.01;
-                                }
+                            ui.horizontal(|ui| {
+                                ui.label("Near clip");
+                                ui.add(
+                                    egui::DragValue::new(
+                                        &mut self.project.settings.render_debug.depth_near,
+                                    )
+                                    .speed(0.1)
+                                    .update_while_editing(false)
+                                    .range(0.01..=1000.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Far clip");
+                                ui.add(
+                                    egui::DragValue::new(
+                                        &mut self.project.settings.render_debug.depth_far,
+                                    )
+                                    .speed(0.1)
+                                    .update_while_editing(false)
+                                    .range(0.01..=5000.0),
+                                );
+                            });
+                            let near = self.project.settings.render_debug.depth_near;
+                            let far = self.project.settings.render_debug.depth_far;
+                            if far <= near + 0.01 {
+                                self.project.settings.render_debug.depth_far = near + 0.01;
                             }
                             if matches!(
                                 *shading,

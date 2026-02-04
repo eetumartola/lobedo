@@ -389,17 +389,19 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
     let mut billboards = Vec::with_capacity(inputs.positions.len());
     for (idx, pos) in inputs.positions.iter().enumerate() {
         let center = inputs.world_transform * Vec3::from(*pos);
-        let pos_view = inputs.view.transform_point3(center);
-        let pos_cam = Vec3::new(pos_view.x, pos_view.y, -pos_view.z);
-        if pos_cam.z <= inputs.near_clip.max(1.0e-6) || !pos_cam.z.is_finite() {
-            continue;
-        }
         let scale = inputs
             .scales
             .get(idx)
             .copied()
             .unwrap_or([1.0, 1.0, 1.0]);
         if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite() {
+            continue;
+        }
+        let pos_view = inputs.view.transform_point3(center);
+        let pos_cam = Vec3::new(pos_view.x, pos_view.y, -pos_view.z);
+        let scale_metric = scale[0].max(scale[1]).max(scale[2]);
+        let near_clip = inputs.near_clip.max(1.0e-6) + scale_metric * SPLAT_BILLBOARD_RADIUS;
+        if pos_cam.z <= near_clip || !pos_cam.z.is_finite() {
             continue;
         }
         let rotation = inputs

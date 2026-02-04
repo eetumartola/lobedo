@@ -46,7 +46,7 @@ Functions: `show_preferences_window` (L7-L103)
 
 ## crates/app/src/app/ui_side_panels.rs
 Description: Ui Side Panels module.
-Functions: `show_side_panels` (L7-L277)
+Functions: `show_side_panels` (L7-L275)
 
 ## crates/app/src/app/ui_top_bar.rs
 Description: Ui Top Bar module.
@@ -122,7 +122,7 @@ Functions: `default` (L108-L153), `hit_test` (L171-L176), `reset` (L205-L207), `
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L26-L431), `poll_model_download` (L433-L451), `poll_runtime_download` (L453-L471), `start_depthpro_download` (L473-L496), `start_onnxruntime_download` (L498-L521), `poll_directml_download` (L523-L541), `start_directml_download` (L543-L566), `inspector_desired_height` (L568-L718), `depthpro_model_path` (L721-L723), `onnxruntime_dir_path` (L725-L727), `onnxruntime_dylib_path` (L729-L731), `onnxruntime_directml_dir_path` (L733-L735), `onnxruntime_directml_dylib_path` (L737-L739), `normalize_download_url` (L742-L752), `download_depthpro_model` (L755-L789), `download_onnxruntime_runtime` (L792-L801), `download_directml_runtime` (L804-L859), `download_runtime_zip` (L862-L909), `download_depthpro_model` (L912-L916), `download_onnxruntime_runtime` (L919-L923), `download_directml_runtime` (L926-L930), `image_preview_range_label` (L932-L956), `finite_min_max_f32` (L958-L976), `finite_min_max_u32` (L978-L989), `compare_versions` (L991-L1009)
+Functions: `show_inspector` (L26-L582), `poll_model_download` (L584-L602), `poll_runtime_download` (L604-L622), `start_depthpro_download` (L624-L647), `start_onnxruntime_download` (L649-L672), `poll_directml_download` (L674-L692), `start_directml_download` (L694-L717), `inspector_desired_height` (L719-L869), `depthpro_model_path` (L872-L874), `onnxruntime_dir_path` (L876-L878), `onnxruntime_dylib_path` (L880-L882), `onnxruntime_directml_dir_path` (L884-L886), `onnxruntime_directml_dylib_path` (L888-L890), `normalize_download_url` (L893-L903), `download_depthpro_model` (L906-L940), `download_onnxruntime_runtime` (L943-L952), `download_directml_runtime` (L955-L1010), `download_runtime_zip` (L1013-L1060), `download_depthpro_model` (L1063-L1067), `download_onnxruntime_runtime` (L1070-L1074), `download_directml_runtime` (L1077-L1081), `image_preview_range_label` (L1083-L1107), `finite_min_max_f32` (L1109-L1127), `finite_min_max_u32` (L1129-L1140), `compare_versions` (L1142-L1160), `marble_model_catalog` (L1171-L1225), `split_variant` (L1228-L1236), `variant_rank` (L1239-L1247), `variant_label` (L1250-L1262), `marble_model_catalog` (L1265-L1267)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -218,7 +218,7 @@ Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` 
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
-Functions: `node_help_page` (L5-L87)
+Functions: `node_help_page` (L5-L92)
 
 ## crates/core/src/node_help_splats.rs
 Description: Node Help Splats module.
@@ -514,7 +514,7 @@ Functions: `definition` (L18-L25), `default_params` (L27-L41), `param_specs` (L4
 
 ## crates/core/src/nodes/worldlabs_generate.rs
 Description: Worldlabs Generate module.
-Functions: `definition` (L89-L96), `default_params` (L98-L120), `param_specs` (L122-L151), `compute` (L153-L285), `worldlabs_cache` (L287-L289), `worldlabs_api_key` (L292-L304), `api_get_json` (L307-L309), `api_post_json` (L312-L314), `api_request_json` (L317-L355), `poll_operation` (L358-L385), `format_operation_error` (L387-L393), `parse_tags` (L395-L400), `build_request` (L402-L436), `cache_key` (L444-L448), `extract_worldlabs_asset` (L450-L464), `load_worldlabs_asset` (L466-L471), `find_url_with_extension` (L473-L490)
+Functions: `is_empty` (L78-L80), `preferred_url` (L82-L87), `definition` (L124-L131), `default_params` (L133-L161), `param_specs` (L163-L207), `compute` (L209-L377), `worldlabs_cache` (L379-L381), `worldlabs_api_key` (L384-L396), `api_get_json` (L399-L401), `api_post_json` (L404-L406), `api_request_json` (L409-L447), `poll_operation` (L450-L483), `format_operation_error` (L485-L491), `parse_tags` (L493-L498), `build_request` (L500-L534), `cache_key` (L542-L546), `extract_worldlabs_asset` (L548-L571), `extract_spz_urls` (L573-L595), `save_worldlabs_spz_variants` (L598-L612), `save_spz_url_to_marble` (L615-L634), `save_splats_to_marble` (L638-L654), `ensure_marble_dir` (L657-L663), `resolve_marble_model_path` (L666-L680), `load_splat_from_path` (L683-L695), `sanitize_filename` (L698-L709), `find_url_with_extension` (L711-L728)
 
 ## crates/core/src/nodes/wrangle.rs
 Description: Wrangle module.
@@ -590,7 +590,7 @@ Functions: `new` (L21-L23), `splats_for_node` (L25-L27), `evaluate_splat_graph` 
 
 ## crates/core/src/splat_ply.rs
 Description: Splat Ply module.
-Functions: `size` (L39-L46), `load_splat_ply` (L63-L65), `load_splat_ply_with_mode` (L67-L87), `save_splat_ply` (L92-L94), `save_splat_ply_with_format` (L97-L216), `save_splat_ply` (L220-L222), `save_splat_ply_with_format` (L225-L231), `parse_splat_ply_bytes` (L234-L236), `parse_splat_ply_bytes_with_mode` (L238-L258), `parse_header` (L260-L334), `parse_header_bytes` (L336-L360), `parse_scalar_type` (L362-L374), `parse_ascii_vertices` (L376-L410), `parse_binary_vertices` (L412-L439), `read_scalar` (L441-L525), `fill_splat_from_values` (L527-L587), `from_properties` (L604-L655), `sh_coeffs` (L657-L664), `parse_sh_rest_index` (L667-L670), `parse_ascii_ply_positions_and_sh0` (L679-L708), `parse_binary_ply_positions_and_opacity` (L711-L732), `parse_ascii_ply_sh_rest` (L735-L762), `save_and_load_roundtrip` (L766-L789)
+Functions: `size` (L39-L46), `load_splat_ply` (L63-L65), `load_splat_ply_with_mode` (L67-L87), `save_splat_ply` (L92-L94), `save_splat_ply_with_format` (L97-L231), `save_splat_ply` (L235-L237), `save_splat_ply_with_format` (L240-L246), `parse_splat_ply_bytes` (L249-L251), `parse_splat_ply_bytes_with_mode` (L253-L273), `parse_header` (L275-L349), `parse_header_bytes` (L351-L375), `parse_scalar_type` (L377-L389), `parse_ascii_vertices` (L391-L425), `parse_binary_vertices` (L427-L454), `read_scalar` (L456-L540), `fill_splat_from_values` (L542-L602), `from_properties` (L619-L670), `sh_coeffs` (L672-L679), `parse_sh_rest_index` (L682-L685), `parse_ascii_ply_positions_and_sh0` (L694-L723), `parse_binary_ply_positions_and_opacity` (L726-L747), `parse_ascii_ply_sh_rest` (L750-L777), `save_and_load_roundtrip` (L781-L804)
 
 ## crates/core/src/splat_spz.rs
 Description: Splat Spz module.
@@ -642,7 +642,7 @@ Functions: `mesh` (L33-L38), `splats` (L40-L45), `curves` (L47-L55), `volume` (L
 
 ## crates/render/src/viewport/callback.rs
 Description: Callback module.
-Functions: `prepare` (L36-L943), `paint` (L945-L982)
+Functions: `prepare` (L36-L946), `paint` (L948-L985)
 
 ## crates/render/src/viewport/callback_helpers.rs
 Description: Callback Helpers module.
@@ -650,7 +650,7 @@ Functions: `light_view_projection` (L3-L3), `sh_basis_l1` (L79-L79), `sh_basis_l
 
 ## crates/render/src/viewport/mesh.rs
 Description: Mesh module.
-Functions: `splat_corner_vertices` (L71-L71), `cube_mesh` (L102-L155), `mesh_bounds` (L157-L157), `bounds_from_positions` (L169-L169), `build_vertices` (L184-L274), `normals_vertices` (L276-L296), `point_cross_vertices_color` (L298-L299), `point_cross_vertices_with_colors` (L337-L338), `splat_billboards` (L377-L523), `wireframe_vertices` (L525-L525), `wireframe_vertices_ngon` (L565-L566), `curve_vertices` (L605-L605), `bounds_vertices` (L634-L634), `bounds_vertices_with_color` (L638-L639), `selection_shape_vertices` (L686-L765), `circle_vertices` (L767-L773), `grid_and_axes` (L794-L853)
+Functions: `splat_corner_vertices` (L71-L71), `cube_mesh` (L102-L155), `mesh_bounds` (L157-L157), `bounds_from_positions` (L169-L169), `build_vertices` (L184-L274), `normals_vertices` (L276-L296), `point_cross_vertices_color` (L298-L299), `point_cross_vertices_with_colors` (L337-L338), `splat_billboards` (L377-L525), `wireframe_vertices` (L527-L527), `wireframe_vertices_ngon` (L567-L568), `curve_vertices` (L607-L607), `bounds_vertices` (L636-L636), `bounds_vertices_with_color` (L640-L641), `selection_shape_vertices` (L688-L767), `circle_vertices` (L769-L775), `grid_and_axes` (L796-L855)
 
 ## crates/render/src/viewport/mod.rs
 Description: Viewport module.
@@ -666,7 +666,7 @@ Functions: `apply_scene_to_pipeline` (L13-L219), `merged_scene_splats` (L221-L28
 
 ## crates/render/src/viewport/pipeline_shaders.rs
 Description: Pipeline Shaders module.
-Functions: `vs_main` (L88-L97), `shadow_factor` (L99-L127), `shade_surface` (L129-L161), `material_albedo` (L163-L174), `fs_main` (L177-L195), `vs_shadow` (L202-L206), `vs_line` (L219-L224), `fs_line` (L227-L229), `quat_to_mat3` (L249-L268), `is_finite_f32` (L270-L272), `is_finite_vec4` (L274-L276), `vs_splat` (L279-L373), `fs_splat` (L376-L415), `vs_volume` (L423-L438), `intersect_aabb` (L440-L447), `sample_volume_density` (L449-L473), `fs_volume` (L476-L518), `vs_blit` (L534-L549), `fs_blit` (L552-L554), `create_main_shader` (L557-L562), `create_blit_shader` (L564-L569)
+Functions: `vs_main` (L88-L97), `shadow_factor` (L99-L127), `shade_surface` (L129-L161), `material_albedo` (L163-L174), `fs_main` (L177-L195), `vs_shadow` (L202-L206), `vs_line` (L219-L224), `fs_line` (L227-L229), `quat_to_mat3` (L249-L268), `is_finite_f32` (L270-L272), `is_finite_vec4` (L274-L276), `vs_splat` (L279-L374), `fs_splat` (L377-L416), `vs_volume` (L424-L439), `intersect_aabb` (L441-L448), `sample_volume_density` (L450-L474), `fs_volume` (L477-L519), `vs_blit` (L535-L550), `fs_blit` (L553-L555), `create_main_shader` (L558-L563), `create_blit_shader` (L565-L570)
 
 ## crates/render/src/viewport/pipeline_targets.rs
 Description: Pipeline Targets module.

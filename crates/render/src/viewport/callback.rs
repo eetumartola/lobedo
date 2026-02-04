@@ -57,7 +57,10 @@ impl CallbackTrait for ViewportCallback {
         let view_rot = Mat3::from_mat4(view);
         let view_rot_cols = view_rot.to_cols_array_2d();
         let fov_y = 45_f32.to_radians();
-        let near_clip = (self.camera.distance * 0.01).clamp(0.02, 0.5);
+        let near_clip = self
+            .debug
+            .depth_near
+            .clamp(0.02, self.debug.depth_far.max(0.02));
         let forward = (target - camera_pos).normalize_or_zero();
         let mut right = forward.cross(Vec3::Y).normalize_or_zero();
         if right.length_squared() == 0.0 {

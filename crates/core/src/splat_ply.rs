@@ -102,6 +102,11 @@ pub fn save_splat_ply_with_format(
     use std::io::{BufWriter, Write};
 
     let mut normalized = splats.normalized_for_save();
+    let sh0_as_coeff = normalized.sh_coeffs > 0
+        || normalized
+            .sh0
+            .iter()
+            .any(|color| color.iter().any(|value| *value < 0.0));
     normalized.flip_y_axis();
     normalized.validate()?;
     let file = std::fs::File::create(path).map_err(|err| err.to_string())?;
@@ -148,7 +153,12 @@ pub fn save_splat_ply_with_format(
                 let [sx, sy, sz] = normalized.scales[idx];
                 let [r0, r1, r2, r3] = normalized.rotations[idx];
                 let opacity = normalized.opacity[idx];
-                let [c0, c1, c2] = normalized.sh0[idx];
+                let [mut c0, mut c1, mut c2] = normalized.sh0[idx];
+                if !sh0_as_coeff {
+                    c0 = (c0 - 0.5) / SH_C0;
+                    c1 = (c1 - 0.5) / SH_C0;
+                    c2 = (c2 - 0.5) / SH_C0;
+                }
                 write!(
                     file,
                     "{x} {y} {z} {opacity} {sx} {sy} {sz} {r0} {r1} {r2} {r3} {c0} {c1} {c2}"
@@ -183,7 +193,12 @@ pub fn save_splat_ply_with_format(
                 let [sx, sy, sz] = normalized.scales[idx];
                 let [r0, r1, r2, r3] = normalized.rotations[idx];
                 let opacity = normalized.opacity[idx];
-                let [c0, c1, c2] = normalized.sh0[idx];
+                let [mut c0, mut c1, mut c2] = normalized.sh0[idx];
+                if !sh0_as_coeff {
+                    c0 = (c0 - 0.5) / SH_C0;
+                    c1 = (c1 - 0.5) / SH_C0;
+                    c2 = (c2 - 0.5) / SH_C0;
+                }
                 for value in [
                     x, y, z, opacity, sx, sy, sz, r0, r1, r2, r3, c0, c1, c2,
                 ] {

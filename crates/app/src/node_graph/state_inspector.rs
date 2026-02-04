@@ -45,7 +45,7 @@ impl NodeGraphState {
             return false;
         };
 
-        let Some(node) = graph.node(node_id) else {
+        let Some(node) = graph.node(node_id).cloned() else {
             self.selected_node = None;
             ui.label("No selection.");
             return false;
@@ -54,7 +54,31 @@ impl NodeGraphState {
         let node_name = node.name.clone();
         let node_kind = node.builtin_kind();
         let node_category = node.category.clone();
-        let param_values = node.params.values.clone();
+        let mut param_values = node.params.values.clone();
+        let mut auto_changed = false;
+        if node_kind == Some(BuiltinNodeKind::WorldLabsGenerate) {
+            if !param_values.contains_key("io_mode") {
+                let _ = graph.set_param(
+                    node_id,
+                    "io_mode".to_string(),
+                    ParamValue::Int(0),
+                );
+                param_values.insert("io_mode".to_string(), ParamValue::Int(0));
+                auto_changed = true;
+            }
+            if !param_values.contains_key("load_model") {
+                let _ = graph.set_param(
+                    node_id,
+                    "load_model".to_string(),
+                    ParamValue::String(String::new()),
+                );
+                param_values.insert(
+                    "load_model".to_string(),
+                    ParamValue::String(String::new()),
+                );
+                auto_changed = true;
+            }
+        }
         let visible_params = NodeParams {
             values: param_values.clone(),
         };
@@ -115,7 +139,7 @@ impl NodeGraphState {
             });
         }
 
-        let mut changed = false;
+        let mut changed = auto_changed;
         let param_specs = if !node.kind_id.is_empty() {
             param_specs_for_kind_id(&node.kind_id)
         } else {
@@ -383,47 +407,174 @@ impl NodeGraphState {
 
         if node_kind == Some(BuiltinNodeKind::WorldLabsGenerate) {
             ui.separator();
-            let can_generate = !cfg!(target_arch = "wasm32");
-            if ui
-                .add_enabled(can_generate, egui::Button::new("Generate"))
-                .clicked()
-            {
-                let snapshot = json!({
-                    "mode": visible_params.get_int("mode", 0),
-                    "text_prompt": visible_params.get_string("text_prompt", ""),
-                    "image_path": visible_params.get_string("image_path", ""),
-                    "auto_enhance": visible_params.get_bool("auto_enhance", true),
-                    "is_pano": visible_params.get_bool("is_pano", false),
-                    "model": visible_params.get_int("model", 0),
-                    "seed": visible_params.get_int("seed", -1),
-                    "tags": visible_params.get_string("tags", ""),
-                    "display_name": visible_params.get_string("display_name", ""),
-                });
-                let snapshot_text = snapshot.to_string();
-                if graph
-                    .set_param(
-                        node_id,
-                        "request_snapshot".to_string(),
-                        ParamValue::String(snapshot_text),
-                    )
-                    .is_ok()
+            let io_mode = visible_params.get_int("io_mode", 0).clamp(0, 1);
+            if io_mode == 1 {
+                #[cfg(target_arch = "wasm32")]
                 {
-                    changed = true;
+                    ui.label("Loading marble models is not available in web builds.");
                 }
-                let next_token = visible_params.get_int("request_token", 0).saturating_add(1);
-                if graph
-                    .set_param(
-                        node_id,
-                        "request_token".to_string(),
-                        ParamValue::Int(next_token),
-                    )
-                    .is_ok()
+                #[cfg(not(target_arch = "wasm32"))]
                 {
-                    changed = true;
+                    let mut current = visible_params.get_string("load_model", "").to_string();
+                    let catalog = marble_model_catalog();
+                    if catalog.is_empty() {
+                        ui.label("No marble models found in marble/.");
+                    } else {
+                        let mut selected_base = None;
+                        let mut selected_variant = None;
+                        if !current.trim().is_empty() {
+                            for (base, variants) in &catalog {
+                                if let Some(found) =
+                                    variants.iter().find(|variant| variant.filename == current)
+                                {
+                                    selected_base = Some(base.clone());
+                                    selected_variant = Some(found.variant.clone());
+                                    break;
+                                }
+                            }
+                        }
+                        if selected_base.is_none() {
+                            if let Some((base, variants)) = catalog.first() {
+                                if let Some(first_variant) = variants.first() {
+                                    selected_base = Some(base.clone());
+                                    selected_variant = Some(first_variant.variant.clone());
+                                    current = first_variant.filename.clone();
+                                }
+                            }
+                        }
+                        let mut base_names: Vec<String> =
+                            catalog.iter().map(|(base, _)| base.clone()).collect();
+                        base_names.sort();
+                        let mut base_selection = selected_base.clone().unwrap_or_else(|| {
+                            base_names.first().cloned().unwrap_or_default()
+                        });
+                        let mut base_changed = false;
+                        egui::ComboBox::from_id_salt("worldlabs_load_base")
+                            .selected_text(base_selection.clone())
+                            .show_ui(ui, |ui| {
+                                for base in &base_names {
+                                    if ui
+                                        .selectable_value(
+                                            &mut base_selection,
+                                            base.clone(),
+                                            base.as_str(),
+                                        )
+                                        .changed()
+                                    {
+                                        base_changed = true;
+                                    }
+                                }
+                            });
+                        if base_changed {
+                            selected_variant = None;
+                        }
+                        let variants = catalog
+                            .iter()
+                            .find(|(base, _)| base == &base_selection)
+                            .map(|(_, variants)| variants.clone())
+                            .unwrap_or_default();
+                        if variants.is_empty() {
+                            ui.label("No variants found for selected model.");
+                        } else if variants.len() > 1 {
+                            let mut variant_selection = selected_variant
+                                .clone()
+                                .unwrap_or_else(|| variants[0].variant.clone());
+                            let mut variant_label = variants
+                                .iter()
+                                .find(|variant| variant.variant == variant_selection)
+                                .map(|variant| variant.label.clone())
+                                .unwrap_or_else(|| variant_selection.clone());
+                            let mut variant_changed = false;
+                            egui::ComboBox::from_id_salt("worldlabs_load_variant")
+                                .selected_text(variant_label.clone())
+                                .show_ui(ui, |ui| {
+                                    for variant in &variants {
+                                        if ui
+                                            .selectable_value(
+                                                &mut variant_selection,
+                                                variant.variant.clone(),
+                                                variant.label.as_str(),
+                                            )
+                                            .changed()
+                                        {
+                                            variant_label = variant.label.clone();
+                                            variant_changed = true;
+                                        }
+                                    }
+                                });
+                            if base_changed || variant_changed {
+                                if let Some(found) = variants
+                                    .iter()
+                                    .find(|variant| variant.variant == variant_selection)
+                                {
+                                    current = found.filename.clone();
+                                } else if let Some(first) = variants.first() {
+                                    current = first.filename.clone();
+                                }
+                            }
+                        } else if let Some(first) = variants.first() {
+                            if base_changed || current.trim().is_empty() {
+                                current = first.filename.clone();
+                            }
+                        }
+                        if current != visible_params.get_string("load_model", "") {
+                            if graph
+                                .set_param(
+                                    node_id,
+                                    "load_model".to_string(),
+                                    ParamValue::String(current),
+                                )
+                                .is_ok()
+                            {
+                                changed = true;
+                            }
+                        }
+                    }
                 }
-            }
-            if !can_generate {
-                ui.label("WorldLabs Generate is not available in web builds.");
+            } else {
+                let can_generate = !cfg!(target_arch = "wasm32");
+                if ui
+                    .add_enabled(can_generate, egui::Button::new("Generate"))
+                    .clicked()
+                {
+                    let snapshot = json!({
+                        "io_mode": visible_params.get_int("io_mode", 0),
+                        "mode": visible_params.get_int("mode", 0),
+                        "text_prompt": visible_params.get_string("text_prompt", ""),
+                        "image_path": visible_params.get_string("image_path", ""),
+                        "auto_enhance": visible_params.get_bool("auto_enhance", true),
+                        "is_pano": visible_params.get_bool("is_pano", false),
+                        "model": visible_params.get_int("model", 0),
+                        "seed": visible_params.get_int("seed", -1),
+                        "tags": visible_params.get_string("tags", ""),
+                        "display_name": visible_params.get_string("display_name", ""),
+                    });
+                    let snapshot_text = snapshot.to_string();
+                    if graph
+                        .set_param(
+                            node_id,
+                            "request_snapshot".to_string(),
+                            ParamValue::String(snapshot_text),
+                        )
+                        .is_ok()
+                    {
+                        changed = true;
+                    }
+                    let next_token = visible_params.get_int("request_token", 0).saturating_add(1);
+                    if graph
+                        .set_param(
+                            node_id,
+                            "request_token".to_string(),
+                            ParamValue::Int(next_token),
+                        )
+                        .is_ok()
+                    {
+                        changed = true;
+                    }
+                }
+                if !can_generate {
+                    ui.label("WorldLabs Generate is not available in web builds.");
+                }
             }
         }
 
@@ -1006,5 +1157,112 @@ fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
         }
     }
     std::cmp::Ordering::Equal
+}
+
+#[derive(Clone)]
+struct MarbleModelVariant {
+    base: String,
+    variant: String,
+    label: String,
+    filename: String,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn marble_model_catalog() -> Vec<(String, Vec<MarbleModelVariant>)> {
+    let dir = PathBuf::from("marble");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut variants = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if ext != "ply" && ext != "spz" {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("")
+            .to_string();
+        let (base, variant) = split_variant(&stem);
+        let label = variant_label(&variant, &ext);
+        variants.push(MarbleModelVariant {
+            base,
+            variant,
+            label,
+            filename: name.to_string(),
+        });
+    }
+    let mut grouped: std::collections::BTreeMap<String, Vec<MarbleModelVariant>> =
+        std::collections::BTreeMap::new();
+    for variant in variants {
+        grouped
+            .entry(variant.base.clone())
+            .or_default()
+            .push(variant);
+    }
+    let mut out = Vec::new();
+    for (base, mut variants) in grouped {
+        variants.sort_by(|a, b| {
+            let ra = variant_rank(&a.variant);
+            let rb = variant_rank(&b.variant);
+            ra.cmp(&rb).then_with(|| a.variant.cmp(&b.variant))
+        });
+        out.push((base, variants));
+    }
+    out
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn split_variant(stem: &str) -> (String, String) {
+    for suffix in ["_full", "_500k", "_100k"] {
+        if let Some(base) = stem.strip_suffix(suffix) {
+            let variant = suffix.trim_start_matches('_').to_string();
+            return (base.to_string(), variant);
+        }
+    }
+    (stem.to_string(), "default".to_string())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn variant_rank(variant: &str) -> i32 {
+    match variant {
+        "full" => 0,
+        "500k" => 1,
+        "100k" => 2,
+        "default" => 3,
+        _ => 4,
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn variant_label(variant: &str, ext: &str) -> String {
+    match variant {
+        "full" => "Full".to_string(),
+        "500k" => "500k".to_string(),
+        "100k" => "100k".to_string(),
+        "default" => match ext {
+            "ply" => "PLY".to_string(),
+            "spz" => "SPZ".to_string(),
+            _ => variant.to_string(),
+        },
+        _ => variant.to_string(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn marble_model_catalog() -> Vec<(String, Vec<MarbleModelVariant>)> {
+    Vec::new()
 }
 
