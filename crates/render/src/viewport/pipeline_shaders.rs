@@ -555,6 +555,352 @@ fn fs_blit(input: BlitOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+const SPLAT_COMPUTE_WGSL: &str = r#"
+struct Uniforms {
+    view_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+    light_view_proj: mat4x4<f32>,
+    key_dir: vec3<f32>,
+    _pad0: f32,
+    fill_dir: vec3<f32>,
+    _pad1: f32,
+    rim_dir: vec3<f32>,
+    _pad2: f32,
+    camera_pos: vec3<f32>,
+    _pad3: f32,
+    base_color: vec3<f32>,
+    _pad4: f32,
+    light_params: vec4<f32>,
+    debug_params: vec4<f32>,
+    shadow_params: vec4<f32>,
+    splat_params: vec4<f32>,
+    splat_view_x: vec3<f32>,
+    _pad5: f32,
+    splat_view_y: vec3<f32>,
+    _pad6: f32,
+    splat_view_z: vec3<f32>,
+    _pad7: f32,
+};
+
+struct SplatComputeParams {
+    splat_count: u32,
+    sh_coeffs: u32,
+    bucket_count: u32,
+    flags: u32,
+    near: f32,
+    far: f32,
+    vertex_count: u32,
+    _pad0: u32,
+};
+
+struct SplatData {
+    pos_opacity: vec4<f32>,
+    scale: vec4<f32>,
+    rotation: vec4<f32>,
+    sh0: vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
+
+@group(0) @binding(1)
+var<uniform> params: SplatComputeParams;
+
+@group(0) @binding(2)
+var<storage, read> splat_data: array<SplatData>;
+
+@group(0) @binding(3)
+var<storage, read> sh_rest: array<vec4<f32>>;
+
+@group(0) @binding(4)
+var<storage, read_write> bucket_counts: array<atomic<u32>>;
+
+@group(0) @binding(5)
+var<storage, read_write> bucket_offsets: array<atomic<u32>>;
+
+@group(0) @binding(6)
+var<storage, read_write> chunk_sums: array<u32>;
+
+@group(0) @binding(7)
+var<storage, read_write> chunk_offsets: array<u32>;
+
+@group(0) @binding(8)
+var<storage, read_write> instances: array<f32>;
+
+@group(0) @binding(9)
+var<storage, read_write> indirect_args: array<u32>;
+
+const CHUNK_SIZE: u32 = 256u;
+const SPLAT_BILLBOARD_RADIUS: f32 = 3.0;
+
+const SH_C0: f32 = 0.2820948;
+const SH_C1: f32 = 0.4886025119029199;
+const SH_C2: array<f32, 5> = array<f32, 5>(
+    1.0925484305920792,
+    1.0925484305920792,
+    0.31539156525252005,
+    1.0925484305920792,
+    0.5462742152960396,
+);
+const SH_C3: array<f32, 7> = array<f32, 7>(
+    0.5900435899266435,
+    2.890611442640554,
+    0.4570457994644658,
+    0.3731763325901154,
+    0.4570457994644658,
+    1.445305721320277,
+    0.5900435899266435,
+);
+
+fn is_finite_f32(v: f32) -> bool {
+    return v == v && abs(v) < 1.0e20;
+}
+
+fn safe_normalize(v: vec3<f32>) -> vec3<f32> {
+    let len2 = dot(v, v);
+    if len2 < 1.0e-6 {
+        return vec3<f32>(0.0, 0.0, 1.0);
+    }
+    return v * inverseSqrt(len2);
+}
+
+fn sh_basis_l1(dir: vec3<f32>) -> array<f32, 3> {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    return array<f32, 3>(-SH_C1 * y, SH_C1 * z, -SH_C1 * x);
+}
+
+fn sh_basis_l2(dir: vec3<f32>) -> array<f32, 5> {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    return array<f32, 5>(
+        SH_C2[0] * x * y,
+        SH_C2[1] * y * z,
+        SH_C2[2] * (3.0 * z * z - 1.0),
+        SH_C2[3] * x * z,
+        SH_C2[4] * (x * x - y * y),
+    );
+}
+
+fn sh_basis_l3(dir: vec3<f32>) -> array<f32, 7> {
+    let x = dir.x;
+    let y = dir.y;
+    let z = dir.z;
+    return array<f32, 7>(
+        SH_C3[0] * y * (3.0 * x * x - y * y),
+        SH_C3[1] * x * y * z,
+        SH_C3[2] * y * (5.0 * z * z - 1.0),
+        SH_C3[3] * z * (5.0 * z * z - 3.0),
+        SH_C3[4] * x * (5.0 * z * z - 1.0),
+        SH_C3[5] * z * (x * x - y * y),
+        SH_C3[6] * x * (x * x - 3.0 * y * y),
+    );
+}
+
+fn splat_color(index: u32, center: vec3<f32>) -> vec3<f32> {
+    let sh0 = splat_data[index].sh0.xyz;
+    let sh0_is_coeff = (params.flags & 2u) != 0u;
+    var color = select(sh0, sh0 * SH_C0, sh0_is_coeff);
+    let coeffs = params.sh_coeffs;
+    let use_full_sh = (params.flags & 1u) != 0u;
+    if use_full_sh && sh0_is_coeff && coeffs > 0u {
+        let dir = safe_normalize(uniforms.camera_pos - center);
+        var base = index * coeffs;
+        if coeffs >= 3u {
+            let basis = sh_basis_l1(dir);
+            for (var i = 0u; i < 3u; i = i + 1u) {
+                color += sh_rest[base + i].xyz * basis[i];
+            }
+            base = base + 3u;
+        }
+        if coeffs >= 8u {
+            let basis = sh_basis_l2(dir);
+            for (var i = 0u; i < 5u; i = i + 1u) {
+                color += sh_rest[base + i].xyz * basis[i];
+            }
+            base = base + 5u;
+        }
+        if coeffs >= 15u {
+            let basis = sh_basis_l3(dir);
+            for (var i = 0u; i < 7u; i = i + 1u) {
+                color += sh_rest[base + i].xyz * basis[i];
+            }
+        }
+    }
+    if sh0_is_coeff {
+        color = color + vec3<f32>(0.5);
+    }
+    return clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+fn depth_bucket(depth: f32, near: f32, far: f32, bucket_count: u32) -> u32 {
+    let count = max(bucket_count, 1u);
+    let use_log = (params.flags & 4u) != 0u;
+    var t = 0.0;
+    if use_log {
+        let n = max(near, 1.0e-4);
+        let f = max(far, n + 1.0e-3);
+        let depth_clamped = max(depth, n);
+        let log_d = log2(depth_clamped / n);
+        let log_f = log2(f / n);
+        t = log_d / max(log_f, 1.0e-6);
+    } else {
+        let denom = max(far - near, 0.0001);
+        t = (depth - near) / denom;
+    }
+    t = clamp(t, 0.0, 1.0);
+    let bucket = u32(t * f32(count - 1u));
+    return (count - 1u) - bucket;
+}
+
+@compute @workgroup_size(256)
+fn cs_clear(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let idx = gid.x;
+    let bucket_count = max(params.bucket_count, 1u);
+    let chunk_count = (bucket_count + CHUNK_SIZE - 1u) / CHUNK_SIZE;
+    if idx < bucket_count {
+        atomicStore(&bucket_counts[idx], 0u);
+        atomicStore(&bucket_offsets[idx], 0u);
+    }
+    if idx < chunk_count {
+        chunk_sums[idx] = 0u;
+        chunk_offsets[idx] = 0u;
+    }
+    if idx == 0u {
+        indirect_args[0] = params.vertex_count;
+        indirect_args[1] = 0u;
+        indirect_args[2] = 0u;
+        indirect_args[3] = 0u;
+    }
+}
+
+@compute @workgroup_size(256)
+fn cs_count(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let idx = gid.x;
+    if idx >= params.splat_count {
+        return;
+    }
+    let bucket_count = max(params.bucket_count, 1u);
+    let data = splat_data[idx];
+    let center = data.pos_opacity.xyz;
+    let scale = data.scale.xyz;
+    let view_rot = mat3x3<f32>(uniforms.splat_view_x, uniforms.splat_view_y, uniforms.splat_view_z);
+    let pos_view = view_rot * (center - uniforms.camera_pos);
+    let pos_cam = vec3<f32>(pos_view.x, pos_view.y, -pos_view.z);
+    let depth = pos_cam.z;
+    if !is_finite_f32(depth) {
+        return;
+    }
+    let scale_metric = max(max(scale.x, scale.y), scale.z);
+    let clip = params.near + scale_metric * SPLAT_BILLBOARD_RADIUS;
+    if depth <= clip {
+        return;
+    }
+    let bucket = depth_bucket(depth, params.near, params.far, bucket_count);
+    atomicAdd(&bucket_counts[bucket], 1u);
+}
+
+@compute @workgroup_size(256)
+fn cs_prefix_local(
+    @builtin(workgroup_id) wid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>,
+) {
+    if lid.x != 0u {
+        return;
+    }
+    let chunk = wid.x;
+    let bucket_count = max(params.bucket_count, 1u);
+    let chunk_count = (bucket_count + CHUNK_SIZE - 1u) / CHUNK_SIZE;
+    if chunk >= chunk_count {
+        return;
+    }
+    var running = 0u;
+    let base = chunk * CHUNK_SIZE;
+    for (var i = 0u; i < CHUNK_SIZE; i = i + 1u) {
+        let idx = base + i;
+        if idx < bucket_count {
+            let count = atomicLoad(&bucket_counts[idx]);
+            atomicStore(&bucket_offsets[idx], running);
+            running = running + count;
+        }
+    }
+    chunk_sums[chunk] = running;
+}
+
+@compute @workgroup_size(64)
+fn cs_prefix_chunk(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if gid.x != 0u {
+        return;
+    }
+    let bucket_count = max(params.bucket_count, 1u);
+    let chunk_count = (bucket_count + CHUNK_SIZE - 1u) / CHUNK_SIZE;
+    var running = 0u;
+    for (var i = 0u; i < chunk_count; i = i + 1u) {
+        let sum = chunk_sums[i];
+        chunk_offsets[i] = running;
+        running = running + sum;
+    }
+    indirect_args[1] = running;
+}
+
+@compute @workgroup_size(256)
+fn cs_prefix_add(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let idx = gid.x;
+    let bucket_count = max(params.bucket_count, 1u);
+    if idx >= bucket_count {
+        return;
+    }
+    let chunk = idx / CHUNK_SIZE;
+    let offset = chunk_offsets[chunk];
+    let base = atomicLoad(&bucket_offsets[idx]);
+    atomicStore(&bucket_offsets[idx], base + offset);
+}
+
+@compute @workgroup_size(256)
+fn cs_scatter(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let idx = gid.x;
+    if idx >= params.splat_count {
+        return;
+    }
+    let bucket_count = max(params.bucket_count, 1u);
+    let data = splat_data[idx];
+    let center = data.pos_opacity.xyz;
+    let scale = data.scale.xyz;
+    let view_rot = mat3x3<f32>(uniforms.splat_view_x, uniforms.splat_view_y, uniforms.splat_view_z);
+    let pos_view = view_rot * (center - uniforms.camera_pos);
+    let pos_cam = vec3<f32>(pos_view.x, pos_view.y, -pos_view.z);
+    let depth = pos_cam.z;
+    if !is_finite_f32(depth) {
+        return;
+    }
+    let scale_metric = max(max(scale.x, scale.y), scale.z);
+    let clip = params.near + scale_metric * SPLAT_BILLBOARD_RADIUS;
+    if depth <= clip {
+        return;
+    }
+    let bucket = depth_bucket(depth, params.near, params.far, bucket_count);
+    let dst = atomicAdd(&bucket_offsets[bucket], 1u);
+    let base = dst * 14u;
+    let color = splat_color(idx, center);
+    instances[base + 0u] = center.x;
+    instances[base + 1u] = center.y;
+    instances[base + 2u] = center.z;
+    instances[base + 3u] = color.x;
+    instances[base + 4u] = color.y;
+    instances[base + 5u] = color.z;
+    instances[base + 6u] = data.pos_opacity.w;
+    instances[base + 7u] = scale.x;
+    instances[base + 8u] = scale.y;
+    instances[base + 9u] = scale.z;
+    instances[base + 10u] = data.rotation.x;
+    instances[base + 11u] = data.rotation.y;
+    instances[base + 12u] = data.rotation.z;
+    instances[base + 13u] = data.rotation.w;
+}
+"#;
+
 pub(super) fn create_main_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("lobedo_viewport_shader"),
@@ -566,5 +912,12 @@ pub(super) fn create_blit_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
     device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("lobedo_viewport_blit"),
         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(BLIT_WGSL)),
+    })
+}
+
+pub(super) fn create_splat_compute_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("lobedo_viewport_splat_compute"),
+        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(SPLAT_COMPUTE_WGSL)),
     })
 }

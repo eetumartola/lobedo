@@ -365,6 +365,8 @@ impl LobedoApp {
                 .splat_rebuild_fps_enabled,
             splat_rebuild_fps: self.project.settings.render_debug.splat_rebuild_fps,
             splat_frustum_cull: self.project.settings.render_debug.splat_frustum_cull,
+            splat_sort_bucket_count: self.project.settings.render_debug.splat_sort_bucket_count,
+            splat_sort_log_depth: self.project.settings.render_debug.splat_sort_log_depth,
             show_points: self.project.settings.render_debug.show_points,
             show_splats: self.project.settings.render_debug.show_splats,
             point_size: self.project.settings.render_debug.point_size,

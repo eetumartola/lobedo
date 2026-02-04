@@ -14,7 +14,10 @@ use super::mesh::{
     normals_vertices, point_cross_vertices_color, splat_billboards, SplatBillboardInputs,
     SplatInstance,
 };
-use super::pipeline::{apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, Uniforms};
+use super::pipeline::{
+    apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, SplatComputeParams,
+    Uniforms, SPLAT_BUCKET_CHUNK,
+};
 use super::{
     ViewportDebug, ViewportSceneState, ViewportShadingMode, ViewportSplatShadingMode,
     ViewportStatsState,
@@ -236,13 +239,12 @@ impl CallbackTrait for ViewportCallback {
                 stats_state.stats.triangle_count = pipeline.index_count / 3;
             }
 
-            let mesh = if pipeline.mesh_vertices.is_empty() {
-                None
-            } else {
-                pipeline.mesh_cache.get(pipeline.mesh_id)
-            };
-            if shadow_enabled {
-                if let Some(mesh) = &mesh {
+            let mut use_gpu_splats = false;
+            let mut gpu_splats_active = false;
+
+            let mesh_ready = !pipeline.mesh_vertices.is_empty();
+            if shadow_enabled && mesh_ready {
+                if let Some(mesh) = pipeline.mesh_cache.get(pipeline.mesh_id) {
                     let mut shadow_pass =
                         _egui_encoder.begin_render_pass(&egui_wgpu::wgpu::RenderPassDescriptor {
                             label: Some("lobedo_shadow_pass"),
@@ -300,6 +302,122 @@ impl CallbackTrait for ViewportCallback {
                 }
             }
 
+            if self.debug.show_splats && !pipeline.splat_positions.is_empty() {
+                use_gpu_splats = pipeline.splat_gpu.supported
+                    && pipeline.splat_gpu.capacity >= pipeline.splat_positions.len() as u32
+                    && !cfg!(target_arch = "wasm32");
+                if use_gpu_splats {
+                    let right_delta = right - Vec3::from(pipeline.splat_last_right);
+                    let up_delta = up - Vec3::from(pipeline.splat_last_up);
+                    let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
+                    let viewport_changed = pipeline.splat_last_viewport != [width, height];
+                    let use_full_sh = matches!(
+                        self.debug.splat_shading_mode,
+                        ViewportSplatShadingMode::FullSh
+                    ) && matches!(self.debug.shading_mode, ViewportShadingMode::Lit);
+                    let bucket_count = self
+                        .debug
+                        .splat_sort_bucket_count
+                        .clamp(256, 16_384);
+                    let log_depth = self.debug.splat_sort_log_depth;
+                    let settings_changed = use_full_sh != pipeline.splat_last_full_sh
+                        || bucket_count != pipeline.splat_last_bucket_count
+                        || log_depth != pipeline.splat_last_log_depth;
+                    let needs_rebuild = pipeline.splat_point_size < 0.0
+                        || right_delta.length_squared() > 1.0e-6
+                        || up_delta.length_squared() > 1.0e-6
+                        || camera_delta.length_squared() > 1.0e-6
+                        || viewport_changed
+                        || settings_changed;
+                    let now = Instant::now();
+                    let elapsed = pipeline
+                        .last_splat_rebuild
+                        .map(|last| (now - last).as_secs_f32())
+                        .unwrap_or(f32::INFINITY);
+                    let rebuild_fps = self
+                        .debug
+                        .splat_rebuild_fps
+                        .max(1.0);
+                    let interval = if self.debug.splat_rebuild_fps_enabled {
+                        1.0 / rebuild_fps
+                    } else {
+                        0.0
+                    };
+                    let allow_rebuild = scene_changed
+                        || viewport_changed
+                        || settings_changed
+                        || !self.debug.splat_rebuild_fps_enabled
+                        || elapsed >= interval;
+                    if needs_rebuild && allow_rebuild {
+                        let far = self.debug.depth_far.max(near_clip + 0.001);
+                        pipeline.ensure_splat_gpu_bucket_capacity(device, bucket_count);
+                        let mut flags = 0u32;
+                        if use_full_sh {
+                            flags |= 1;
+                        }
+                        if pipeline.splat_sh0_is_coeff {
+                            flags |= 2;
+                        }
+                        if log_depth {
+                            flags |= 4;
+                        }
+                        let params = SplatComputeParams {
+                            splat_count: pipeline.splat_positions.len() as u32,
+                            sh_coeffs: pipeline.splat_sh_coeffs as u32,
+                            bucket_count,
+                            flags,
+                            near: near_clip,
+                            far,
+                            vertex_count: pipeline.splat_corner_count,
+                            _pad0: 0,
+                        };
+                        queue.write_buffer(
+                            &pipeline.splat_gpu.params_buffer,
+                            0,
+                            bytemuck::bytes_of(&params),
+                        );
+                        let splat_count = params.splat_count;
+                        if splat_count > 0 {
+                            let clear_groups = bucket_count.div_ceil(SPLAT_BUCKET_CHUNK);
+                            let chunk_count = clear_groups;
+                            let count_groups = splat_count.div_ceil(256);
+                            let mut compute_pass = _egui_encoder.begin_compute_pass(
+                                &egui_wgpu::wgpu::ComputePassDescriptor {
+                                    label: Some("lobedo_splats_compute"),
+                                    timestamp_writes: None,
+                                },
+                            );
+                            compute_pass.set_bind_group(
+                                0,
+                                &pipeline.splat_gpu.bind_group,
+                                &[],
+                            );
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.clear_pipeline);
+                            compute_pass.dispatch_workgroups(clear_groups, 1, 1);
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.count_pipeline);
+                            compute_pass.dispatch_workgroups(count_groups, 1, 1);
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.prefix_local_pipeline);
+                            compute_pass.dispatch_workgroups(chunk_count, 1, 1);
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.prefix_chunk_pipeline);
+                            compute_pass.dispatch_workgroups(1, 1, 1);
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.prefix_add_pipeline);
+                            compute_pass.dispatch_workgroups(clear_groups, 1, 1);
+                            compute_pass.set_pipeline(&pipeline.splat_gpu.scatter_pipeline);
+                            compute_pass.dispatch_workgroups(count_groups, 1, 1);
+                        }
+                        pipeline.splat_point_size = 0.0;
+                        pipeline.splat_last_right = right.to_array();
+                        pipeline.splat_last_up = up.to_array();
+                        pipeline.splat_last_camera_pos = camera_pos.to_array();
+                        pipeline.splat_last_viewport = [width, height];
+                        pipeline.splat_last_bucket_count = bucket_count;
+                        pipeline.splat_last_log_depth = log_depth;
+                        pipeline.splat_last_full_sh = use_full_sh;
+                        pipeline.last_splat_rebuild = Some(now);
+                    }
+                }
+            }
+
             let mut render_pass =
                 _egui_encoder.begin_render_pass(&egui_wgpu::wgpu::RenderPassDescriptor {
                     label: Some("lobedo_viewport_offscreen"),
@@ -339,43 +457,45 @@ impl CallbackTrait for ViewportCallback {
                 render_pass.set_bind_group(2, &pipeline.volume_bind_group, &[]);
                 render_pass.draw(0..3, 0..1);
             }
-            if let Some(mesh) = mesh {
-                if pipeline.index_count > 0 {
-                    render_pass.set_pipeline(&pipeline.mesh_pipeline);
-                    render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
-                    render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
-                    match &mesh.data {
-                        GpuMeshData::Indexed {
-                            vertex_buffer,
-                            index_buffers,
-                            index_counts,
-                        } => {
-                            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                            for (buffer, count) in
-                                index_buffers.iter().zip(index_counts.iter())
-                            {
-                                if *count == 0 {
-                                    continue;
+            if mesh_ready {
+                if let Some(mesh) = pipeline.mesh_cache.get(pipeline.mesh_id) {
+                    if pipeline.index_count > 0 {
+                        render_pass.set_pipeline(&pipeline.mesh_pipeline);
+                        render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                        render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                        match &mesh.data {
+                            GpuMeshData::Indexed {
+                                vertex_buffer,
+                                index_buffers,
+                                index_counts,
+                            } => {
+                                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                                for (buffer, count) in
+                                    index_buffers.iter().zip(index_counts.iter())
+                                {
+                                    if *count == 0 {
+                                        continue;
+                                    }
+                                    render_pass.set_index_buffer(
+                                        buffer.slice(..),
+                                        egui_wgpu::wgpu::IndexFormat::Uint32,
+                                    );
+                                    render_pass.draw_indexed(0..*count, 0, 0..1);
                                 }
-                                render_pass.set_index_buffer(
-                                    buffer.slice(..),
-                                    egui_wgpu::wgpu::IndexFormat::Uint32,
-                                );
-                                render_pass.draw_indexed(0..*count, 0, 0..1);
                             }
-                        }
-                        GpuMeshData::NonIndexed {
-                            vertex_buffers,
-                            vertex_counts,
-                        } => {
-                            for (buffer, count) in
-                                vertex_buffers.iter().zip(vertex_counts.iter())
-                            {
-                                if *count == 0 {
-                                    continue;
+                            GpuMeshData::NonIndexed {
+                                vertex_buffers,
+                                vertex_counts,
+                            } => {
+                                for (buffer, count) in
+                                    vertex_buffers.iter().zip(vertex_counts.iter())
+                                {
+                                    if *count == 0 {
+                                        continue;
+                                    }
+                                    render_pass.set_vertex_buffer(0, buffer.slice(..));
+                                    render_pass.draw(0..*count, 0..1);
                                 }
-                                render_pass.set_vertex_buffer(0, buffer.slice(..));
-                                render_pass.draw(0..*count, 0..1);
                             }
                         }
                     }
@@ -429,11 +549,17 @@ impl CallbackTrait for ViewportCallback {
                 let up_delta = up - Vec3::from(pipeline.splat_last_up);
                 let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
                 let viewport_changed = pipeline.splat_last_viewport != [width, height];
+                let use_full_sh = matches!(
+                    self.debug.splat_shading_mode,
+                    ViewportSplatShadingMode::FullSh
+                ) && matches!(self.debug.shading_mode, ViewportShadingMode::Lit);
+                let settings_changed = use_full_sh != pipeline.splat_last_full_sh;
                 let needs_rebuild = pipeline.splat_point_size < 0.0
                     || right_delta.length_squared() > 1.0e-6
                     || up_delta.length_squared() > 1.0e-6
                     || camera_delta.length_squared() > 1.0e-6
-                    || viewport_changed;
+                    || viewport_changed
+                    || settings_changed;
                 let now = Instant::now();
                 let elapsed = pipeline
                     .last_splat_rebuild
@@ -450,14 +576,30 @@ impl CallbackTrait for ViewportCallback {
                 };
                 let allow_rebuild = scene_changed
                     || viewport_changed
+                    || settings_changed
                     || !self.debug.splat_rebuild_fps_enabled
                     || elapsed >= interval;
-                if needs_rebuild && allow_rebuild {
+                if use_gpu_splats {
+                    let splat_pipeline = if matches!(
+                        self.debug.shading_mode,
+                        ViewportShadingMode::SplatOverdraw
+                    ) {
+                        &pipeline.splat_overdraw_pipeline
+                    } else {
+                        &pipeline.splat_pipeline
+                    };
+                    render_pass.set_pipeline(splat_pipeline);
+                    render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
+                    render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
+                    render_pass.set_vertex_buffer(
+                        1,
+                        pipeline.splat_gpu.instances_buffer.slice(..),
+                    );
+                    render_pass.draw_indirect(&pipeline.splat_gpu.indirect_buffer, 0);
+                    gpu_splats_active = true;
+                } else if needs_rebuild && allow_rebuild {
                     let world_transform = Mat3::IDENTITY;
-                    let use_full_sh = matches!(
-                        self.debug.splat_shading_mode,
-                        ViewportSplatShadingMode::FullSh
-                    ) && matches!(self.debug.shading_mode, ViewportShadingMode::Lit);
                     let sh_coeffs = pipeline.splat_sh_coeffs;
                     let sh0_is_coeff = pipeline.splat_sh0_is_coeff;
                     let sh_rest = &pipeline.splat_sh_rest;
@@ -802,9 +944,10 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.splat_last_up = up.to_array();
                     pipeline.splat_last_camera_pos = camera_pos.to_array();
                     pipeline.splat_last_viewport = [width, height];
+                    pipeline.splat_last_full_sh = use_full_sh;
                     pipeline.last_splat_rebuild = Some(now);
                 }
-                if !pipeline.splat_instance_buffers.is_empty() {
+                if !use_gpu_splats && !pipeline.splat_instance_buffers.is_empty() {
                     let splat_pipeline = if matches!(
                         self.debug.shading_mode,
                         ViewportShadingMode::SplatOverdraw
@@ -858,46 +1001,54 @@ impl CallbackTrait for ViewportCallback {
 
             if self.debug.splat_depth_prepass
                 && self.debug.show_splats
-                && !pipeline.splat_instance_buffers.is_empty()
+                && (gpu_splats_active || !pipeline.splat_instance_buffers.is_empty())
             {
                 render_pass.set_pipeline(&pipeline.splat_depth_pipeline);
                 render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                 render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
-                let use_scissors = !pipeline.splat_scissors.is_empty()
-                    && pipeline.splat_scissors.len() == pipeline.splat_instance_counts.len()
-                    && pipeline.splat_scissors.len() == pipeline.splat_instance_buffers.len();
-                if use_scissors {
-                    for ((buffer, count), scissor) in pipeline
-                        .splat_instance_buffers
-                        .iter()
-                        .zip(pipeline.splat_instance_counts.iter())
-                        .zip(pipeline.splat_scissors.iter())
-                    {
-                        if *count == 0 {
-                            continue;
-                        }
-                        render_pass.set_scissor_rect(
-                            scissor[0],
-                            scissor[1],
-                            scissor[2],
-                            scissor[3],
-                        );
-                        render_pass.set_vertex_buffer(1, buffer.slice(..));
-                        render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
-                    }
-                    render_pass.set_scissor_rect(0, 0, width, height);
+                if gpu_splats_active {
+                    render_pass.set_vertex_buffer(
+                        1,
+                        pipeline.splat_gpu.instances_buffer.slice(..),
+                    );
+                    render_pass.draw_indirect(&pipeline.splat_gpu.indirect_buffer, 0);
                 } else {
-                    for (buffer, count) in pipeline
-                        .splat_instance_buffers
-                        .iter()
-                        .zip(pipeline.splat_instance_counts.iter())
-                    {
-                        if *count == 0 {
-                            continue;
+                    let use_scissors = !pipeline.splat_scissors.is_empty()
+                        && pipeline.splat_scissors.len() == pipeline.splat_instance_counts.len()
+                        && pipeline.splat_scissors.len() == pipeline.splat_instance_buffers.len();
+                    if use_scissors {
+                        for ((buffer, count), scissor) in pipeline
+                            .splat_instance_buffers
+                            .iter()
+                            .zip(pipeline.splat_instance_counts.iter())
+                            .zip(pipeline.splat_scissors.iter())
+                        {
+                            if *count == 0 {
+                                continue;
+                            }
+                            render_pass.set_scissor_rect(
+                                scissor[0],
+                                scissor[1],
+                                scissor[2],
+                                scissor[3],
+                            );
+                            render_pass.set_vertex_buffer(1, buffer.slice(..));
+                            render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                         }
-                        render_pass.set_vertex_buffer(1, buffer.slice(..));
-                        render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
+                        render_pass.set_scissor_rect(0, 0, width, height);
+                    } else {
+                        for (buffer, count) in pipeline
+                            .splat_instance_buffers
+                            .iter()
+                            .zip(pipeline.splat_instance_counts.iter())
+                        {
+                            if *count == 0 {
+                                continue;
+                            }
+                            render_pass.set_vertex_buffer(1, buffer.slice(..));
+                            render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
+                        }
                     }
                 }
             }

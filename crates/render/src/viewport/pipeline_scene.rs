@@ -86,6 +86,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_instance_buffers.clear();
         pipeline.splat_instance_counts.clear();
         pipeline.splat_scissors.clear();
+        pipeline.ensure_splat_gpu_buffers(device, queue);
         if pipeline.mesh_vertices.is_empty() {
             pipeline.mesh_bounds = bounds_from_positions(&pipeline.splat_positions);
         }
@@ -104,6 +105,7 @@ pub(super) fn apply_scene_to_pipeline(
         pipeline.splat_instance_counts.clear();
         pipeline.splat_scissors.clear();
         pipeline.splat_point_size = -1.0;
+        pipeline.splat_gpu.count = 0;
     }
 
     let volume_bounds = apply_volume_to_pipeline(device, queue, pipeline, scene.volume());

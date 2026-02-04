@@ -68,6 +68,12 @@ Status: done | in progress | not started
 - **R6**: GPU OIT for splats (accum/reveal buffers + composite pass) (not started)
 - **R7**: Evaluate GPU-side sorting alternatives (not started)
 - **R8**: Performance/quality validation for OIT vs CPU sorting (not started)
+- **R9**: GPU-driven splats: keep splat data in GPU buffers, compute cull + depth keys, build visible list, draw with indirect (not started)
+- **R10**: GPU depth sort (radix/bucket) for splats; no OIT (not started)
+- **R11**: Replace CPU tile binning with GPU binning (optional, if still needed after R9/R10) (not started)
+- **R12**: Persistent GPU instance buffers + reduced per-frame allocations (not started)
+- **R13**: Splat render stats (visible count, cull count, sort time) + debug toggle (not started)
+- **R14**: Fallback to CPU splat path when GPU compute unavailable (not started)
 
 ## Epic N - Nodes
 - **N1**: Splat Read/Splat Write (PLY) (done)

@@ -62,6 +62,23 @@ impl LobedoApp {
                     );
                 });
                 ui.separator();
+                ui.label("Splat sorting");
+                ui.horizontal(|ui| {
+                    ui.label("Bucket count");
+                    ui.add(
+                        egui::DragValue::new(
+                            &mut self.project.settings.render_debug.splat_sort_bucket_count,
+                        )
+                        .speed(256.0)
+                        .range(256..=16384)
+                        .update_while_editing(false),
+                    );
+                });
+                ui.checkbox(
+                    &mut self.project.settings.render_debug.splat_sort_log_depth,
+                    "Log depth buckets",
+                );
+                ui.separator();
                 ui.label("Splat tiling");
                 let tile_ui_enabled = !cfg!(target_arch = "wasm32");
                 if !tile_ui_enabled {

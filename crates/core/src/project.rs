@@ -163,6 +163,8 @@ pub struct RenderDebugSettings {
     pub splat_rebuild_fps_enabled: bool,
     pub splat_rebuild_fps: f32,
     pub splat_frustum_cull: bool,
+    pub splat_sort_bucket_count: u32,
+    pub splat_sort_log_depth: bool,
 }
 
 impl Default for RenderDebugSettings {
@@ -191,6 +193,8 @@ impl Default for RenderDebugSettings {
             splat_rebuild_fps_enabled: false,
             splat_rebuild_fps: 15.0,
             splat_frustum_cull: true,
+            splat_sort_bucket_count: 4096,
+            splat_sort_log_depth: true,
         }
     }
 }
