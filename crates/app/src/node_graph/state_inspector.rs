@@ -16,6 +16,13 @@ use super::state::{ModelDownloadResult, NodeGraphState, WriteRequest, WriteReque
 const DEPTHPRO_MODEL_URL: &str = "https://huggingface.co/Jens-Duttke/DepthPro-ONNX-HighPerf/blob/main/depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
 const DEPTHPRO_MODEL_FILENAME: &str = "depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
 const DEPTHPRO_MODEL_DIR: &str = "models/depthpro";
+const SAM_ENCODER_URL: &str =
+    "https://huggingface.co/visheratin/segment-anything-vit-b/blob/main/encoder.onnx";
+const SAM_DECODER_URL: &str =
+    "https://huggingface.co/visheratin/segment-anything-vit-b/blob/main/decoder.onnx";
+const SAM_MODEL_DIR: &str = "models/sam";
+const SAM_ENCODER_FILENAME: &str = "encoder.onnx";
+const SAM_DECODER_FILENAME: &str = "decoder.onnx";
 const ONNX_RUNTIME_URL: &str = "https://files.pythonhosted.org/packages/c0/b4/569d298f9fc4d286c11c45e85d9ffa9e877af12ace98af8cab52396e8f46/onnxruntime-1.23.2-cp312-cp312-win_amd64.whl";
 const ONNX_DIRECTML_PYPI: &str = "https://pypi.org/pypi/onnxruntime-directml/json";
 const ONNX_RUNTIME_DIR: &str = "models/onnxruntime";
@@ -30,6 +37,7 @@ impl NodeGraphState {
         eval_state: Option<&lobedo_core::GeometryEvalState>,
     ) -> bool {
         self.poll_model_download();
+        self.poll_sam_download();
         self.poll_runtime_download();
         self.poll_directml_download();
         if let Some(help_key) = self.help_page_node.clone() {
@@ -368,6 +376,48 @@ impl NodeGraphState {
             if !status.is_empty() {
                 ui.label(status);
             }
+
+            let sam_encoder = sam_encoder_path();
+            let sam_decoder = sam_decoder_path();
+            let sam_exists = {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    sam_encoder.exists() && sam_decoder.exists()
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    false
+                }
+            };
+            let sam_label = if sam_exists {
+                "Re-download SAM Model"
+            } else {
+                "Download SAM Model"
+            };
+            if ui
+                .add_enabled(
+                    can_download && !self.sam_download.active,
+                    egui::Button::new(sam_label),
+                )
+                .clicked()
+            {
+                self.start_sam_download(sam_encoder, sam_decoder);
+            }
+            let sam_status = if self.sam_download.active {
+                self.sam_download
+                    .message
+                    .clone()
+                    .unwrap_or_else(|| "Downloading SAM model...".to_string())
+            } else if let Some(message) = self.sam_download.message.as_ref() {
+                message.clone()
+            } else if !can_download {
+                "Model downloads are not available in web builds.".to_string()
+            } else {
+                String::new()
+            };
+            if !sam_status.is_empty() {
+                ui.label(sam_status);
+            }
         }
 
         if node_kind == Some(BuiltinNodeKind::ImagePreview) {
@@ -601,6 +651,26 @@ impl NodeGraphState {
         }
     }
 
+    fn poll_sam_download(&mut self) {
+        let Some(receiver) = &self.sam_download.receiver else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok(result) => {
+                self.sam_download.active = false;
+                self.sam_download.receiver = None;
+                self.sam_download.message = Some(result.message);
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.sam_download.active = false;
+                self.sam_download.receiver = None;
+                self.sam_download.message =
+                    Some("SAM model download failed: connection lost.".to_string());
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+    }
+
     fn poll_runtime_download(&mut self) {
         let Some(receiver) = &self.runtime_download.receiver else {
             return;
@@ -641,6 +711,37 @@ impl NodeGraphState {
             self.model_download.receiver = Some(rx);
             std::thread::spawn(move || {
                 let result = download_depthpro_model(DEPTHPRO_MODEL_URL, &path);
+                let _ = tx.send(result);
+            });
+        }
+    }
+
+    fn start_sam_download(&mut self, encoder_path: PathBuf, decoder_path: PathBuf) {
+        if self.sam_download.active {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.sam_download.active = false;
+            self.sam_download.message =
+                Some("Model downloads are not available in web builds.".to_string());
+            let _ = encoder_path;
+            let _ = decoder_path;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::sync::mpsc;
+            self.sam_download.active = true;
+            self.sam_download.message = Some("Starting download...".to_string());
+            let (tx, rx) = mpsc::channel();
+            self.sam_download.receiver = Some(rx);
+            std::thread::spawn(move || {
+                let result = download_sam_model(
+                    SAM_ENCODER_URL,
+                    SAM_DECODER_URL,
+                    &encoder_path,
+                    &decoder_path,
+                );
                 let _ = tx.send(result);
             });
         }
@@ -873,6 +974,14 @@ fn depthpro_model_path() -> PathBuf {
     PathBuf::from(DEPTHPRO_MODEL_DIR).join(DEPTHPRO_MODEL_FILENAME)
 }
 
+fn sam_encoder_path() -> PathBuf {
+    PathBuf::from(SAM_MODEL_DIR).join(SAM_ENCODER_FILENAME)
+}
+
+fn sam_decoder_path() -> PathBuf {
+    PathBuf::from(SAM_MODEL_DIR).join(SAM_DECODER_FILENAME)
+}
+
 fn onnxruntime_dir_path() -> PathBuf {
     PathBuf::from(ONNX_RUNTIME_DIR)
 }
@@ -903,31 +1012,34 @@ fn normalize_download_url(url: &str) -> String {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn download_depthpro_model(url: &str, path: &Path) -> ModelDownloadResult {
+fn download_model_file(url: &str, path: &Path) -> Result<(), String> {
     use std::io::Write;
 
-    let download_result = (|| -> Result<(), String> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-        }
-        let temp_path = path.with_extension("download");
-        if temp_path.exists() {
-            let _ = std::fs::remove_file(&temp_path);
-        }
-        let download_url = normalize_download_url(url);
-        let response = ureq::get(&download_url)
-            .call()
-            .map_err(|err| format!("Request failed: {err}"))?;
-        let mut reader = response.into_reader();
-        let mut file = std::fs::File::create(&temp_path).map_err(|err| err.to_string())?;
-        std::io::copy(&mut reader, &mut file).map_err(|err| err.to_string())?;
-        file.flush().map_err(|err| err.to_string())?;
-        if path.exists() {
-            std::fs::remove_file(path).map_err(|err| err.to_string())?;
-        }
-        std::fs::rename(&temp_path, path).map_err(|err| err.to_string())?;
-        Ok(())
-    })();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let temp_path = path.with_extension("download");
+    if temp_path.exists() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    let download_url = normalize_download_url(url);
+    let response = ureq::get(&download_url)
+        .call()
+        .map_err(|err| format!("Request failed: {err}"))?;
+    let mut reader = response.into_reader();
+    let mut file = std::fs::File::create(&temp_path).map_err(|err| err.to_string())?;
+    std::io::copy(&mut reader, &mut file).map_err(|err| err.to_string())?;
+    file.flush().map_err(|err| err.to_string())?;
+    if path.exists() {
+        std::fs::remove_file(path).map_err(|err| err.to_string())?;
+    }
+    std::fs::rename(&temp_path, path).map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_depthpro_model(url: &str, path: &Path) -> ModelDownloadResult {
+    let download_result = download_model_file(url, path);
 
     match download_result {
         Ok(()) => ModelDownloadResult {
@@ -947,6 +1059,33 @@ fn download_onnxruntime_runtime(url: &str, dir: &Path) -> ModelDownloadResult {
         },
         Err(err) => ModelDownloadResult {
             message: format!("Runtime download failed: {err}"),
+        },
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_sam_model(
+    encoder_url: &str,
+    decoder_url: &str,
+    encoder_path: &Path,
+    decoder_path: &Path,
+) -> ModelDownloadResult {
+    let download_result = (|| -> Result<(), String> {
+        download_model_file(encoder_url, encoder_path)?;
+        download_model_file(decoder_url, decoder_path)?;
+        Ok(())
+    })();
+
+    match download_result {
+        Ok(()) => ModelDownloadResult {
+            message: format!(
+                "Downloaded SAM model to {}, {}",
+                encoder_path.display(),
+                decoder_path.display()
+            ),
+        },
+        Err(err) => ModelDownloadResult {
+            message: format!("SAM model download failed: {err}"),
         },
     }
 }
@@ -1061,6 +1200,18 @@ fn download_runtime_zip(url: &str, dir: &Path) -> Result<(), String> {
 
 #[cfg(target_arch = "wasm32")]
 fn download_depthpro_model(_url: &str, _path: &Path) -> ModelDownloadResult {
+    ModelDownloadResult {
+        message: "Model downloads are not available in web builds.".to_string(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn download_sam_model(
+    _encoder_url: &str,
+    _decoder_url: &str,
+    _encoder_path: &Path,
+    _decoder_path: &Path,
+) -> ModelDownloadResult {
     ModelDownloadResult {
         message: "Model downloads are not available in web builds.".to_string(),
     }

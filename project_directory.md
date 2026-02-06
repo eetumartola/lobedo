@@ -118,11 +118,11 @@ Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gr
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
-Functions: `default` (L108-L153), `hit_test` (L171-L176), `reset` (L205-L207), `error_message` (L209-L211), `take_write_request` (L213-L215), `show` (L217-L332), `take_changed` (L334-L338), `take_layout_changed` (L340-L344), `handle_header_click` (L346-L387), `compute_dim_nodes` (L389-L409), `preflight_flag_click` (L411-L430), `add_note` (L433-L447), `show_notes` (L449-L585), `set_error_state` (L587-L590), `set_dirty_nodes` (L592-L598), `selected_node_id` (L600-L602), `selected_note_id` (L604-L606), `delete_selected_note` (L608-L619), `delete_selected_node` (L621-L626), `delete_node` (L628-L664), `node_at_screen_pos` (L666-L674), `take_info_request` (L676-L678), `take_wrangle_help_request` (L680-L682), `zoom_at` (L684-L698), `fit_to_rect` (L700-L726), `progress_sink` (L728-L735), `progress_snapshot` (L737-L744), `on_event` (L748-L784), `snapshot` (L786-L811)
+Functions: `default` (L109-L155), `hit_test` (L173-L178), `reset` (L207-L209), `error_message` (L211-L213), `take_write_request` (L215-L217), `show` (L219-L334), `take_changed` (L336-L340), `take_layout_changed` (L342-L346), `handle_header_click` (L348-L389), `compute_dim_nodes` (L391-L411), `preflight_flag_click` (L413-L432), `add_note` (L435-L449), `show_notes` (L451-L587), `set_error_state` (L589-L592), `set_dirty_nodes` (L594-L600), `selected_node_id` (L602-L604), `selected_note_id` (L606-L608), `delete_selected_note` (L610-L621), `delete_selected_node` (L623-L628), `delete_node` (L630-L666), `node_at_screen_pos` (L668-L676), `take_info_request` (L678-L680), `take_wrangle_help_request` (L682-L684), `zoom_at` (L686-L700), `fit_to_rect` (L702-L728), `progress_sink` (L730-L737), `progress_snapshot` (L739-L746), `on_event` (L750-L786), `snapshot` (L788-L813)
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
-Functions: `show_inspector` (L26-L582), `poll_model_download` (L584-L602), `poll_runtime_download` (L604-L622), `start_depthpro_download` (L624-L647), `start_onnxruntime_download` (L649-L672), `poll_directml_download` (L674-L692), `start_directml_download` (L694-L717), `inspector_desired_height` (L719-L869), `depthpro_model_path` (L872-L874), `onnxruntime_dir_path` (L876-L878), `onnxruntime_dylib_path` (L880-L882), `onnxruntime_directml_dir_path` (L884-L886), `onnxruntime_directml_dylib_path` (L888-L890), `normalize_download_url` (L893-L903), `download_depthpro_model` (L906-L940), `download_onnxruntime_runtime` (L943-L952), `download_directml_runtime` (L955-L1010), `download_runtime_zip` (L1013-L1060), `download_depthpro_model` (L1063-L1067), `download_onnxruntime_runtime` (L1070-L1074), `download_directml_runtime` (L1077-L1081), `image_preview_range_label` (L1083-L1107), `finite_min_max_f32` (L1109-L1127), `finite_min_max_u32` (L1129-L1140), `compare_versions` (L1142-L1160), `marble_model_catalog` (L1171-L1225), `split_variant` (L1228-L1236), `variant_rank` (L1239-L1247), `variant_label` (L1250-L1262), `marble_model_catalog` (L1265-L1267)
+Functions: `show_inspector` (L33-L632), `poll_model_download` (L634-L652), `poll_sam_download` (L654-L672), `poll_runtime_download` (L674-L692), `start_depthpro_download` (L694-L717), `start_sam_download` (L719-L748), `start_onnxruntime_download` (L750-L773), `poll_directml_download` (L775-L793), `start_directml_download` (L795-L818), `inspector_desired_height` (L820-L970), `depthpro_model_path` (L973-L975), `sam_encoder_path` (L977-L979), `sam_decoder_path` (L981-L983), `onnxruntime_dir_path` (L985-L987), `onnxruntime_dylib_path` (L989-L991), `onnxruntime_directml_dir_path` (L993-L995), `onnxruntime_directml_dylib_path` (L997-L999), `normalize_download_url` (L1002-L1012), `download_model_file` (L1015-L1038), `download_depthpro_model` (L1041-L1052), `download_onnxruntime_runtime` (L1055-L1064), `download_sam_model` (L1067-L1091), `download_directml_runtime` (L1094-L1149), `download_runtime_zip` (L1152-L1199), `download_depthpro_model` (L1202-L1206), `download_sam_model` (L1209-L1218), `download_onnxruntime_runtime` (L1221-L1225), `download_directml_runtime` (L1228-L1232), `image_preview_range_label` (L1234-L1258), `finite_min_max_f32` (L1260-L1278), `finite_min_max_u32` (L1280-L1291), `compare_versions` (L1293-L1311), `marble_model_catalog` (L1322-L1376), `split_variant` (L1379-L1387), `variant_rank` (L1390-L1398), `variant_label` (L1401-L1413), `marble_model_catalog` (L1416-L1418)
 
 ## crates/app/src/node_graph/state_interaction.rs
 Description: State Interaction module.
@@ -214,7 +214,7 @@ Functions: `make_box` (L5-L5), `make_grid` (L34-L34), `make_uv_sphere` (L73-L127
 
 ## crates/core/src/node_help.rs
 Description: Node Help module.
-Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L784)
+Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L787)
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
@@ -298,7 +298,7 @@ Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L3
 
 ## crates/core/src/nodes/depth_image.rs
 Description: Depth Image module.
-Functions: `definition` (L35-L46), `default_params` (L48-L55), `param_specs` (L57-L64), `compute` (L66-L162), `run_depthpro` (L165-L291), `find_model_path` (L294-L319), `resolve_ort_dylib_path` (L351-L383), `ensure_ort_initialized` (L386-L415), `run_model_tensor` (L418-L492), `finite_min_max` (L494-L512), `input_signature` (L515-L525), `resize_depth` (L528-L579)
+Functions: `definition` (L44-L55), `default_params` (L57-L66), `param_specs` (L68-L80), `compute` (L82-L193), `run_depthpro` (L196-L322), `run_sam` (L325-L460), `find_model_path` (L463-L488), `find_sam_model_paths` (L491-L546), `preprocess_sam_image` (L549-L606), `build_sam_session` (L609-L633), `run_sam_encoder` (L642-L698), `run_sam_decoder` (L701-L876), `resolve_ort_dylib_path` (L920-L952), `ensure_ort_initialized` (L955-L984), `run_model_tensor` (L987-L1061), `finite_min_max` (L1063-L1081), `input_signature` (L1084-L1094), `resize_depth` (L1097-L1148)
 
 ## crates/core/src/nodes/depth_to_splats.rs
 Description: Depth To Splats module.

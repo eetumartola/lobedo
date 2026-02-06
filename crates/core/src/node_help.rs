@@ -135,16 +135,19 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             name: "Depth Image",
             description: &[
                 "Runs DepthPro on the input image to produce a depth map.",
-                "Outputs the original color image, a linear depth image, and a placeholder segmentation map.",
+                "Uses Segment Anything to produce a segmentation map.",
+                "Outputs the original color image, a linear depth image, and a segment id map.",
             ],
             inputs: &["image: Input RGB image."],
             outputs: &[
                 "color: Pass-through RGB image.",
                 "depth: Linear depth image.",
-                "segmentation: Placeholder segment ids (single segment).",
+                "segmentation: Segment id image (R32U).",
             ],
             parameters: &[
                 ("debug", "Print extra DepthPro diagnostics to the console."),
+                ("segmentation", "Run Segment Anything to produce segmentation."),
+                ("sam_grid", "Grid resolution used to seed SAM masks."),
                 ("directml_device_id", "DirectML device id on Windows (0 = default adapter)."),
             ],
         }),

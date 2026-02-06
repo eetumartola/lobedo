@@ -68,12 +68,12 @@ Status: done | in progress | not started
 - **R6**: GPU OIT for splats (accum/reveal buffers + composite pass) (not started)
 - **R7**: Evaluate GPU-side sorting alternatives (not started)
 - **R8**: Performance/quality validation for OIT vs CPU sorting (not started)
-- **R9**: GPU-driven splats: keep splat data in GPU buffers, compute cull + depth keys, build visible list, draw with indirect (not started)
-- **R10**: GPU depth sort (radix/bucket) for splats; no OIT (not started)
+- **R9**: GPU-driven splats: keep splat data in GPU buffers, compute cull + depth keys, build visible list, draw with indirect (done)
+- **R10**: GPU depth sort (radix/bucket) for splats; no OIT (done)
 - **R11**: Replace CPU tile binning with GPU binning (optional, if still needed after R9/R10) (not started)
-- **R12**: Persistent GPU instance buffers + reduced per-frame allocations (not started)
+- **R12**: Persistent GPU instance buffers + reduced per-frame allocations (done)
 - **R13**: Splat render stats (visible count, cull count, sort time) + debug toggle (not started)
-- **R14**: Fallback to CPU splat path when GPU compute unavailable (not started)
+- **R14**: Fallback to CPU splat path when GPU compute unavailable (done)
 
 ## Epic N - Nodes
 - **N1**: Splat Read/Splat Write (PLY) (done)
@@ -122,11 +122,11 @@ Status: done | in progress | not started
 - **I4**: Depth Image node: DepthPro ONNX inference + dummy segmentation output (done)
 - **I5**: Depth -> Splats node (unprojection, normals-from-depth, Gaussian init) (done)
 - **I6**: Splat Divide node (split SplatGeo by attribute, default segment_id) (done)
-- **I7**: Model discovery in `models/sam` + `models/depthpro` (first model wins) (in progress: depthpro only)
+- **I7**: Model discovery in `models/sam` + `models/depthpro` (first model wins) (done)
 - **I8**: Depth scaling parameter (inverse -> linear depth) + FOV parameterization (done)
 - **I9**: Add node help + parameter docs for new image/onnx nodes (done)
 - **I10**: Tests for image decode + depth-to-splat math (in progress)
-- **I11**: SAM segmentation integration (later) (not started)
+- **I11**: SAM segmentation integration (done)
 - **I12**: Smarter sampling (stride/target count, later) (not started)
 
 ## Epic WL - WorldLabs API nodes

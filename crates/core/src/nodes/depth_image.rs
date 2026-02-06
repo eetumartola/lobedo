@@ -12,6 +12,15 @@ pub const NAME: &str = "Depth Image";
 
 const MODEL_DIR: &str = "models/depthpro";
 const MODEL_INPUT_SIZE: u32 = 1536;
+const SAM_MODEL_DIR: &str = "models/sam";
+const SAM_INPUT_SIZE: u32 = 1024;
+const SAM_GRID_DEFAULT: i32 = 8;
+const SAM_GRID_MIN: i32 = 2;
+const SAM_GRID_MAX: i32 = 64;
+const SAM_MASK_THRESHOLD: f32 = 0.0;
+const SAM_PROMPT_LABEL: f32 = 1.0;
+const SAM_PIXEL_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+const SAM_PIXEL_STD: [f32; 3] = [0.229, 0.224, 0.225];
 const DEPTH_EPS: f32 = 1.0e-6;
 const INPUT_RANGE_EPS: f32 = 1.0e-6;
 const INV_DEPTH_RANGE_EPS: f32 = 1.0e-5;
@@ -49,6 +58,8 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("debug".to_string(), ParamValue::Bool(false)),
+            ("segmentation".to_string(), ParamValue::Bool(true)),
+            ("sam_grid".to_string(), ParamValue::Int(SAM_GRID_DEFAULT)),
             ("directml_device_id".to_string(), ParamValue::Int(0)),
         ]),
     }
@@ -58,6 +69,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::bool("debug", "Debug")
             .with_help("Print extra DepthPro diagnostics to the console."),
+        ParamSpec::bool("segmentation", "Segmentation")
+            .with_help("Run Segment Anything to produce a segmentation map."),
+        ParamSpec::int_slider("sam_grid", "SAM Grid", SAM_GRID_MIN, SAM_GRID_MAX)
+            .with_help("Number of grid points per side used to seed SAM masks.")
+            .visible_when_bool("segmentation", true),
         ParamSpec::int("directml_device_id", "DirectML Device")
             .with_help("DirectML device id to use on Windows (0 = default adapter)."),
     ]
@@ -68,6 +84,10 @@ pub fn compute(
     input: &ImageData,
 ) -> Result<(ImageData, ImageData, ImageData), String> {
     let debug = params.get_bool("debug", false);
+    let segmentation_enabled = params.get_bool("segmentation", true);
+    let sam_grid = params
+        .get_int("sam_grid", SAM_GRID_DEFAULT)
+        .clamp(SAM_GRID_MIN, SAM_GRID_MAX) as u32;
     let directml_device_id = params.get_int("directml_device_id", 0);
     let (rgb, width, height) = input
         .rgb_data()
@@ -147,7 +167,18 @@ pub fn compute(
             }
         }
         let depth = ImageData::from_depth(width, height, depth)?;
-        let seg = ImageData::from_seg(width, height, vec![0u32; (width * height) as usize])?;
+        let seg_data = if segmentation_enabled {
+            if debug {
+                eprintln!(
+                    "Depth Image debug: running SAM segmentation (grid {}x{})",
+                    sam_grid, sam_grid
+                );
+            }
+            run_sam(rgb, width, height, sam_grid, debug, directml_device_id)?
+        } else {
+            vec![0u32; (width * height) as usize]
+        };
+        let seg = ImageData::from_seg(width, height, seg_data)?;
         if let Some(cache) = DEPTH_ERROR_CACHE.get() {
             if let Ok(mut guard) = cache.lock() {
                 if let Some(last) = guard.as_ref() {
@@ -291,6 +322,144 @@ fn run_depthpro(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn run_sam(
+    rgb: &[f32],
+    width: u32,
+    height: u32,
+    grid: u32,
+    debug: bool,
+    directml_device_id: i32,
+) -> Result<Vec<u32>, String> {
+    use ort::value::Tensor;
+
+    let (encoder_path, decoder_path) = find_sam_model_paths()?;
+    ensure_ort_initialized(debug)?;
+    let store = SAM_MODEL.get_or_init(|| Mutex::new(None));
+    let mut guard = store
+        .lock()
+        .map_err(|_| "SAM model lock poisoned".to_string())?;
+    let needs_reload = guard
+        .as_ref()
+        .map(|cache| {
+            cache.encoder_path != encoder_path
+                || cache.decoder_path != decoder_path
+                || cache.directml_device_id != directml_device_id
+        })
+        .unwrap_or(true);
+    if needs_reload {
+        if debug {
+            eprintln!(
+                "Depth Image debug: loading SAM encoder {}",
+                encoder_path.display()
+            );
+        }
+        let encoder = build_sam_session(&encoder_path, directml_device_id, debug)?;
+        if debug {
+            eprintln!(
+                "Depth Image debug: loading SAM decoder {}",
+                decoder_path.display()
+            );
+        }
+        let decoder = build_sam_session(&decoder_path, directml_device_id, debug)?;
+        *guard = Some(SamModelCache {
+            encoder_path: encoder_path.clone(),
+            decoder_path: decoder_path.clone(),
+            directml_device_id,
+            encoder,
+            decoder,
+        });
+    }
+    let cache = guard
+        .as_mut()
+        .ok_or_else(|| "SAM model cache unavailable".to_string())?;
+
+    let (input_data, new_w, new_h, scale) =
+        preprocess_sam_image(rgb, width, height, debug)?;
+    let input_tensor = Tensor::from_array((
+        [1usize, 3, SAM_INPUT_SIZE as usize, SAM_INPUT_SIZE as usize],
+        input_data.into_boxed_slice(),
+    ))
+    .map_err(|err| err.to_string())?;
+    let embedding = run_sam_encoder(&mut cache.encoder, input_tensor, debug)?;
+    let embed_tensor = Tensor::from_array((embedding.shape, embedding.data.into_boxed_slice()))
+        .map_err(|err| err.to_string())?;
+    let mask_size = (embedding.shape[2] * 4).max(1) as usize;
+    let mask_input = Tensor::from_array((
+        [1usize, 1, mask_size, mask_size],
+        vec![0.0f32; mask_size * mask_size].into_boxed_slice(),
+    ))
+    .map_err(|err| err.to_string())?;
+    let has_mask_input =
+        Tensor::from_array(([1usize], vec![0.0f32].into_boxed_slice()))
+            .map_err(|err| err.to_string())?;
+    let orig_im_size = Tensor::from_array((
+        [2usize],
+        vec![height as f32, width as f32].into_boxed_slice(),
+    ))
+    .map_err(|err| err.to_string())?;
+
+    let grid = grid.max(1);
+    let step_x = width as f32 / grid as f32;
+    let step_y = height as f32 / grid as f32;
+    let pixel_count = (width * height) as usize;
+    let mut seg_ids = vec![0u32; pixel_count];
+    let mut seg_scores = vec![f32::NEG_INFINITY; pixel_count];
+    let mut segment_id = 1u32;
+
+    for gy in 0..grid {
+        let y = (gy as f32 + 0.5) * step_y;
+        let y_scaled = (y * scale).clamp(0.0, new_h as f32 - 1.0);
+        for gx in 0..grid {
+            let x = (gx as f32 + 0.5) * step_x;
+            let x_scaled = (x * scale).clamp(0.0, new_w as f32 - 1.0);
+            let point_coords = Tensor::from_array((
+                [1usize, 1, 2],
+                vec![x_scaled, y_scaled].into_boxed_slice(),
+            ))
+            .map_err(|err| err.to_string())?;
+            let point_labels = Tensor::from_array((
+                [1usize, 1],
+                vec![SAM_PROMPT_LABEL].into_boxed_slice(),
+            ))
+            .map_err(|err| err.to_string())?;
+            let mask = run_sam_decoder(
+                &mut cache.decoder,
+                &embed_tensor,
+                &point_coords,
+                &point_labels,
+                &mask_input,
+                &has_mask_input,
+                &orig_im_size,
+                new_w,
+                new_h,
+                width,
+                height,
+                debug,
+            )?;
+            if mask.is_empty() {
+                continue;
+            }
+            let mut had_hit = false;
+            for (idx, &value) in mask.iter().enumerate() {
+                if value <= SAM_MASK_THRESHOLD {
+                    continue;
+                }
+                if value > seg_scores[idx] {
+                    seg_scores[idx] = value;
+                    seg_ids[idx] = segment_id;
+                    had_hit = true;
+                }
+            }
+            if had_hit {
+                segment_id = segment_id.saturating_add(1);
+            }
+        }
+    }
+
+    Ok(seg_ids)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn find_model_path() -> Result<PathBuf, String> {
     let dir = Path::new(MODEL_DIR);
     if !dir.exists() {
@@ -319,6 +488,394 @@ fn find_model_path() -> Result<PathBuf, String> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn find_sam_model_paths() -> Result<(PathBuf, PathBuf), String> {
+    let dir = Path::new(SAM_MODEL_DIR);
+    if !dir.exists() {
+        return Err(format!("SAM model directory not found: {}", dir.display()));
+    }
+    let mut encoders = Vec::new();
+    let mut decoders = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if ext != "onnx" {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if name.contains("encoder") {
+            encoders.push(path.clone());
+        }
+        if name.contains("decoder") {
+            decoders.push(path.clone());
+        }
+    }
+    let pick = |mut candidates: Vec<PathBuf>| -> Option<PathBuf> {
+        candidates.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        if let Some(non_quant) = candidates
+            .iter()
+            .find(|path| {
+                !path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase()
+                    .contains("quant")
+            })
+        {
+            return Some(non_quant.clone());
+        }
+        candidates.into_iter().next()
+    };
+    let encoder = pick(encoders)
+        .ok_or_else(|| "No SAM encoder ONNX model found in models/sam".to_string())?;
+    let decoder = pick(decoders)
+        .ok_or_else(|| "No SAM decoder ONNX model found in models/sam".to_string())?;
+    Ok((encoder, decoder))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn preprocess_sam_image(
+    rgb: &[f32],
+    width: u32,
+    height: u32,
+    debug: bool,
+) -> Result<(Vec<f32>, u32, u32, f32), String> {
+    use image::imageops::{overlay, resize, FilterType};
+    use image::{ImageBuffer, Rgb};
+
+    let (_, input_max) = finite_min_max(rgb)
+        .ok_or_else(|| "Depth Image input contained no finite values".to_string())?;
+    if input_max <= INPUT_RANGE_EPS {
+        return Err("Depth Image input appears to be black or invalid".to_string());
+    }
+    let input_scale = if input_max > 1.0 + INPUT_RANGE_EPS {
+        1.0 / input_max
+    } else {
+        1.0
+    };
+
+    let input =
+        ImageBuffer::<Rgb<f32>, Vec<f32>>::from_vec(width, height, rgb.to_vec())
+            .ok_or_else(|| "Invalid RGB image buffer".to_string())?;
+    let max_side = width.max(height).max(1) as f32;
+    let scale = SAM_INPUT_SIZE as f32 / max_side;
+    let new_w = (width as f32 * scale).round().max(1.0) as u32;
+    let new_h = (height as f32 * scale).round().max(1.0) as u32;
+    let resized = resize(&input, new_w, new_h, FilterType::Lanczos3);
+    if debug {
+        eprintln!(
+            "Depth Image debug: SAM resize {}x{} -> {}x{}",
+            width, height, new_w, new_h
+        );
+    }
+    let mut padded = ImageBuffer::from_pixel(
+        SAM_INPUT_SIZE,
+        SAM_INPUT_SIZE,
+        Rgb([0.0, 0.0, 0.0]),
+    );
+    overlay(&mut padded, &resized, 0, 0);
+
+    let plane = (SAM_INPUT_SIZE * SAM_INPUT_SIZE) as usize;
+    let mut input_data = vec![0.0f32; plane * 3];
+    for y in 0..SAM_INPUT_SIZE {
+        for x in 0..SAM_INPUT_SIZE {
+            let pixel = padded.get_pixel(x, y);
+            let base = (y * SAM_INPUT_SIZE + x) as usize;
+            let r = (pixel[0] * input_scale).clamp(0.0, 1.0);
+            let g = (pixel[1] * input_scale).clamp(0.0, 1.0);
+            let b = (pixel[2] * input_scale).clamp(0.0, 1.0);
+            input_data[base] = (r - SAM_PIXEL_MEAN[0]) / SAM_PIXEL_STD[0];
+            input_data[base + plane] = (g - SAM_PIXEL_MEAN[1]) / SAM_PIXEL_STD[1];
+            input_data[base + plane * 2] = (b - SAM_PIXEL_MEAN[2]) / SAM_PIXEL_STD[2];
+        }
+    }
+
+    Ok((input_data, new_w, new_h, scale))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn build_sam_session(
+    path: &Path,
+    directml_device_id: i32,
+    debug: bool,
+) -> Result<Session, String> {
+    let mut builder = Session::builder().map_err(|err| err.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let directml = ort::ep::DirectML::default().with_device_id(directml_device_id);
+        let available = directml.is_available().unwrap_or(false);
+        if debug {
+            eprintln!(
+                "Depth Image debug: SAM DirectML available={available}, device_id={directml_device_id}"
+            );
+        }
+        if available {
+            builder = builder
+                .with_execution_providers([directml.build()])
+                .map_err(|err| format!("Failed to enable DirectML: {err}"))?;
+        }
+    }
+    builder
+        .commit_from_file(path)
+        .map_err(|err| format!("Failed to load SAM model: {err}"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct SamEmbedding {
+    shape: [usize; 4],
+    data: Vec<f32>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn run_sam_encoder(
+    session: &mut Session,
+    input: ort::value::Tensor<f32>,
+    debug: bool,
+) -> Result<SamEmbedding, String> {
+    let input_name = session
+        .inputs()
+        .get(0)
+        .map(|input| input.name().to_string())
+        .unwrap_or_else(|| "input".to_string());
+    if debug {
+        let input_names = session
+            .inputs()
+            .iter()
+            .map(|input| input.name().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let output_names = session
+            .outputs()
+            .iter()
+            .map(|output| output.name().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        eprintln!(
+            "Depth Image debug: SAM encoder inputs=[{input_names}], outputs=[{output_names}]"
+        );
+    }
+    let outputs = session
+        .run(ort::inputs! { input_name.as_str() => input })
+        .map_err(|err| format!("SAM encoder inference failed: {err}"))?;
+    if outputs.len() == 0 {
+        return Err("SAM encoder produced no outputs".to_string());
+    }
+    let output = &outputs[0];
+    let (shape, data) = output
+        .try_extract_tensor::<f32>()
+        .map_err(|err| err.to_string())?;
+    if debug {
+        eprintln!("Depth Image debug: SAM encoder output shape {:?}", shape);
+    }
+    if shape.len() != 4 {
+        return Err(format!(
+            "SAM encoder output shape {:?} is unsupported",
+            shape
+        ));
+    }
+    let shape = [
+        shape[0].max(1) as usize,
+        shape[1].max(1) as usize,
+        shape[2].max(1) as usize,
+        shape[3].max(1) as usize,
+    ];
+    Ok(SamEmbedding {
+        shape,
+        data: data.to_vec(),
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn run_sam_decoder(
+    session: &mut Session,
+    embedding: &ort::value::Tensor<f32>,
+    point_coords: &ort::value::Tensor<f32>,
+    point_labels: &ort::value::Tensor<f32>,
+    mask_input: &ort::value::Tensor<f32>,
+    has_mask_input: &ort::value::Tensor<f32>,
+    orig_im_size: &ort::value::Tensor<f32>,
+    new_w: u32,
+    new_h: u32,
+    width: u32,
+    height: u32,
+    debug: bool,
+) -> Result<Vec<f32>, String> {
+    use image::imageops::{crop_imm, resize, FilterType};
+    use image::{ImageBuffer, Luma};
+
+    let input_names: Vec<String> = session
+        .inputs()
+        .iter()
+        .map(|input| input.name().to_string())
+        .collect();
+    let input_count = input_names.len();
+    let mut provided: Vec<(std::borrow::Cow<'_, str>, ort::session::SessionInputValue<'_>)> =
+        Vec::new();
+    for name in &input_names {
+        let key = name.to_ascii_lowercase();
+        if key.contains("image") && key.contains("emb") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), embedding.into()));
+        } else if key.contains("point") && key.contains("coord") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), point_coords.into()));
+        } else if key.contains("point") && key.contains("label") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), point_labels.into()));
+        } else if key.contains("mask_input") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), mask_input.into()));
+        } else if key.contains("has_mask") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), has_mask_input.into()));
+        } else if key.contains("orig") && key.contains("size") {
+            provided.push((std::borrow::Cow::Owned(name.clone()), orig_im_size.into()));
+        }
+    }
+    let outputs = if provided.len() == input_count {
+        session
+            .run(provided)
+            .map_err(|err| format!("SAM decoder inference failed: {err}"))?
+    } else {
+        if debug {
+            eprintln!(
+                "Depth Image debug: SAM decoder inputs fallback order, inputs=[{}]",
+                input_names.join(", ")
+            );
+        }
+        if input_count == 5 {
+            session
+                .run(ort::inputs![
+                    embedding,
+                    point_coords,
+                    point_labels,
+                    mask_input,
+                    has_mask_input
+                ])
+                .map_err(|err| format!("SAM decoder inference failed: {err}"))?
+        } else if input_count >= 6 {
+            session
+                .run(ort::inputs![
+                    embedding,
+                    point_coords,
+                    point_labels,
+                    mask_input,
+                    has_mask_input,
+                    orig_im_size
+                ])
+                .map_err(|err| format!("SAM decoder inference failed: {err}"))?
+        } else {
+            return Err("SAM decoder input signature is unsupported".to_string());
+        }
+    };
+
+    let mut mask_index = None;
+    let mut iou_index = None;
+    for (idx, (name, _)) in outputs.iter().enumerate() {
+        let name = name.to_ascii_lowercase();
+        if name.contains("mask") {
+            mask_index = Some(idx);
+        } else if name.contains("iou") {
+            iou_index = Some(idx);
+        }
+    }
+    let mask_idx = mask_index.unwrap_or(0);
+    if mask_idx >= outputs.len() {
+        return Err("SAM decoder produced no mask output".to_string());
+    }
+    let mask_output = &outputs[mask_idx];
+    let (mask_shape, mask_data) = mask_output
+        .try_extract_tensor::<f32>()
+        .map_err(|err| err.to_string())?;
+    if debug {
+        eprintln!("Depth Image debug: SAM mask shape {:?}", mask_shape);
+    }
+
+    let (mask_count, mask_h, mask_w) = if mask_shape.len() == 4 {
+        (
+            mask_shape[1].max(1) as usize,
+            mask_shape[2].max(1) as usize,
+            mask_shape[3].max(1) as usize,
+        )
+    } else if mask_shape.len() == 3 {
+        (
+            mask_shape[0].max(1) as usize,
+            mask_shape[1].max(1) as usize,
+            mask_shape[2].max(1) as usize,
+        )
+    } else {
+        return Err(format!(
+            "SAM decoder mask output shape {:?} is unsupported",
+            mask_shape
+        ));
+    };
+    let mask_len = mask_h * mask_w;
+    if mask_len == 0 || mask_data.len() < mask_len {
+        return Err("SAM decoder mask output is empty".to_string());
+    }
+    let best_mask: usize = if mask_count > 1 {
+        if let Some(iou_idx) = iou_index {
+            if iou_idx < outputs.len() {
+                let iou_output = &outputs[iou_idx];
+                if let Ok((iou_shape, iou_data)) =
+                    iou_output.try_extract_tensor::<f32>()
+                {
+                    if debug {
+                        eprintln!("Depth Image debug: SAM IoU shape {:?}", iou_shape);
+                    }
+                    let mut best = 0;
+                    let mut best_score = f32::NEG_INFINITY;
+                    for (idx, score) in iou_data.iter().enumerate() {
+                        if *score > best_score {
+                            best_score = *score;
+                            best = idx;
+                        }
+                    }
+                    best
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    let start = best_mask.saturating_mul(mask_len);
+    let end = start.saturating_add(mask_len).min(mask_data.len());
+    if end <= start {
+        return Err("SAM decoder mask output slice invalid".to_string());
+    }
+    let mask_slice = &mask_data[start..end];
+    let mut mask_image =
+        ImageBuffer::<Luma<f32>, Vec<f32>>::from_vec(mask_w as u32, mask_h as u32, mask_slice.to_vec())
+            .ok_or_else(|| "SAM mask buffer size mismatch".to_string())?;
+
+    if mask_image.width() >= new_w && mask_image.height() >= new_h {
+        if mask_image.width() != new_w || mask_image.height() != new_h {
+            mask_image = crop_imm(&mask_image, 0, 0, new_w, new_h).to_image();
+        }
+    } else if mask_image.width() != new_w || mask_image.height() != new_h {
+        mask_image = resize(&mask_image, new_w, new_h, FilterType::Triangle);
+    }
+    if new_w != width || new_h != height {
+        mask_image = resize(&mask_image, width, height, FilterType::Triangle);
+    }
+
+    Ok(mask_image.into_raw())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 struct DepthModelCache {
     path: PathBuf,
     directml_device_id: i32,
@@ -327,6 +884,18 @@ struct DepthModelCache {
 
 #[cfg(not(target_arch = "wasm32"))]
 static DEPTH_MODEL: OnceLock<Mutex<Option<DepthModelCache>>> = OnceLock::new();
+
+#[cfg(not(target_arch = "wasm32"))]
+struct SamModelCache {
+    encoder_path: PathBuf,
+    decoder_path: PathBuf,
+    directml_device_id: i32,
+    encoder: Session,
+    decoder: Session,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+static SAM_MODEL: OnceLock<Mutex<Option<SamModelCache>>> = OnceLock::new();
 
 #[cfg(not(target_arch = "wasm32"))]
 enum OrtInitState {
