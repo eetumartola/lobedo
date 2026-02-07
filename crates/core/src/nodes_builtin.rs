@@ -41,6 +41,7 @@ pub enum BuiltinNodeKind {
     SplatCluster,
     SplatMerge,
     SplatDivide,
+    CylindricalUnwrap,
     VolumeFromGeometry,
     VolumeFromSplats,
     VolumeCombine,
@@ -645,6 +646,20 @@ static NODE_SPECS: &[NodeSpec] = &[
         param_specs: nodes::splat_divide::param_specs,
         compute_mesh: mesh_error_splat_divide,
         compute_geometry: nodes::splat_divide::apply_to_geometry,
+        compute_splat: splat_error_not_output,
+        menu_group: Some("Splat"),
+        input_policy: InputPolicy::RequireAll,
+    },
+    NodeSpec {
+        kind: BuiltinNodeKind::CylindricalUnwrap,
+        id: "builtin:cylindrical_unwrap",
+        name: nodes::cylindrical_unwrap::NAME,
+        aliases: &[],
+        definition: nodes::cylindrical_unwrap::definition,
+        default_params: nodes::cylindrical_unwrap::default_params,
+        param_specs: nodes::cylindrical_unwrap::param_specs,
+        compute_mesh: nodes::cylindrical_unwrap::compute,
+        compute_geometry: apply_cylindrical_unwrap,
         compute_splat: splat_error_not_output,
         menu_group: Some("Splat"),
         input_policy: InputPolicy::RequireAll,
@@ -1562,6 +1577,12 @@ fn apply_regularize(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry
 fn apply_splat_lod(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     apply_splat_only(params, inputs, |params, splat| {
         Ok(nodes::splat_lod::apply_to_splats(params, splat))
+    })
+}
+
+fn apply_cylindrical_unwrap(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
+    apply_splat_only(params, inputs, |params, splat| {
+        nodes::cylindrical_unwrap::apply_to_splats(params, splat)
     })
 }
 

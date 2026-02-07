@@ -7,7 +7,7 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
         BuiltinNodeKind::ReadSplats => Some(NodeHelpPage {
             name: "Splat Read",
             description: &[
-                "Loads Gaussian splats from a PLY file and produces splat primitives.",
+                "Loads Gaussian splats from a PLY or SPZ file and produces splat primitives.",
                 "The reader expects 3DGS-style fields: position, rotation (quaternion), scale (log sigma), opacity (logit), and SH coefficients.",
                 "On load, values are validated and normalized so scales and opacity stay in a stable range.",
                 "Full SH keeps all bands for relighting and delighting workflows.",
@@ -16,8 +16,10 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             inputs: &[],
             outputs: &["out: Splat geometry."],
             parameters: &[
-                ("path", "Path or URL to a splat PLY file."),
+                ("path", "Path or URL to a splat file (.ply or .spz)."),
                 ("read_mode", "Full SH keeps all SH bands; Color Only keeps only DC color/alpha."),
+                ("spz_flip_y", "Flip Y after loading .spz files (matches WorldLabs import orientation)."),
+                ("flip_z", "Flip Z after loading to match WorldLabs/Marble handedness."),
             ],
         }),
         BuiltinNodeKind::WriteSplats => Some(NodeHelpPage {
@@ -339,6 +341,43 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             inputs: &["in: Geometry with splats to split."],
             outputs: &["out: Geometry with split splat primitives."],
             parameters: &[("attr", "Attribute to split by (default segment_id).")],
+        }),
+        BuiltinNodeKind::CylindricalUnwrap => Some(NodeHelpPage {
+            name: "Cylindrical Unwrap",
+            description: &[
+                "Reinterprets splat positions from cylindrical coordinates to Cartesian space.",
+                "Input coordinates are interpreted as (theta, y, radius).",
+                "The node updates orientation and scale using the local Jacobian so anisotropic splats follow the unwrap.",
+                "Use it when splats were authored in cylindrical space and need world-space geometry.",
+            ],
+            inputs: &["in: Splat geometry."],
+            outputs: &["out: Unwrapped splats."],
+            parameters: &[
+                (
+                    "inverse",
+                    "When enabled (default), map Cartesian (x, y, z) back to cylindrical (theta, y, radius).",
+                ),
+                (
+                    "full_processing",
+                    "When enabled (default), also transform splat rotation/scale and point normals; disable for position-only remap.",
+                ),
+                (
+                    "seam_angle_deg",
+                    "Angular seam offset in degrees around world Y.",
+                ),
+                (
+                    "axis_mult",
+                    "Per-axis multipliers in cylindrical space (x=theta, y=height, z=radius). Default is (30, 1, 1).",
+                ),
+                (
+                    "coverage_boost_max",
+                    "Upper clamp for nonlinear scale expansion in full processing (1 disables extra boost).",
+                ),
+                (
+                    "coverage_boost_mul",
+                    "User multiplier for nonlinear scale expansion (0 disables, 1 keeps auto, >1 exaggerates) before the max clamp.",
+                ),
+            ],
         }),
         _ => None,
     }

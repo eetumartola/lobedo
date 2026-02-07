@@ -114,7 +114,7 @@ Functions: None
 
 ## crates/app/src/node_graph/params.rs
 Description: Params module.
-Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_group_row` (L449-L538), `edit_gradient_field` (L540-L721), `endpoints_for` (L723-L742), `find_stop_index` (L744-L755), `color32_from_rgb` (L757-L757), `edit_path_field` (L765-L799), `path_picker_kind_from_spec` (L811-L820), `file_pick_result` (L833-L835), `queue_file_pick` (L838-L841), `take_file_pick` (L844-L851), `open_path_picker_button` (L853-L910), `open_path_picker` (L913-L942), `param_row_with_label` (L944-L952), `slider_layout_widths` (L954-L959), `param_row_with_height_label` (L961-L1010), `label_width_for` (L1012-L1022), `combo_row_i32` (L1024-L1051), `combo_row_string` (L1053-L1083), `group_type_options` (L1085-L1103), `display_label` (L1105-L1107)
+Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_group_row` (L449-L538), `edit_gradient_field` (L540-L721), `endpoints_for` (L723-L742), `find_stop_index` (L744-L755), `color32_from_rgb` (L757-L757), `edit_path_field` (L765-L799), `path_picker_kind_from_spec` (L811-L820), `file_pick_result` (L833-L835), `queue_file_pick` (L838-L841), `take_file_pick` (L844-L851), `open_path_picker_button` (L853-L911), `open_path_picker` (L914-L943), `param_row_with_label` (L945-L953), `slider_layout_widths` (L955-L960), `param_row_with_height_label` (L962-L1011), `label_width_for` (L1013-L1023), `combo_row_i32` (L1025-L1052), `combo_row_string` (L1054-L1084), `group_type_options` (L1086-L1104), `display_label` (L1106-L1108)
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
@@ -222,7 +222,7 @@ Functions: `node_help_page` (L5-L92)
 
 ## crates/core/src/node_help_splats.rs
 Description: Node Help Splats module.
-Functions: `node_help_page` (L5-L345)
+Functions: `node_help_page` (L5-L384)
 
 ## crates/core/src/node_help_volumes.rs
 Description: Node Help Volumes module.
@@ -291,6 +291,10 @@ Functions: `definition` (L15-L22), `default_params` (L24-L43), `param_specs` (L4
 ## crates/core/src/nodes/curve.rs
 Description: Curve module.
 Functions: `definition` (L10-L17), `default_params` (L19-L27), `param_specs` (L29-L38), `compute` (L45-L58)
+
+## crates/core/src/nodes/cylindrical_unwrap.rs
+Description: Cylindrical Unwrap module.
+Functions: `definition` (L34-L41), `default_params` (L43-L60), `param_specs` (L62-L82), `compute` (L84-L86), `apply_to_splats` (L88-L158), `cylindrical_to_cartesian` (L160-L176), `cartesian_to_cylindrical` (L178-L199), `sanitize_axis_mult` (L201-L201), `sanitize_coverage_boost_max` (L215-L220), `sanitize_coverage_boost_mul` (L222-L227), `nonlinear_coverage_boost` (L229-L231), `apply_uniform_scale_boost` (L326-L340), `map_position` (L342-L348), `outer` (L350-L352), `mat_trace` (L354-L356), `matrix_is_finite` (L358-L360), `transform_normal` (L362-L362), `unwrap_maps_theta_height_radius_to_cartesian` (L390-L410), `inverse_maps_cartesian_to_theta_height_radius` (L413-L427), `seam_angle_rotates_forward_unwrap` (L430-L451), `move_only_keeps_rotation_and_scale` (L454-L479), `unwrap_transforms_normals_and_keeps_values_finite` (L482-L513), `default_params_enable_inverse_and_axis_multiplier` (L516-L527), `axis_multiplier_x_applies_in_forward_mode` (L530-L546), `default_inverse_and_full_processing_affect_transform` (L549-L563), `nonlinear_coverage_boost_expands_vs_pure_linear_deform` (L566-L594), `nonlinear_coverage_boost_detects_inverse_curvature` (L597-L616), `coverage_boost_max_can_disable_extra_expansion` (L619-L653), `coverage_boost_multiplier_changes_expansion_strength` (L656-L692)
 
 ## crates/core/src/nodes/delete.rs
 Description: Delete module.
@@ -362,7 +366,7 @@ Functions: `definition` (L8-L15), `default_params` (L17-L19), `param_specs` (L21
 
 ## crates/core/src/nodes/mod.rs
 Description: Nodes module.
-Functions: `geometry_in` (L80-L85), `image_in` (L87-L92), `geometry_out` (L94-L99), `image_out` (L101-L106), `require_mesh_input` (L108-L117), `recompute_mesh_normals` (L119-L140), `selection_shape_params` (L142-L158)
+Functions: `geometry_in` (L81-L86), `image_in` (L88-L93), `geometry_out` (L95-L100), `image_out` (L102-L107), `require_mesh_input` (L109-L118), `recompute_mesh_normals` (L120-L141), `selection_shape_params` (L143-L159)
 
 ## crates/core/src/nodes/noise.rs
 Description: Noise module.
@@ -394,7 +398,7 @@ Functions: `definition` (L28-L35), `default_params` (L37-L51), `param_specs` (L5
 
 ## crates/core/src/nodes/read_splats.rs
 Description: Read Splats module.
-Functions: `definition` (L11-L18), `default_params` (L20-L30), `param_specs` (L32-L43), `compute` (L45-L56)
+Functions: `definition` (L17-L24), `default_params` (L26-L38), `param_specs` (L40-L55), `compute` (L57-L105)
 
 ## crates/core/src/nodes/regularize.rs
 Description: Regularize module.
@@ -526,7 +530,7 @@ Functions: `definition` (L11-L18), `default_params` (L20-L30), `param_specs` (L3
 
 ## crates/core/src/nodes_builtin.rs
 Description: Nodes Builtin module.
-Functions: `id` (L83-L85), `builtin_kind_from_id` (L88-L92), `mesh_error_read_splats` (L116-L118), `mesh_error_worldlabs_generate` (L120-L122), `mesh_error_curve` (L124-L126), `mesh_error_volume_blur` (L128-L130), `mesh_error_sweep` (L132-L134), `mesh_error_image` (L136-L138), `mesh_error_image_preview` (L140-L142), `mesh_error_depth_image` (L144-L146), `mesh_error_depth_to_splats` (L148-L150), `mesh_error_splat_divide` (L152-L154), `mesh_error_write_splats` (L156-L158), `mesh_error_splat_to_mesh` (L160-L162), `mesh_error_volume_from_geo` (L164-L166), `mesh_error_volume_from_splats` (L168-L170), `mesh_error_volume_combine` (L172-L174), `mesh_error_volume_to_mesh` (L176-L178), `mesh_error_attribute_from_volume` (L180-L182), `geometry_error_image` (L184-L186), `geometry_error_image_preview` (L188-L193), `geometry_error_depth_image` (L195-L197), `geometry_error_depth_to_splats` (L199-L201), `node_specs` (L1158-L1160), `menu_group` (L1162-L1164), `node_spec` (L1166-L1171), `input_policy` (L1173-L1175), `name` (L1178-L1180), `builtin_kind_from_name` (L1184-L1192), `builtin_definitions` (L1194-L1199), `node_definition` (L1201-L1203), `default_params` (L1205-L1207), `param_specs` (L1209-L1211), `param_specs_for_name` (L1213-L1217), `param_specs_for_kind_id` (L1219-L1223), `compute_mesh_node` (L1225-L1231), `compute_geometry_node` (L1233-L1239), `compute_geometry_box` (L1241-L1243), `compute_geometry_grid` (L1245-L1247), `compute_geometry_sphere` (L1249-L1251), `compute_geometry_tube` (L1253-L1255), `compute_geometry_circle` (L1257-L1259), `compute_geometry_curve` (L1261-L1264), `compute_geometry_file` (L1266-L1268), `compute_geometry_read_splats` (L1270-L1275), `compute_geometry_worldlabs_generate` (L1277-L1282), `compute_geometry_merge` (L1284-L1286), `compute_geometry_output` (L1288-L1290), `compute_geometry_normal` (L1292-L1294), `compute_geometry_color` (L1296-L1298), `compute_geometry_noise` (L1300-L1302), `compute_geometry_erosion_noise` (L1304-L1309), `compute_geometry_smooth` (L1311-L1313), `compute_geometry_uv_texture` (L1315-L1320), `compute_geometry_uv_unwrap` (L1322-L1327), `compute_geometry_uv_view` (L1329-L1331), `compute_geometry_attribute_noise` (L1333-L1338), `compute_geometry_attribute_promote` (L1340-L1345), `compute_geometry_attribute_expand` (L1347-L1352), `compute_geometry_attribute_from_feature` (L1354-L1359), `compute_geometry_attribute_math` (L1361-L1366), `compute_splat_node` (L1368-L1374), `compute_splat_read_splats` (L1376-L1381), `compute_splat_worldlabs_generate` (L1383-L1388), `splat_error_not_output` (L1390-L1395), `apply_mesh_unary` (L1397-L1466), `apply_splat_only` (L1468-L1507), `apply_attribute_transfer` (L1509-L1514), `apply_delete` (L1516-L1548), `apply_prune` (L1550-L1554), `apply_regularize` (L1556-L1560), `apply_splat_lod` (L1562-L1566), `apply_splat_heal` (L1568-L1570), `apply_splat_outlier` (L1572-L1576), `apply_mesh_outliers_sdf` (L1578-L1580), `apply_splat_cluster` (L1582-L1586), `apply_splat_delight` (L1588-L1590), `filter_splats` (L1592-L1612), `apply_group` (L1614-L1643), `apply_group_expand` (L1645-L1674), `apply_transform` (L1676-L1718), `apply_copy_transform` (L1720-L1784), `apply_copy_to_points` (L1786-L1840), `apply_obj_output` (L1842-L1856), `apply_write_splats` (L1858-L1867), `merge_geometry` (L1869-L1879), `transform_applies_scale` (L1889-L1897), `merge_combines_meshes` (L1900-L1906), `scatter_produces_points` (L1909-L1921), `normal_recomputes_normals` (L1924-L1930), `node_specs_cover_definitions` (L1933-L1935), `node_spec_ids_are_unique` (L1938-L1943)
+Functions: `id` (L84-L86), `builtin_kind_from_id` (L89-L93), `mesh_error_read_splats` (L117-L119), `mesh_error_worldlabs_generate` (L121-L123), `mesh_error_curve` (L125-L127), `mesh_error_volume_blur` (L129-L131), `mesh_error_sweep` (L133-L135), `mesh_error_image` (L137-L139), `mesh_error_image_preview` (L141-L143), `mesh_error_depth_image` (L145-L147), `mesh_error_depth_to_splats` (L149-L151), `mesh_error_splat_divide` (L153-L155), `mesh_error_write_splats` (L157-L159), `mesh_error_splat_to_mesh` (L161-L163), `mesh_error_volume_from_geo` (L165-L167), `mesh_error_volume_from_splats` (L169-L171), `mesh_error_volume_combine` (L173-L175), `mesh_error_volume_to_mesh` (L177-L179), `mesh_error_attribute_from_volume` (L181-L183), `geometry_error_image` (L185-L187), `geometry_error_image_preview` (L189-L194), `geometry_error_depth_image` (L196-L198), `geometry_error_depth_to_splats` (L200-L202), `node_specs` (L1173-L1175), `menu_group` (L1177-L1179), `node_spec` (L1181-L1186), `input_policy` (L1188-L1190), `name` (L1193-L1195), `builtin_kind_from_name` (L1199-L1207), `builtin_definitions` (L1209-L1214), `node_definition` (L1216-L1218), `default_params` (L1220-L1222), `param_specs` (L1224-L1226), `param_specs_for_name` (L1228-L1232), `param_specs_for_kind_id` (L1234-L1238), `compute_mesh_node` (L1240-L1246), `compute_geometry_node` (L1248-L1254), `compute_geometry_box` (L1256-L1258), `compute_geometry_grid` (L1260-L1262), `compute_geometry_sphere` (L1264-L1266), `compute_geometry_tube` (L1268-L1270), `compute_geometry_circle` (L1272-L1274), `compute_geometry_curve` (L1276-L1279), `compute_geometry_file` (L1281-L1283), `compute_geometry_read_splats` (L1285-L1290), `compute_geometry_worldlabs_generate` (L1292-L1297), `compute_geometry_merge` (L1299-L1301), `compute_geometry_output` (L1303-L1305), `compute_geometry_normal` (L1307-L1309), `compute_geometry_color` (L1311-L1313), `compute_geometry_noise` (L1315-L1317), `compute_geometry_erosion_noise` (L1319-L1324), `compute_geometry_smooth` (L1326-L1328), `compute_geometry_uv_texture` (L1330-L1335), `compute_geometry_uv_unwrap` (L1337-L1342), `compute_geometry_uv_view` (L1344-L1346), `compute_geometry_attribute_noise` (L1348-L1353), `compute_geometry_attribute_promote` (L1355-L1360), `compute_geometry_attribute_expand` (L1362-L1367), `compute_geometry_attribute_from_feature` (L1369-L1374), `compute_geometry_attribute_math` (L1376-L1381), `compute_splat_node` (L1383-L1389), `compute_splat_read_splats` (L1391-L1396), `compute_splat_worldlabs_generate` (L1398-L1403), `splat_error_not_output` (L1405-L1410), `apply_mesh_unary` (L1412-L1481), `apply_splat_only` (L1483-L1522), `apply_attribute_transfer` (L1524-L1529), `apply_delete` (L1531-L1563), `apply_prune` (L1565-L1569), `apply_regularize` (L1571-L1575), `apply_splat_lod` (L1577-L1581), `apply_cylindrical_unwrap` (L1583-L1587), `apply_splat_heal` (L1589-L1591), `apply_splat_outlier` (L1593-L1597), `apply_mesh_outliers_sdf` (L1599-L1601), `apply_splat_cluster` (L1603-L1607), `apply_splat_delight` (L1609-L1611), `filter_splats` (L1613-L1633), `apply_group` (L1635-L1664), `apply_group_expand` (L1666-L1695), `apply_transform` (L1697-L1739), `apply_copy_transform` (L1741-L1805), `apply_copy_to_points` (L1807-L1861), `apply_obj_output` (L1863-L1877), `apply_write_splats` (L1879-L1888), `merge_geometry` (L1890-L1900), `transform_applies_scale` (L1910-L1918), `merge_combines_meshes` (L1921-L1927), `scatter_produces_points` (L1930-L1942), `normal_recomputes_normals` (L1945-L1951), `node_specs_cover_definitions` (L1954-L1956), `node_spec_ids_are_unique` (L1959-L1964)
 
 ## crates/core/src/noise.rs
 Description: Noise module.
@@ -642,7 +646,7 @@ Functions: `mesh` (L33-L38), `splats` (L40-L45), `curves` (L47-L55), `volume` (L
 
 ## crates/render/src/viewport/callback.rs
 Description: Callback module.
-Functions: `prepare` (L39-L1097), `paint` (L1099-L1136)
+Functions: `adaptive_splat_sort_far` (L38-L41), `prepare` (L56-L1119), `paint` (L1121-L1158)
 
 ## crates/render/src/viewport/callback_helpers.rs
 Description: Callback Helpers module.
@@ -658,7 +662,7 @@ Functions: `default` (L88-L99), `new` (L113-L125), `paint_callback` (L127-L144),
 
 ## crates/render/src/viewport/pipeline.rs
 Description: Pipeline module.
-Functions: `new` (L214-L502), `build_bind_group` (L505-L565), `new` (L569-L1491), `ensure_splat_gpu_buffers` (L1493-L1623), `ensure_splat_gpu_bucket_capacity` (L1625-L1685), `ensure_offscreen_targets` (L1688-L1722)
+Functions: `new` (L214-L502), `build_bind_group` (L505-L565), `new` (L569-L1491), `ensure_splat_gpu_buffers` (L1493-L1649), `select_supported_sh_coeffs` (L1651-L1662), `ensure_splat_gpu_bucket_capacity` (L1664-L1724), `ensure_offscreen_targets` (L1727-L1761)
 
 ## crates/render/src/viewport/pipeline_scene.rs
 Description: Pipeline Scene module.

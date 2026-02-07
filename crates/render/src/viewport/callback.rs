@@ -35,6 +35,23 @@ pub(super) struct ViewportCallback {
     pub(super) scene: Arc<Mutex<ViewportSceneState>>,
 }
 
+fn adaptive_splat_sort_far(
+    fallback_far: f32,
+    camera_pos: Vec3,
+    bounds_min: [f32; 3],
+    bounds_max: [f32; 3],
+) -> f32 {
+    let min = Vec3::from(bounds_min);
+    let max = Vec3::from(bounds_max);
+    if !min.is_finite() || !max.is_finite() {
+        return fallback_far.max(0.1);
+    }
+    let center = (min + max) * 0.5;
+    let radius = ((max - min) * 0.5).length();
+    let scene_far = (camera_pos - center).length() + radius;
+    fallback_far.max(scene_far * 1.05).max(0.1)
+}
+
 impl CallbackTrait for ViewportCallback {
     fn prepare(
         &self,
@@ -349,7 +366,12 @@ impl CallbackTrait for ViewportCallback {
                         || !self.debug.splat_rebuild_fps_enabled
                         || elapsed >= interval;
                     if needs_rebuild && allow_rebuild {
-                        let far = self.debug.depth_far.max(near_clip + 0.001);
+                        let far = adaptive_splat_sort_far(
+                            self.debug.depth_far.max(near_clip + 0.001),
+                            camera_pos,
+                            pipeline.mesh_bounds.0,
+                            pipeline.mesh_bounds.1,
+                        );
                         pipeline.ensure_splat_gpu_bucket_capacity(device, bucket_count);
                         let mut flags = 0u32;
                         if use_full_sh {
@@ -363,7 +385,7 @@ impl CallbackTrait for ViewportCallback {
                         }
                         let params = SplatComputeParams {
                             splat_count: pipeline.splat_positions.len() as u32,
-                            sh_coeffs: pipeline.splat_sh_coeffs as u32,
+                            sh_coeffs: pipeline.splat_gpu.sh_coeffs,
                             bucket_count,
                             flags,
                             near: near_clip,

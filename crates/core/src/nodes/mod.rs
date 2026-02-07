@@ -10,6 +10,7 @@ pub mod box_node;
 pub mod boolean;
 pub mod boolean_geo;
 pub mod circle;
+pub mod cylindrical_unwrap;
 pub mod color;
 pub mod copy_to_points;
 pub mod copy_transform;

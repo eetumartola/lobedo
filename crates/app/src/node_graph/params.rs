@@ -879,7 +879,8 @@ fn open_path_picker_button(
                     PathPickerKind::ReadMesh => ("Mesh", &["obj", "gltf", "glb"][..]),
                     PathPickerKind::WriteObj => ("OBJ", &["obj"][..]),
                     PathPickerKind::WriteGltf => ("glTF", &["glb", "gltf"][..]),
-                    PathPickerKind::ReadSplat | PathPickerKind::WriteSplat => ("PLY", &["ply"][..]),
+                    PathPickerKind::ReadSplat => ("Splat", &["ply", "spz"][..]),
+                    PathPickerKind::WriteSplat => ("PLY", &["ply"][..]),
                     PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..]),
                 };
                 let dialog = AsyncFileDialog::new().add_filter(label, extensions);
@@ -915,7 +916,7 @@ fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
         PathPickerKind::ReadMesh => ("Mesh", &["obj", "gltf", "glb"][..], false, "model.obj"),
         PathPickerKind::WriteObj => ("OBJ", &["obj"][..], true, "output.obj"),
         PathPickerKind::WriteGltf => ("glTF", &["glb", "gltf"][..], true, "output.glb"),
-        PathPickerKind::ReadSplat => ("PLY", &["ply"][..], false, "splats.ply"),
+        PathPickerKind::ReadSplat => ("Splat", &["ply", "spz"][..], false, "splats.ply"),
         PathPickerKind::WriteSplat => ("PLY", &["ply"][..], true, "output.ply"),
         PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..], false, "texture.png"),
         };

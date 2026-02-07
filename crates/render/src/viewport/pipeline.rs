@@ -1503,10 +1503,32 @@ impl PipelineState {
         if count == 0 {
             return;
         }
-        let sh_coeffs = self.splat_sh_coeffs as u32;
+        let requested_sh_coeffs = self.splat_sh_coeffs as u32;
+        let max_buffer_size = device.limits().max_buffer_size.max(16);
+        let max_by_data =
+            (max_buffer_size / std::mem::size_of::<SplatGpuData>() as u64).max(1);
+        let max_by_instances = (max_buffer_size / SPLAT_INSTANCE_STRIDE_BYTES).max(1);
         let mut capacity = count.next_power_of_two();
         if capacity == 0 {
             capacity = 1;
+        }
+        let max_capacity = max_by_data
+            .min(max_by_instances)
+            .min(u32::MAX as u64) as u32;
+        if capacity > max_capacity {
+            capacity = max_capacity.max(1);
+        }
+        let sh_rest_slots_max = if capacity == 0 {
+            0
+        } else {
+            max_buffer_size / (capacity as u64 * std::mem::size_of::<[f32; 4]>() as u64)
+        } as u32;
+        let sh_coeffs =
+            Self::select_supported_sh_coeffs(requested_sh_coeffs, sh_rest_slots_max);
+        if sh_coeffs < requested_sh_coeffs {
+            eprintln!(
+                "Viewport splat GPU: clamped SH coeffs from {requested_sh_coeffs} to {sh_coeffs} to fit max buffer size ({max_buffer_size} bytes)."
+            );
         }
         let needs_realloc =
             capacity > self.splat_gpu.capacity || sh_coeffs != self.splat_gpu.sh_coeffs;
@@ -1561,6 +1583,10 @@ impl PipelineState {
                 &self.splat_gpu.instances_buffer,
                 &self.splat_gpu.indirect_buffer,
             );
+        }
+        if count > self.splat_gpu.capacity {
+            // Too many splats for GPU path on this device; callback will fallback to CPU splat path.
+            return;
         }
 
         let mut data = Vec::with_capacity(count as usize);
@@ -1619,6 +1645,19 @@ impl PipelineState {
                     bytemuck::cast_slice(&rest),
                 );
             }
+        }
+    }
+
+    fn select_supported_sh_coeffs(requested: u32, max_fit: u32) -> u32 {
+        let capped = requested.min(max_fit);
+        if requested >= 15 && capped >= 15 {
+            15
+        } else if requested >= 8 && capped >= 8 {
+            8
+        } else if requested >= 3 && capped >= 3 {
+            3
+        } else {
+            0
         }
     }
 
