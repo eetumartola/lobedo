@@ -211,10 +211,7 @@ pub(super) struct PipelineState {
 }
 
 impl SplatGpuResources {
-    fn new(
-        device: &egui_wgpu::wgpu::Device,
-        uniform_buffer: &egui_wgpu::wgpu::Buffer,
-    ) -> Self {
+    fn new(device: &egui_wgpu::wgpu::Device, uniform_buffer: &egui_wgpu::wgpu::Buffer) -> Self {
         let supported = !cfg!(target_arch = "wasm32");
         let shader = create_splat_compute_shader(device);
         let bind_group_layout =
@@ -424,30 +421,26 @@ impl SplatGpuResources {
         let bucket_counts = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_bucket_counts"),
             size: SPLAT_BUCKET_DEFAULT as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let bucket_offsets = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_bucket_offsets"),
             size: SPLAT_BUCKET_DEFAULT as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let chunk_count = SPLAT_BUCKET_DEFAULT.div_ceil(SPLAT_BUCKET_CHUNK).max(1);
         let chunk_sums = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_chunk_sums"),
             size: chunk_count as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let chunk_offsets = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_chunk_offsets"),
             size: chunk_count as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let indirect_buffer =
@@ -459,21 +452,20 @@ impl SplatGpuResources {
                     | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             });
 
-        let bind_group =
-            Self::build_bind_group(
-                device,
-                &bind_group_layout,
-                uniform_buffer,
-                &params_buffer,
-                &data_buffer,
-                &sh_rest_buffer,
-                &bucket_counts,
-                &bucket_offsets,
-                &chunk_sums,
-                &chunk_offsets,
-                &instances_buffer,
-                &indirect_buffer,
-            );
+        let bind_group = Self::build_bind_group(
+            device,
+            &bind_group_layout,
+            uniform_buffer,
+            &params_buffer,
+            &data_buffer,
+            &sh_rest_buffer,
+            &bucket_counts,
+            &bucket_offsets,
+            &chunk_sums,
+            &chunk_offsets,
+            &instances_buffer,
+            &indirect_buffer,
+        );
 
         Self {
             supported,
@@ -770,13 +762,12 @@ impl PipelineState {
             egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
             &[255, 255, 255, 255],
         );
-        let material_texture_view = fallback_texture.create_view(
-            &egui_wgpu::wgpu::TextureViewDescriptor {
+        let material_texture_view =
+            fallback_texture.create_view(&egui_wgpu::wgpu::TextureViewDescriptor {
                 dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D2Array),
                 array_layer_count: Some(1),
                 ..Default::default()
-            },
-        );
+            });
 
         let uniform_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
             label: Some("lobedo_viewport_uniform_bind_group"),
@@ -830,18 +821,20 @@ impl PipelineState {
 
         let splat_gpu = SplatGpuResources::new(device, &uniform_buffer);
 
-        let volume_buffer = device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
-            label: Some("lobedo_volume_params"),
-            contents: bytemuck::bytes_of(&VolumeParams {
-                origin: [0.0, 0.0, 0.0],
-                voxel_size: 1.0,
-                dims: [0, 0, 0],
-                kind: 0,
-                params: [1.0, 1.0, 1.0, 0.0],
-                world_to_volume: glam::Mat4::IDENTITY.to_cols_array_2d(),
-            }),
-            usage: egui_wgpu::wgpu::BufferUsages::UNIFORM | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-        });
+        let volume_buffer =
+            device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
+                label: Some("lobedo_volume_params"),
+                contents: bytemuck::bytes_of(&VolumeParams {
+                    origin: [0.0, 0.0, 0.0],
+                    voxel_size: 1.0,
+                    dims: [0, 0, 0],
+                    kind: 0,
+                    params: [1.0, 1.0, 1.0, 0.0],
+                    world_to_volume: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                }),
+                usage: egui_wgpu::wgpu::BufferUsages::UNIFORM
+                    | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            });
         let volume_texture = device.create_texture_with_data(
             queue,
             &egui_wgpu::wgpu::TextureDescriptor {
@@ -890,7 +883,11 @@ impl PipelineState {
         let volume_pipeline_layout =
             device.create_pipeline_layout(&egui_wgpu::wgpu::PipelineLayoutDescriptor {
                 label: Some("lobedo_viewport_volume_layout"),
-                bind_group_layouts: &[&uniform_layout, &material_bind_group_layout, &volume_bind_group_layout],
+                bind_group_layouts: &[
+                    &uniform_layout,
+                    &material_bind_group_layout,
+                    &volume_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
         let shadow_pipeline_layout =
@@ -1365,8 +1362,7 @@ impl PipelineState {
         let point_count = mesh.vertices.len() as u32;
         let point_positions: Vec<[f32; 3]> = mesh.vertices.iter().map(|v| v.position).collect();
         let point_size = 0.1;
-        let point_lines =
-            point_cross_vertices_color(&point_positions, point_size, [1.0, 0.9, 0.2]);
+        let point_lines = point_cross_vertices_color(&point_positions, point_size, [1.0, 0.9, 0.2]);
         let point_buffer =
             device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
                 label: Some("lobedo_point_vertices"),
@@ -1504,30 +1500,18 @@ impl PipelineState {
             return;
         }
         let requested_sh_coeffs = self.splat_sh_coeffs as u32;
-        let max_buffer_size = device.limits().max_buffer_size.max(16);
-        let max_by_data =
-            (max_buffer_size / std::mem::size_of::<SplatGpuData>() as u64).max(1);
-        let max_by_instances = (max_buffer_size / SPLAT_INSTANCE_STRIDE_BYTES).max(1);
-        let mut capacity = count.next_power_of_two();
-        if capacity == 0 {
-            capacity = 1;
-        }
-        let max_capacity = max_by_data
-            .min(max_by_instances)
-            .min(u32::MAX as u64) as u32;
-        if capacity > max_capacity {
-            capacity = max_capacity.max(1);
-        }
-        let sh_rest_slots_max = if capacity == 0 {
-            0
-        } else {
-            max_buffer_size / (capacity as u64 * std::mem::size_of::<[f32; 4]>() as u64)
-        } as u32;
-        let sh_coeffs =
-            Self::select_supported_sh_coeffs(requested_sh_coeffs, sh_rest_slots_max);
+        let limits = device.limits();
+        let max_buffer_size = limits.max_buffer_size.max(16);
+        let max_storage_binding_size = u64::from(limits.max_storage_buffer_binding_size).max(16);
+        let (capacity, sh_coeffs) = Self::choose_splat_gpu_capacity_and_coeffs(
+            count,
+            requested_sh_coeffs,
+            max_buffer_size,
+            max_storage_binding_size,
+        );
         if sh_coeffs < requested_sh_coeffs {
             eprintln!(
-                "Viewport splat GPU: clamped SH coeffs from {requested_sh_coeffs} to {sh_coeffs} to fit max buffer size ({max_buffer_size} bytes)."
+                "Viewport splat GPU: clamped SH coeffs from {requested_sh_coeffs} to {sh_coeffs} to fit storage binding limit (max_buffer_size={max_buffer_size}, max_storage_binding_size={max_storage_binding_size})."
             );
         }
         let needs_realloc =
@@ -1616,11 +1600,7 @@ impl PipelineState {
             });
         }
         if !data.is_empty() {
-            queue.write_buffer(
-                &self.splat_gpu.data_buffer,
-                0,
-                bytemuck::cast_slice(&data),
-            );
+            queue.write_buffer(&self.splat_gpu.data_buffer, 0, bytemuck::cast_slice(&data));
         }
 
         if sh_coeffs > 0 {
@@ -1661,6 +1641,38 @@ impl PipelineState {
         }
     }
 
+    fn choose_splat_gpu_capacity_and_coeffs(
+        count: u32,
+        requested_sh_coeffs: u32,
+        max_buffer_size: u64,
+        max_storage_binding_size: u64,
+    ) -> (u32, u32) {
+        let storage_limit = max_buffer_size.min(max_storage_binding_size).max(16);
+        let mut capacity = count.max(1).next_power_of_two();
+        let max_by_data = (storage_limit / std::mem::size_of::<SplatGpuData>() as u64).max(1);
+        let max_by_instances = (storage_limit / SPLAT_INSTANCE_STRIDE_BYTES).max(1);
+        let max_capacity = max_by_data.min(max_by_instances).min(u32::MAX as u64) as u32;
+        if capacity > max_capacity {
+            capacity = max_capacity.max(1);
+        }
+
+        // Keep higher SH orders when possible by avoiding power-of-two over-allocation
+        // that would push SH rest storage over the per-binding size limit.
+        if requested_sh_coeffs > 0 {
+            let bytes_per_splat =
+                requested_sh_coeffs as u64 * std::mem::size_of::<[f32; 4]>() as u64;
+            let max_by_requested_sh = (storage_limit / bytes_per_splat).min(u32::MAX as u64) as u32;
+            if max_by_requested_sh >= count && capacity > max_by_requested_sh {
+                capacity = max_by_requested_sh.max(1);
+            }
+        }
+
+        let sh_rest_slots_max =
+            (storage_limit / (capacity as u64 * std::mem::size_of::<[f32; 4]>() as u64)) as u32;
+        let sh_coeffs = Self::select_supported_sh_coeffs(requested_sh_coeffs, sh_rest_slots_max);
+        (capacity.max(1), sh_coeffs)
+    }
+
     pub(super) fn ensure_splat_gpu_bucket_capacity(
         &mut self,
         device: &egui_wgpu::wgpu::Device,
@@ -1681,30 +1693,26 @@ impl PipelineState {
         self.splat_gpu.bucket_counts = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_bucket_counts"),
             size: capacity as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         self.splat_gpu.bucket_offsets = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_bucket_offsets"),
             size: capacity as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let chunk_count = capacity.div_ceil(SPLAT_BUCKET_CHUNK).max(1);
         self.splat_gpu.chunk_sums = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_chunk_sums"),
             size: chunk_count as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         self.splat_gpu.chunk_offsets = device.create_buffer(&egui_wgpu::wgpu::BufferDescriptor {
             label: Some("lobedo_splat_gpu_chunk_offsets"),
             size: chunk_count as u64 * 4,
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         self.splat_gpu.bind_group = SplatGpuResources::build_bind_group(
@@ -1758,4 +1766,59 @@ pub(super) fn ensure_offscreen_targets(
             },
         ],
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PipelineState, SplatGpuData};
+
+    #[test]
+    fn splat_capacity_keeps_full_sh_when_count_fits_binding_limit() {
+        let count = 530_000u32;
+        let requested = 15u32;
+        let storage_limit = 134_217_728u64;
+        let (capacity, sh_coeffs) = PipelineState::choose_splat_gpu_capacity_and_coeffs(
+            count,
+            requested,
+            1_073_741_824,
+            storage_limit,
+        );
+
+        assert!(capacity >= count);
+        assert_eq!(sh_coeffs, 15);
+        let sh_rest_bytes =
+            capacity as u64 * sh_coeffs as u64 * std::mem::size_of::<[f32; 4]>() as u64;
+        assert!(sh_rest_bytes <= storage_limit);
+    }
+
+    #[test]
+    fn splat_capacity_clamps_sh_when_count_exceeds_full_sh_binding_budget() {
+        let count = 900_000u32;
+        let requested = 15u32;
+        let storage_limit = 134_217_728u64;
+        let (capacity, sh_coeffs) = PipelineState::choose_splat_gpu_capacity_and_coeffs(
+            count,
+            requested,
+            1_073_741_824,
+            storage_limit,
+        );
+
+        assert!(capacity >= count);
+        assert_eq!(sh_coeffs, 8);
+        let sh_rest_bytes =
+            capacity as u64 * sh_coeffs as u64 * std::mem::size_of::<[f32; 4]>() as u64;
+        assert!(sh_rest_bytes <= storage_limit);
+    }
+
+    #[test]
+    fn splat_capacity_caps_when_data_binding_budget_is_exceeded() {
+        let count = 3_000_000u32;
+        let (capacity, sh_coeffs) =
+            PipelineState::choose_splat_gpu_capacity_and_coeffs(count, 0, 134_217_728, 134_217_728);
+
+        let max_by_data = (134_217_728u64 / std::mem::size_of::<SplatGpuData>() as u64) as u32;
+        assert_eq!(capacity, max_by_data);
+        assert!(capacity < count);
+        assert_eq!(sh_coeffs, 0);
+    }
 }

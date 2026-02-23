@@ -21,10 +21,7 @@ pub fn scene_snapshot_from_mesh(mesh: &Mesh, base_color: [f32; 3]) -> SceneSnaps
     }
 }
 
-pub fn scene_snapshot_from_splats(
-    splats: &SplatGeo,
-    base_color: [f32; 3],
-) -> SceneSnapshot {
+pub fn scene_snapshot_from_splats(splats: &SplatGeo, base_color: [f32; 3]) -> SceneSnapshot {
     SceneSnapshot {
         drawables: vec![SceneDrawable::Splats(scene_splats_from_splats(splats))],
         base_color,
@@ -32,10 +29,7 @@ pub fn scene_snapshot_from_splats(
     }
 }
 
-pub fn scene_snapshot_from_geometry(
-    geometry: &Geometry,
-    base_color: [f32; 3],
-) -> SceneSnapshot {
+pub fn scene_snapshot_from_geometry(geometry: &Geometry, base_color: [f32; 3]) -> SceneSnapshot {
     let mut drawables = Vec::new();
     let materials: Vec<SceneMaterial> = geometry
         .materials
@@ -221,10 +215,10 @@ fn scene_splats_from_splats(splats: &SplatGeo) -> SceneSplats {
         *value = [sx, sy, sz];
     }
 
-    let sh0_is_coeff = sh_coeffs > 0
-        || sh0
-            .iter()
-            .any(|value| value[0] < 0.0 || value[1] < 0.0 || value[2] < 0.0);
+    // SH0 is coefficient data only when higher-order SH coefficients are present.
+    // Value-range heuristics misclassify valid base-color splats (which can be negative
+    // after edits) and cause incorrect shading in Base Color mode.
+    let sh0_is_coeff = sh_coeffs > 0;
 
     SceneSplats {
         positions: splats.positions.clone(),
@@ -387,4 +381,21 @@ fn expand_corner_attribute<T: Copy>(values: &[T], corner_indices: &[usize]) -> O
         out.push(*values.get(idx)?);
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scene_splats_from_splats;
+    use crate::splat::SplatGeo;
+
+    #[test]
+    fn scene_splats_negative_base_color_stays_non_coeff() {
+        let mut splats = SplatGeo::with_len(1);
+        splats.sh0[0] = [-0.2, 0.6, 0.8];
+        splats.sh_coeffs = 0;
+        splats.sh_rest.clear();
+
+        let scene = scene_splats_from_splats(&splats);
+        assert!(!scene.sh0_is_coeff);
+    }
 }

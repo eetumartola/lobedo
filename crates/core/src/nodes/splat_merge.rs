@@ -26,6 +26,8 @@ const DEFAULT_SEAM_SCALE: f32 = 1.0;
 const DEFAULT_SEAM_DC_ONLY: bool = true;
 const DEFAULT_PREVIEW_SKIRT: bool = false;
 const DEFAULT_SDF_BAND_SCALE: f32 = 1.0;
+#[allow(clippy::excessive_precision)]
+const SH_C0: f32 = 0.28209479177387814;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -520,9 +522,17 @@ fn apply_weights(splats: &mut SplatGeo, weights: &[f32]) {
     for (idx, weight) in weights.iter().enumerate() {
         let w = weight.clamp(0.0, 1.0);
         if let Some(sh0) = splats.sh0.get_mut(idx) {
-            sh0[0] *= w;
-            sh0[1] *= w;
-            sh0[2] *= w;
+            if splats.sh_coeffs > 0 {
+                // SH DC uses a 0.5 bias in shading. Weight in color space so
+                // feathering fades to black instead of biased mid-gray.
+                sh0[0] = ((sh0[0] * SH_C0 + 0.5) * w - 0.5) / SH_C0;
+                sh0[1] = ((sh0[1] * SH_C0 + 0.5) * w - 0.5) / SH_C0;
+                sh0[2] = ((sh0[2] * SH_C0 + 0.5) * w - 0.5) / SH_C0;
+            } else {
+                sh0[0] *= w;
+                sh0[1] *= w;
+                sh0[2] *= w;
+            }
         }
         if splats.sh_coeffs > 0 {
             let base = idx * splats.sh_coeffs;
@@ -658,5 +668,45 @@ mod tests {
         };
         let merged = merge_skirt(&params, &a, &b, None);
         assert!(merged.len() >= 2);
+    }
+
+    #[test]
+    fn feather_weights_sh_dc_in_color_space() {
+        let mut a = SplatGeo::with_len_and_sh(1, 3);
+        a.positions[0] = [0.0, 0.0, 0.0];
+        a.sh0[0] = [
+            (0.8 - 0.5) / SH_C0,
+            (0.6 - 0.5) / SH_C0,
+            (0.4 - 0.5) / SH_C0,
+        ];
+        let mut b = SplatGeo::with_len(1);
+        b.positions[0] = [0.0, 0.0, 0.0];
+        b.sh0[0] = [0.2, 0.4, 0.6];
+
+        let params = NodeParams {
+            values: BTreeMap::from([
+                ("method".to_string(), ParamValue::Int(0)),
+                ("blend_radius".to_string(), ParamValue::Float(1.0)),
+            ]),
+        };
+        let merged = merge_feather(&params, &a, &b);
+        assert_eq!(merged.sh_coeffs, 3);
+        assert_eq!(merged.len(), 2);
+
+        // Distance is zero, so feather weight is zero for both sides.
+        // In SH mode, this must fade to black, not biased gray.
+        let c0 = [
+            merged.sh0[0][0] * SH_C0 + 0.5,
+            merged.sh0[0][1] * SH_C0 + 0.5,
+            merged.sh0[0][2] * SH_C0 + 0.5,
+        ];
+        let c1 = [
+            merged.sh0[1][0] * SH_C0 + 0.5,
+            merged.sh0[1][1] * SH_C0 + 0.5,
+            merged.sh0[1][2] * SH_C0 + 0.5,
+        ];
+        let eps = 1.0e-5;
+        assert!(c0[0] <= eps && c0[1] <= eps && c0[2] <= eps);
+        assert!(c1[0] <= eps && c1[1] <= eps && c1[2] <= eps);
     }
 }

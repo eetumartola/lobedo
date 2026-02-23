@@ -1,11 +1,14 @@
 use std::collections::BTreeSet;
 
 use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, StringTableAttribute};
+use crate::curve::Curve;
 use crate::material::MaterialLibrary;
 use crate::mesh::Mesh;
-use crate::curve::Curve;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
+
+#[allow(clippy::excessive_precision)]
+const SH_C0: f32 = 0.28209479177387814;
 
 #[derive(Debug, Clone, Default)]
 pub struct Geometry {
@@ -57,11 +60,7 @@ impl Geometry {
                 accum += (dx * dx + dy * dy + dz * dz).sqrt();
                 uvs.push([accum, 0.0]);
             }
-            let _ = mesh.set_attribute(
-                AttributeDomain::Point,
-                "uv",
-                AttributeStorage::Vec2(uvs),
-            );
+            let _ = mesh.set_attribute(AttributeDomain::Point, "uv", AttributeStorage::Vec2(uvs));
         }
         let indices = (0..point_count as u32).collect();
         let curve = Curve::new(indices, closed);
@@ -157,11 +156,7 @@ fn take_merged_mesh(meshes: &mut Vec<Mesh>) -> Option<Mesh> {
 pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
     let total: usize = splats.iter().map(|s| s.len()).sum();
     let mut merged = SplatGeo::default();
-    let max_coeffs = splats
-        .iter()
-        .map(|s| s.sh_coeffs)
-        .max()
-        .unwrap_or(0);
+    let max_coeffs = splats.iter().map(|s| s.sh_coeffs).max().unwrap_or(0);
     merged.positions.reserve(total);
     merged.rotations.reserve(total);
     merged.scales.reserve(total);
@@ -176,13 +171,20 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
         merged.rotations.extend_from_slice(&splat.rotations);
         merged.scales.extend_from_slice(&splat.scales);
         merged.opacity.extend_from_slice(&splat.opacity);
-        merged.sh0.extend_from_slice(&splat.sh0);
+        if max_coeffs > 0 && splat.sh_coeffs == 0 {
+            merged
+                .sh0
+                .extend(splat.sh0.iter().map(|&color| sh0_color_to_coeff(color)));
+        } else {
+            merged.sh0.extend_from_slice(&splat.sh0);
+        }
         if max_coeffs > 0 {
             let coeffs = splat.sh_coeffs;
             if coeffs == 0 {
-                merged
-                    .sh_rest
-                    .extend(std::iter::repeat_n([0.0, 0.0, 0.0], splat.len() * max_coeffs));
+                merged.sh_rest.extend(std::iter::repeat_n(
+                    [0.0, 0.0, 0.0],
+                    splat.len() * max_coeffs,
+                ));
             } else {
                 for i in 0..splat.len() {
                     let base = i * coeffs;
@@ -204,13 +206,25 @@ pub fn merge_splats(splats: &[SplatGeo]) -> SplatGeo {
     merged
 }
 
+fn sh0_color_to_coeff(color: [f32; 3]) -> [f32; 3] {
+    [
+        (color[0] - 0.5) / SH_C0,
+        (color[1] - 0.5) / SH_C0,
+        (color[2] - 0.5) / SH_C0,
+    ]
+}
+
 fn merge_splat_attributes(splats: &[SplatGeo]) -> MeshAttributes {
     let mut merged = MeshAttributes::default();
     if splats.is_empty() {
         return merged;
     }
 
-    for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+    for domain in [
+        AttributeDomain::Point,
+        AttributeDomain::Primitive,
+        AttributeDomain::Detail,
+    ] {
         let first = splats[0].attributes.map(domain);
         for (name, storage) in first {
             let data_type = storage.data_type();
@@ -253,9 +267,9 @@ fn merge_splat_attributes(splats: &[SplatGeo]) -> MeshAttributes {
                         AttributeStorage::Vec2(_) => AttributeStorage::Vec2(Vec::new()),
                         AttributeStorage::Vec3(_) => AttributeStorage::Vec3(Vec::new()),
                         AttributeStorage::Vec4(_) => AttributeStorage::Vec4(Vec::new()),
-                        AttributeStorage::StringTable(_) => {
-                            AttributeStorage::StringTable(StringTableAttribute::new(Vec::new(), Vec::new()))
-                        }
+                        AttributeStorage::StringTable(_) => AttributeStorage::StringTable(
+                            StringTableAttribute::new(Vec::new(), Vec::new()),
+                        ),
                     };
                     for splat in splats {
                         let expected = splat.attribute_domain_len(domain);
@@ -355,7 +369,11 @@ fn merge_string_table_attribute(
     }
 
     for &index in &source.indices {
-        let value = source.values.get(index as usize).cloned().unwrap_or_default();
+        let value = source
+            .values
+            .get(index as usize)
+            .cloned()
+            .unwrap_or_default();
         let entry = if let Some(&existing) = lookup.get(&value) {
             existing
         } else {
@@ -397,5 +415,29 @@ mod tests {
         assert_eq!(merged.sh_rest.len(), 2 * 3);
         assert_eq!(merged.sh_rest[0], [1.0, 2.0, 3.0]);
         assert_eq!(merged.sh_rest[3], [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn merge_splats_promotes_color_sh0_to_coeff_when_needed() {
+        let mut with_sh = SplatGeo::with_len_and_sh(1, 3);
+        with_sh.sh0[0] = [1.0, -0.5, 0.25];
+
+        let target_coeff = [0.2, -0.4, 0.8];
+        let mut color_only = SplatGeo::with_len(1);
+        color_only.sh0[0] = [
+            target_coeff[0] * SH_C0 + 0.5,
+            target_coeff[1] * SH_C0 + 0.5,
+            target_coeff[2] * SH_C0 + 0.5,
+        ];
+
+        let merged = merge_splats(&[with_sh, color_only]);
+        assert_eq!(merged.sh_coeffs, 3);
+        assert_eq!(merged.sh0.len(), 2);
+
+        let converted = merged.sh0[1];
+        let eps = 1.0e-6;
+        assert!((converted[0] - target_coeff[0]).abs() < eps);
+        assert!((converted[1] - target_coeff[1]).abs() < eps);
+        assert!((converted[2] - target_coeff[2]).abs() < eps);
     }
 }

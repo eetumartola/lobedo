@@ -166,7 +166,7 @@ Functions: `new` (L75-L77), `node_output_version` (L79-L81), `node_state_mut` (L
 
 ## crates/core/src/geometry.rs
 Description: Geometry module.
-Functions: `new` (L20-L22), `with_mesh` (L24-L32), `with_splats` (L34-L42), `with_curve` (L44-L44), `with_volume` (L77-L85), `is_empty` (L87-L92), `append` (L94-L126), `merged_mesh` (L128-L134), `merged_splats` (L136-L142), `take_merged_mesh` (L145-L155), `merge_splats` (L157-L205), `merge_splat_attributes` (L207-L310), `merge_splat_groups` (L312-L342), `merge_string_table_attribute` (L344-L370), `merge_splats_concatenates` (L377-L387), `merge_splats_pads_sh_coeffs` (L390-L400)
+Functions: `new` (L23-L25), `with_mesh` (L27-L35), `with_splats` (L37-L45), `with_curve` (L47-L47), `with_volume` (L76-L84), `is_empty` (L86-L91), `append` (L93-L125), `merged_mesh` (L127-L133), `merged_splats` (L135-L141), `take_merged_mesh` (L144-L154), `merge_splats` (L156-L207), `sh0_color_to_coeff` (L209-L209), `merge_splat_attributes` (L217-L324), `merge_splat_groups` (L326-L356), `merge_string_table_attribute` (L358-L388), `merge_splats_concatenates` (L395-L405), `merge_splats_pads_sh_coeffs` (L408-L418), `merge_splats_promotes_color_sh0_to_coeff_when_needed` (L421-L442)
 
 ## crates/core/src/geometry_eval.rs
 Description: Geometry Eval module.
@@ -454,7 +454,7 @@ Functions: `definition` (L20-L27), `default_params` (L29-L38), `param_specs` (L4
 
 ## crates/core/src/nodes/splat_merge.rs
 Description: Splat Merge module.
-Functions: `definition` (L30-L37), `default_params` (L39-L58), `param_specs` (L60-L93), `compute` (L95-L98), `apply_to_geometry` (L100-L149), `merge_feather` (L151-L177), `merge_skirt` (L179-L212), `build_skirt_preview_mesh` (L214-L265), `push_preview_segment` (L267-L268), `build_skirt_splats` (L279-L414), `append_seam_splats` (L416-L475), `extend_attribute_defaults` (L477-L508), `extend_group_defaults` (L510-L517), `apply_weights` (L519-L542), `nearest_distances` (L550-L551), `splat_rest_coeff` (L577-L577), `weight_from_distance` (L588-L593), `smoothstep` (L595-L601), `lerp_vec3` (L603-L603), `quat_from_splat` (L611-L611), `sigmoid` (L621-L623), `logit` (L625-L628), `merge_feather_keeps_counts` (L635-L643), `merge_skirt_adds_splats` (L646-L661)
+Functions: `definition` (L32-L39), `default_params` (L41-L60), `param_specs` (L62-L95), `compute` (L97-L100), `apply_to_geometry` (L102-L151), `merge_feather` (L153-L179), `merge_skirt` (L181-L214), `build_skirt_preview_mesh` (L216-L267), `push_preview_segment` (L269-L270), `build_skirt_splats` (L281-L416), `append_seam_splats` (L418-L477), `extend_attribute_defaults` (L479-L510), `extend_group_defaults` (L512-L519), `apply_weights` (L521-L552), `nearest_distances` (L560-L561), `splat_rest_coeff` (L587-L587), `weight_from_distance` (L598-L603), `smoothstep` (L605-L611), `lerp_vec3` (L613-L613), `quat_from_splat` (L621-L621), `sigmoid` (L631-L633), `logit` (L635-L638), `merge_feather_keeps_counts` (L645-L653), `merge_skirt_adds_splats` (L656-L671), `feather_weights_sh_dc_in_color_space` (L674-L711)
 
 ## crates/core/src/nodes/splat_outlier.rs
 Description: Splat Outlier module.
@@ -558,7 +558,7 @@ Functions: `default` (L16-L22), `migrate_to_latest` (L26-L44), `default` (L61-L7
 
 ## crates/core/src/scene.rs
 Description: Scene module.
-Functions: `scene_snapshot_from_mesh` (L16-L16), `scene_snapshot_from_splats` (L24-L26), `scene_snapshot_from_geometry` (L35-L37), `scene_mesh_from_mesh` (L79-L81), `scene_mesh_from_mesh_with_materials` (L83-L203), `scene_splats_from_splats` (L205-L239), `scene_curve_from_curve` (L241-L241), `scene_volume_from_volume` (L248-L263), `scene_material_from_material` (L265-L273), `fallback_normals` (L275-L275), `attr_vec3` (L287-L287), `attr_vec2` (L295-L295), `mesh_uvs` (L304-L335), `mesh_materials` (L337-L362), `expand_primitive_vec3` (L364-L366), `expand_corner_attribute` (L381-L390)
+Functions: `scene_snapshot_from_mesh` (L16-L16), `scene_snapshot_from_splats` (L24-L24), `scene_snapshot_from_geometry` (L32-L32), `scene_mesh_from_mesh` (L73-L75), `scene_mesh_from_mesh_with_materials` (L77-L197), `scene_splats_from_splats` (L199-L233), `scene_curve_from_curve` (L235-L235), `scene_volume_from_volume` (L242-L257), `scene_material_from_material` (L259-L267), `fallback_normals` (L269-L269), `attr_vec3` (L281-L281), `attr_vec2` (L289-L289), `mesh_uvs` (L298-L329), `mesh_materials` (L331-L356), `expand_primitive_vec3` (L358-L360), `expand_corner_attribute` (L375-L384), `scene_splats_negative_base_color_stays_non_coeff` (L392-L400)
 
 ## crates/core/src/splat/attributes.rs
 Description: Attributes module.
@@ -662,11 +662,11 @@ Functions: `default` (L88-L99), `new` (L113-L125), `paint_callback` (L127-L144),
 
 ## crates/render/src/viewport/pipeline.rs
 Description: Pipeline module.
-Functions: `new` (L214-L502), `build_bind_group` (L505-L565), `new` (L569-L1491), `ensure_splat_gpu_buffers` (L1493-L1649), `select_supported_sh_coeffs` (L1651-L1662), `ensure_splat_gpu_bucket_capacity` (L1664-L1724), `ensure_offscreen_targets` (L1727-L1761)
+Functions: `new` (L214-L494), `build_bind_group` (L497-L557), `new` (L561-L1487), `ensure_splat_gpu_buffers` (L1489-L1629), `select_supported_sh_coeffs` (L1631-L1642), `choose_splat_gpu_capacity_and_coeffs` (L1644-L1674), `ensure_splat_gpu_bucket_capacity` (L1676-L1732), `ensure_offscreen_targets` (L1735-L1769), `splat_capacity_keeps_full_sh_when_count_fits_binding_limit` (L1776-L1792), `splat_capacity_clamps_sh_when_count_exceeds_full_sh_binding_budget` (L1795-L1811), `splat_capacity_caps_when_data_binding_budget_is_exceeded` (L1814-L1823)
 
 ## crates/render/src/viewport/pipeline_scene.rs
 Description: Pipeline Scene module.
-Functions: `apply_scene_to_pipeline` (L13-L221), `merged_scene_splats` (L223-L290), `apply_materials_to_pipeline` (L292-L483), `apply_volume_to_pipeline` (L485-L490), `empty_volume_params` (L589-L598), `volume_world_bounds` (L600-L626)
+Functions: `apply_scene_to_pipeline` (L15-L223), `merged_scene_splats` (L225-L295), `sh0_color_to_coeff` (L297-L297), `apply_materials_to_pipeline` (L305-L491), `apply_volume_to_pipeline` (L493-L498), `empty_volume_params` (L595-L604), `volume_world_bounds` (L606-L632), `merged_scene_splats_converts_color_sh0_when_coeffs_present` (L641-L689)
 
 ## crates/render/src/viewport/pipeline_shaders.rs
 Description: Pipeline Shaders module.

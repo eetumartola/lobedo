@@ -3,12 +3,14 @@ use egui_wgpu::wgpu::util::DeviceExt as _;
 use crate::scene::{RenderDrawable, RenderScene, RenderSplats};
 
 use super::mesh::{
-    bounds_from_positions, bounds_vertices, build_vertices, curve_vertices,
-    normals_vertices, point_cross_vertices_with_colors, selection_shape_vertices,
-    wireframe_vertices, wireframe_vertices_ngon,
+    bounds_from_positions, bounds_vertices, build_vertices, curve_vertices, normals_vertices,
+    point_cross_vertices_with_colors, selection_shape_vertices, wireframe_vertices,
+    wireframe_vertices_ngon,
 };
 use super::pipeline::{MaterialGpu, PipelineState, VolumeParams};
 use glam::Vec3;
+
+const SH_C0: f32 = 0.2820948;
 
 pub(super) fn apply_scene_to_pipeline(
     device: &egui_wgpu::wgpu::Device,
@@ -237,11 +239,7 @@ fn merged_scene_splats(scene: &RenderScene) -> Option<RenderSplats> {
     }
 
     let total: usize = splats.iter().map(|s| s.positions.len()).sum();
-    let max_coeffs = splats
-        .iter()
-        .map(|s| s.sh_coeffs)
-        .max()
-        .unwrap_or(0);
+    let max_coeffs = splats.iter().map(|s| s.sh_coeffs).max().unwrap_or(0);
     let sh0_is_coeff = splats.iter().any(|s| s.sh0_is_coeff || s.sh_coeffs > 0);
 
     let mut merged = RenderSplats {
@@ -258,7 +256,14 @@ fn merged_scene_splats(scene: &RenderScene) -> Option<RenderSplats> {
     for splat in splats {
         let count = splat.positions.len();
         merged.positions.extend_from_slice(&splat.positions);
-        merged.sh0.extend_from_slice(&splat.sh0);
+        let source_sh0_is_coeff = splat.sh0_is_coeff || splat.sh_coeffs > 0;
+        if sh0_is_coeff && !source_sh0_is_coeff {
+            merged
+                .sh0
+                .extend(splat.sh0.iter().map(|&color| sh0_color_to_coeff(color)));
+        } else {
+            merged.sh0.extend_from_slice(&splat.sh0);
+        }
         merged.opacity.extend_from_slice(&splat.opacity);
         merged.scales.extend_from_slice(&splat.scales);
         merged.rotations.extend_from_slice(&splat.rotations);
@@ -287,6 +292,14 @@ fn merged_scene_splats(scene: &RenderScene) -> Option<RenderSplats> {
     }
 
     Some(merged)
+}
+
+fn sh0_color_to_coeff(color: [f32; 3]) -> [f32; 3] {
+    [
+        (color[0] - 0.5) / SH_C0,
+        (color[1] - 0.5) / SH_C0,
+        (color[2] - 0.5) / SH_C0,
+    ]
 }
 
 fn apply_materials_to_pipeline(
@@ -376,14 +389,12 @@ fn apply_materials_to_pipeline(
             });
         }
     }
-    pipeline.material_buffer = device.create_buffer_init(
-        &egui_wgpu::wgpu::util::BufferInitDescriptor {
+    pipeline.material_buffer =
+        device.create_buffer_init(&egui_wgpu::wgpu::util::BufferInitDescriptor {
             label: Some("lobedo_materials"),
             contents: bytemuck::cast_slice(&materials),
-            usage: egui_wgpu::wgpu::BufferUsages::STORAGE
-                | egui_wgpu::wgpu::BufferUsages::COPY_DST,
-        },
-    );
+            usage: egui_wgpu::wgpu::BufferUsages::STORAGE | egui_wgpu::wgpu::BufferUsages::COPY_DST,
+        });
 
     let fallback_texture = device.create_texture_with_data(
         queue,
@@ -456,8 +467,8 @@ fn apply_materials_to_pipeline(
         array_layer_count: Some(active_layers),
         ..Default::default()
     });
-    pipeline.material_bind_group = device.create_bind_group(
-        &egui_wgpu::wgpu::BindGroupDescriptor {
+    pipeline.material_bind_group =
+        device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
             label: Some("lobedo_viewport_material_bind_group"),
             layout: &pipeline.material_bind_group_layout,
             entries: &[
@@ -467,17 +478,14 @@ fn apply_materials_to_pipeline(
                 },
                 egui_wgpu::wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: egui_wgpu::wgpu::BindingResource::Sampler(
-                        &pipeline.material_sampler,
-                    ),
+                    resource: egui_wgpu::wgpu::BindingResource::Sampler(&pipeline.material_sampler),
                 },
                 egui_wgpu::wgpu::BindGroupEntry {
                     binding: 2,
                     resource: egui_wgpu::wgpu::BindingResource::TextureView(&active_view),
                 },
             ],
-        },
-    );
+        });
     pipeline.material_texture = active_texture;
     pipeline.material_texture_view = active_view;
 }
@@ -537,12 +545,13 @@ fn apply_volume_to_pipeline(
         egui_wgpu::wgpu::util::TextureDataOrder::LayerMajor,
         bytemuck::cast_slice(volume.values.as_slice()),
     );
-    pipeline.volume_view = pipeline.volume_texture.create_view(
-        &egui_wgpu::wgpu::TextureViewDescriptor {
-            dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D3),
-            ..Default::default()
-        },
-    );
+    pipeline.volume_view =
+        pipeline
+            .volume_texture
+            .create_view(&egui_wgpu::wgpu::TextureViewDescriptor {
+                dimension: Some(egui_wgpu::wgpu::TextureViewDimension::D3),
+                ..Default::default()
+            });
     pipeline.volume_bind_group = device.create_bind_group(&egui_wgpu::wgpu::BindGroupDescriptor {
         label: Some("lobedo_volume_bind_group"),
         layout: &pipeline.volume_bind_group_layout,
@@ -558,10 +567,7 @@ fn apply_volume_to_pipeline(
         ],
     });
 
-    let world_to_volume = volume
-        .transform
-        .inverse()
-        .to_cols_array_2d();
+    let world_to_volume = volume.transform.inverse().to_cols_array_2d();
     let kind = match volume.kind {
         crate::scene::RenderVolumeKind::Density => 0u32,
         crate::scene::RenderVolumeKind::Sdf => 1u32,
@@ -623,4 +629,62 @@ fn volume_world_bounds(volume: &crate::scene::RenderVolume) -> (Vec3, Vec3) {
         world_max = world_max.max(world);
     }
     (world_min, world_max)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::scene::{RenderDrawable, RenderScene, RenderSplats};
+
+    use super::{merged_scene_splats, SH_C0};
+
+    #[test]
+    fn merged_scene_splats_converts_color_sh0_when_coeffs_present() {
+        let with_sh = RenderSplats {
+            positions: vec![[0.0, 0.0, 0.0]],
+            sh0: vec![[0.5, -0.25, 1.0]],
+            sh_coeffs: 3,
+            sh_rest: vec![[0.0, 0.0, 0.0]; 3],
+            sh0_is_coeff: true,
+            opacity: vec![0.0],
+            scales: vec![[0.0, 0.0, 0.0]],
+            rotations: vec![[1.0, 0.0, 0.0, 0.0]],
+        };
+        let target_coeff = [0.2, -0.4, 0.8];
+        let color_only = RenderSplats {
+            positions: vec![[1.0, 0.0, 0.0]],
+            sh0: vec![[
+                target_coeff[0] * SH_C0 + 0.5,
+                target_coeff[1] * SH_C0 + 0.5,
+                target_coeff[2] * SH_C0 + 0.5,
+            ]],
+            sh_coeffs: 0,
+            sh_rest: Vec::new(),
+            sh0_is_coeff: false,
+            opacity: vec![0.0],
+            scales: vec![[0.0, 0.0, 0.0]],
+            rotations: vec![[1.0, 0.0, 0.0, 0.0]],
+        };
+        let scene = RenderScene {
+            drawables: vec![
+                RenderDrawable::Splats(with_sh),
+                RenderDrawable::Splats(color_only),
+            ],
+            base_color: [1.0, 1.0, 1.0],
+            template_mesh: None,
+            selection_shape: None,
+            materials: Vec::new(),
+            textures: Vec::new(),
+        };
+
+        let merged = merged_scene_splats(&scene).expect("merged splats");
+        assert!(merged.sh0_is_coeff);
+        assert_eq!(merged.sh_coeffs, 3);
+        assert_eq!(merged.sh0.len(), 2);
+
+        let converted = merged.sh0[1];
+        let eps = 1.0e-6;
+        assert!((converted[0] - target_coeff[0]).abs() < eps);
+        assert!((converted[1] - target_coeff[1]).abs() < eps);
+        assert!((converted[2] - target_coeff[2]).abs() < eps);
+    }
 }
