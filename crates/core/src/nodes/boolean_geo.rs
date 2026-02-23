@@ -146,7 +146,7 @@ fn cutter_inner_surface(volume: &Volume, mesh_a: &Mesh, op: i32) -> Option<Mesh>
     if volume.kind != VolumeKind::Sdf {
         return None;
     }
-    let mut cutter = volume_to_mesh(volume, 0.0, false).ok()?;
+    let cutter = volume_to_mesh(volume, 0.0, false).ok()?;
     if cutter.indices.is_empty() || cutter.positions.is_empty() {
         return None;
     }
@@ -172,11 +172,32 @@ fn cutter_inner_surface(volume: &Volume, mesh_a: &Mesh, op: i32) -> Option<Mesh>
             }
         }
     }
-    cutter.indices = kept_indices;
-    if cutter.indices.is_empty() {
+    compact_triangle_mesh(&cutter.positions, &kept_indices)
+}
+
+fn compact_triangle_mesh(positions: &[[f32; 3]], indices: &[u32]) -> Option<Mesh> {
+    if indices.is_empty() || !indices.len().is_multiple_of(3) {
         return None;
     }
-    Some(cutter)
+
+    let mut remap: HashMap<u32, u32> = HashMap::new();
+    let mut compact_positions = Vec::new();
+    let mut compact_indices = Vec::with_capacity(indices.len());
+
+    for &old_idx in indices {
+        let new_idx = if let Some(&mapped) = remap.get(&old_idx) {
+            mapped
+        } else {
+            let position = *positions.get(old_idx as usize)?;
+            let mapped = compact_positions.len() as u32;
+            compact_positions.push(position);
+            remap.insert(old_idx, mapped);
+            mapped
+        };
+        compact_indices.push(new_idx);
+    }
+
+    Some(Mesh::with_positions_indices(compact_positions, compact_indices))
 }
 
 fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Result<Mesh, String> {
@@ -1619,4 +1640,106 @@ fn closest_point_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (Vec3, [f32;
     let u = 1.0 - v - w;
     let point = a + ab * v + ac * w;
     (point, [u, v, w])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::volume::{Volume, VolumeKind};
+
+    #[test]
+    fn mesh_sdf_difference_keeps_mesh_buffers_consistent() {
+        let mesh_a = crate::mesh::make_box([1.8, 1.8, 1.8]);
+        let cutter_volume = sphere_sdf_volume(1.0, [0.0, 0.0, 0.0], [48, 48, 48], 0.05);
+        let params = NodeParams {
+            values: BTreeMap::from([
+                ("mode".to_string(), ParamValue::String("mesh_sdf".to_string())),
+                ("op".to_string(), ParamValue::Int(1)),
+            ]),
+        };
+
+        let output = apply_to_geometry(
+            &params,
+            &[
+                Geometry::with_mesh(mesh_a),
+                Geometry::with_volume(cutter_volume),
+            ],
+        )
+        .expect("boolean geo should succeed");
+        let mesh = output.merged_mesh().expect("boolean output mesh");
+        assert!(
+            !mesh.indices.is_empty(),
+            "test setup should produce a non-empty result"
+        );
+
+        assert_mesh_consistent(&mesh);
+    }
+
+    fn sphere_sdf_volume(
+        radius: f32,
+        center: [f32; 3],
+        dims: [u32; 3],
+        voxel_size: f32,
+    ) -> Volume {
+        let half = [
+            (dims[0].saturating_sub(1)) as f32 * voxel_size * 0.5,
+            (dims[1].saturating_sub(1)) as f32 * voxel_size * 0.5,
+            (dims[2].saturating_sub(1)) as f32 * voxel_size * 0.5,
+        ];
+        let origin = [
+            center[0] - half[0],
+            center[1] - half[1],
+            center[2] - half[2],
+        ];
+        let mut values = Vec::with_capacity(dims[0] as usize * dims[1] as usize * dims[2] as usize);
+
+        for z in 0..dims[2] {
+            for y in 0..dims[1] {
+                for x in 0..dims[0] {
+                    let p = Vec3::new(
+                        origin[0] + x as f32 * voxel_size,
+                        origin[1] + y as f32 * voxel_size,
+                        origin[2] + z as f32 * voxel_size,
+                    );
+                    let d = (p - Vec3::from(center)).length() - radius;
+                    values.push(d);
+                }
+            }
+        }
+
+        Volume::new(VolumeKind::Sdf, origin, dims, voxel_size, values)
+    }
+
+    fn assert_mesh_consistent(mesh: &Mesh) {
+        let face_index_sum = if mesh.face_counts.is_empty() {
+            mesh.indices.len()
+        } else {
+            mesh.face_counts.iter().map(|&count| count as usize).sum()
+        };
+        assert_eq!(
+            face_index_sum,
+            mesh.indices.len(),
+            "face_counts must exactly cover index buffer"
+        );
+
+        for &idx in &mesh.indices {
+            assert!(
+                (idx as usize) < mesh.positions.len(),
+                "index out of range: {idx} >= {}",
+                mesh.positions.len()
+            );
+        }
+
+        if mesh.positions.is_empty() {
+            return;
+        }
+        let mut referenced = vec![false; mesh.positions.len()];
+        for &idx in &mesh.indices {
+            referenced[idx as usize] = true;
+        }
+        assert!(
+            referenced.iter().all(|used| *used),
+            "mesh contains unreferenced points"
+        );
+    }
 }
