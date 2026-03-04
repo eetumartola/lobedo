@@ -7,7 +7,9 @@ use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-use egui::{vec2, Color32, Frame, LayerId, Pos2, Rect, Sense, Stroke, Ui, UiBuilder};
+use egui::{
+    vec2, Color32, Frame, LayerId, PointerButton, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
+};
 use egui_snarl::ui::{BackgroundPattern, SnarlStyle};
 use egui_snarl::{InPinId, OutPinId, Snarl};
 
@@ -465,7 +467,9 @@ impl NodeGraphState {
             UiBuilder::new()
                 .layer_id(notes_layer)
                 .max_rect(ui.max_rect())
-                .sense(Sense::click()),
+                // Keep the full overlay non-interactive so background graph pan/drag still works.
+                // Individual note widgets below use explicit interact/put calls and remain interactive.
+                .sense(Sense::hover()),
         );
         note_ui.set_clip_rect(ui.max_rect());
         let to_global = if self.graph_transform.valid {
@@ -524,7 +528,7 @@ impl NodeGraphState {
                 Sense::click_and_drag(),
             );
             if header_resp.dragged() {
-                drag_delta = header_resp.drag_delta();
+                drag_delta = header_resp.drag_motion();
                 hit_note = true;
             }
             if header_resp.clicked() || header_resp.drag_started() {
@@ -539,10 +543,28 @@ impl NodeGraphState {
                 Pos2::new(note_rect.max.x - pad_x, note_rect.max.y - pad_x),
             );
             if body_rect.is_positive() {
+                let text_id = id.with("text");
+                let start_edit = note_ui.input(|input| {
+                    if !input.pointer.button_double_clicked(PointerButton::Primary) {
+                        return false;
+                    }
+                    input
+                        .pointer
+                        .interact_pos()
+                        .is_some_and(|pos| body_rect.contains(pos))
+                });
+                if start_edit {
+                    note_ui.memory_mut(|m| m.request_focus(text_id));
+                    self.selected_note = Some(note.id);
+                    self.selected_node = None;
+                    hit_note = true;
+                }
+                let editing = note_ui.memory(|m| m.has_focus(text_id));
                 let text_edit = egui::TextEdit::multiline(&mut note.text)
-                    .id(id.with("text"))
+                    .id(text_id)
                     .frame(false)
                     .desired_width(body_rect.width())
+                    .interactive(editing)
                     .font(egui::FontId::proportional(14.0 * scale));
                 let response = note_ui.put(body_rect, text_edit);
                 if response.changed() {
@@ -561,8 +583,7 @@ impl NodeGraphState {
                 let Some(pos) = input.pointer.interact_pos() else {
                     return;
                 };
-                if !note_rect.contains(pos) || header_rect.contains(pos) || body_rect.contains(pos)
-                {
+                if !note_rect.contains(pos) || header_rect.contains(pos) {
                     return;
                 }
                 self.selected_note = Some(note.id);

@@ -15,8 +15,7 @@ fn resolve_kind(help_key: &str) -> Option<BuiltinNodeKind> {
 }
 
 pub fn help_summary(kind: BuiltinNodeKind) -> Option<&'static str> {
-    node_help_page_for_kind(kind)
-        .and_then(|page| page.description.first().copied())
+    node_help_page_for_kind(kind).and_then(|page| page.description.first().copied())
 }
 
 pub fn node_help_page(help_key: &str) -> Option<NodeHelpPage> {
@@ -734,7 +733,7 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             name: "Attribute Transfer",
             description: &[
                 "Transfers attributes from a source input onto a target input.",
-                "Values are sampled from the nearest source elements.",
+                "Values are sampled from nearby source elements.",
                 "Use it to copy color, masks, or metadata between geometries.",
             ],
             inputs: &["target: Geometry to receive attributes.", "source: Geometry providing attributes."],
@@ -742,6 +741,9 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             parameters: &[
                 ("attr", "Space-delimited list of attributes."),
                 ("domain", "Attribute domain to transfer."),
+                ("max_radius", "Maximum transfer distance (0 = unlimited)."),
+                ("sample_count", "Maximum number of source samples considered."),
+                ("combine", "How multiple nearby samples are combined."),
                 ("group", "Restrict to a group."),
                 ("group_type", "Group domain to use."),
             ],
@@ -785,5 +787,3 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
-
-

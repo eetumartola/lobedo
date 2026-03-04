@@ -118,7 +118,7 @@ Functions: `edit_param` (L21-L193), `edit_param_with_spec` (L195-L447), `edit_gr
 
 ## crates/app/src/node_graph/state.rs
 Description: State module.
-Functions: `default` (L109-L155), `hit_test` (L173-L178), `reset` (L207-L209), `error_message` (L211-L213), `take_write_request` (L215-L217), `show` (L219-L334), `take_changed` (L336-L340), `take_layout_changed` (L342-L346), `handle_header_click` (L348-L389), `compute_dim_nodes` (L391-L411), `preflight_flag_click` (L413-L432), `add_note` (L435-L449), `show_notes` (L451-L587), `set_error_state` (L589-L592), `set_dirty_nodes` (L594-L600), `selected_node_id` (L602-L604), `selected_note_id` (L606-L608), `delete_selected_note` (L610-L621), `delete_selected_node` (L623-L628), `delete_node` (L630-L666), `node_at_screen_pos` (L668-L676), `take_info_request` (L678-L680), `take_wrangle_help_request` (L682-L684), `zoom_at` (L686-L700), `fit_to_rect` (L702-L728), `progress_sink` (L730-L737), `progress_snapshot` (L739-L746), `on_event` (L750-L786), `snapshot` (L788-L813)
+Functions: `default` (L111-L157), `hit_test` (L175-L180), `reset` (L209-L211), `error_message` (L213-L215), `take_write_request` (L217-L219), `show` (L221-L336), `take_changed` (L338-L342), `take_layout_changed` (L344-L348), `handle_header_click` (L350-L391), `compute_dim_nodes` (L393-L413), `preflight_flag_click` (L415-L434), `add_note` (L437-L451), `show_notes` (L453-L608), `set_error_state` (L610-L613), `set_dirty_nodes` (L615-L621), `selected_node_id` (L623-L625), `selected_note_id` (L627-L629), `delete_selected_note` (L631-L642), `delete_selected_node` (L644-L649), `delete_node` (L651-L687), `node_at_screen_pos` (L689-L697), `take_info_request` (L699-L701), `take_wrangle_help_request` (L703-L705), `zoom_at` (L707-L721), `fit_to_rect` (L723-L749), `progress_sink` (L751-L758), `progress_snapshot` (L760-L767), `on_event` (L771-L807), `snapshot` (L809-L834)
 
 ## crates/app/src/node_graph/state_inspector.rs
 Description: State Inspector module.
@@ -214,7 +214,7 @@ Functions: `make_box` (L5-L5), `make_grid` (L34-L34), `make_uv_sphere` (L73-L127
 
 ## crates/core/src/node_help.rs
 Description: Node Help module.
-Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L20), `node_help_page` (L22-L25), `node_help_page_for_kind` (L27-L787)
+Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L19), `node_help_page` (L21-L24), `node_help_page_for_kind` (L26-L789)
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
@@ -254,7 +254,7 @@ Functions: `from_params` (L36-L50), `definition` (L53-L60), `default_params` (L6
 
 ## crates/core/src/nodes/attribute_transfer.rs
 Description: Attribute Transfer module.
-Functions: `definition` (L29-L36), `default_params` (L38-L47), `param_specs` (L49-L77), `compute` (L79-L98), `apply_to_geometry` (L100-L138), `len` (L151-L160), `build_source_samples_geometry` (L164-L179), `build_source_samples_mesh` (L181-L190), `append_samples_from_mesh` (L192-L208), `append_samples_from_splats` (L210-L226), `append_samples` (L228-L353), `apply_transfer_to_mesh` (L355-L463), `apply_transfer_to_splats` (L465-L576), `transfer_values` (L578-L602), `append_string_table_values` (L604-L627), `merge_string_tables` (L629-L659), `find_nearest_index` (L661-L672)
+Functions: `definition` (L30-L37), `default_params` (L39-L57), `param_specs` (L59-L92), `compute` (L94-L106), `apply_to_geometry` (L108-L147), `len` (L178-L187), `transfer_settings` (L212-L234), `build_source_samples_geometry` (L236-L251), `build_source_samples_mesh` (L253-L262), `append_samples_from_mesh` (L264-L280), `append_samples_from_splats` (L282-L298), `append_samples` (L300-L425), `apply_transfer_to_mesh` (L427-L596), `apply_transfer_to_splats` (L598-L770), `transfer_values_with_options` (L772-L798), `nearest_neighbors` (L800-L836), `combine_float` (L838-L902), `combine_int` (L904-L968), `combine_vec2` (L970-L972), `combine_vec3` (L1040-L1042), `combine_vec4` (L1122-L1124), `combine_string_index` (L1210-L1262), `append_string_table_values` (L1264-L1288), `merge_string_tables` (L1290-L1320), `params_with_overrides` (L1327-L1333), `transfer_average_respects_sample_count` (L1336-L1361), `transfer_max_radius_keeps_existing_value_when_no_neighbor` (L1364-L1394), `transfer_max_mode_uses_largest_of_neighbors` (L1397-L1421)
 
 ## crates/core/src/nodes/attribute_utils.rs
 Description: Attribute Utils module.
@@ -302,7 +302,7 @@ Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L3
 
 ## crates/core/src/nodes/depth_image.rs
 Description: Depth Image module.
-Functions: `definition` (L44-L55), `default_params` (L57-L66), `param_specs` (L68-L80), `compute` (L82-L193), `run_depthpro` (L196-L322), `run_sam` (L325-L460), `find_model_path` (L463-L488), `find_sam_model_paths` (L491-L546), `preprocess_sam_image` (L549-L606), `build_sam_session` (L609-L633), `run_sam_encoder` (L642-L698), `run_sam_decoder` (L701-L876), `resolve_ort_dylib_path` (L920-L952), `ensure_ort_initialized` (L955-L984), `run_model_tensor` (L987-L1061), `finite_min_max` (L1063-L1081), `input_signature` (L1084-L1094), `resize_depth` (L1097-L1148)
+Functions: `definition` (L44-L55), `default_params` (L57-L66), `param_specs` (L68-L80), `compute` (L82-L193), `run_depthpro` (L196-L322), `run_sam` (L325-L460), `find_model_path` (L463-L488), `find_sam_model_paths` (L491-L546), `preprocess_sam_image` (L549-L606), `build_sam_session` (L609-L633), `run_sam_encoder` (L642-L698), `run_sam_decoder` (L701-L878), `resolve_ort_dylib_path` (L922-L954), `ensure_ort_initialized` (L957-L986), `run_model_tensor` (L989-L1063), `finite_min_max` (L1065-L1083), `input_signature` (L1086-L1096), `resize_depth` (L1099-L1150)
 
 ## crates/core/src/nodes/depth_to_splats.rs
 Description: Depth To Splats module.

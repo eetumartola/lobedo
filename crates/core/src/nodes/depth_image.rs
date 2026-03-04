@@ -731,10 +731,12 @@ fn run_sam_decoder(
             provided.push((std::borrow::Cow::Owned(name.clone()), point_coords.into()));
         } else if key.contains("point") && key.contains("label") {
             provided.push((std::borrow::Cow::Owned(name.clone()), point_labels.into()));
+        } else if key.contains("has_mask") {
+            // Must be checked before `mask_input` because names like `has_mask_input`
+            // also contain the `mask_input` substring.
+            provided.push((std::borrow::Cow::Owned(name.clone()), has_mask_input.into()));
         } else if key.contains("mask_input") {
             provided.push((std::borrow::Cow::Owned(name.clone()), mask_input.into()));
-        } else if key.contains("has_mask") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), has_mask_input.into()));
         } else if key.contains("orig") && key.contains("size") {
             provided.push((std::borrow::Cow::Owned(name.clone()), orig_im_size.into()));
         }
