@@ -7,14 +7,12 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::{existing_float_attr_mesh, existing_float_attr_splats},
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Erosion Noise";
@@ -48,7 +46,10 @@ pub fn default_params() -> NodeParams {
             ("erosion_roughness".to_string(), ParamValue::Float(0.3)),
             ("erosion_lacunarity".to_string(), ParamValue::Float(2.17)),
             ("erosion_slope_strength".to_string(), ParamValue::Float(2.0)),
-            ("erosion_branch_strength".to_string(), ParamValue::Float(2.5)),
+            (
+                "erosion_branch_strength".to_string(),
+                ParamValue::Float(2.5),
+            ),
             ("do_mask".to_string(), ParamValue::Bool(false)),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
@@ -69,20 +70,15 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("erosion_lacunarity", "Erosion Lacunarity", 1.0, 4.0)
             .with_help("Frequency growth per octave."),
         ParamSpec::float_slider("erosion_slope_strength", "Erosion Slope Str.", 0.0, 5.0)
-        .with_help("Slope influence on flow."),
+            .with_help("Slope influence on flow."),
         ParamSpec::float_slider("erosion_branch_strength", "Erosion Branch Str.", 0.0, 5.0)
-        .with_help("Branching influence on flow."),
+            .with_help("Branching influence on flow."),
         ParamSpec::bool("do_mask", "Output Mask").with_help("Write erosion mask to @mask."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -157,9 +153,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         }
 
         parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
-            if mask
-                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-            {
+            if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                 return;
             }
             let position = Vec3::from(base_positions[idx]);
@@ -191,9 +185,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     } else {
         let mut new_positions = base_positions.clone();
         parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {
-            if mask
-                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-            {
+            if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                 return;
             }
             let position = Vec3::from(base_positions[idx]);
@@ -275,9 +267,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         }
 
         parallel::for_each_indexed_mut(&mut samples, |idx, sample| {
-            if mask
-                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-            {
+            if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                 return;
             }
             let position = Vec3::from(base_positions[idx]);
@@ -308,9 +298,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
     } else {
         let mut new_positions = base_positions.clone();
         parallel::for_each_indexed_mut(&mut new_positions, |idx, pos| {
-            if mask
-                .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-            {
+            if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                 return;
             }
             let position = Vec3::from(base_positions[idx]);
@@ -397,7 +385,11 @@ fn erosion(p: Vec2, dir: Vec2) -> Vec3 {
             let w = (-d * 2.0).exp();
             weight_sum += w;
             let mag = pp.dot(dir);
-            let sample = Vec3::new((mag * f).cos(), -(mag * f).sin() * dir.x, -(mag * f).sin() * dir.y);
+            let sample = Vec3::new(
+                (mag * f).cos(),
+                -(mag * f).sin() * dir.x,
+                -(mag * f).sin() * dir.y,
+            );
             value += sample * w;
         }
     }

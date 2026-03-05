@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::hash::{Hash, Hasher};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::{Mutex, OnceLock};
 
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
@@ -10,36 +13,95 @@ use crate::param_spec::ParamSpec;
 
 pub const NAME: &str = "Depth Image";
 
+#[cfg(not(target_arch = "wasm32"))]
 const MODEL_DIR: &str = "models/depthpro";
+#[cfg(not(target_arch = "wasm32"))]
 const MODEL_INPUT_SIZE: u32 = 1536;
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_MODEL_DIR: &str = "models/sam";
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_INPUT_SIZE: u32 = 1024;
 const SAM_GRID_DEFAULT: i32 = 8;
 const SAM_GRID_MIN: i32 = 2;
 const SAM_GRID_MAX: i32 = 64;
-const SAM_MASK_THRESHOLD: f32 = 0.0;
+const SAM_MAX_PROMPTS_DEFAULT: i32 = SAM_GRID_DEFAULT * SAM_GRID_DEFAULT;
+const SAM_MAX_PROMPTS_MIN: i32 = 1;
+const SAM_MAX_PROMPTS_MAX: i32 = SAM_GRID_MAX * SAM_GRID_MAX;
+const SAM_MASK_THRESHOLD_DEFAULT: f32 = 0.0;
+const SAM_MASK_THRESHOLD_MIN: f32 = -4.0;
+const SAM_MASK_THRESHOLD_MAX: f32 = 4.0;
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_PROMPT_LABEL: f32 = 1.0;
+const USE_DIRECTML_DEFAULT: bool = true;
+const PREFER_QUANTIZED_MODELS_DEFAULT: bool = false;
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_PIXEL_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_PIXEL_STD: [f32; 3] = [0.229, 0.224, 0.225];
+#[cfg(not(target_arch = "wasm32"))]
 const DEPTH_EPS: f32 = 1.0e-6;
+#[cfg(not(target_arch = "wasm32"))]
 const INPUT_RANGE_EPS: f32 = 1.0e-6;
+#[cfg(not(target_arch = "wasm32"))]
 const INV_DEPTH_RANGE_EPS: f32 = 1.0e-5;
+#[cfg(not(target_arch = "wasm32"))]
 const ORT_RUNTIME_DIR: &str = "models/onnxruntime";
+#[cfg(not(target_arch = "wasm32"))]
 const ORT_DIRECTML_RUNTIME_DIR: &str = "models/onnxruntime-directml";
 
-#[cfg(target_os = "windows")]
+#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
 const ORT_DYLIB_NAME: &str = "onnxruntime.dll";
-#[cfg(target_os = "linux")]
+#[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
 const ORT_DYLIB_NAME: &str = "libonnxruntime.so";
-#[cfg(target_os = "macos")]
+#[cfg(all(not(target_arch = "wasm32"), target_os = "macos"))]
 const ORT_DYLIB_NAME: &str = "libonnxruntime.dylib";
-#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(any(target_os = "windows", target_os = "linux", target_os = "macos"))
+))]
 const ORT_DYLIB_NAME: &str = "onnxruntime.dll";
 
 #[cfg(not(target_arch = "wasm32"))]
 use ort::ep::ExecutionProvider;
 #[cfg(not(target_arch = "wasm32"))]
 use ort::session::Session;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy)]
+struct DepthImageSettings {
+    debug: bool,
+    segmentation_enabled: bool,
+    sam_grid: u32,
+    sam_max_prompts: u32,
+    sam_mask_threshold: f32,
+    use_directml: bool,
+    directml_device_id: i32,
+    prefer_quantized_models: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl DepthImageSettings {
+    fn from_params(params: &NodeParams) -> Self {
+        Self {
+            debug: params.get_bool("debug", false),
+            segmentation_enabled: params.get_bool("segmentation", true),
+            sam_grid: params
+                .get_int("sam_grid", SAM_GRID_DEFAULT)
+                .clamp(SAM_GRID_MIN, SAM_GRID_MAX) as u32,
+            sam_max_prompts: params
+                .get_int("sam_max_prompts", SAM_MAX_PROMPTS_DEFAULT)
+                .clamp(SAM_MAX_PROMPTS_MIN, SAM_MAX_PROMPTS_MAX)
+                as u32,
+            sam_mask_threshold: params
+                .get_float("sam_mask_threshold", SAM_MASK_THRESHOLD_DEFAULT)
+                .clamp(SAM_MASK_THRESHOLD_MIN, SAM_MASK_THRESHOLD_MAX),
+            use_directml: params.get_bool("use_directml", USE_DIRECTML_DEFAULT),
+            directml_device_id: params.get_int("directml_device_id", 0),
+            prefer_quantized_models: params
+                .get_bool("prefer_quantized_models", PREFER_QUANTIZED_MODELS_DEFAULT),
+        }
+    }
+}
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -60,7 +122,23 @@ pub fn default_params() -> NodeParams {
             ("debug".to_string(), ParamValue::Bool(false)),
             ("segmentation".to_string(), ParamValue::Bool(true)),
             ("sam_grid".to_string(), ParamValue::Int(SAM_GRID_DEFAULT)),
+            (
+                "sam_max_prompts".to_string(),
+                ParamValue::Int(SAM_MAX_PROMPTS_DEFAULT),
+            ),
+            (
+                "sam_mask_threshold".to_string(),
+                ParamValue::Float(SAM_MASK_THRESHOLD_DEFAULT),
+            ),
+            (
+                "use_directml".to_string(),
+                ParamValue::Bool(USE_DIRECTML_DEFAULT),
+            ),
             ("directml_device_id".to_string(), ParamValue::Int(0)),
+            (
+                "prefer_quantized_models".to_string(),
+                ParamValue::Bool(PREFER_QUANTIZED_MODELS_DEFAULT),
+            ),
         ]),
     }
 }
@@ -72,10 +150,31 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::bool("segmentation", "Segmentation")
             .with_help("Run Segment Anything to produce a segmentation map."),
         ParamSpec::int_slider("sam_grid", "SAM Grid", SAM_GRID_MIN, SAM_GRID_MAX)
-            .with_help("Number of grid points per side used to seed SAM masks.")
+            .with_help("Candidate grid points per side used to seed SAM masks.")
             .visible_when_bool("segmentation", true),
+        ParamSpec::int_slider(
+            "sam_max_prompts",
+            "SAM Max Prompts",
+            SAM_MAX_PROMPTS_MIN,
+            SAM_MAX_PROMPTS_MAX,
+        )
+        .with_help("Maximum number of SAM prompt points to evaluate. This caps runtime when SAM Grid is high.")
+        .visible_when_bool("segmentation", true),
+        ParamSpec::float_slider(
+            "sam_mask_threshold",
+            "SAM Mask Threshold",
+            SAM_MASK_THRESHOLD_MIN,
+            SAM_MASK_THRESHOLD_MAX,
+        )
+        .with_help("Raw SAM mask logit threshold. Raise it to keep only more confident regions.")
+        .visible_when_bool("segmentation", true),
+        ParamSpec::bool("use_directml", "Use DirectML")
+            .with_help("Use DirectML on Windows when available. Disable it if the GPU backend is unstable."),
         ParamSpec::int("directml_device_id", "DirectML Device")
-            .with_help("DirectML device id to use on Windows (0 = default adapter)."),
+            .with_help("DirectML device id to use on Windows (0 = default adapter).")
+            .visible_when_bool("use_directml", true),
+        ParamSpec::bool("prefer_quantized_models", "Prefer Quantized Models")
+            .with_help("If both quantized and full-precision ONNX files are present, prefer quantized models for lower memory use and faster inference."),
     ]
 }
 
@@ -83,36 +182,30 @@ pub fn compute(
     params: &NodeParams,
     input: &ImageData,
 ) -> Result<(ImageData, ImageData, ImageData), String> {
-    let debug = params.get_bool("debug", false);
-    let segmentation_enabled = params.get_bool("segmentation", true);
-    let sam_grid = params
-        .get_int("sam_grid", SAM_GRID_DEFAULT)
-        .clamp(SAM_GRID_MIN, SAM_GRID_MAX) as u32;
-    let directml_device_id = params.get_int("directml_device_id", 0);
-    let (rgb, width, height) = input
-        .rgb_data()
-        .ok_or_else(|| "Depth Image requires an RGB image input".to_string())?;
-    let color = ImageData::from_rgb(width, height, rgb.to_vec())?;
-    let (input_min, input_max) = finite_min_max(rgb)
-        .ok_or_else(|| "Depth Image input contained no finite values".to_string())?;
-    if debug {
-        eprintln!(
-            "Depth Image debug: input size={}x{}, range=[{:.6}, {:.6}]",
-            width, height, input_min, input_max
-        );
-        if params.values.contains_key("depth_scale") {
-            eprintln!("Depth Image debug: depth_scale is ignored (moved to Depth to Splats).");
-        }
-    }
-
     #[cfg(target_arch = "wasm32")]
     {
+        let _ = (params, input);
         return Err("Depth Image is not supported in web builds".to_string());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let signature = input_signature(rgb, width, height, debug);
+        let settings = DepthImageSettings::from_params(params);
+        let (rgb, width, height) = input
+            .rgb_data()
+            .ok_or_else(|| "Depth Image requires an RGB image input".to_string())?;
+        let color = ImageData::from_rgb(width, height, rgb.to_vec())?;
+        let (input_min, input_max) = finite_min_max(rgb)
+            .ok_or_else(|| "Depth Image input contained no finite values".to_string())?;
+        if settings.debug {
+            eprintln!(
+                "Depth Image debug: input size={width}x{height}, range=[{input_min:.6}, {input_max:.6}]"
+            );
+            if params.values.contains_key("depth_scale") {
+                eprintln!("Depth Image debug: depth_scale is ignored (moved to Depth to Splats).");
+            }
+        }
+        let signature = input_signature(rgb, width, height, &settings);
         if let Some(cache) = DEPTH_ERROR_CACHE.get() {
             if let Ok(guard) = cache.lock() {
                 if let Some(last) = guard.as_ref() {
@@ -122,7 +215,7 @@ pub fn compute(
                 }
             }
         }
-        let mut inv_depth = run_depthpro(rgb, width, height, debug, directml_device_id)?;
+        let mut inv_depth = run_depthpro(rgb, width, height, settings)?;
         let (mut min_inv, mut max_inv) = finite_min_max(&inv_depth)
             .ok_or_else(|| "DepthPro output contained no finite values".to_string())?;
         if max_inv <= 0.0 || min_inv < 0.0 {
@@ -165,23 +258,23 @@ pub fn compute(
             }
             depth.push(z);
         }
-        if debug {
+        if settings.debug {
             if let Some((min_depth, max_depth)) = finite_min_max(&depth) {
-                eprintln!(
-                    "Depth Image debug: linear depth range=[{:.6}, {:.6}]",
-                    min_depth, max_depth
-                );
+                eprintln!("Depth Image debug: linear depth range=[{min_depth:.6}, {max_depth:.6}]");
             }
         }
         let depth = ImageData::from_depth(width, height, depth)?;
-        let seg_data = if segmentation_enabled {
-            if debug {
+        let seg_data = if settings.segmentation_enabled {
+            if settings.debug {
                 eprintln!(
-                    "Depth Image debug: running SAM segmentation (grid {}x{})",
-                    sam_grid, sam_grid
+                    "Depth Image debug: running SAM segmentation (grid {}x{}, max_prompts={}, threshold={:.3})",
+                    settings.sam_grid,
+                    settings.sam_grid,
+                    settings.sam_max_prompts,
+                    settings.sam_mask_threshold
                 );
             }
-            run_sam(rgb, width, height, sam_grid, debug, directml_device_id)?
+            run_sam(rgb, width, height, settings)?
         } else {
             vec![0u32; (width * height) as usize]
         };
@@ -204,16 +297,15 @@ fn run_depthpro(
     rgb: &[f32],
     width: u32,
     height: u32,
-    debug: bool,
-    directml_device_id: i32,
+    settings: DepthImageSettings,
 ) -> Result<Vec<f32>, String> {
     use half::f16;
     use image::imageops::{crop_imm, overlay, resize, FilterType};
     use image::{ImageBuffer, Luma, Rgb};
     use ort::value::Tensor;
 
-    let model_path = find_model_path()?;
-    ensure_ort_initialized(debug)?;
+    let model_path = find_model_path(settings.prefer_quantized_models)?;
+    ensure_ort_initialized(settings.debug)?;
     let (_, input_max) = finite_min_max(rgb)
         .ok_or_else(|| "Depth Image input contained no finite values".to_string())?;
     if input_max <= INPUT_RANGE_EPS {
@@ -236,7 +328,7 @@ fn run_depthpro(
     let resized = resize(&input, new_w, new_h, FilterType::Lanczos3);
     let pad_x = (MODEL_INPUT_SIZE - new_w) / 2;
     let pad_y = (MODEL_INPUT_SIZE - new_h) / 2;
-    if debug {
+    if settings.debug {
         eprintln!(
             "Depth Image debug: model={}, input_scale={:.6}, resized={}x{}, pad=({}, {})",
             model_path.display(),
@@ -279,9 +371,9 @@ fn run_depthpro(
     ))
     .map_err(|err| err.to_string())?;
 
-    let output_data = run_model_tensor(&model_path, input_tensor, debug, directml_device_id)?;
+    let output_data = run_model_tensor(&model_path, input_tensor, settings)?;
     let output_f32: Vec<f32> = output_data.iter().map(|v| v.to_f32()).collect();
-    if debug {
+    if settings.debug {
         if let Some((min_out, max_out)) = finite_min_max(&output_f32) {
             let sample = output_f32
                 .iter()
@@ -308,22 +400,16 @@ fn run_depthpro(
     )
     .ok_or_else(|| "Depth output buffer size mismatch".to_string())?;
     let cropped = crop_imm(&output_image, pad_x, pad_y, new_w, new_h).to_image();
-    if debug {
+    if settings.debug {
         let raw = cropped.as_raw();
         if let Some((min_crop, max_crop)) = finite_min_max(raw) {
-            eprintln!(
-                "Depth Image debug: cropped range=[{:.6}, {:.6}]",
-                min_crop, max_crop
-            );
+            eprintln!("Depth Image debug: cropped range=[{min_crop:.6}, {max_crop:.6}]");
         }
     }
     let raw = resize_depth(cropped.as_raw(), new_w, new_h, width, height);
-    if debug {
+    if settings.debug {
         if let Some((min_resize, max_resize)) = finite_min_max(&raw) {
-            eprintln!(
-                "Depth Image debug: resized range=[{:.6}, {:.6}]",
-                min_resize, max_resize
-            );
+            eprintln!("Depth Image debug: resized range=[{min_resize:.6}, {max_resize:.6}]");
         }
     }
     Ok(raw)
@@ -334,14 +420,12 @@ fn run_sam(
     rgb: &[f32],
     width: u32,
     height: u32,
-    grid: u32,
-    debug: bool,
-    directml_device_id: i32,
+    settings: DepthImageSettings,
 ) -> Result<Vec<u32>, String> {
     use ort::value::Tensor;
 
-    let (encoder_path, decoder_path) = find_sam_model_paths()?;
-    ensure_ort_initialized(debug)?;
+    let (encoder_path, decoder_path) = find_sam_model_paths(settings.prefer_quantized_models)?;
+    ensure_ort_initialized(settings.debug)?;
     let store = SAM_MODEL.get_or_init(|| Mutex::new(None));
     let mut guard = store
         .lock()
@@ -351,28 +435,40 @@ fn run_sam(
         .map(|cache| {
             cache.encoder_path != encoder_path
                 || cache.decoder_path != decoder_path
-                || cache.directml_device_id != directml_device_id
+                || cache.directml_device_id != settings.directml_device_id
+                || cache.use_directml != settings.use_directml
         })
         .unwrap_or(true);
     if needs_reload {
-        if debug {
+        if settings.debug {
             eprintln!(
                 "Depth Image debug: loading SAM encoder {}",
                 encoder_path.display()
             );
         }
-        let encoder = build_sam_session(&encoder_path, directml_device_id, debug)?;
-        if debug {
+        let encoder = build_sam_session(
+            &encoder_path,
+            settings.use_directml,
+            settings.directml_device_id,
+            settings.debug,
+        )?;
+        if settings.debug {
             eprintln!(
                 "Depth Image debug: loading SAM decoder {}",
                 decoder_path.display()
             );
         }
-        let decoder = build_sam_session(&decoder_path, directml_device_id, debug)?;
+        let decoder = build_sam_session(
+            &decoder_path,
+            settings.use_directml,
+            settings.directml_device_id,
+            settings.debug,
+        )?;
         *guard = Some(SamModelCache {
             encoder_path: encoder_path.clone(),
             decoder_path: decoder_path.clone(),
-            directml_device_id,
+            use_directml: settings.use_directml,
+            directml_device_id: settings.directml_device_id,
             encoder,
             decoder,
         });
@@ -381,13 +477,14 @@ fn run_sam(
         .as_mut()
         .ok_or_else(|| "SAM model cache unavailable".to_string())?;
 
-    let (input_data, new_w, new_h, scale) = preprocess_sam_image(rgb, width, height, debug)?;
+    let (input_data, new_w, new_h, scale) =
+        preprocess_sam_image(rgb, width, height, settings.debug)?;
     let input_tensor = Tensor::from_array((
         [1usize, 3, SAM_INPUT_SIZE as usize, SAM_INPUT_SIZE as usize],
         input_data.into_boxed_slice(),
     ))
     .map_err(|err| err.to_string())?;
-    let embedding = run_sam_encoder(&mut cache.encoder, input_tensor, debug)?;
+    let embedding = run_sam_encoder(&mut cache.encoder, input_tensor, settings.debug)?;
     let embed_tensor = Tensor::from_array((embedding.shape, embedding.data.into_boxed_slice()))
         .map_err(|err| err.to_string())?;
     let mask_size = (embedding.shape[2] * 4).max(1) as usize;
@@ -404,57 +501,59 @@ fn run_sam(
     ))
     .map_err(|err| err.to_string())?;
 
-    let grid = grid.max(1);
-    let step_x = width as f32 / grid as f32;
-    let step_y = height as f32 / grid as f32;
+    let prompt_cells = plan_sam_prompt_cells(settings.sam_grid, settings.sam_max_prompts);
+    let step_x = width as f32 / settings.sam_grid.max(1) as f32;
+    let step_y = height as f32 / settings.sam_grid.max(1) as f32;
     let pixel_count = (width * height) as usize;
     let mut seg_ids = vec![0u32; pixel_count];
     let mut seg_scores = vec![f32::NEG_INFINITY; pixel_count];
     let mut segment_id = 1u32;
 
-    for gy in 0..grid {
+    for (gx, gy) in prompt_cells {
         let y = (gy as f32 + 0.5) * step_y;
         let y_scaled = (y * scale).clamp(0.0, new_h as f32 - 1.0);
-        for gx in 0..grid {
-            let x = (gx as f32 + 0.5) * step_x;
-            let x_scaled = (x * scale).clamp(0.0, new_w as f32 - 1.0);
-            let point_coords =
-                Tensor::from_array(([1usize, 1, 2], vec![x_scaled, y_scaled].into_boxed_slice()))
-                    .map_err(|err| err.to_string())?;
-            let point_labels =
-                Tensor::from_array(([1usize, 1], vec![SAM_PROMPT_LABEL].into_boxed_slice()))
-                    .map_err(|err| err.to_string())?;
-            let mask = run_sam_decoder(
-                &mut cache.decoder,
-                &embed_tensor,
-                &point_coords,
-                &point_labels,
-                &mask_input,
-                &has_mask_input,
-                &orig_im_size,
+        let x = (gx as f32 + 0.5) * step_x;
+        let x_scaled = (x * scale).clamp(0.0, new_w as f32 - 1.0);
+        let point_coords =
+            Tensor::from_array(([1usize, 1, 2], vec![x_scaled, y_scaled].into_boxed_slice()))
+                .map_err(|err| err.to_string())?;
+        let point_labels =
+            Tensor::from_array(([1usize, 1], vec![SAM_PROMPT_LABEL].into_boxed_slice()))
+                .map_err(|err| err.to_string())?;
+        let mask = run_sam_decoder(
+            &mut cache.decoder,
+            SamDecoderInputs {
+                embedding: &embed_tensor,
+                point_coords: &point_coords,
+                point_labels: &point_labels,
+                mask_input: &mask_input,
+                has_mask_input: &has_mask_input,
+                orig_im_size: &orig_im_size,
+            },
+            SamDecoderImageInfo {
                 new_w,
                 new_h,
                 width,
                 height,
-                debug,
-            )?;
-            if mask.is_empty() {
+                debug: settings.debug,
+            },
+        )?;
+        if mask.is_empty() {
+            continue;
+        }
+        let mut had_hit = false;
+        for (idx, &value) in mask.iter().enumerate() {
+            if value <= settings.sam_mask_threshold {
                 continue;
             }
-            let mut had_hit = false;
-            for (idx, &value) in mask.iter().enumerate() {
-                if value <= SAM_MASK_THRESHOLD {
-                    continue;
-                }
-                if value > seg_scores[idx] {
-                    seg_scores[idx] = value;
-                    seg_ids[idx] = segment_id;
-                    had_hit = true;
-                }
+            if value > seg_scores[idx] {
+                seg_scores[idx] = value;
+                seg_ids[idx] = segment_id;
+                had_hit = true;
             }
-            if had_hit {
-                segment_id = segment_id.saturating_add(1);
-            }
+        }
+        if had_hit {
+            segment_id = segment_id.saturating_add(1);
         }
     }
 
@@ -462,7 +561,26 @@ fn run_sam(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn find_model_path() -> Result<PathBuf, String> {
+fn model_path_is_quantized(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .contains("quant")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn pick_model_path(mut candidates: Vec<PathBuf>, prefer_quantized: bool) -> Option<PathBuf> {
+    candidates.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    candidates
+        .iter()
+        .find(|path| model_path_is_quantized(path) == prefer_quantized)
+        .cloned()
+        .or_else(|| candidates.into_iter().next())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn find_model_path(prefer_quantized: bool) -> Result<PathBuf, String> {
     let dir = Path::new(MODEL_DIR);
     if !dir.exists() {
         return Err(format!(
@@ -485,15 +603,12 @@ fn find_model_path() -> Result<PathBuf, String> {
             }
         }
     }
-    candidates.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-    candidates
-        .into_iter()
-        .next()
+    pick_model_path(candidates, prefer_quantized)
         .ok_or_else(|| "No DepthPro ONNX model found in models/depthpro".to_string())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn find_sam_model_paths() -> Result<(PathBuf, PathBuf), String> {
+fn find_sam_model_paths(prefer_quantized: bool) -> Result<(PathBuf, PathBuf), String> {
     let dir = Path::new(SAM_MODEL_DIR);
     if !dir.exists() {
         return Err(format!("SAM model directory not found: {}", dir.display()));
@@ -526,23 +641,9 @@ fn find_sam_model_paths() -> Result<(PathBuf, PathBuf), String> {
             decoders.push(path.clone());
         }
     }
-    let pick = |mut candidates: Vec<PathBuf>| -> Option<PathBuf> {
-        candidates.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-        if let Some(non_quant) = candidates.iter().find(|path| {
-            !path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase()
-                .contains("quant")
-        }) {
-            return Some(non_quant.clone());
-        }
-        candidates.into_iter().next()
-    };
-    let encoder = pick(encoders)
+    let encoder = pick_model_path(encoders, prefer_quantized)
         .ok_or_else(|| "No SAM encoder ONNX model found in models/sam".to_string())?;
-    let decoder = pick(decoders)
+    let decoder = pick_model_path(decoders, prefer_quantized)
         .ok_or_else(|| "No SAM decoder ONNX model found in models/sam".to_string())?;
     Ok((encoder, decoder))
 }
@@ -576,10 +677,7 @@ fn preprocess_sam_image(
     let new_h = (height as f32 * scale).round().max(1.0) as u32;
     let resized = resize(&input, new_w, new_h, FilterType::Lanczos3);
     if debug {
-        eprintln!(
-            "Depth Image debug: SAM resize {}x{} -> {}x{}",
-            width, height, new_w, new_h
-        );
+        eprintln!("Depth Image debug: SAM resize {width}x{height} -> {new_w}x{new_h}");
     }
     let mut padded = ImageBuffer::from_pixel(SAM_INPUT_SIZE, SAM_INPUT_SIZE, Rgb([0.0, 0.0, 0.0]));
     overlay(&mut padded, &resized, 0, 0);
@@ -603,8 +701,15 @@ fn preprocess_sam_image(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn build_sam_session(path: &Path, directml_device_id: i32, debug: bool) -> Result<Session, String> {
+fn build_sam_session(
+    path: &Path,
+    use_directml: bool,
+    directml_device_id: i32,
+    debug: bool,
+) -> Result<Session, String> {
     let mut builder = Session::builder().map_err(|err| err.to_string())?;
+    #[cfg(not(target_os = "windows"))]
+    let _ = use_directml;
     #[cfg(target_os = "windows")]
     {
         let directml = ort::ep::DirectML::default().with_device_id(directml_device_id);
@@ -614,7 +719,7 @@ fn build_sam_session(path: &Path, directml_device_id: i32, debug: bool) -> Resul
                 "Depth Image debug: SAM DirectML available={available}, device_id={directml_device_id}"
             );
         }
-        if available {
+        if use_directml && available {
             builder = builder
                 .with_execution_providers([directml.build()])
                 .map_err(|err| format!("Failed to enable DirectML: {err}"))?;
@@ -639,7 +744,7 @@ fn run_sam_encoder(
 ) -> Result<SamEmbedding, String> {
     let input_name = session
         .inputs()
-        .get(0)
+        .first()
         .map(|input| input.name().to_string())
         .unwrap_or_else(|| "input".to_string());
     if debug {
@@ -670,13 +775,10 @@ fn run_sam_encoder(
         .try_extract_tensor::<f32>()
         .map_err(|err| err.to_string())?;
     if debug {
-        eprintln!("Depth Image debug: SAM encoder output shape {:?}", shape);
+        eprintln!("Depth Image debug: SAM encoder output shape {shape:?}");
     }
     if shape.len() != 4 {
-        return Err(format!(
-            "SAM encoder output shape {:?} is unsupported",
-            shape
-        ));
+        return Err(format!("SAM encoder output shape {shape:?} is unsupported"));
     }
     let shape = [
         shape[0].max(1) as usize,
@@ -691,19 +793,30 @@ fn run_sam_encoder(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn run_sam_decoder(
-    session: &mut Session,
-    embedding: &ort::value::Tensor<f32>,
-    point_coords: &ort::value::Tensor<f32>,
-    point_labels: &ort::value::Tensor<f32>,
-    mask_input: &ort::value::Tensor<f32>,
-    has_mask_input: &ort::value::Tensor<f32>,
-    orig_im_size: &ort::value::Tensor<f32>,
+struct SamDecoderInputs<'a> {
+    embedding: &'a ort::value::Tensor<f32>,
+    point_coords: &'a ort::value::Tensor<f32>,
+    point_labels: &'a ort::value::Tensor<f32>,
+    mask_input: &'a ort::value::Tensor<f32>,
+    has_mask_input: &'a ort::value::Tensor<f32>,
+    orig_im_size: &'a ort::value::Tensor<f32>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy)]
+struct SamDecoderImageInfo {
     new_w: u32,
     new_h: u32,
     width: u32,
     height: u32,
     debug: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn run_sam_decoder(
+    session: &mut Session,
+    inputs: SamDecoderInputs<'_>,
+    image_info: SamDecoderImageInfo,
 ) -> Result<Vec<f32>, String> {
     use image::imageops::{crop_imm, resize, FilterType};
     use image::{ImageBuffer, Luma};
@@ -721,19 +834,37 @@ fn run_sam_decoder(
     for name in &input_names {
         let key = name.to_ascii_lowercase();
         if key.contains("image") && key.contains("emb") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), embedding.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.embedding.into(),
+            ));
         } else if key.contains("point") && key.contains("coord") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), point_coords.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.point_coords.into(),
+            ));
         } else if key.contains("point") && key.contains("label") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), point_labels.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.point_labels.into(),
+            ));
         } else if key.contains("has_mask") {
             // Must be checked before `mask_input` because names like `has_mask_input`
             // also contain the `mask_input` substring.
-            provided.push((std::borrow::Cow::Owned(name.clone()), has_mask_input.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.has_mask_input.into(),
+            ));
         } else if key.contains("mask_input") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), mask_input.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.mask_input.into(),
+            ));
         } else if key.contains("orig") && key.contains("size") {
-            provided.push((std::borrow::Cow::Owned(name.clone()), orig_im_size.into()));
+            provided.push((
+                std::borrow::Cow::Owned(name.clone()),
+                inputs.orig_im_size.into(),
+            ));
         }
     }
     let outputs = if provided.len() == input_count {
@@ -741,7 +872,7 @@ fn run_sam_decoder(
             .run(provided)
             .map_err(|err| format!("SAM decoder inference failed: {err}"))?
     } else {
-        if debug {
+        if image_info.debug {
             eprintln!(
                 "Depth Image debug: SAM decoder inputs fallback order, inputs=[{}]",
                 input_names.join(", ")
@@ -750,22 +881,22 @@ fn run_sam_decoder(
         if input_count == 5 {
             session
                 .run(ort::inputs![
-                    embedding,
-                    point_coords,
-                    point_labels,
-                    mask_input,
-                    has_mask_input
+                    inputs.embedding,
+                    inputs.point_coords,
+                    inputs.point_labels,
+                    inputs.mask_input,
+                    inputs.has_mask_input
                 ])
                 .map_err(|err| format!("SAM decoder inference failed: {err}"))?
         } else if input_count >= 6 {
             session
                 .run(ort::inputs![
-                    embedding,
-                    point_coords,
-                    point_labels,
-                    mask_input,
-                    has_mask_input,
-                    orig_im_size
+                    inputs.embedding,
+                    inputs.point_coords,
+                    inputs.point_labels,
+                    inputs.mask_input,
+                    inputs.has_mask_input,
+                    inputs.orig_im_size
                 ])
                 .map_err(|err| format!("SAM decoder inference failed: {err}"))?
         } else {
@@ -791,8 +922,8 @@ fn run_sam_decoder(
     let (mask_shape, mask_data) = mask_output
         .try_extract_tensor::<f32>()
         .map_err(|err| err.to_string())?;
-    if debug {
-        eprintln!("Depth Image debug: SAM mask shape {:?}", mask_shape);
+    if image_info.debug {
+        eprintln!("Depth Image debug: SAM mask shape {mask_shape:?}");
     }
 
     let (mask_count, mask_h, mask_w) = if mask_shape.len() == 4 {
@@ -809,8 +940,7 @@ fn run_sam_decoder(
         )
     } else {
         return Err(format!(
-            "SAM decoder mask output shape {:?} is unsupported",
-            mask_shape
+            "SAM decoder mask output shape {mask_shape:?} is unsupported"
         ));
     };
     let mask_len = mask_h * mask_w;
@@ -822,8 +952,8 @@ fn run_sam_decoder(
             if iou_idx < outputs.len() {
                 let iou_output = &outputs[iou_idx];
                 if let Ok((iou_shape, iou_data)) = iou_output.try_extract_tensor::<f32>() {
-                    if debug {
-                        eprintln!("Depth Image debug: SAM IoU shape {:?}", iou_shape);
+                    if image_info.debug {
+                        eprintln!("Depth Image debug: SAM IoU shape {iou_shape:?}");
                     }
                     let mut best = 0;
                     let mut best_score = f32::NEG_INFINITY;
@@ -859,20 +989,24 @@ fn run_sam_decoder(
     )
     .ok_or_else(|| "SAM mask buffer size mismatch".to_string())?;
 
-    if mask_image.width() == width && mask_image.height() == height {
+    if mask_image.width() == image_info.width && mask_image.height() == image_info.height {
         return Ok(mask_image.into_raw());
     }
 
     // SAM decoders may output masks in a square padded-canvas space (for example 256x256 or 1024x1024),
     // even when the resized image is non-square. Crop the valid top-left region before upscaling.
     if is_almost_square(mask_image.width(), mask_image.height())
-        && (new_w != SAM_INPUT_SIZE || new_h != SAM_INPUT_SIZE)
+        && (image_info.new_w != SAM_INPUT_SIZE || image_info.new_h != SAM_INPUT_SIZE)
     {
-        let (crop_w, crop_h) =
-            padded_canvas_crop_size(mask_image.width(), mask_image.height(), new_w, new_h);
+        let (crop_w, crop_h) = padded_canvas_crop_size(
+            mask_image.width(),
+            mask_image.height(),
+            image_info.new_w,
+            image_info.new_h,
+        );
         if (crop_w < mask_image.width() || crop_h < mask_image.height()) && crop_w > 0 && crop_h > 0
         {
-            if debug {
+            if image_info.debug {
                 eprintln!(
                     "Depth Image debug: SAM crop padded canvas {}x{} -> {}x{}",
                     mask_image.width(),
@@ -885,22 +1019,96 @@ fn run_sam_decoder(
         }
     }
 
-    if mask_image.width() != new_w || mask_image.height() != new_h {
-        mask_image = resize(&mask_image, new_w, new_h, FilterType::Triangle);
+    if mask_image.width() != image_info.new_w || mask_image.height() != image_info.new_h {
+        mask_image = resize(
+            &mask_image,
+            image_info.new_w,
+            image_info.new_h,
+            FilterType::Triangle,
+        );
     }
-    if mask_image.width() != width || mask_image.height() != height {
-        mask_image = resize(&mask_image, width, height, FilterType::Triangle);
+    if mask_image.width() != image_info.width || mask_image.height() != image_info.height {
+        mask_image = resize(
+            &mask_image,
+            image_info.width,
+            image_info.height,
+            FilterType::Triangle,
+        );
     }
 
     Ok(mask_image.into_raw())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn evenly_spaced_axis_indices(grid: u32, count: u32) -> Vec<u32> {
+    let grid = grid.max(1);
+    let count = count.clamp(1, grid);
+    if count == grid {
+        return (0..grid).collect();
+    }
+    if count == 1 {
+        return vec![grid / 2];
+    }
+    let last = grid - 1;
+    let mut indices = Vec::with_capacity(count as usize);
+    for idx in 0..count {
+        let pos = ((idx as f32) * last as f32 / (count - 1) as f32).round() as u32;
+        if indices.last().copied() != Some(pos) {
+            indices.push(pos);
+        }
+    }
+    let mut candidate = 0;
+    while indices.len() < count as usize {
+        if !indices.contains(&candidate) {
+            indices.push(candidate);
+        }
+        candidate += 1;
+    }
+    indices.sort_unstable();
+    indices
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn plan_sam_prompt_cells(grid: u32, max_prompts: u32) -> Vec<(u32, u32)> {
+    let grid = grid.max(1);
+    let total = grid.saturating_mul(grid).max(1);
+    let budget = max_prompts.clamp(1, total);
+    if budget == total {
+        let mut cells = Vec::with_capacity(total as usize);
+        for gy in 0..grid {
+            for gx in 0..grid {
+                cells.push((gx, gy));
+            }
+        }
+        return cells;
+    }
+
+    let rows = (budget as f32).sqrt().ceil().max(1.0) as u32;
+    let rows = rows.min(grid);
+    let cols = budget.div_ceil(rows).clamp(1, grid);
+    let ys = evenly_spaced_axis_indices(grid, rows);
+    let xs = evenly_spaced_axis_indices(grid, cols);
+
+    let mut cells = Vec::with_capacity(budget as usize);
+    for gy in ys {
+        for &gx in &xs {
+            cells.push((gx, gy));
+            if cells.len() == budget as usize {
+                return cells;
+            }
+        }
+    }
+    cells
+}
+
+#[cfg(any(not(target_arch = "wasm32"), test))]
 fn is_almost_square(width: u32, height: u32) -> bool {
     let max_side = width.max(height).max(1);
     let delta = width.abs_diff(height);
     delta * 20 <= max_side
 }
 
+#[cfg(any(not(target_arch = "wasm32"), test))]
 fn padded_canvas_crop_size(mask_w: u32, mask_h: u32, new_w: u32, new_h: u32) -> (u32, u32) {
     let crop_w = ((mask_w as f32 * new_w as f32 / SAM_INPUT_SIZE as f32).round() as u32)
         .clamp(1, mask_w.max(1));
@@ -912,6 +1120,7 @@ fn padded_canvas_crop_size(mask_w: u32, mask_h: u32, new_w: u32, new_h: u32) -> 
 #[cfg(not(target_arch = "wasm32"))]
 struct DepthModelCache {
     path: PathBuf,
+    use_directml: bool,
     directml_device_id: i32,
     session: Session,
 }
@@ -923,6 +1132,7 @@ static DEPTH_MODEL: OnceLock<Mutex<Option<DepthModelCache>>> = OnceLock::new();
 struct SamModelCache {
     encoder_path: PathBuf,
     decoder_path: PathBuf,
+    use_directml: bool,
     directml_device_id: i32,
     encoder: Session,
     decoder: Session,
@@ -1021,8 +1231,7 @@ fn ensure_ort_initialized(debug: bool) -> Result<(), String> {
 fn run_model_tensor(
     path: &Path,
     input: ort::value::Tensor<half::f16>,
-    debug: bool,
-    directml_device_id: i32,
+    settings: DepthImageSettings,
 ) -> Result<Vec<half::f16>, String> {
     let store = DEPTH_MODEL.get_or_init(|| Mutex::new(None));
     let mut guard = store
@@ -1030,24 +1239,31 @@ fn run_model_tensor(
         .map_err(|_| "Depth model lock poisoned".to_string())?;
     let needs_reload = guard
         .as_ref()
-        .map(|cache| cache.path != path || cache.directml_device_id != directml_device_id)
+        .map(|cache| {
+            cache.path != path
+                || cache.use_directml != settings.use_directml
+                || cache.directml_device_id != settings.directml_device_id
+        })
         .unwrap_or(true);
     if needs_reload {
         let mut builder = Session::builder().map_err(|err| err.to_string())?;
+        #[cfg(not(target_os = "windows"))]
+        let _ = settings.use_directml;
         #[cfg(target_os = "windows")]
         {
-            let directml = ort::ep::DirectML::default().with_device_id(directml_device_id);
+            let directml = ort::ep::DirectML::default().with_device_id(settings.directml_device_id);
             let available = directml.is_available().unwrap_or(false);
-            if debug {
+            if settings.debug {
                 eprintln!(
-                    "Depth Image debug: DirectML available={available}, device_id={directml_device_id}"
+                    "Depth Image debug: DirectML available={available}, device_id={}",
+                    settings.directml_device_id
                 );
             }
-            if available {
+            if settings.use_directml && available {
                 builder = builder
                     .with_execution_providers([directml.build()])
                     .map_err(|err| format!("Failed to enable DirectML: {err}"))?;
-                if debug {
+                if settings.debug {
                     eprintln!("Depth Image debug: DirectML requested");
                 }
             }
@@ -1055,7 +1271,7 @@ fn run_model_tensor(
         let session = builder
             .commit_from_file(path)
             .map_err(|err| format!("Failed to load DepthPro model: {err}"))?;
-        if debug {
+        if settings.debug {
             let input_names = session
                 .inputs()
                 .iter()
@@ -1074,7 +1290,8 @@ fn run_model_tensor(
         }
         *guard = Some(DepthModelCache {
             path: path.to_path_buf(),
-            directml_device_id,
+            use_directml: settings.use_directml,
+            directml_device_id: settings.directml_device_id,
             session,
         });
     }
@@ -1090,12 +1307,13 @@ fn run_model_tensor(
     let (shape, data) = output
         .try_extract_tensor::<half::f16>()
         .map_err(|err| err.to_string())?;
-    if debug {
-        eprintln!("Depth Image debug: output shape {:?}", shape);
+    if settings.debug {
+        eprintln!("Depth Image debug: output shape {shape:?}");
     }
     Ok(data.to_vec())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn finite_min_max(values: &[f32]) -> Option<(f32, f32)> {
     let mut min = f32::INFINITY;
     let mut max = f32::NEG_INFINITY;
@@ -1117,11 +1335,18 @@ fn finite_min_max(values: &[f32]) -> Option<(f32, f32)> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn input_signature(rgb: &[f32], width: u32, height: u32, debug: bool) -> u64 {
+fn input_signature(rgb: &[f32], width: u32, height: u32, settings: &DepthImageSettings) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     width.hash(&mut hasher);
     height.hash(&mut hasher);
-    debug.hash(&mut hasher);
+    settings.debug.hash(&mut hasher);
+    settings.segmentation_enabled.hash(&mut hasher);
+    settings.sam_grid.hash(&mut hasher);
+    settings.sam_max_prompts.hash(&mut hasher);
+    settings.sam_mask_threshold.to_bits().hash(&mut hasher);
+    settings.use_directml.hash(&mut hasher);
+    settings.directml_device_id.hash(&mut hasher);
+    settings.prefer_quantized_models.hash(&mut hasher);
     let stride = (rgb.len() / 1024).max(1);
     for idx in (0..rgb.len()).step_by(stride) {
         rgb[idx].to_bits().hash(&mut hasher);
@@ -1204,5 +1429,28 @@ mod tests {
         assert!(is_almost_square(256, 256));
         assert!(is_almost_square(257, 256));
         assert!(!is_almost_square(256, 171));
+    }
+
+    #[test]
+    fn sam_prompt_plan_uses_full_grid_when_budget_allows() {
+        let cells = plan_sam_prompt_cells(4, 16);
+        assert_eq!(cells.len(), 16);
+        assert_eq!(cells[0], (0, 0));
+        assert_eq!(cells[15], (3, 3));
+    }
+
+    #[test]
+    fn sam_prompt_plan_spreads_prompts_across_axes() {
+        let cells = plan_sam_prompt_cells(8, 4);
+        let mut xs = cells.iter().map(|(x, _)| *x).collect::<Vec<_>>();
+        let mut ys = cells.iter().map(|(_, y)| *y).collect::<Vec<_>>();
+        xs.sort_unstable();
+        xs.dedup();
+        ys.sort_unstable();
+        ys.dedup();
+
+        assert_eq!(cells.len(), 4);
+        assert_eq!(xs.len(), 2);
+        assert_eq!(ys.len(), 2);
     }
 }

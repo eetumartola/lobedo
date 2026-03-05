@@ -78,8 +78,14 @@ pub struct SceneSnapshot {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionShape {
-    Box { center: [f32; 3], size: [f32; 3] },
-    Sphere { center: [f32; 3], size: [f32; 3] },
+    Box {
+        center: [f32; 3],
+        size: [f32; 3],
+    },
+    Sphere {
+        center: [f32; 3],
+        size: [f32; 3],
+    },
     Plane {
         origin: [f32; 3],
         normal: [f32; 3],

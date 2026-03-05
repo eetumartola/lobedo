@@ -43,36 +43,24 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::string("attr", "Attribute").with_help("Attribute name(s) to expand."),
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to expand."),
         ParamSpec::int_enum("expand_mode", "Mode", vec![(0, "Expand"), (1, "Contract")])
             .with_help("Expand or Contract mode."),
-        ParamSpec::int_slider("iterations", "Iterations", 0, 20)
-            .with_help("Number of iterations."),
+        ParamSpec::int_slider("iterations", "Iterations", 0, 20).with_help("Number of iterations."),
     ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
-    let mut input =
-        require_mesh_input(inputs, 0, "Attribute Expand requires a mesh input")?;
+    let mut input = require_mesh_input(inputs, 0, "Attribute Expand requires a mesh input")?;
     apply_to_mesh(params, &mut input)?;
     Ok(input)
 }
@@ -106,12 +94,20 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
     let neighbors = mesh_adjacency(mesh, domain);
 
     let storage = match attr_ref {
-        AttributeRef::Float(values) => {
-            AttributeStorage::Float(expand_scalar(values, &neighbors, mask.as_deref(), iterations, mode))
-        }
-        AttributeRef::Int(values) => {
-            AttributeStorage::Int(expand_int(values, &neighbors, mask.as_deref(), iterations, mode))
-        }
+        AttributeRef::Float(values) => AttributeStorage::Float(expand_scalar(
+            values,
+            &neighbors,
+            mask.as_deref(),
+            iterations,
+            mode,
+        )),
+        AttributeRef::Int(values) => AttributeStorage::Int(expand_int(
+            values,
+            &neighbors,
+            mask.as_deref(),
+            iterations,
+            mode,
+        )),
         AttributeRef::Vec2(values) => AttributeStorage::Vec2(expand_vec2(
             values,
             &neighbors,
@@ -177,12 +173,20 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     let neighbors = vec![Vec::new(); count];
 
     let storage = match attr_ref {
-        AttributeRef::Float(values) => {
-            AttributeStorage::Float(expand_scalar(values, &neighbors, mask.as_deref(), iterations, mode))
-        }
-        AttributeRef::Int(values) => {
-            AttributeStorage::Int(expand_int(values, &neighbors, mask.as_deref(), iterations, mode))
-        }
+        AttributeRef::Float(values) => AttributeStorage::Float(expand_scalar(
+            values,
+            &neighbors,
+            mask.as_deref(),
+            iterations,
+            mode,
+        )),
+        AttributeRef::Int(values) => AttributeStorage::Int(expand_int(
+            values,
+            &neighbors,
+            mask.as_deref(),
+            iterations,
+            mode,
+        )),
         AttributeRef::Vec2(values) => AttributeStorage::Vec2(expand_vec2(
             values,
             &neighbors,

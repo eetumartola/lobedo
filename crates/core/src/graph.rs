@@ -326,7 +326,11 @@ impl Graph {
         }
 
         let link_id = self.alloc_link_id();
-        let link = Link { id: link_id, from, to };
+        let link = Link {
+            id: link_id,
+            from,
+            to,
+        };
         self.links.insert(link_id, link.clone());
         self.link_index.insert(link_id, &link);
         self.bump_revision();
@@ -346,14 +350,16 @@ impl Graph {
     }
 
     pub fn remove_link_between(&mut self, from: PinId, to: PinId) -> bool {
-        let link_id = self
-            .link_index
-            .input_link(to)
-            .and_then(|id| {
-                self.links.get(&id).filter(|link| link.from == from).map(|_| id)
-            });
+        let link_id = self.link_index.input_link(to).and_then(|id| {
+            self.links
+                .get(&id)
+                .filter(|link| link.from == from)
+                .map(|_| id)
+        });
 
-        let removed = link_id.map(|id| self.remove_link_internal(id)).unwrap_or(false);
+        let removed = link_id
+            .map(|id| self.remove_link_internal(id))
+            .unwrap_or(false);
         if removed {
             self.bump_revision();
         }
@@ -912,9 +918,7 @@ mod tests {
             name: name.to_string(),
             category: "Demo".to_string(),
             inputs: (0..inputs).map(|i| make_pin(&format!("in{i}"))).collect(),
-            outputs: (0..outputs)
-                .map(|i| make_pin(&format!("out{i}")))
-                .collect(),
+            outputs: (0..outputs).map(|i| make_pin(&format!("out{i}"))).collect(),
         }
     }
 

@@ -51,14 +51,9 @@ impl LobedoApp {
             }
         }
 
-        let left = egui::Rect::from_min_max(
-            full.min,
-            egui::pos2(separator_rect.min.x, full.max.y),
-        );
-        let right = egui::Rect::from_min_max(
-            egui::pos2(separator_rect.max.x, full.min.y),
-            full.max,
-        );
+        let left = egui::Rect::from_min_max(full.min, egui::pos2(separator_rect.min.x, full.max.y));
+        let right =
+            egui::Rect::from_min_max(egui::pos2(separator_rect.max.x, full.min.y), full.max);
         (left, right, separator_rect)
     }
 
@@ -302,10 +297,13 @@ impl LobedoApp {
             ));
         }
         let mut footer = None;
-        if node_kind == Some(BuiltinNodeKind::Group)
-            && group_shape.as_deref() == Some("selection")
+        if node_kind == Some(BuiltinNodeKind::Group) && group_shape.as_deref() == Some("selection")
         {
-            actions.push(("Select", self.group_select_active(node_id), toggle_group_select));
+            actions.push((
+                "Select",
+                self.group_select_active(node_id),
+                toggle_group_select,
+            ));
             let count = selection_count(group_selection.as_deref().unwrap_or(""));
             footer = Some(format!("Selected: {count}"));
         }
@@ -329,17 +327,13 @@ impl LobedoApp {
                     .inner_margin(egui::Margin::symmetric(8, 6));
                 frame.show(ui, |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(spacing, 0.0);
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(16.0),
-                    );
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Button, egui::FontId::proportional(16.0));
                     ui.horizontal(|ui| {
                         for (label, active, action) in &actions {
                             if ui
-                                .add_sized(
-                                    button_size,
-                                    egui::Button::new(*label).selected(*active),
-                                )
+                                .add_sized(button_size, egui::Button::new(*label).selected(*active))
                                 .clicked()
                             {
                                 action(self, node_id);
@@ -356,11 +350,8 @@ impl LobedoApp {
 
     fn show_spreadsheet_panel(&mut self, ui: &mut egui::Ui, sheet_rect: egui::Rect) {
         ui.scope_builder(egui::UiBuilder::new().max_rect(sheet_rect), |ui| {
-            ui.painter().rect_filled(
-                sheet_rect,
-                0.0,
-                egui::Color32::from_rgb(38, 38, 38),
-            );
+            ui.painter()
+                .rect_filled(sheet_rect, 0.0, egui::Color32::from_rgb(38, 38, 38));
             let frame = egui::Frame::NONE
                 .fill(egui::Color32::from_rgb(38, 38, 38))
                 .inner_margin(egui::Margin::symmetric(12, 10));
@@ -423,7 +414,11 @@ impl LobedoApp {
                 self.last_selected_node = selected;
             }
             params_height = (right_rect.height()
-                * self.project.settings.node_params_split.clamp(min_ratio, max_ratio))
+                * self
+                    .project
+                    .settings
+                    .node_params_split
+                    .clamp(min_ratio, max_ratio))
             .clamp(min_params, right_rect.height() * 0.85);
         }
         let params_ratio = if params_height > 0.0 { 1.0 } else { 0.0 };
@@ -478,11 +473,8 @@ impl LobedoApp {
         self.show_node_graph_panel(ui, graph_rect, pointer_down, undo_pushed);
 
         if params_ratio > 0.0 {
-            ui.painter().rect_filled(
-                separator_rect,
-                0.0,
-                egui::Color32::from_rgb(70, 70, 70),
-            );
+            ui.painter()
+                .rect_filled(separator_rect, 0.0, egui::Color32::from_rgb(70, 70, 70));
         }
     }
 
@@ -493,11 +485,8 @@ impl LobedoApp {
         pointer_down: bool,
         undo_pushed: &mut bool,
     ) {
-        ui.painter().rect_filled(
-            params_rect,
-            0.0,
-            egui::Color32::from_rgb(55, 55, 55),
-        );
+        ui.painter()
+            .rect_filled(params_rect, 0.0, egui::Color32::from_rgb(55, 55, 55));
         ui.scope_builder(egui::UiBuilder::new().max_rect(params_rect), |ui| {
             let frame = egui::Frame::NONE
                 .fill(egui::Color32::from_rgb(55, 55, 55))
@@ -513,7 +502,8 @@ impl LobedoApp {
                 style.visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(60, 60, 60);
                 style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(75, 75, 75);
                 style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(90, 90, 90);
-                style.visuals.widgets.inactive.bg_stroke.color = egui::Color32::from_rgb(85, 85, 85);
+                style.visuals.widgets.inactive.bg_stroke.color =
+                    egui::Color32::from_rgb(85, 85, 85);
                 style.visuals.widgets.hovered.bg_stroke.color =
                     egui::Color32::from_rgb(105, 105, 105);
                 style.visuals.widgets.active.bg_stroke.color =
@@ -525,40 +515,40 @@ impl LobedoApp {
                 style.visuals.widgets.active.bg_stroke.width = stroke_width;
                 style.visuals.extreme_bg_color = egui::Color32::from_rgb(45, 45, 45);
                 style.visuals.faint_bg_color = egui::Color32::from_rgb(55, 55, 55);
-                style.text_styles.insert(
-                    egui::TextStyle::Body,
-                    egui::FontId::proportional(16.0),
-                );
-                style.text_styles.insert(
-                    egui::TextStyle::Button,
-                    egui::FontId::proportional(16.0),
-                );
-                style.text_styles.insert(
-                    egui::TextStyle::Heading,
-                    egui::FontId::proportional(18.0),
-                );
+                style
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(16.0));
+                style
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(16.0));
+                style
+                    .text_styles
+                    .insert(egui::TextStyle::Heading, egui::FontId::proportional(18.0));
                 style.spacing.item_spacing = egui::vec2(8.0, 4.0);
                 style.spacing.interact_size = egui::vec2(44.0, 26.0);
 
                 let max_height = ui.available_height();
-                egui::ScrollArea::vertical().max_height(max_height).show(ui, |ui| {
-                    let snapshot = self.snapshot_undo();
-                    if self
-                        .node_graph
-                        .show_inspector(ui, &mut self.project.graph, Some(&self.eval_state))
-                    {
-                        self.mark_eval_dirty();
-                        if !*undo_pushed {
-                            self.queue_undo_snapshot(snapshot, pointer_down);
-                            *undo_pushed = true;
+                egui::ScrollArea::vertical()
+                    .max_height(max_height)
+                    .show(ui, |ui| {
+                        let snapshot = self.snapshot_undo();
+                        if self.node_graph.show_inspector(
+                            ui,
+                            &mut self.project.graph,
+                            Some(&self.eval_state),
+                        ) {
+                            self.mark_eval_dirty();
+                            if !*undo_pushed {
+                                self.queue_undo_snapshot(snapshot, pointer_down);
+                                *undo_pushed = true;
+                            }
                         }
-                    }
-                    if let Some(request) = self.node_graph.take_write_request() {
-                        self.handle_write_request(request);
-                    }
-                    self.show_splat_read_params(ui);
-                    self.show_uv_view_params(ui);
-                });
+                        if let Some(request) = self.node_graph.take_write_request() {
+                            self.handle_write_request(request);
+                        }
+                        self.show_splat_read_params(ui);
+                        self.show_uv_view_params(ui);
+                    });
             });
         });
     }
@@ -673,7 +663,10 @@ impl LobedoApp {
         if geometry.splats.len() > 1 {
             ui.label("Multiple splat primitives; showing the first.");
         }
-        ui.label(format!("Path: {}", node.params.get_string("path", "<unset>")));
+        ui.label(format!(
+            "Path: {}",
+            node.params.get_string("path", "<unset>")
+        ));
         ui.label(format!("Splats: {}", splat_geo.len()));
         ui.label(format!("SH coeffs/channel: {}", splat_geo.sh_coeffs));
         ui.label(format!("SH order: {}", sh_order_label(splat_geo.sh_coeffs)));

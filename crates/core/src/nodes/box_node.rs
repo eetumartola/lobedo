@@ -29,10 +29,8 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::vec3("size", "Size")
-            .with_help("Box dimensions in X/Y/Z."),
-        ParamSpec::vec3("center", "Center")
-            .with_help("Box center in world space."),
+        ParamSpec::vec3("size", "Size").with_help("Box dimensions in X/Y/Z."),
+        ParamSpec::vec3("center", "Center").with_help("Box center in world space."),
     ]
 }
 
@@ -48,4 +46,3 @@ pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(mesh)
 }
-

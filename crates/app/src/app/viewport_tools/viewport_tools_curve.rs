@@ -3,9 +3,9 @@ use glam::Vec3;
 
 use lobedo_core::{encode_curve_points, parse_curve_points, NodeId, ParamValue};
 
-use super::{GizmoAxis, LobedoApp};
 use super::viewport_tools_gizmo::{axis_color, axis_dir, gizmo_scale};
 use super::viewport_tools_math::{project_world_to_screen, viewport_view_proj};
+use super::{GizmoAxis, LobedoApp};
 
 impl LobedoApp {
     pub(super) fn append_curve_point(&mut self, node_id: NodeId, point: Vec3) -> bool {
@@ -17,7 +17,12 @@ impl LobedoApp {
         self.set_curve_points(node_id, &points)
     }
 
-    pub(super) fn update_curve_point(&mut self, node_id: NodeId, index: usize, point: Vec3) -> bool {
+    pub(super) fn update_curve_point(
+        &mut self,
+        node_id: NodeId,
+        index: usize,
+        point: Vec3,
+    ) -> bool {
         let Some(node) = self.project.graph.node(node_id) else {
             return false;
         };

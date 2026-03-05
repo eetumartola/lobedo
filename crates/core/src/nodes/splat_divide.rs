@@ -28,8 +28,7 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
-    vec![ParamSpec::string("attr", "Attribute")
-        .with_help("Attribute to split by (int/float).")]
+    vec![ParamSpec::string("attr", "Attribute").with_help("Attribute to split by (int/float).")]
 }
 
 pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {

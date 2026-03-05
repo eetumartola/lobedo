@@ -36,7 +36,15 @@ impl Drop for ProgressGuard {
 }
 
 pub fn set_progress_context(node: NodeId, sink: Option<ProgressSink>) -> ProgressGuard {
-    let prev = CONTEXT.with(|ctx| std::mem::replace(&mut *ctx.borrow_mut(), ProgressContext { sink, node: Some(node) }));
+    let prev = CONTEXT.with(|ctx| {
+        std::mem::replace(
+            &mut *ctx.borrow_mut(),
+            ProgressContext {
+                sink,
+                node: Some(node),
+            },
+        )
+    });
     ProgressGuard { prev }
 }
 

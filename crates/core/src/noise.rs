@@ -93,8 +93,7 @@ pub fn fractal_noise(
             let mut freq = 1.0;
             for i in 0..octaves {
                 let offset_seed = seed.wrapping_add(i * 1013);
-                let n =
-                    base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
+                let n = base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
                 value += n * amp;
                 amp *= roughness;
                 freq *= lacunarity;
@@ -108,8 +107,7 @@ pub fn fractal_noise(
             let mut weight = 1.0;
             for i in 0..octaves {
                 let offset_seed = seed.wrapping_add(i * 1013);
-                let n =
-                    base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
+                let n = base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
                 value += n * amp * weight;
                 let n01 = (n * 0.5 + 0.5).clamp(0.0, 1.0);
                 weight = n01;
@@ -125,8 +123,7 @@ pub fn fractal_noise(
             let mut weight = 1.0;
             for i in 0..octaves {
                 let offset_seed = seed.wrapping_add(i * 1013);
-                let n =
-                    base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
+                let n = base_noise(p * freq, offset_seed, noise_type, flow_rotation, distortion);
                 value += n * amp * weight;
                 let n01 = (n * 0.5 + 0.5).clamp(0.0, 1.0);
                 weight = (n01 * n01).clamp(0.0, 1.0);
@@ -304,7 +301,11 @@ fn smooth(v: Vec3) -> Vec3 {
 }
 
 fn fade(v: Vec3) -> Vec3 {
-    Vec3::new(fade_component(v.x), fade_component(v.y), fade_component(v.z))
+    Vec3::new(
+        fade_component(v.x),
+        fade_component(v.y),
+        fade_component(v.z),
+    )
 }
 
 fn fade_component(t: f32) -> f32 {
@@ -363,7 +364,9 @@ fn base_noise(
     let p = p * noise_type.frequency_scale();
     match noise_type {
         NoiseType::Fast => value_noise(p, seed),
-        NoiseType::SparseConvolution => worley_noise(p, seed, DistanceMetric::Euclidean, WorleyMode::F1),
+        NoiseType::SparseConvolution => {
+            worley_noise(p, seed, DistanceMetric::Euclidean, WorleyMode::F1)
+        }
         NoiseType::Alligator => {
             let n = perlin_noise(p, seed);
             let ridge = 1.0 - n.abs();
@@ -455,7 +458,12 @@ fn worley_f1_f2(p: Vec3, seed: u32, metric: DistanceMetric) -> (f32, f32) {
                 let cell_pos = cell + Vec3::new(dx as f32, dy as f32, dz as f32);
                 let feature = cell_pos
                     + Vec3::new(
-                        hash_f32(cell_pos.x as i32, cell_pos.y as i32, cell_pos.z as i32, seed),
+                        hash_f32(
+                            cell_pos.x as i32,
+                            cell_pos.y as i32,
+                            cell_pos.z as i32,
+                            seed,
+                        ),
                         hash_f32(
                             cell_pos.x as i32,
                             cell_pos.y as i32,

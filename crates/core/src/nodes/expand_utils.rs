@@ -41,7 +41,10 @@ pub fn expand_mask(
                     if current[i] {
                         continue;
                     }
-                    if list.iter().any(|&n| current.get(n).copied().unwrap_or(false)) {
+                    if list
+                        .iter()
+                        .any(|&n| current.get(n).copied().unwrap_or(false))
+                    {
                         next[i] = true;
                     }
                 }
@@ -53,7 +56,10 @@ pub fn expand_mask(
                         next[i] = false;
                         continue;
                     }
-                    if list.iter().any(|&n| !current.get(n).copied().unwrap_or(false)) {
+                    if list
+                        .iter()
+                        .any(|&n| !current.get(n).copied().unwrap_or(false))
+                    {
                         next[i] = false;
                     }
                 }

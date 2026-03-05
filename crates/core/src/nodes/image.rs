@@ -70,4 +70,3 @@ fn decode_image_bytes(data: &[u8]) -> Result<ImageData, String> {
     let data = rgb.into_raw();
     ImageData::from_rgb(width, height, data)
 }
-

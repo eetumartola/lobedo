@@ -6,9 +6,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, Strin
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
-    require_mesh_input,
+    geometry_in, geometry_out, require_mesh_input,
     splat_utils::{splat_bounds_indices, splat_cell_key, split_splats_by_group},
 };
 use crate::parallel;
@@ -43,17 +41,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Voxel size for clustering."),
         ParamSpec::int_slider("target_count", "Target Count", 0, 1_000_000)
             .with_help("Optional cap on cluster count (0 = disabled)."),
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict LOD."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict LOD."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -134,8 +126,9 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> SplatGeo {
         }
     }
 
-    let mut cluster_outputs: Vec<ClusterOutput> =
-        (0..cluster_sets.len()).map(|_| ClusterOutput::default()).collect();
+    let mut cluster_outputs: Vec<ClusterOutput> = (0..cluster_sets.len())
+        .map(|_| ClusterOutput::default())
+        .collect();
     parallel::for_each_indexed_mut(&mut cluster_outputs, |cluster_idx, output| {
         *output = compute_cluster_output(splats, &cluster_sets[cluster_idx], sh_coeffs);
     });
@@ -177,11 +170,7 @@ struct ClusterOutput {
     sh_rest: Vec<[f32; 3]>,
 }
 
-fn compute_cluster_output(
-    splats: &SplatGeo,
-    cluster: &[usize],
-    sh_coeffs: usize,
-) -> ClusterOutput {
+fn compute_cluster_output(splats: &SplatGeo, cluster: &[usize], sh_coeffs: usize) -> ClusterOutput {
     let count = cluster.len() as f32;
     let mut weights = Vec::with_capacity(cluster.len());
     let mut weight_sum = 0.0f32;
@@ -268,11 +257,7 @@ fn compute_cluster_output(
             log_scale.y.clamp(-10.0, 10.0),
             log_scale.z.clamp(-10.0, 10.0),
         );
-        let scale = Vec3::new(
-            log_scale.x.exp(),
-            log_scale.y.exp(),
-            log_scale.z.exp(),
-        );
+        let scale = Vec3::new(log_scale.x.exp(), log_scale.y.exp(), log_scale.z.exp());
         let rot = Mat3::from_quat(quat_from_rotation(splats.rotations[*idx]));
         let cov_local = Mat3::from_diagonal(scale * scale);
         let cov_world = rot * cov_local * rot.transpose();

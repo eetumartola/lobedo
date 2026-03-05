@@ -1,23 +1,33 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::hash::{Hash, Hasher};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::{Mutex, OnceLock};
 
+#[cfg(not(target_arch = "wasm32"))]
 use serde::Deserialize;
+#[cfg(not(target_arch = "wasm32"))]
 use serde_json::{json, Value};
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::assets;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::geometry_out;
 use crate::param_spec::{ParamPathKind, ParamSpec};
-use crate::splat::{
-    load_splat_ply_with_mode, load_splat_spz_with_mode, save_splat_ply_with_format, SplatGeo,
-    SplatLoadMode, SplatSaveFormat,
-};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::report_progress;
+use crate::splat::SplatGeo;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::splat::{
+    load_splat_ply_with_mode, load_splat_spz_with_mode, save_splat_ply_with_format, SplatLoadMode,
+    SplatSaveFormat,
+};
 
+#[cfg(not(target_arch = "wasm32"))]
 use tracing::warn;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -28,6 +38,7 @@ use base64::Engine;
 
 pub const NAME: &str = "WorldLabs Generate";
 
+#[cfg(not(target_arch = "wasm32"))]
 const API_BASE_URL: &str = "https://api.worldlabs.ai/marble/v1";
 const DEFAULT_MODE: i32 = 0;
 const DEFAULT_MODEL: i32 = 1;
@@ -42,31 +53,38 @@ const IO_MODE_GENERATE: i32 = 0;
 const IO_MODE_LOAD: i32 = 1;
 const LOAD_MODEL_KEY: &str = "load_model";
 const FLIP_Y_LOAD_KEY: &str = "flip_y_load";
+#[cfg(not(target_arch = "wasm32"))]
 const MARBLE_DIR: &str = "marble";
 
 const REQUEST_SNAPSHOT_KEY: &str = "request_snapshot";
 const REQUEST_TOKEN_KEY: &str = "request_token";
 
+#[cfg(not(target_arch = "wasm32"))]
 const POLL_INTERVAL_SECS: u64 = 5;
+#[cfg(not(target_arch = "wasm32"))]
 const MAX_WAIT_SECS: u64 = 900;
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 struct WorldLabsCacheEntry {
     result: WorldLabsCachedResult,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 enum WorldLabsCachedResult {
     Ok(WorldLabsAsset),
     Err(String),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 enum WorldLabsAsset {
     Ply(String),
     Spz(WorldLabsSpzUrls),
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 struct WorldLabsSpzUrls {
     res_100k: Option<String>,
@@ -74,6 +92,7 @@ struct WorldLabsSpzUrls {
     full_res: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl WorldLabsSpzUrls {
     fn is_empty(&self) -> bool {
         self.res_100k.is_none() && self.res_500k.is_none() && self.full_res.is_none()
@@ -87,14 +106,17 @@ impl WorldLabsSpzUrls {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 static WORLDLABS_CACHE: OnceLock<Mutex<HashMap<String, WorldLabsCacheEntry>>> = OnceLock::new();
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize)]
 struct GenerateWorldResponse {
     operation_id: String,
     error: Option<OperationError>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize)]
 struct GetOperationResponse {
     done: bool,
@@ -102,12 +124,14 @@ struct GetOperationResponse {
     response: Option<Value>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize)]
 struct OperationError {
     message: Option<String>,
     code: Option<i64>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize)]
 struct WorldLabsRequestSnapshot {
     mode: i32,
@@ -137,17 +161,26 @@ pub fn default_params() -> NodeParams {
             ("mode".to_string(), ParamValue::Int(DEFAULT_MODE)),
             ("text_prompt".to_string(), ParamValue::String(String::new())),
             ("image_path".to_string(), ParamValue::String(String::new())),
-            ("auto_enhance".to_string(), ParamValue::Bool(DEFAULT_AUTO_ENHANCE)),
+            (
+                "auto_enhance".to_string(),
+                ParamValue::Bool(DEFAULT_AUTO_ENHANCE),
+            ),
             ("is_pano".to_string(), ParamValue::Bool(DEFAULT_IS_PANO)),
             ("model".to_string(), ParamValue::Int(DEFAULT_MODEL)),
             ("seed".to_string(), ParamValue::Int(DEFAULT_SEED)),
             ("tags".to_string(), ParamValue::String(String::new())),
-            ("display_name".to_string(), ParamValue::String(String::new())),
+            (
+                "display_name".to_string(),
+                ParamValue::String(String::new()),
+            ),
             (
                 FLIP_Y_LOAD_KEY.to_string(),
                 ParamValue::Bool(DEFAULT_FLIP_Y_LOAD),
             ),
-            (LOAD_MODEL_KEY.to_string(), ParamValue::String(String::new())),
+            (
+                LOAD_MODEL_KEY.to_string(),
+                ParamValue::String(String::new()),
+            ),
             (
                 REQUEST_SNAPSHOT_KEY.to_string(),
                 ParamValue::String(String::new()),
@@ -376,6 +409,7 @@ pub fn compute(params: &NodeParams) -> Result<SplatGeo, String> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn worldlabs_cache() -> &'static Mutex<HashMap<String, WorldLabsCacheEntry>> {
     WORLDLABS_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -474,22 +508,26 @@ fn poll_operation(api_key: &str, operation_id: &str) -> Result<String, String> {
         }
         if start.elapsed() > Duration::from_secs(MAX_WAIT_SECS) {
             return Err(format!(
-                "WorldLabs generation timed out after {}s.",
-                MAX_WAIT_SECS
+                "WorldLabs generation timed out after {MAX_WAIT_SECS}s."
             ));
         }
         std::thread::sleep(Duration::from_secs(POLL_INTERVAL_SECS));
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn format_operation_error(prefix: &str, err: &OperationError) -> String {
-    let mut message = err.message.clone().unwrap_or_else(|| "Unknown error".to_string());
+    let mut message = err
+        .message
+        .clone()
+        .unwrap_or_else(|| "Unknown error".to_string());
     if let Some(code) = err.code {
         message = format!("{message} (code {code})");
     }
     format!("{prefix}: {message}")
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_tags(raw: &str) -> Vec<String> {
     raw.split(|c: char| c == ',' || c.is_whitespace())
         .filter(|tag| !tag.trim().is_empty())
@@ -497,6 +535,7 @@ fn parse_tags(raw: &str) -> Vec<String> {
         .collect()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn build_request(
     world_prompt: Value,
     model: &str,
@@ -533,18 +572,21 @@ fn build_request(
     Value::Object(map)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Hash)]
 struct CacheKeyInputs<'a> {
     request_token: i32,
     request_snapshot: &'a str,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn cache_key(inputs: &CacheKeyInputs<'_>) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     inputs.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn extract_worldlabs_asset(world: &Value) -> Result<WorldLabsAsset, String> {
     let assets = world
         .get("assets")
@@ -570,6 +612,7 @@ fn extract_worldlabs_asset(world: &Value) -> Result<WorldLabsAsset, String> {
     Err("WorldLabs splat assets did not include SPZ or PLY URLs.".to_string())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn extract_spz_urls(value: &Value) -> Option<WorldLabsSpzUrls> {
     let spz_urls = value.get("spz_urls")?;
     let Value::Object(map) = spz_urls else {
@@ -595,10 +638,7 @@ fn extract_spz_urls(value: &Value) -> Option<WorldLabsSpzUrls> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn save_worldlabs_spz_variants(
-    urls: &WorldLabsSpzUrls,
-    name_hint: &str,
-) -> Result<(), String> {
+fn save_worldlabs_spz_variants(urls: &WorldLabsSpzUrls, name_hint: &str) -> Result<(), String> {
     if let Some(url) = urls.res_100k.as_deref() {
         save_spz_url_to_marble(url, name_hint, "100k")?;
     }
@@ -632,7 +672,6 @@ fn save_spz_url_to_marble(url: &str, name_hint: &str, suffix: &str) -> Result<Pa
     std::fs::write(&path, data).map_err(|err| err.to_string())?;
     Ok(path)
 }
-
 
 #[cfg(not(target_arch = "wasm32"))]
 fn save_splats_to_marble(splats: &SplatGeo, name_hint: &str) -> Result<PathBuf, String> {
@@ -708,6 +747,7 @@ fn sanitize_filename(name: &str) -> String {
     out.trim_matches('_').to_string()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn find_url_with_extension(value: &Value, ext: &str) -> Option<String> {
     match value {
         Value::String(s) => {

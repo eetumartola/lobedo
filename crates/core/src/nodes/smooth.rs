@@ -11,14 +11,12 @@ use crate::nodes::{
         domain_from_params, mesh_positions_for_domain, parse_attribute_list,
         splat_positions_for_domain,
     },
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Smooth";
@@ -68,12 +66,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to smooth."),
         ParamSpec::int_enum("smooth_space", "Space", vec![(0, "World"), (1, "Surface")])
@@ -82,18 +75,12 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Neighbor radius (0 = auto/1-ring)."),
         ParamSpec::int_slider("iterations", "Iterations", 0, 20)
             .with_help("Number of smoothing passes."),
-        ParamSpec::float_slider("strength", "Str.", 0.0, 1.0)
-            .with_help("Blend strength per pass."),
+        ParamSpec::float_slider("strength", "Str.", 0.0, 1.0).with_help("Blend strength per pass."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -259,11 +246,7 @@ fn mesh_neighbors(
     }
 }
 
-fn world_neighbors_for_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    radius: f32,
-) -> Vec<Vec<usize>> {
+fn world_neighbors_for_mesh(mesh: &Mesh, domain: AttributeDomain, radius: f32) -> Vec<Vec<usize>> {
     let positions = mesh_positions_for_domain(mesh, domain);
     world_neighbors_from_positions(&positions, radius)
 }
@@ -476,12 +459,7 @@ fn primitive_adjacency(mesh: &Mesh, positions: &[Vec3]) -> Vec<Vec<(usize, f32)>
     adjacency
 }
 
-fn push_edge(
-    adjacency: &mut [Vec<(usize, f32)>],
-    positions: &[Vec3],
-    from: usize,
-    to: usize,
-) {
+fn push_edge(adjacency: &mut [Vec<(usize, f32)>], positions: &[Vec3], from: usize, to: usize) {
     if from >= adjacency.len() || to >= positions.len() {
         return;
     }
@@ -598,7 +576,11 @@ fn auto_radius_from_bounds(min: Vec3, max: Vec3, count: usize) -> f32 {
 
 fn cell_key(pos: Vec3, origin: Vec3, inv_cell: f32) -> (i32, i32, i32) {
     let rel = (pos - origin) * inv_cell;
-    (rel.x.floor() as i32, rel.y.floor() as i32, rel.z.floor() as i32)
+    (
+        rel.x.floor() as i32,
+        rel.y.floor() as i32,
+        rel.z.floor() as i32,
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -683,7 +665,6 @@ fn splat_neighbors(
     world_neighbors_from_positions(&positions, radius)
 }
 
-
 fn smooth_scalar(
     values: &[f32],
     neighbors: &[Vec<usize>],
@@ -706,7 +687,10 @@ fn smooth_scalar(
                 Some(value) => *value,
                 None => return,
             };
-            let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
+            let neigh = neighbors
+                .get(idx)
+                .map(|list| list.as_slice())
+                .unwrap_or(&[]);
             if neigh.is_empty() {
                 return;
             }
@@ -758,7 +742,10 @@ fn smooth_vec2(
                 Some(value) => *value,
                 None => return,
             };
-            let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
+            let neigh = neighbors
+                .get(idx)
+                .map(|list| list.as_slice())
+                .unwrap_or(&[]);
             if neigh.is_empty() {
                 return;
             }
@@ -803,7 +790,10 @@ fn smooth_vec3(
                 Some(value) => *value,
                 None => return,
             };
-            let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
+            let neigh = neighbors
+                .get(idx)
+                .map(|list| list.as_slice())
+                .unwrap_or(&[]);
             if neigh.is_empty() {
                 return;
             }
@@ -850,7 +840,10 @@ fn smooth_vec4(
                 Some(value) => *value,
                 None => return,
             };
-            let neigh = neighbors.get(idx).map(|list| list.as_slice()).unwrap_or(&[]);
+            let neigh = neighbors
+                .get(idx)
+                .map(|list| list.as_slice())
+                .unwrap_or(&[]);
             if neigh.is_empty() {
                 return;
             }
@@ -864,12 +857,7 @@ fn smooth_vec4(
                 }
             }
             let inv = 1.0 / neigh.len() as f32;
-            let avg = [
-                sum[0] * inv,
-                sum[1] * inv,
-                sum[2] * inv,
-                sum[3] * inv,
-            ];
+            let avg = [sum[0] * inv, sum[1] * inv, sum[2] * inv, sum[3] * inv];
             *slot = [
                 lerp(value[0], avg[0], strength),
                 lerp(value[1], avg[1], strength),

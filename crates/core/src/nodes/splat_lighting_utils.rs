@@ -69,8 +69,7 @@ pub fn estimate_splat_normals(splats: &SplatGeo) -> Vec<Vec3> {
             } else {
                 Vec3::Z
             };
-            let mut quat =
-                Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+            let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
             if quat.length_squared() > 0.0 {
                 quat = quat.normalize();
             } else {

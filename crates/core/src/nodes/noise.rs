@@ -6,11 +6,9 @@ use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
 use crate::noise::{fbm_noise, NoiseType};
 use crate::param_spec::ParamSpec;
@@ -44,20 +42,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::float_slider("amplitude", "Amplitude", -10.0, 10.0)
             .with_help("Displacement strength."),
-        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0)
-            .with_help("Noise frequency."),
+        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0).with_help("Noise frequency."),
         ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Noise seed."),
         ParamSpec::vec3("offset", "Offset").with_help("Noise space offset."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -125,12 +117,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         })
         .unwrap_or_else(|| vec![[0.0, 1.0, 0.0]; splats.positions.len()]);
 
-    for (idx, (pos, normal)) in splats
-        .positions
-        .iter_mut()
-        .zip(normals.iter())
-        .enumerate()
-    {
+    for (idx, (pos, normal)) in splats.positions.iter_mut().zip(normals.iter()).enumerate() {
         if mask
             .as_ref()
             .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))

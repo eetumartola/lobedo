@@ -1,5 +1,5 @@
-mod menu;
 mod help;
+mod menu;
 mod params;
 mod state;
 mod state_inspector;
@@ -9,6 +9,6 @@ mod state_menus;
 mod utils;
 mod viewer;
 
-pub use state::{NodeGraphLayout, NodeGraphState, WriteRequest};
 #[cfg(not(target_arch = "wasm32"))]
 pub use state::WriteRequestKind;
+pub use state::{NodeGraphLayout, NodeGraphState, WriteRequest};

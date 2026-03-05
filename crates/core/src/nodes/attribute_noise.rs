@@ -11,15 +11,13 @@ use crate::nodes::{
         existing_vec2_attr_mesh, existing_vec2_attr_splats, existing_vec3_attr_mesh,
         existing_vec3_attr_splats, mesh_sample_position, splat_sample_position,
     },
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
 use crate::noise::{fractal_noise, FractalSettings, FractalType, NoiseType};
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
 pub const NAME: &str = "Attribute Noise";
@@ -62,12 +60,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to write."),
         ParamSpec::int_enum(
@@ -114,8 +107,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .visible_when_int_in("fractal_type", &[1, 2, 3]),
         ParamSpec::float_slider("amplitude", "Amplitude", -10.0, 10.0)
             .with_help("Noise amplitude."),
-        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0)
-            .with_help("Noise frequency."),
+        ParamSpec::float_slider("frequency", "Frequency", 0.0, 10.0).with_help("Noise frequency."),
         ParamSpec::vec3("offset", "Offset").with_help("Noise space offset."),
         ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Noise seed."),
         ParamSpec::float_slider("flow_rotation", "Flow Rotation", 0.0, 360.0)
@@ -128,12 +120,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -181,9 +168,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
         0 => {
             let mut values = existing_float_attr_splats(splats, domain, attr, count);
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
@@ -206,9 +191,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
             let mut values = existing_vec2_attr_splats(splats, domain, attr, count);
             let offsets = [Vec3::new(12.7, 45.3, 19.1), Vec3::new(31.9, 7.2, 58.4)];
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
@@ -245,9 +228,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
                 Vec3::new(23.1, 91.7, 3.7),
             ];
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = splat_sample_position(splats, domain, idx) * frequency + offset;
@@ -327,9 +308,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
         0 => {
             let mut values = existing_float_attr_mesh(mesh, domain, attr, count);
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
@@ -351,9 +330,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
             let mut values = existing_vec2_attr_mesh(mesh, domain, attr, count);
             let offsets = [Vec3::new(12.7, 45.3, 19.1), Vec3::new(31.9, 7.2, 58.4)];
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;
@@ -389,9 +366,7 @@ fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), String> {
                 Vec3::new(23.1, 91.7, 3.7),
             ];
             parallel::for_each_indexed_mut(&mut values, |idx, value| {
-                if mask_ref
-                    .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-                {
+                if mask_ref.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
                     return;
                 }
                 let p = mesh_sample_position(mesh, domain, idx) * frequency + offset;

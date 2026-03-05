@@ -76,7 +76,8 @@ impl SnarlPin for RecordedPin {
         painter: &egui::Painter,
     ) -> egui_snarl::ui::PinWireInfo {
         let visual_size = (rect.width().min(rect.height()) / PIN_HOT_SCALE).max(1.0);
-        let visual_rect = egui::Rect::from_center_size(rect.center(), vec2(visual_size, visual_size));
+        let visual_rect =
+            egui::Rect::from_center_size(rect.center(), vec2(visual_size, visual_size));
         self.pin.draw(snarl_style, style, visual_rect, painter)
     }
 }
@@ -99,7 +100,6 @@ impl<'a> NodeGraphViewer<'a> {
         let core_node = self.core_node_id(snarl, pin.node)?;
         core_output_pin(self.graph, core_node, pin.output)
     }
-
 }
 
 impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
@@ -535,12 +535,19 @@ impl SnarlViewer<SnarlNode> for NodeGraphViewer<'_> {
                 .layout_no_wrap(message.clone(), font_id.clone(), text_color);
             let padding = vec2(6.0, 4.0);
             let total_size = galley.size() + padding * 2.0;
-            let text_pos = Pos2::new(ui_rect.center().x - total_size.x * 0.5, ui_rect.top() - total_size.y - 4.0);
+            let text_pos = Pos2::new(
+                ui_rect.center().x - total_size.x * 0.5,
+                ui_rect.top() - total_size.y - 4.0,
+            );
             let bg_rect = Rect::from_min_size(text_pos, total_size);
             ui.painter()
                 .rect_filled(bg_rect, 4.0, Color32::from_black_alpha(170));
-            ui.painter()
-                .rect_stroke(bg_rect, 4.0, egui::Stroke::new(1.0, text_color), egui::StrokeKind::Inside);
+            ui.painter().rect_stroke(
+                bg_rect,
+                4.0,
+                egui::Stroke::new(1.0, text_color),
+                egui::StrokeKind::Inside,
+            );
             ui.painter().text(
                 bg_rect.center(),
                 Align2::CENTER_CENTER,

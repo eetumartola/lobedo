@@ -88,7 +88,15 @@ pub fn sample_catmull_rom(points: &[[f32; 3]], steps: usize, closed: bool) -> Ve
     let segment_count = if closed { count } else { count - 1 };
 
     for i in 0..segment_count {
-        let i0 = if i == 0 { if closed { count - 1 } else { 0 } } else { i - 1 };
+        let i0 = if i == 0 {
+            if closed {
+                count - 1
+            } else {
+                0
+            }
+        } else {
+            i - 1
+        };
         let i1 = i;
         let i2 = (i + 1) % count;
         let i3 = if i + 2 < count {

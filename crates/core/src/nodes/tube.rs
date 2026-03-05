@@ -33,18 +33,12 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
-            .with_help("Tube radius."),
-        ParamSpec::float_slider("height", "Height", 0.0, 1000.0)
-            .with_help("Tube height."),
-        ParamSpec::int_slider("rows", "Rows", 1, 64)
-            .with_help("Height segments."),
-        ParamSpec::int_slider("cols", "Cols", 3, 256)
-            .with_help("Side segments."),
-        ParamSpec::bool("capped", "Capped")
-            .with_help("Add caps at the ends."),
-        ParamSpec::vec3("center", "Center")
-            .with_help("Tube center in world space."),
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0).with_help("Tube radius."),
+        ParamSpec::float_slider("height", "Height", 0.0, 1000.0).with_help("Tube height."),
+        ParamSpec::int_slider("rows", "Rows", 1, 64).with_help("Height segments."),
+        ParamSpec::int_slider("cols", "Cols", 3, 256).with_help("Side segments."),
+        ParamSpec::bool("capped", "Capped").with_help("Add caps at the ends."),
+        ParamSpec::vec3("center", "Center").with_help("Tube center in world space."),
     ]
 }
 

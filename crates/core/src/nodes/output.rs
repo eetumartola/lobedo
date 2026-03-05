@@ -26,4 +26,3 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let input = require_mesh_input(inputs, 0, "Output requires a mesh input")?;
     Ok(input)
 }
-

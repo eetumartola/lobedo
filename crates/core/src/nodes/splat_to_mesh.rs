@@ -45,14 +45,23 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("output".to_string(), ParamValue::Int(DEFAULT_OUTPUT_MODE)),
             ("algorithm".to_string(), ParamValue::Int(0)),
-            ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
+            (
+                "voxel_size".to_string(),
+                ParamValue::Float(DEFAULT_VOXEL_SIZE),
+            ),
             (
                 "voxel_size_max".to_string(),
                 ParamValue::Int(DEFAULT_MAX_VOXEL_DIM),
             ),
             ("n_sigma".to_string(), ParamValue::Float(DEFAULT_N_SIGMA)),
-            ("density_iso".to_string(), ParamValue::Float(DEFAULT_DENSITY_ISO)),
-            ("surface_iso".to_string(), ParamValue::Float(DEFAULT_SURFACE_ISO)),
+            (
+                "density_iso".to_string(),
+                ParamValue::Float(DEFAULT_DENSITY_ISO),
+            ),
+            (
+                "surface_iso".to_string(),
+                ParamValue::Float(DEFAULT_SURFACE_ISO),
+            ),
             (
                 "bounds_padding".to_string(),
                 ParamValue::Float(DEFAULT_BOUNDS_PADDING),
@@ -67,19 +76,18 @@ pub fn default_params() -> NodeParams {
                 "shell_radius".to_string(),
                 ParamValue::Float(DEFAULT_SHELL_RADIUS),
             ),
-            ("blur_iters".to_string(), ParamValue::Int(DEFAULT_BLUR_ITERS)),
+            (
+                "blur_iters".to_string(),
+                ParamValue::Int(DEFAULT_BLUR_ITERS),
+            ),
         ]),
     }
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::int_enum(
-            "output",
-            "Output",
-            vec![(0, "Mesh"), (1, "SDF Volume")],
-        )
-        .with_help("Output type (mesh or SDF volume)."),
+        ParamSpec::int_enum("output", "Output", vec![(0, "Mesh"), (1, "SDF Volume")])
+            .with_help("Output type (mesh or SDF volume)."),
         ParamSpec::int_enum(
             "algorithm",
             "Method",
@@ -121,10 +129,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -252,8 +257,7 @@ pub(crate) struct SplatGrid {
 
 fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String> {
     let grid = build_splat_grid(params, splats, SplatOutputMode::Mesh)?;
-    let mut mesh =
-        marching_cubes(&grid.values, &grid.spec, grid.iso, grid.inside_is_greater)?;
+    let mut mesh = marching_cubes(&grid.values, &grid.spec, grid.iso, grid.inside_is_greater)?;
     if let Some(color_grid) = grid.color_grid {
         if !mesh.positions.is_empty() {
             let positions = &mesh.positions;
@@ -262,12 +266,8 @@ fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String
                 let color = sample_color_grid(&color_grid, &grid.spec, Vec3::from(positions[idx]));
                 *slot = color;
             });
-            mesh.set_attribute(
-                AttributeDomain::Point,
-                "Cd",
-                AttributeStorage::Vec3(colors),
-            )
-            .map_err(|err| format!("Failed to set Cd attribute: {err:?}"))?;
+            mesh.set_attribute(AttributeDomain::Point, "Cd", AttributeStorage::Vec3(colors))
+                .map_err(|err| format!("Failed to set Cd attribute: {err:?}"))?;
         }
     }
     let _ = mesh.compute_normals();
@@ -276,7 +276,11 @@ fn splats_to_mesh(params: &NodeParams, splats: &SplatGeo) -> Result<Mesh, String
 
 fn splats_to_sdf(params: &NodeParams, splats: &SplatGeo) -> Result<Volume, String> {
     let grid = build_splat_grid(params, splats, SplatOutputMode::Sdf)?;
-    let dims = [grid.spec.nx as u32, grid.spec.ny as u32, grid.spec.nz as u32];
+    let dims = [
+        grid.spec.nx as u32,
+        grid.spec.ny as u32,
+        grid.spec.nz as u32,
+    ];
     let mut volume = Volume::new(
         VolumeKind::Sdf,
         grid.spec.min.to_array(),
@@ -416,9 +420,7 @@ pub(crate) fn build_splat_grid(
         .get_float("bounds_padding", DEFAULT_BOUNDS_PADDING)
         .max(0.0);
     let transfer_color = params.get_bool("transfer_color", DEFAULT_TRANSFER_COLOR);
-    let max_m2 = params
-        .get_float("max_m2", DEFAULT_MAX_M2)
-        .clamp(0.0, 10.0);
+    let max_m2 = params.get_float("max_m2", DEFAULT_MAX_M2).clamp(0.0, 10.0);
     let smooth_k = params.get_float("smooth_k", DEFAULT_SMOOTH_K).max(0.0);
     let shell_radius = params
         .get_float("shell_radius", DEFAULT_SHELL_RADIUS)
@@ -426,7 +428,11 @@ pub(crate) fn build_splat_grid(
     let blur_iters = params.get_int("blur_iters", DEFAULT_BLUR_ITERS).max(0) as usize;
 
     let inside_is_greater = algorithm == 0;
-    let iso = if inside_is_greater { density_iso } else { surface_iso };
+    let iso = if inside_is_greater {
+        density_iso
+    } else {
+        surface_iso
+    };
     let samples = build_samples(splats);
     if samples.is_empty() {
         return Ok(SplatGrid {
@@ -809,7 +815,11 @@ pub(crate) fn marching_cubes(
 }
 
 pub(crate) fn sanitize_grid(grid: &mut [f32], iso: f32, inside_is_greater: bool) {
-    let outside = if inside_is_greater { iso - 1.0 } else { iso + 1.0 };
+    let outside = if inside_is_greater {
+        iso - 1.0
+    } else {
+        iso + 1.0
+    };
     parallel::for_each_indexed_mut(grid, |_, value| {
         if !value.is_finite() {
             *value = outside;
@@ -916,7 +926,11 @@ fn blur_axis_y(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
         let rem = idx - iz * slice;
         let iy = rem / nx;
         let prev = if iy == 0 { src[idx] } else { src[idx - nx] };
-        let next = if iy + 1 == ny { src[idx] } else { src[idx + nx] };
+        let next = if iy + 1 == ny {
+            src[idx]
+        } else {
+            src[idx + nx]
+        };
         *value = (prev + src[idx] + next) * one_third;
     });
 }
@@ -931,7 +945,11 @@ fn blur_color_axis_y(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
         let rem = idx - iz * slice;
         let iy = rem / nx;
         let prev = if iy == 0 { src[idx] } else { src[idx - nx] };
-        let next = if iy + 1 == ny { src[idx] } else { src[idx + nx] };
+        let next = if iy + 1 == ny {
+            src[idx]
+        } else {
+            src[idx + nx]
+        };
         let current = src[idx];
         *value = [
             (prev[0] + current[0] + next[0]) * one_third,
@@ -950,7 +968,11 @@ fn blur_axis_z(src: &[f32], dst: &mut [f32], spec: &GridSpec) {
     parallel::for_each_indexed_mut(dst, |idx, value| {
         let iz = idx / slice;
         let prev = if iz == 0 { src[idx] } else { src[idx - slice] };
-        let next = if iz + 1 == nz { src[idx] } else { src[idx + slice] };
+        let next = if iz + 1 == nz {
+            src[idx]
+        } else {
+            src[idx + slice]
+        };
         *value = (prev + src[idx] + next) * one_third;
     });
 }
@@ -964,7 +986,11 @@ fn blur_color_axis_z(src: &[[f32; 3]], dst: &mut [[f32; 3]], spec: &GridSpec) {
     parallel::for_each_indexed_mut(dst, |idx, value| {
         let iz = idx / slice;
         let prev = if iz == 0 { src[idx] } else { src[idx - slice] };
-        let next = if iz + 1 == nz { src[idx] } else { src[idx + slice] };
+        let next = if iz + 1 == nz {
+            src[idx]
+        } else {
+            src[idx + slice]
+        };
         let current = src[idx];
         *value = [
             (prev[0] + current[0] + next[0]) * one_third,

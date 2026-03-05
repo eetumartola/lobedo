@@ -90,4 +90,3 @@ pub fn node_help_page(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
         _ => None,
     }
 }
-

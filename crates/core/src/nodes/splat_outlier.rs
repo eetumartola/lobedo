@@ -4,10 +4,7 @@ use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
-    require_mesh_input,
-    splat_utils::split_splats_by_group,
+    geometry_in, geometry_out, require_mesh_input, splat_utils::split_splats_by_group,
 };
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
@@ -51,12 +48,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::float_slider("eps", "Radius", 0.0, 10.0)

@@ -5,13 +5,12 @@ use glam::{Mat4, Vec3};
 
 use lobedo_core::{AttributeDomain, BuiltinNodeKind, NodeId, ParamValue};
 
+use super::viewport_tools_math::{
+    camera_position, distance_to_triangle_edges, point_in_triangle, project_world_to_screen,
+    project_world_to_screen_with_depth, rect_corners_in_triangle, viewport_view_proj,
+};
 use super::LobedoApp;
 use super::SelectionAction;
-use super::viewport_tools_math::{
-    camera_position, distance_to_triangle_edges, point_in_triangle,
-    project_world_to_screen, project_world_to_screen_with_depth, rect_corners_in_triangle,
-    viewport_view_proj,
-};
 
 impl LobedoApp {
     pub(super) fn apply_group_selection(
@@ -45,7 +44,11 @@ impl LobedoApp {
         if self
             .project
             .graph
-            .set_param(node_id, "selection".to_string(), ParamValue::String(encoded))
+            .set_param(
+                node_id,
+                "selection".to_string(),
+                ParamValue::String(encoded),
+            )
             .is_ok()
         {
             self.mark_eval_dirty();
@@ -145,7 +148,8 @@ pub(super) fn pick_selection_index(
                 .iter()
                 .enumerate()
                 .filter(|(idx, pos)| {
-                    allow_backface || is_front_facing_point(mesh, *idx, Vec3::from(**pos), camera_pos)
+                    allow_backface
+                        || is_front_facing_point(mesh, *idx, Vec3::from(**pos), camera_pos)
                 })
                 .map(|(idx, pos)| (idx, Vec3::from(*pos))),
             view_proj,
@@ -154,37 +158,31 @@ pub(super) fn pick_selection_index(
             threshold,
         ),
         (SelectionSource::Mesh(mesh), AttributeDomain::Vertex) => pick_nearest_index(
-            mesh.indices
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, pos)| {
-                    let point_index = *pos as usize;
-                    let world = mesh.positions.get(point_index).copied()?;
-                    if !allow_backface
-                        && !is_front_facing_vertex(mesh, idx, point_index, Vec3::from(world), camera_pos)
-                    {
-                        return None;
-                    }
-                    let corner = mesh
-                        .corner_indices
-                        .get(idx)
-                        .copied()
-                        .unwrap_or(idx as u32) as usize;
-                    Some((corner, Vec3::from(world)))
-                }),
+            mesh.indices.iter().enumerate().filter_map(|(idx, pos)| {
+                let point_index = *pos as usize;
+                let world = mesh.positions.get(point_index).copied()?;
+                if !allow_backface
+                    && !is_front_facing_vertex(
+                        mesh,
+                        idx,
+                        point_index,
+                        Vec3::from(world),
+                        camera_pos,
+                    )
+                {
+                    return None;
+                }
+                let corner = mesh.corner_indices.get(idx).copied().unwrap_or(idx as u32) as usize;
+                Some((corner, Vec3::from(world)))
+            }),
             view_proj,
             rect,
             mouse,
             threshold,
         ),
-        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => pick_primitive_index(
-            mesh,
-            view_proj,
-            rect,
-            mouse,
-            camera_pos,
-            allow_backface,
-        ),
+        (SelectionSource::Mesh(mesh), AttributeDomain::Primitive) => {
+            pick_primitive_index(mesh, view_proj, rect, mouse, camera_pos, allow_backface)
+        }
         (SelectionSource::Splats(splats), _) => pick_nearest_index(
             splats
                 .positions
@@ -217,7 +215,8 @@ pub(super) fn selection_indices_in_rect(
     match (source, domain) {
         (SelectionSource::Mesh(mesh), AttributeDomain::Point) => {
             for (idx, pos) in mesh.positions.iter().enumerate() {
-                if !allow_backface && !is_front_facing_point(mesh, idx, Vec3::from(*pos), camera_pos)
+                if !allow_backface
+                    && !is_front_facing_point(mesh, idx, Vec3::from(*pos), camera_pos)
                 {
                     continue;
                 }
@@ -246,11 +245,8 @@ pub(super) fn selection_indices_in_rect(
                         project_world_to_screen(view_proj, rect, Vec3::from(*world))
                     {
                         if selection_rect.contains(screen) {
-                            let corner = mesh
-                                .corner_indices
-                                .get(idx)
-                                .copied()
-                                .unwrap_or(idx as u32) as usize;
+                            let corner = mesh.corner_indices.get(idx).copied().unwrap_or(idx as u32)
+                                as usize;
                             out.insert(corner);
                         }
                     }
@@ -288,11 +284,7 @@ pub(super) fn selection_indices_in_rect(
                     || selection_rect.contains(s2)
                     || rect_corners_in_triangle(selection_rect, s0, s1, s2)
                 {
-                    let face = mesh
-                        .tri_to_face
-                        .get(idx)
-                        .copied()
-                        .unwrap_or(idx as u32) as usize;
+                    let face = mesh.tri_to_face.get(idx).copied().unwrap_or(idx as u32) as usize;
                     out.insert(face);
                 }
             }
@@ -366,27 +358,20 @@ fn pick_primitive_index(
         {
             continue;
         }
-        let (s0, d0) =
-            match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p0)) {
-                Some(value) => value,
-                None => continue,
-            };
-        let (s1, d1) =
-            match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p1)) {
-                Some(value) => value,
-                None => continue,
-            };
-        let (s2, d2) =
-            match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p2)) {
-                Some(value) => value,
-                None => continue,
-            };
+        let (s0, d0) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p0)) {
+            Some(value) => value,
+            None => continue,
+        };
+        let (s1, d1) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p1)) {
+            Some(value) => value,
+            None => continue,
+        };
+        let (s2, d2) = match project_world_to_screen_with_depth(view_proj, rect, Vec3::from(*p2)) {
+            Some(value) => value,
+            None => continue,
+        };
         let depth = (d0 + d1 + d2) / 3.0;
-        let face = mesh
-            .tri_to_face
-            .get(idx)
-            .copied()
-            .unwrap_or(idx as u32) as usize;
+        let face = mesh.tri_to_face.get(idx).copied().unwrap_or(idx as u32) as usize;
         if point_in_triangle(mouse, s0, s1, s2, 0.5) {
             if depth < best_depth {
                 best_depth = depth;
@@ -476,7 +461,8 @@ pub(super) fn draw_group_selection_overlay(
                         for i in 0..count {
                             let a = mesh.poly_indices[cursor + i] as usize;
                             let b = mesh.poly_indices[cursor + (i + 1) % count] as usize;
-                            let (Some(p0), Some(p1)) = (mesh.positions.get(a), mesh.positions.get(b))
+                            let (Some(p0), Some(p1)) =
+                                (mesh.positions.get(a), mesh.positions.get(b))
                             else {
                                 continue;
                             };
@@ -496,11 +482,11 @@ pub(super) fn draw_group_selection_overlay(
                     }
                 } else {
                     for (tri_idx, tri) in mesh.indices.chunks_exact(3).enumerate() {
-                        let face_idx = mesh
-                            .tri_to_face
-                            .get(tri_idx)
-                            .copied()
-                            .unwrap_or(tri_idx as u32) as usize;
+                        let face_idx =
+                            mesh.tri_to_face
+                                .get(tri_idx)
+                                .copied()
+                                .unwrap_or(tri_idx as u32) as usize;
                         if !selection.contains(&face_idx) {
                             continue;
                         }
@@ -513,18 +499,15 @@ pub(super) fn draw_group_selection_overlay(
                         let Some(p2) = mesh.positions.get(tri[2] as usize) else {
                             continue;
                         };
-                        let Some(s0) =
-                            project_world_to_screen(view_proj, rect, Vec3::from(*p0))
+                        let Some(s0) = project_world_to_screen(view_proj, rect, Vec3::from(*p0))
                         else {
                             continue;
                         };
-                        let Some(s1) =
-                            project_world_to_screen(view_proj, rect, Vec3::from(*p1))
+                        let Some(s1) = project_world_to_screen(view_proj, rect, Vec3::from(*p1))
                         else {
                             continue;
                         };
-                        let Some(s2) =
-                            project_world_to_screen(view_proj, rect, Vec3::from(*p2))
+                        let Some(s2) = project_world_to_screen(view_proj, rect, Vec3::from(*p2))
                         else {
                             continue;
                         };
@@ -541,8 +524,7 @@ pub(super) fn draw_group_selection_overlay(
                 let Some(pos) = splats.positions.get(idx) else {
                     continue;
                 };
-                if let Some(screen) = project_world_to_screen(view_proj, rect, Vec3::from(*pos))
-                {
+                if let Some(screen) = project_world_to_screen(view_proj, rect, Vec3::from(*pos)) {
                     painter.circle_filled(screen, point_radius, point_color);
                 }
             }

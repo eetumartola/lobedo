@@ -24,7 +24,10 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("output".to_string(), ParamValue::String("curve".to_string())),
+            (
+                "output".to_string(),
+                ParamValue::String("curve".to_string()),
+            ),
             ("radius".to_string(), ParamValue::Float(DEFAULT_RADIUS)),
             ("segments".to_string(), ParamValue::Int(DEFAULT_SEGMENTS)),
             ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
@@ -40,12 +43,9 @@ pub fn param_specs() -> Vec<ParamSpec> {
             vec![("curve", "Curve"), ("mesh", "Mesh")],
         )
         .with_help("Output as a curve or a mesh."),
-        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
-            .with_help("Circle radius."),
-        ParamSpec::int_slider("segments", "Segments", 3, 256)
-            .with_help("Number of segments."),
-        ParamSpec::vec3("center", "Center")
-            .with_help("Circle center in world space."),
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0).with_help("Circle radius."),
+        ParamSpec::int_slider("segments", "Segments", 3, 256).with_help("Number of segments."),
+        ParamSpec::vec3("center", "Center").with_help("Circle center in world space."),
     ]
 }
 

@@ -1,7 +1,9 @@
 use egui::Ui;
 use serde_json::json;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
 
 use lobedo_core::{
@@ -11,22 +13,30 @@ use lobedo_core::{
 
 use super::help::{node_help, show_help_page_window, show_help_tooltip};
 use super::params::{edit_group_row, edit_param, edit_param_with_spec};
-use super::state::{ModelDownloadResult, NodeGraphState, WriteRequest, WriteRequestKind};
+#[cfg(not(target_arch = "wasm32"))]
+use super::state::ModelDownloadResult;
+use super::state::{NodeGraphState, WriteRequest, WriteRequestKind};
 
+#[cfg(not(target_arch = "wasm32"))]
 const DEPTHPRO_MODEL_URL: &str = "https://huggingface.co/Jens-Duttke/DepthPro-ONNX-HighPerf/blob/main/depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
 const DEPTHPRO_MODEL_FILENAME: &str = "depthpro_1536x1536_bs1_fp16_opset21_optimized.onnx";
 const DEPTHPRO_MODEL_DIR: &str = "models/depthpro";
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_ENCODER_URL: &str =
     "https://huggingface.co/visheratin/segment-anything-vit-b/blob/main/encoder.onnx";
+#[cfg(not(target_arch = "wasm32"))]
 const SAM_DECODER_URL: &str =
     "https://huggingface.co/visheratin/segment-anything-vit-b/blob/main/decoder.onnx";
 const SAM_MODEL_DIR: &str = "models/sam";
 const SAM_ENCODER_FILENAME: &str = "encoder.onnx";
 const SAM_DECODER_FILENAME: &str = "decoder.onnx";
+#[cfg(not(target_arch = "wasm32"))]
 const ONNX_RUNTIME_URL: &str = "https://files.pythonhosted.org/packages/c0/b4/569d298f9fc4d286c11c45e85d9ffa9e877af12ace98af8cab52396e8f46/onnxruntime-1.23.2-cp312-cp312-win_amd64.whl";
+#[cfg(not(target_arch = "wasm32"))]
 const ONNX_DIRECTML_PYPI: &str = "https://pypi.org/pypi/onnxruntime-directml/json";
 const ONNX_RUNTIME_DIR: &str = "models/onnxruntime";
 const ONNX_DIRECTML_DIR: &str = "models/onnxruntime-directml";
+#[cfg(not(target_arch = "wasm32"))]
 const ONNX_RUNTIME_DLL: &str = "onnxruntime.dll";
 
 impl NodeGraphState {
@@ -66,11 +76,7 @@ impl NodeGraphState {
         let mut auto_changed = false;
         if node_kind == Some(BuiltinNodeKind::WorldLabsGenerate) {
             if !param_values.contains_key("io_mode") {
-                let _ = graph.set_param(
-                    node_id,
-                    "io_mode".to_string(),
-                    ParamValue::Int(0),
-                );
+                let _ = graph.set_param(node_id, "io_mode".to_string(), ParamValue::Int(0));
                 param_values.insert("io_mode".to_string(), ParamValue::Int(0));
                 auto_changed = true;
             }
@@ -80,10 +86,7 @@ impl NodeGraphState {
                     "load_model".to_string(),
                     ParamValue::String(String::new()),
                 );
-                param_values.insert(
-                    "load_model".to_string(),
-                    ParamValue::String(String::new()),
-                );
+                param_values.insert("load_model".to_string(), ParamValue::String(String::new()));
                 auto_changed = true;
             }
         }
@@ -134,7 +137,10 @@ impl NodeGraphState {
                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
             |ui| {
                 ui.set_min_height(header_height);
-                if ui.add_sized([help_width - 4.0, header_height], egui::Button::new("Help")).clicked() {
+                if ui
+                    .add_sized([help_width - 4.0, header_height], egui::Button::new("Help"))
+                    .clicked()
+                {
                     help_requested = true;
                 }
             },
@@ -155,8 +161,10 @@ impl NodeGraphState {
         };
         let mut spec_keys = HashSet::new();
         let should_skip = |key: &str| -> bool {
-            if matches!(node_kind, Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete))
-                && key == "selection"
+            if matches!(
+                node_kind,
+                Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete)
+            ) && key == "selection"
             {
                 return true;
             }
@@ -264,13 +272,11 @@ impl NodeGraphState {
         if node_kind == Some(BuiltinNodeKind::DepthImage) {
             ui.separator();
             let runtime_dir = onnxruntime_dir_path();
-            let runtime_path = onnxruntime_dylib_path();
             let directml_dir = onnxruntime_directml_dir_path();
-            let directml_path = onnxruntime_directml_dylib_path();
             let runtime_exists = {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    runtime_path.exists()
+                    onnxruntime_dylib_path().exists()
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
@@ -280,15 +286,14 @@ impl NodeGraphState {
             let directml_exists = {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    directml_path.exists()
+                    onnxruntime_directml_dylib_path().exists()
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
                     false
                 }
             };
-            let can_runtime_download =
-                !cfg!(target_arch = "wasm32") && cfg!(target_os = "windows");
+            let can_runtime_download = !cfg!(target_arch = "wasm32") && cfg!(target_os = "windows");
             let runtime_label = if runtime_exists {
                 "Re-download ONNX Runtime"
             } else {
@@ -429,7 +434,11 @@ impl NodeGraphState {
 
         if matches!(
             node_kind,
-            Some(BuiltinNodeKind::ObjOutput | BuiltinNodeKind::GltfOutput | BuiltinNodeKind::WriteSplats)
+            Some(
+                BuiltinNodeKind::ObjOutput
+                    | BuiltinNodeKind::GltfOutput
+                    | BuiltinNodeKind::WriteSplats
+            )
         ) {
             ui.separator();
             let label = if node_kind == Some(BuiltinNodeKind::ObjOutput) {
@@ -440,7 +449,10 @@ impl NodeGraphState {
                 "Write PLY"
             };
             let can_write = !cfg!(target_arch = "wasm32");
-            if ui.add_enabled(can_write, egui::Button::new(label)).clicked() {
+            if ui
+                .add_enabled(can_write, egui::Button::new(label))
+                .clicked()
+            {
                 let kind = if node_kind == Some(BuiltinNodeKind::ObjOutput) {
                     WriteRequestKind::Obj
                 } else if node_kind == Some(BuiltinNodeKind::GltfOutput) {
@@ -495,9 +507,9 @@ impl NodeGraphState {
                         let mut base_names: Vec<String> =
                             catalog.iter().map(|(base, _)| base.clone()).collect();
                         base_names.sort();
-                        let mut base_selection = selected_base.clone().unwrap_or_else(|| {
-                            base_names.first().cloned().unwrap_or_default()
-                        });
+                        let mut base_selection = selected_base
+                            .clone()
+                            .unwrap_or_else(|| base_names.first().cloned().unwrap_or_default());
                         let mut base_changed = false;
                         egui::ComboBox::from_id_salt("worldlabs_load_base")
                             .selected_text(base_selection.clone())
@@ -567,17 +579,16 @@ impl NodeGraphState {
                                 current = first.filename.clone();
                             }
                         }
-                        if current != visible_params.get_string("load_model", "") {
-                            if graph
+                        if current != visible_params.get_string("load_model", "")
+                            && graph
                                 .set_param(
                                     node_id,
                                     "load_model".to_string(),
                                     ParamValue::String(current),
                                 )
                                 .is_ok()
-                            {
-                                changed = true;
-                            }
+                        {
+                            changed = true;
                         }
                     }
                 }
@@ -843,8 +854,10 @@ impl NodeGraphState {
         let mut heights = Vec::new();
         let mut spec_keys = HashSet::new();
         let should_skip = |key: &str| -> bool {
-            if matches!(node_kind, Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete))
-                && key == "selection"
+            if matches!(
+                node_kind,
+                Some(BuiltinNodeKind::Group | BuiltinNodeKind::Delete)
+            ) && key == "selection"
             {
                 return true;
             }
@@ -859,8 +872,7 @@ impl NodeGraphState {
         if group_value.is_some() {
             heights.push(row_height);
             spec_keys.insert("group".to_string());
-            if group_type_value.is_some()
-                || param_specs.iter().any(|spec| spec.key == "group_type")
+            if group_type_value.is_some() || param_specs.iter().any(|spec| spec.key == "group_type")
             {
                 spec_keys.insert("group_type".to_string());
             }
@@ -986,6 +998,7 @@ fn onnxruntime_dir_path() -> PathBuf {
     PathBuf::from(ONNX_RUNTIME_DIR)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn onnxruntime_dylib_path() -> PathBuf {
     onnxruntime_dir_path().join(ONNX_RUNTIME_DLL)
 }
@@ -994,6 +1007,7 @@ fn onnxruntime_directml_dir_path() -> PathBuf {
     PathBuf::from(ONNX_DIRECTML_DIR)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn onnxruntime_directml_dylib_path() -> PathBuf {
     onnxruntime_directml_dir_path().join(ONNX_RUNTIME_DLL)
 }
@@ -1198,39 +1212,6 @@ fn download_runtime_zip(url: &str, dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_arch = "wasm32")]
-fn download_depthpro_model(_url: &str, _path: &Path) -> ModelDownloadResult {
-    ModelDownloadResult {
-        message: "Model downloads are not available in web builds.".to_string(),
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn download_sam_model(
-    _encoder_url: &str,
-    _decoder_url: &str,
-    _encoder_path: &Path,
-    _decoder_path: &Path,
-) -> ModelDownloadResult {
-    ModelDownloadResult {
-        message: "Model downloads are not available in web builds.".to_string(),
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn download_onnxruntime_runtime(_url: &str, _dir: &Path) -> ModelDownloadResult {
-    ModelDownloadResult {
-        message: "Runtime downloads are not available in web builds.".to_string(),
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn download_directml_runtime(_url: &str, _dir: &Path) -> ModelDownloadResult {
-    ModelDownloadResult {
-        message: "Runtime downloads are not available in web builds.".to_string(),
-    }
-}
-
 fn image_preview_range_label(
     graph: &Graph,
     node_id: lobedo_core::NodeId,
@@ -1290,6 +1271,7 @@ fn finite_min_max_u32(values: &[u32]) -> Option<(f32, f32)> {
     Some((min as f32, max as f32))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
     let parse = |s: &str| {
         s.split('.')
@@ -1310,6 +1292,7 @@ fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
     std::cmp::Ordering::Equal
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 #[derive(Clone)]
 struct MarbleModelVariant {
     base: String,
@@ -1412,8 +1395,8 @@ fn variant_label(variant: &str, ext: &str) -> String {
     }
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 #[cfg(target_arch = "wasm32")]
 fn marble_model_catalog() -> Vec<(String, Vec<MarbleModelVariant>)> {
     Vec::new()
 }
-

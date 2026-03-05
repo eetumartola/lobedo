@@ -28,4 +28,3 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(Mesh::merge(inputs))
 }
-

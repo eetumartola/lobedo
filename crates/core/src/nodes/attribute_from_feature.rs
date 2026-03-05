@@ -7,8 +7,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::{domain_from_params, existing_float_attr_mesh, existing_float_attr_splats},
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
@@ -47,32 +46,21 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to write."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
-    let mut input =
-        require_mesh_input(inputs, 0, "Attribute from Feature requires a mesh input")?;
+    let mut input = require_mesh_input(inputs, 0, "Attribute from Feature requires a mesh input")?;
     apply_to_mesh(params, &mut input)?;
     Ok(input)
 }
@@ -481,8 +469,7 @@ fn primitive_areas(mesh: &Mesh) -> Result<Vec<f32>, String> {
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;
-        if i0 >= mesh.positions.len() || i1 >= mesh.positions.len() || i2 >= mesh.positions.len()
-        {
+        if i0 >= mesh.positions.len() || i1 >= mesh.positions.len() || i2 >= mesh.positions.len() {
             return Err("Attribute from Feature has invalid indices".to_string());
         }
         let p0 = Vec3::from(mesh.positions[i0]);
@@ -515,8 +502,7 @@ fn primitive_normals(mesh: &Mesh) -> Result<Vec<Vec3>, String> {
         let i0 = tri[0] as usize;
         let i1 = tri[1] as usize;
         let i2 = tri[2] as usize;
-        if i0 >= mesh.positions.len() || i1 >= mesh.positions.len() || i2 >= mesh.positions.len()
-        {
+        if i0 >= mesh.positions.len() || i1 >= mesh.positions.len() || i2 >= mesh.positions.len() {
             return Err("Attribute from Feature has invalid indices".to_string());
         }
         let p0 = Vec3::from(mesh.positions[i0]);
@@ -557,8 +543,7 @@ fn splat_normals(splats: &SplatGeo) -> Vec<Vec3> {
         .rotations
         .iter()
         .map(|rotation| {
-            let mut quat =
-                Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
+            let mut quat = Quat::from_xyzw(rotation[1], rotation[2], rotation[3], rotation[0]);
             if quat.length_squared() > 0.0 {
                 quat = quat.normalize();
             } else {

@@ -52,6 +52,5 @@ impl LobedoApp {
         let mut wrangle_help_panel = self.wrangle_help_panel.take();
         self.show_wrangle_help_panel(ctx, &mut wrangle_help_panel);
         self.wrangle_help_panel = wrangle_help_panel;
-
     }
 }

@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, StringTableAttribute};
@@ -53,8 +53,8 @@ fn build_mesh_from_gltf(
             if primitive.mode() != gltf::mesh::Mode::Triangles {
                 continue;
             }
-            let reader =
-                primitive.reader(|buffer| buffers.get(buffer.index()).map(|data| data.0.as_slice()));
+            let reader = primitive
+                .reader(|buffer| buffers.get(buffer.index()).map(|data| data.0.as_slice()));
             let prim_positions: Vec<[f32; 3]> = reader
                 .read_positions()
                 .ok_or_else(|| "glTF primitive missing POSITION attribute".to_string())?
@@ -124,18 +124,10 @@ fn build_mesh_from_gltf(
     }
     if include_uvs && uvs.len() == mesh.positions.len() {
         mesh.uvs = Some(uvs.clone());
-        let _ = mesh.set_attribute(
-            AttributeDomain::Point,
-            "uv",
-            AttributeStorage::Vec2(uvs),
-        );
+        let _ = mesh.set_attribute(AttributeDomain::Point, "uv", AttributeStorage::Vec2(uvs));
     }
     if include_colors && colors.len() == mesh.positions.len() {
-        let _ = mesh.set_attribute(
-            AttributeDomain::Point,
-            "Cd",
-            AttributeStorage::Vec3(colors),
-        );
+        let _ = mesh.set_attribute(AttributeDomain::Point, "Cd", AttributeStorage::Vec3(colors));
     }
     if !material_indices.is_empty() && material_indices.len() == mesh.indices.len() / 3 {
         let _ = mesh.set_attribute(
@@ -168,8 +160,7 @@ pub fn write_gltf(path: &str, mesh: &Mesh) -> Result<(), String> {
             .and_then(|stem| stem.to_str())
             .map(|stem| format!("{stem}.bin"))
             .unwrap_or_else(|| "buffer.bin".to_string());
-        let bin_path = Path::new(path)
-            .with_file_name(bin_name);
+        let bin_path = Path::new(path).with_file_name(bin_name);
         std::fs::write(path, &json_bytes).map_err(|err| err.to_string())?;
         std::fs::write(bin_path, bin).map_err(|err| err.to_string())?;
         Ok(())
@@ -210,8 +201,7 @@ fn build_export_mesh(mesh: &Mesh) -> Result<ExportMesh, String> {
         .normals
         .as_ref()
         .filter(|normals| normals.len() == mesh.positions.len());
-    let needs_expand =
-        corner_normals.is_some() || vertex_uvs.is_some() || vertex_colors.is_some();
+    let needs_expand = corner_normals.is_some() || vertex_uvs.is_some() || vertex_colors.is_some();
 
     let (tri_indices, tri_corners) = if mesh.indices.is_empty() {
         if !mesh.positions.len().is_multiple_of(3) {
@@ -276,9 +266,17 @@ fn build_export_mesh(mesh: &Mesh) -> Result<ExportMesh, String> {
         Ok(ExportMesh {
             positions,
             indices,
-            normals: if normals.is_empty() { None } else { Some(normals) },
+            normals: if normals.is_empty() {
+                None
+            } else {
+                Some(normals)
+            },
             uvs: if uvs.is_empty() { None } else { Some(uvs) },
-            colors: if colors.is_empty() { None } else { Some(colors) },
+            colors: if colors.is_empty() {
+                None
+            } else {
+                Some(colors)
+            },
         })
     } else {
         Ok(ExportMesh {
@@ -356,8 +354,15 @@ fn build_gltf_payload(
 
     if let Some(normals) = &mesh.normals {
         let normal_view = push_vec3(&mut buffer, &mut buffer_views, normals, 34962);
-        let normal_accessor =
-            push_accessor(&mut accessors, normal_view, 5126, normals.len(), "VEC3", None, None);
+        let normal_accessor = push_accessor(
+            &mut accessors,
+            normal_view,
+            5126,
+            normals.len(),
+            "VEC3",
+            None,
+            None,
+        );
         attributes.insert("NORMAL".to_string(), serde_json::json!(normal_accessor));
     }
     if let Some(uvs) = &mesh.uvs {
@@ -368,13 +373,19 @@ fn build_gltf_payload(
     }
     if let Some(colors) = &mesh.colors {
         let color_view = push_vec3(&mut buffer, &mut buffer_views, colors, 34962);
-        let color_accessor =
-            push_accessor(&mut accessors, color_view, 5126, colors.len(), "VEC3", None, None);
+        let color_accessor = push_accessor(
+            &mut accessors,
+            color_view,
+            5126,
+            colors.len(),
+            "VEC3",
+            None,
+            None,
+        );
         attributes.insert("COLOR_0".to_string(), serde_json::json!(color_accessor));
     }
 
-    let (index_bytes, index_component_type) =
-        encode_indices(&mesh.indices, mesh.positions.len())?;
+    let (index_bytes, index_component_type) = encode_indices(&mesh.indices, mesh.positions.len())?;
     let index_view = push_bytes(&mut buffer, &mut buffer_views, &index_bytes, 34963);
     let index_accessor = push_accessor(
         &mut accessors,
@@ -523,7 +534,10 @@ fn push_accessor(
 ) -> usize {
     let mut obj = serde_json::Map::new();
     obj.insert("bufferView".to_string(), serde_json::json!(view));
-    obj.insert("componentType".to_string(), serde_json::json!(component_type));
+    obj.insert(
+        "componentType".to_string(),
+        serde_json::json!(component_type),
+    );
     obj.insert("count".to_string(), serde_json::json!(count));
     obj.insert("type".to_string(), serde_json::json!(ty));
     if let Some(min) = min {
@@ -569,4 +583,3 @@ fn align_to_four(buffer: &mut Vec<u8>) {
     let padding = (4 - (buffer.len() % 4)) % 4;
     buffer.extend(std::iter::repeat_n(0u8, padding));
 }
-

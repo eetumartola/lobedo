@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::parallel;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
@@ -44,19 +44,12 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Minimum log-scale to keep."),
         ParamSpec::float_slider("max_scale", "Max Scale", -10.0, 10.0)
             .with_help("Maximum log-scale to keep."),
-        ParamSpec::bool("remove_invalid", "Remove Invalid")
-            .with_help("Drop splats with NaN/Inf."),
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict pruning."),
+        ParamSpec::bool("remove_invalid", "Remove Invalid").with_help("Drop splats with NaN/Inf."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict pruning."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -162,7 +155,9 @@ mod tests {
     fn prune_filters_logit_opacity() {
         let mut splats = SplatGeo::with_len(3);
         splats.rotations.fill([1.0, 0.0, 0.0, 0.0]);
-        splats.scales.fill([0.1_f32.ln(), 0.1_f32.ln(), 0.1_f32.ln()]);
+        splats
+            .scales
+            .fill([0.1_f32.ln(), 0.1_f32.ln(), 0.1_f32.ln()]);
         splats.opacity[0] = -2.0;
         splats.opacity[1] = 0.0;
         splats.opacity[2] = 2.0;

@@ -8,9 +8,8 @@ impl LobedoApp {
         if ctx.wants_keyboard_input() {
             return;
         }
-        let undo_pressed = ctx.input(|i| {
-            i.key_pressed(egui::Key::Z) && i.modifiers.command && !i.modifiers.shift
-        });
+        let undo_pressed =
+            ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.command && !i.modifiers.shift);
         let redo_pressed = ctx.input(|i| {
             (i.key_pressed(egui::Key::Z) && i.modifiers.command && i.modifiers.shift)
                 || (i.key_pressed(egui::Key::Y) && i.modifiers.command)
@@ -19,9 +18,8 @@ impl LobedoApp {
         let translate_pressed = ctx.input(|i| i.key_pressed(egui::Key::W));
         let rotate_pressed = ctx.input(|i| i.key_pressed(egui::Key::E));
         let scale_pressed = ctx.input(|i| i.key_pressed(egui::Key::R));
-        let delete_pressed = ctx.input(|i| {
-            i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
-        });
+        let delete_pressed =
+            ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace));
         if translate_pressed || rotate_pressed || scale_pressed {
             if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
                 if let Some(rect) = self.last_viewport_rect {

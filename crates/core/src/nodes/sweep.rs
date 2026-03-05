@@ -36,8 +36,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Close the profile when no curve primitive is supplied."),
         ParamSpec::bool("path_closed", "Path Closed")
             .with_help("Close the path when no curve primitive is supplied."),
-        ParamSpec::vec3("up", "Up")
-            .with_help("Up vector used to orient the swept profile."),
+        ParamSpec::vec3("up", "Up").with_help("Up vector used to orient the swept profile."),
     ]
 }
 
@@ -71,10 +70,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     Ok(Geometry::with_mesh(mesh))
 }
 
-fn resolve_profile(
-    geometry: &Geometry,
-    params: &NodeParams,
-) -> Result<(Vec<Vec3>, bool), String> {
+fn resolve_profile(geometry: &Geometry, params: &NodeParams) -> Result<(Vec<Vec3>, bool), String> {
     if let Some(curve) = geometry.curves.first() {
         let mesh = geometry
             .merged_mesh()
@@ -163,11 +159,23 @@ fn sweep_points(
 
     let mut indices = Vec::new();
     let mut face_counts = Vec::new();
-    let profile_segments = if profile_closed { ring_len } else { ring_len.saturating_sub(1) };
-    let path_segments = if path_closed { path_len } else { path_len.saturating_sub(1) };
+    let profile_segments = if profile_closed {
+        ring_len
+    } else {
+        ring_len.saturating_sub(1)
+    };
+    let path_segments = if path_closed {
+        path_len
+    } else {
+        path_len.saturating_sub(1)
+    };
 
     for path_idx in 0..path_segments {
-        let next_path = if path_idx + 1 < path_len { path_idx + 1 } else { 0 };
+        let next_path = if path_idx + 1 < path_len {
+            path_idx + 1
+        } else {
+            0
+        };
         for seg in 0..profile_segments {
             let next_seg = if seg + 1 < ring_len { seg + 1 } else { 0 };
             let a = (path_idx * ring_len + seg) as u32;
@@ -258,19 +266,31 @@ fn profile_axis(points: &[Vec3], normal: Vec3) -> Vec3 {
             }
         }
     }
-    let fallback = if normal.y.abs() < 0.9 { Vec3::Y } else { Vec3::X };
+    let fallback = if normal.y.abs() < 0.9 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
     normal.cross(fallback).normalize_or_zero()
 }
 
 fn path_tangent(path: &[Vec3], index: usize, closed: bool) -> Vec3 {
     let count = path.len();
     let prev = if index == 0 {
-        if closed { count - 1 } else { 0 }
+        if closed {
+            count - 1
+        } else {
+            0
+        }
     } else {
         index - 1
     };
     let next = if index + 1 >= count {
-        if closed { 0 } else { count - 1 }
+        if closed {
+            0
+        } else {
+            count - 1
+        }
     } else {
         index + 1
     };
@@ -289,7 +309,11 @@ fn frame_from_tangent(tangent: Vec3, up: Vec3) -> (Vec3, Vec3) {
         Vec3::Y
     };
     if tangent.cross(up).length_squared() < 1.0e-6 {
-        up = if tangent.y.abs() < 0.9 { Vec3::Y } else { Vec3::X };
+        up = if tangent.y.abs() < 0.9 {
+            Vec3::Y
+        } else {
+            Vec3::X
+        };
     }
     let binormal = tangent.cross(up).normalize_or_zero();
     let normal = binormal.cross(tangent).normalize_or_zero();

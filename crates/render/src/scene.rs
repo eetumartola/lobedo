@@ -1,7 +1,7 @@
 pub use lobedo_scene::{
     SceneCurve as RenderCurve, SceneDrawable as RenderDrawable, SceneMesh as RenderMesh,
-    SceneSplats as RenderSplats, SceneVolume as RenderVolume,
-    SceneVolumeKind as RenderVolumeKind, SelectionShape,
+    SceneSplats as RenderSplats, SceneVolume as RenderVolume, SceneVolumeKind as RenderVolumeKind,
+    SelectionShape,
 };
 
 #[derive(Debug, Clone)]

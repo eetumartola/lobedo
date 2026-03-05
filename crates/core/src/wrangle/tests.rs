@@ -21,8 +21,7 @@ fn wrangle_ptnum_sets_point_attribute() {
     )
     .unwrap();
 
-    let Some(AttributeStorage::Float(values)) =
-        mesh.attributes.get(AttributeDomain::Point, "id")
+    let Some(AttributeStorage::Float(values)) = mesh.attributes.get(AttributeDomain::Point, "id")
     else {
         panic!("Expected float attribute 'id' on points");
     };
@@ -31,14 +30,9 @@ fn wrangle_ptnum_sets_point_attribute() {
 
 #[test]
 fn wrangle_point_query_secondary_mesh() {
-    let mut mesh = Mesh::with_positions_indices(
-        vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
-        Vec::new(),
-    );
-    let secondary = Mesh::with_positions_indices(
-        vec![[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
-        Vec::new(),
-    );
+    let mut mesh = Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], Vec::new());
+    let secondary =
+        Mesh::with_positions_indices(vec![[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]], Vec::new());
 
     apply_wrangle(
         &mut mesh,
@@ -79,8 +73,7 @@ fn wrangle_point_query_secondary_splats() {
 
 #[test]
 fn wrangle_splat_query_secondary_from_mesh() {
-    let mut mesh =
-        Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], Vec::new());
+    let mut mesh = Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], Vec::new());
     let mut secondary = SplatGeo::with_len(2);
     secondary.positions = vec![[5.0, 0.0, 0.0], [7.0, 0.0, 0.0]];
 
@@ -102,11 +95,14 @@ fn wrangle_splat_query_secondary_from_mesh() {
 
 #[test]
 fn wrangle_sample_secondary_volume() {
-    let mut mesh = Mesh::with_positions_indices(
-        vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
-        Vec::new(),
+    let mut mesh = Mesh::with_positions_indices(vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], Vec::new());
+    let volume = Volume::new(
+        VolumeKind::Density,
+        [0.0, 0.0, 0.0],
+        [2, 1, 1],
+        1.0,
+        vec![0.1, 0.9],
     );
-    let volume = Volume::new(VolumeKind::Density, [0.0, 0.0, 0.0], [2, 1, 1], 1.0, vec![0.1, 0.9]);
 
     apply_wrangle(
         &mut mesh,
@@ -121,8 +117,7 @@ fn wrangle_sample_secondary_volume() {
     )
     .unwrap();
 
-    let Some(AttributeStorage::Float(values)) =
-        mesh.attributes.get(AttributeDomain::Point, "val")
+    let Some(AttributeStorage::Float(values)) = mesh.attributes.get(AttributeDomain::Point, "val")
     else {
         panic!("Expected float attribute 'val' on points");
     };

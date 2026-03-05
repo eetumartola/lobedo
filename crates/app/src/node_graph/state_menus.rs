@@ -181,22 +181,24 @@ impl NodeGraphState {
                     ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
                 }
 
-        let items = builtin_menu_items();
-        let filter = self.add_menu_filter.to_lowercase();
-        if filter.is_empty() {
-            let layout = menu_layout(&items);
-            if let Some(kind) = render_menu_layout(ui, layout) {
-                if let Some(core_id) = self.try_add_node(graph, kind, self.add_menu_graph_pos) {
-                    changed = true;
-                    if let Some(pending) = self.pending_wire.take() {
-                        if self.connect_pending_wire(graph, core_id, pending) {
+                let items = builtin_menu_items();
+                let filter = self.add_menu_filter.to_lowercase();
+                if filter.is_empty() {
+                    let layout = menu_layout(&items);
+                    if let Some(kind) = render_menu_layout(ui, layout) {
+                        if let Some(core_id) =
+                            self.try_add_node(graph, kind, self.add_menu_graph_pos)
+                        {
                             changed = true;
+                            if let Some(pending) = self.pending_wire.take() {
+                                if self.connect_pending_wire(graph, core_id, pending) {
+                                    changed = true;
+                                }
+                            }
                         }
+                        close_menu = true;
                     }
-                }
-                close_menu = true;
-            }
-        } else {
+                } else {
                     let mut matched = false;
                     let mut first_match: Option<BuiltinNodeKind> = None;
                     for item in items {

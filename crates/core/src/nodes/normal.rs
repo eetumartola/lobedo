@@ -31,17 +31,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::float_slider("threshold_deg", "Threshold", 0.0, 180.0)
             .with_help("Angle threshold for smoothing."),
-        ParamSpec::string("group", "Group")
-            .with_help("Restrict normal recompute to a group."),
+        ParamSpec::string("group", "Group").with_help("Restrict normal recompute to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -97,4 +91,3 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(input)
 }
-

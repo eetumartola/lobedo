@@ -37,20 +37,16 @@ pub fn default_params() -> NodeParams {
 pub fn param_specs() -> Vec<ParamSpec> {
     let mut specs = param_templates::transform_params(true);
     specs.push(
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict transform."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict transform."),
     );
-    specs.push(ParamSpec::int_enum(
-        "group_type",
-        "Group Type",
-        vec![
-            (0, "Auto"),
-            (1, "Vertex"),
-            (2, "Point"),
-            (3, "Primitive"),
-        ],
-    )
-    .with_help("Group domain to use."));
+    specs.push(
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
+        )
+        .with_help("Group domain to use."),
+    );
     specs
 }
 
@@ -132,4 +128,3 @@ fn apply_transform_mask(mesh: &mut Mesh, matrix: Mat4, mask: &[bool]) {
         });
     }
 }
-

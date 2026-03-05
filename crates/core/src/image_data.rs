@@ -44,21 +44,33 @@ impl ImageData {
 
     pub fn rgb_data(&self) -> Option<(&[f32], u32, u32)> {
         match self {
-            ImageData::RgbF32 { width, height, data } => Some((data.as_slice(), *width, *height)),
+            ImageData::RgbF32 {
+                width,
+                height,
+                data,
+            } => Some((data.as_slice(), *width, *height)),
             _ => None,
         }
     }
 
     pub fn depth_data(&self) -> Option<(&[f32], u32, u32)> {
         match self {
-            ImageData::R32F { width, height, data } => Some((data.as_slice(), *width, *height)),
+            ImageData::R32F {
+                width,
+                height,
+                data,
+            } => Some((data.as_slice(), *width, *height)),
             _ => None,
         }
     }
 
     pub fn seg_data(&self) -> Option<(&[u32], u32, u32)> {
         match self {
-            ImageData::R32U { width, height, data } => Some((data.as_slice(), *width, *height)),
+            ImageData::R32U {
+                width,
+                height,
+                data,
+            } => Some((data.as_slice(), *width, *height)),
             _ => None,
         }
     }
@@ -77,7 +89,11 @@ impl ImageData {
                 height
             ));
         }
-        Ok(ImageData::RgbF32 { width, height, data })
+        Ok(ImageData::RgbF32 {
+            width,
+            height,
+            data,
+        })
     }
 
     pub fn from_depth(width: u32, height: u32, data: Vec<f32>) -> Result<Self, String> {
@@ -90,7 +106,11 @@ impl ImageData {
                 height
             ));
         }
-        Ok(ImageData::R32F { width, height, data })
+        Ok(ImageData::R32F {
+            width,
+            height,
+            data,
+        })
     }
 
     pub fn from_seg(width: u32, height: u32, data: Vec<u32>) -> Result<Self, String> {
@@ -103,7 +123,10 @@ impl ImageData {
                 height
             ));
         }
-        Ok(ImageData::R32U { width, height, data })
+        Ok(ImageData::R32U {
+            width,
+            height,
+            data,
+        })
     }
 }
-

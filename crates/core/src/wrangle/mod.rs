@@ -1,7 +1,7 @@
 mod parser;
 mod runtime;
-mod value;
 #[cfg(test)]
 mod tests;
+mod value;
 
 pub use runtime::{apply_wrangle, apply_wrangle_splats};

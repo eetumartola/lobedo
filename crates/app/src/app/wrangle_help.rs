@@ -43,9 +43,7 @@ impl LobedoApp {
             ui.monospace("@Cd.rgb");
             ui.separator();
             ui.label("Functions:");
-            ui.monospace(
-                "sin cos tan abs floor ceil pow min max clamp lerp len dot normalize",
-            );
+            ui.monospace("sin cos tan abs floor ceil pow min max clamp lerp len dot normalize");
             ui.monospace("point vertex prim splat sample");
             ui.monospace("point(0, P, @ptnum)");
             ui.monospace("splat(1, P, @ptnum)");

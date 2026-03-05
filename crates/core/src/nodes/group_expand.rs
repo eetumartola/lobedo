@@ -24,7 +24,10 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("group".to_string(), ParamValue::String("group1".to_string())),
+            (
+                "group".to_string(),
+                ParamValue::String("group1".to_string()),
+            ),
             ("out_group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
             ("expand_mode".to_string(), ParamValue::Int(0)),
@@ -35,25 +38,22 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Group expression to expand/contract."),
+        ParamSpec::string("group", "Group").with_help("Group expression to expand/contract."),
         ParamSpec::string("out_group", "Output Group")
             .with_help("Output group name for group expansion."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
-        ParamSpec::int_enum("expand_mode", "Expand Mode", vec![(0, "Expand"), (1, "Contract")])
-            .with_help("Expand or Contract mode."),
-        ParamSpec::int_slider("iterations", "Iterations", 0, 20)
-            .with_help("Number of iterations."),
+        ParamSpec::int_enum(
+            "expand_mode",
+            "Expand Mode",
+            vec![(0, "Expand"), (1, "Contract")],
+        )
+        .with_help("Expand or Contract mode."),
+        ParamSpec::int_slider("iterations", "Iterations", 0, 20).with_help("Number of iterations."),
     ]
 }
 
@@ -90,10 +90,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
     Ok(())
 }
 
-pub(crate) fn apply_to_splats(
-    params: &NodeParams,
-    splats: &mut SplatGeo,
-) -> Result<(), String> {
+pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
     let group_expr = params.get_string("group", "").trim().to_string();
     if group_expr.is_empty() {
         return Err("Group Expand requires a group name".to_string());

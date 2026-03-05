@@ -5,8 +5,8 @@ use glam::{Quat, Vec3};
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::parallel;
 use crate::nodes::{geometry_in, geometry_out, group_utils::splat_group_mask, require_mesh_input};
+use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 
@@ -46,19 +46,12 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Renormalize opacity to a stable range."),
         ParamSpec::bool("normalize_rotation", "Normalize Rotation")
             .with_help("Normalize/repair rotations."),
-        ParamSpec::bool("remove_invalid", "Remove Invalid")
-            .with_help("Drop splats with NaN/Inf."),
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict regularize."),
+        ParamSpec::bool("remove_invalid", "Remove Invalid").with_help("Drop splats with NaN/Inf."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict regularize."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]

@@ -42,15 +42,42 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("method".to_string(), ParamValue::Int(DEFAULT_METHOD)),
-            ("blend_radius".to_string(), ParamValue::Float(DEFAULT_BLEND_RADIUS)),
-            ("fade_originals".to_string(), ParamValue::Bool(DEFAULT_FADE_ORIGINALS)),
-            ("skirt_max_dist".to_string(), ParamValue::Float(DEFAULT_SKIRT_MAX_DIST)),
-            ("skirt_step".to_string(), ParamValue::Float(DEFAULT_SKIRT_STEP)),
-            ("skirt_max_new".to_string(), ParamValue::Int(DEFAULT_SKIRT_MAX_NEW)),
-            ("seam_alpha".to_string(), ParamValue::Float(DEFAULT_SEAM_ALPHA)),
-            ("seam_scale".to_string(), ParamValue::Float(DEFAULT_SEAM_SCALE)),
-            ("seam_dc_only".to_string(), ParamValue::Bool(DEFAULT_SEAM_DC_ONLY)),
-            ("preview_skirt".to_string(), ParamValue::Bool(DEFAULT_PREVIEW_SKIRT)),
+            (
+                "blend_radius".to_string(),
+                ParamValue::Float(DEFAULT_BLEND_RADIUS),
+            ),
+            (
+                "fade_originals".to_string(),
+                ParamValue::Bool(DEFAULT_FADE_ORIGINALS),
+            ),
+            (
+                "skirt_max_dist".to_string(),
+                ParamValue::Float(DEFAULT_SKIRT_MAX_DIST),
+            ),
+            (
+                "skirt_step".to_string(),
+                ParamValue::Float(DEFAULT_SKIRT_STEP),
+            ),
+            (
+                "skirt_max_new".to_string(),
+                ParamValue::Int(DEFAULT_SKIRT_MAX_NEW),
+            ),
+            (
+                "seam_alpha".to_string(),
+                ParamValue::Float(DEFAULT_SEAM_ALPHA),
+            ),
+            (
+                "seam_scale".to_string(),
+                ParamValue::Float(DEFAULT_SEAM_SCALE),
+            ),
+            (
+                "seam_dc_only".to_string(),
+                ParamValue::Bool(DEFAULT_SEAM_DC_ONLY),
+            ),
+            (
+                "preview_skirt".to_string(),
+                ParamValue::Bool(DEFAULT_PREVIEW_SKIRT),
+            ),
             (
                 "sdf_band_scale".to_string(),
                 ParamValue::Float(DEFAULT_SDF_BAND_SCALE),
@@ -213,11 +240,7 @@ fn merge_skirt(params: &NodeParams, a: &SplatGeo, b: &SplatGeo, sdf: Option<&Vol
     merged
 }
 
-pub fn build_skirt_preview_mesh(
-    params: &NodeParams,
-    a: &SplatGeo,
-    b: &SplatGeo,
-) -> Option<Mesh> {
+pub fn build_skirt_preview_mesh(params: &NodeParams, a: &SplatGeo, b: &SplatGeo) -> Option<Mesh> {
     if a.is_empty() || b.is_empty() {
         return None;
     }
@@ -266,12 +289,7 @@ pub fn build_skirt_preview_mesh(
     }
 }
 
-fn push_preview_segment(
-    positions: &mut Vec<[f32; 3]>,
-    indices: &mut Vec<u32>,
-    a: Vec3,
-    b: Vec3,
-) {
+fn push_preview_segment(positions: &mut Vec<[f32; 3]>, indices: &mut Vec<u32>, a: Vec3, b: Vec3) {
     let base = positions.len() as u32;
     positions.push(a.to_array());
     positions.push(b.to_array());
@@ -297,9 +315,7 @@ fn build_skirt_splats(
     let seam_alpha = params
         .get_float("seam_alpha", DEFAULT_SEAM_ALPHA)
         .clamp(0.0, 1.0);
-    let seam_scale = params
-        .get_float("seam_scale", DEFAULT_SEAM_SCALE)
-        .max(0.01);
+    let seam_scale = params.get_float("seam_scale", DEFAULT_SEAM_SCALE).max(0.01);
     let dc_only = params.get_bool("seam_dc_only", DEFAULT_SEAM_DC_ONLY);
     let sdf_band_scale = params
         .get_float("sdf_band_scale", DEFAULT_SDF_BAND_SCALE)
@@ -336,7 +352,10 @@ fn build_skirt_splats(
         }
         let pos_a = Vec3::from(a.positions[idx]);
         let pos_b = Vec3::from(b.positions[hit.index]);
-        let (rot_a, rot_b) = (quat_from_splat(a.rotations[idx]), quat_from_splat(b.rotations[hit.index]));
+        let (rot_a, rot_b) = (
+            quat_from_splat(a.rotations[idx]),
+            quat_from_splat(b.rotations[hit.index]),
+        );
         let mut rot_b = rot_b;
         if rot_a.dot(rot_b) < 0.0 {
             rot_b = Quat::from_xyzw(-rot_b.x, -rot_b.y, -rot_b.z, -rot_b.w);
@@ -378,11 +397,7 @@ fn build_skirt_splats(
             let op = logit(alpha);
 
             let sh0_a = a.sh0.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
-            let sh0_b = b
-                .sh0
-                .get(hit.index)
-                .copied()
-                .unwrap_or([0.0, 0.0, 0.0]);
+            let sh0_b = b.sh0.get(hit.index).copied().unwrap_or([0.0, 0.0, 0.0]);
             let sh0_out = lerp_vec3(sh0_a, sh0_b, t);
 
             positions.push(position.to_array());
@@ -488,9 +503,7 @@ fn extend_attribute_defaults(
         match storage {
             AttributeStorage::Float(values) => values.extend(std::iter::repeat_n(0.0, count)),
             AttributeStorage::Int(values) => values.extend(std::iter::repeat_n(0, count)),
-            AttributeStorage::Vec2(values) => {
-                values.extend(std::iter::repeat_n([0.0, 0.0], count))
-            }
+            AttributeStorage::Vec2(values) => values.extend(std::iter::repeat_n([0.0, 0.0], count)),
             AttributeStorage::Vec3(values) => {
                 values.extend(std::iter::repeat_n([0.0, 0.0, 0.0], count))
             }
@@ -501,9 +514,7 @@ fn extend_attribute_defaults(
                 if values.values.is_empty() {
                     values.values.push(String::new());
                 }
-                values
-                    .indices
-                    .extend(std::iter::repeat_n(0u32, count));
+                values.indices.extend(std::iter::repeat_n(0u32, count));
             }
         }
     }

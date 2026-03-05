@@ -55,11 +55,7 @@ impl LobedoApp {
                 let sin_pitch = pitch.sin();
                 let cos_yaw = yaw.cos();
                 let sin_yaw = yaw.sin();
-                let dir = [
-                    cos_pitch * cos_yaw,
-                    sin_pitch,
-                    cos_pitch * sin_yaw,
-                ];
+                let dir = [cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw];
                 let forward = normalize([-dir[0], -dir[1], -dir[2]]);
                 let world_up = [0.0f32, 1.0f32, 0.0f32];
                 let right = normalize(cross(forward, world_up));
@@ -115,11 +111,7 @@ impl LobedoApp {
                 let sin_pitch = pitch.sin();
                 let cos_yaw = yaw.cos();
                 let sin_yaw = yaw.sin();
-                let dir_old = [
-                    cos_pitch * cos_yaw,
-                    sin_pitch,
-                    cos_pitch * sin_yaw,
-                ];
+                let dir_old = [cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw];
                 let camera_pos = [
                     camera.target[0] + dir_old[0] * camera.distance,
                     camera.target[1] + dir_old[1] * camera.distance,
@@ -132,11 +124,7 @@ impl LobedoApp {
                 let sin_pitch = new_pitch.sin();
                 let cos_yaw = new_yaw.cos();
                 let sin_yaw = new_yaw.sin();
-                let dir_new = [
-                    cos_pitch * cos_yaw,
-                    sin_pitch,
-                    cos_pitch * sin_yaw,
-                ];
+                let dir_new = [cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw];
                 camera.yaw = new_yaw;
                 camera.pitch = new_pitch;
                 camera.target[0] = camera_pos[0] - dir_new[0] * camera.distance;
@@ -154,11 +142,7 @@ impl LobedoApp {
             let cos_yaw = yaw.cos();
             let sin_yaw = yaw.sin();
 
-            let dir = [
-                cos_pitch * cos_yaw,
-                sin_pitch,
-                cos_pitch * sin_yaw,
-            ];
+            let dir = [cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw];
             let forward = [-dir[0], -dir[1], -dir[2]];
             let world_up = [0.0f32, 1.0f32, 0.0f32];
             let right = normalize(cross(forward, world_up));

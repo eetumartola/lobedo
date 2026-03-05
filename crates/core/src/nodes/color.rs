@@ -6,8 +6,7 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::{domain_from_params, existing_vec3_attr_mesh, existing_vec3_attr_splats},
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
@@ -62,25 +61,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to write."),
-        ParamSpec::string("group", "Group")
-            .with_help("Restrict to a group."),
+        ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -148,11 +136,7 @@ pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Res
     Ok(())
 }
 
-fn apply_color_to_values(
-    values: &mut [[f32; 3]],
-    color: [f32; 3],
-    mask: Option<&[bool]>,
-) {
+fn apply_color_to_values(values: &mut [[f32; 3]], color: [f32; 3], mask: Option<&[bool]>) {
     if let Some(mask) = mask {
         for (idx, value) in values.iter_mut().enumerate() {
             if mask.get(idx).copied().unwrap_or(false) {

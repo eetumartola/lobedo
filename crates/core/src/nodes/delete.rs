@@ -4,10 +4,7 @@ use crate::attributes::{AttributeDomain, AttributeStorage, MeshAttributes, Strin
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
-    group_utils::mesh_group_mask,
-    require_mesh_input,
+    geometry_in, geometry_out, group_utils::mesh_group_mask, require_mesh_input,
     selection_shape_params,
 };
 use crate::parallel;
@@ -35,20 +32,16 @@ pub fn default_params() -> NodeParams {
 pub fn param_specs() -> Vec<ParamSpec> {
     let mut specs = param_templates::selection_shape_specs(false, false);
     specs.push(
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict deletion."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict deletion."),
     );
-    specs.push(ParamSpec::int_enum(
-        "group_type",
-        "Group Type",
-        vec![
-            (0, "Auto"),
-            (1, "Vertex"),
-            (2, "Point"),
-            (3, "Primitive"),
-        ],
-    )
-    .with_help("Group domain to use."));
+    specs.push(
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
+        )
+        .with_help("Group domain to use."),
+    );
     specs
 }
 
@@ -62,10 +55,7 @@ pub struct DeleteResult {
     pub point_mapping: Vec<u32>,
 }
 
-pub fn compute_with_mapping(
-    params: &NodeParams,
-    inputs: &[Mesh],
-) -> Result<DeleteResult, String> {
+pub fn compute_with_mapping(params: &NodeParams, inputs: &[Mesh]) -> Result<DeleteResult, String> {
     let input = require_mesh_input(inputs, 0, "Delete requires a mesh input")?;
     Ok(delete_mesh_with_mapping(params, &input))
 }
@@ -132,9 +122,10 @@ fn delete_mesh_with_mapping(params: &NodeParams, mesh: &Mesh) -> DeleteResult {
         }
     }
 
-    let new_normals = mesh.normals.as_ref().map(|normals| {
-        kept_points_indices.iter().map(|&i| normals[i]).collect()
-    });
+    let new_normals = mesh
+        .normals
+        .as_ref()
+        .map(|normals| kept_points_indices.iter().map(|&i| normals[i]).collect());
     let new_uvs = mesh.uvs.as_ref().and_then(|uvs| {
         if uvs.len() == mesh.positions.len() {
             Some(kept_points_indices.iter().map(|&i| uvs[i]).collect())
@@ -158,7 +149,8 @@ fn delete_mesh_with_mapping(params: &NodeParams, mesh: &Mesh) -> DeleteResult {
         }
     });
 
-    let new_attributes = filter_mesh_attributes(mesh, &kept_points_indices, &kept_tris, &new_indices);
+    let new_attributes =
+        filter_mesh_attributes(mesh, &kept_points_indices, &kept_tris, &new_indices);
     let new_groups = filter_mesh_groups(mesh, &kept_points_indices, &kept_tris, &new_indices);
 
     let mut result = Mesh::with_positions_indices(new_positions, new_indices);
@@ -187,9 +179,10 @@ fn filter_point_cloud(mesh: &Mesh, keep_points: &[bool]) -> Mesh {
         new_positions.push(mesh.positions[idx]);
     }
 
-    let new_normals = mesh.normals.as_ref().map(|normals| {
-        kept_points.iter().map(|&i| normals[i]).collect()
-    });
+    let new_normals = mesh
+        .normals
+        .as_ref()
+        .map(|normals| kept_points.iter().map(|&i| normals[i]).collect());
     let new_uvs = mesh.uvs.as_ref().and_then(|uvs| {
         if uvs.len() == mesh.positions.len() {
             Some(kept_points.iter().map(|&i| uvs[i]).collect())
@@ -220,7 +213,9 @@ fn filter_mesh_attributes(
 
     for (name, storage) in mesh.attributes.map(AttributeDomain::Point) {
         let filtered = filter_attribute_storage(storage, kept_points);
-        attributes.map_mut(AttributeDomain::Point).insert(name.clone(), filtered);
+        attributes
+            .map_mut(AttributeDomain::Point)
+            .insert(name.clone(), filtered);
     }
     for (name, storage) in mesh.attributes.map(AttributeDomain::Vertex) {
         if !kept_indices.is_empty() {
@@ -231,7 +226,9 @@ fn filter_mesh_attributes(
                 kept_corners.push(tri_index * 3 + 2);
             }
             let filtered = filter_attribute_storage(storage, &kept_corners);
-            attributes.map_mut(AttributeDomain::Vertex).insert(name.clone(), filtered);
+            attributes
+                .map_mut(AttributeDomain::Vertex)
+                .insert(name.clone(), filtered);
         }
     }
     for (name, storage) in mesh.attributes.map(AttributeDomain::Primitive) {
@@ -259,7 +256,9 @@ fn filter_mesh_groups(
 
     for (name, values) in mesh.groups.map(AttributeDomain::Point) {
         let filtered = filter_group_values(values, kept_points);
-        groups.map_mut(AttributeDomain::Point).insert(name.clone(), filtered);
+        groups
+            .map_mut(AttributeDomain::Point)
+            .insert(name.clone(), filtered);
     }
     for (name, values) in mesh.groups.map(AttributeDomain::Vertex) {
         if !kept_indices.is_empty() {

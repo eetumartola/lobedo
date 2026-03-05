@@ -28,8 +28,7 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
-    vec![ParamSpec::path("path", "Path", ParamPathKind::WriteObj)
-        .with_help("Output OBJ file path.")]
+    vec![ParamSpec::path("path", "Path", ParamPathKind::WriteObj).with_help("Output OBJ file path.")]
 }
 
 pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
@@ -180,10 +179,8 @@ pub fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
                     writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
                 (UvMode::None, false) => {
-                    let parts: Vec<String> = face
-                        .iter()
-                        .map(|idx| format!("{}", idx + 1))
-                        .collect();
+                    let parts: Vec<String> =
+                        face.iter().map(|idx| format!("{}", idx + 1)).collect();
                     writeln!(file, "f {}", parts.join(" ")).map_err(|err| err.to_string())?;
                 }
             }
@@ -192,4 +189,3 @@ pub fn write_obj(path: &str, mesh: &Mesh) -> Result<(), String> {
     }
     Ok(())
 }
-

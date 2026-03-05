@@ -7,7 +7,12 @@ pub(super) fn create_offscreen_targets(
     target_format: wgpu::TextureFormat,
     width: u32,
     height: u32,
-) -> (wgpu::Texture, wgpu::TextureView, wgpu::Texture, wgpu::TextureView) {
+) -> (
+    wgpu::Texture,
+    wgpu::TextureView,
+    wgpu::Texture,
+    wgpu::TextureView,
+) {
     let size = wgpu::Extent3d {
         width: width.max(1),
         height: height.max(1),

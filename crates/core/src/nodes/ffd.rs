@@ -9,11 +9,9 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
 use crate::parallel;
 use crate::param_spec::ParamSpec;
@@ -43,7 +41,10 @@ pub fn default_params() -> NodeParams {
             ("res_x".to_string(), ParamValue::Int(DEFAULT_RES)),
             ("res_y".to_string(), ParamValue::Int(DEFAULT_RES)),
             ("res_z".to_string(), ParamValue::Int(DEFAULT_RES)),
-            ("lattice_points".to_string(), ParamValue::String(String::new())),
+            (
+                "lattice_points".to_string(),
+                ParamValue::String(String::new()),
+            ),
             ("use_input_bounds".to_string(), ParamValue::Bool(true)),
             ("center".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("size".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
@@ -55,17 +56,11 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict deformation."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict deformation."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::int_slider("res_x", "Res X", 2, 8)
@@ -100,10 +95,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(source) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -184,9 +176,7 @@ fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo, lattice: &Lattice
     }
     let extrapolate = params.get_bool("extrapolate", false);
     let eps = lattice.jacobian_epsilon();
-    let mut normals_storage = splats
-        .attributes
-        .remove(AttributeDomain::Point, "N");
+    let mut normals_storage = splats.attributes.remove(AttributeDomain::Point, "N");
 
     for idx in 0..splats.positions.len() {
         if mask
@@ -202,9 +192,7 @@ fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo, lattice: &Lattice
         let (deformed, linear) = lattice.eval_with_jacobian(pos, extrapolate, eps);
         splats.positions[idx] = deformed.to_array();
         splats.apply_linear_deform(idx, linear);
-        if let Some(crate::attributes::AttributeStorage::Vec3(normals)) =
-            normals_storage.as_mut()
-        {
+        if let Some(crate::attributes::AttributeStorage::Vec3(normals)) = normals_storage.as_mut() {
             if let Some(slot) = normals.get_mut(idx) {
                 *slot = transform_normal(*slot, linear);
             }
@@ -239,12 +227,7 @@ fn build_lattice_from_mesh(
     lattice_input: Option<&Mesh>,
 ) -> Result<Lattice, String> {
     let lattice_positions = lattice_input.map(|mesh| mesh.positions.clone());
-    build_lattice_from_positions(
-        params,
-        Some(source),
-        None,
-        lattice_positions.as_deref(),
-    )
+    build_lattice_from_positions(params, Some(source), None, lattice_positions.as_deref())
 }
 
 fn build_lattice(
@@ -254,12 +237,7 @@ fn build_lattice(
     lattice_geo: Option<&Geometry>,
 ) -> Result<Lattice, String> {
     let lattice_positions = lattice_geo.and_then(extract_lattice_positions);
-    build_lattice_from_positions(
-        params,
-        mesh,
-        splats,
-        lattice_positions.as_deref(),
-    )
+    build_lattice_from_positions(params, mesh, splats, lattice_positions.as_deref())
 }
 
 fn build_lattice_from_positions(
@@ -284,15 +262,10 @@ fn build_lattice_from_positions(
                         positions.len()
                     ));
                 }
-                let mut points: Vec<Vec3> =
-                    positions.iter().map(|p| Vec3::from(*p)).collect();
-                let (bounds_min, bounds_max) = lattice_bounds_from_params(
-                    params,
-                    mesh,
-                    splats,
-                    positions,
-                )
-                .unwrap_or((Vec3::ZERO, Vec3::ONE));
+                let mut points: Vec<Vec3> = positions.iter().map(|p| Vec3::from(*p)).collect();
+                let (bounds_min, bounds_max) =
+                    lattice_bounds_from_params(params, mesh, splats, positions)
+                        .unwrap_or((Vec3::ZERO, Vec3::ONE));
                 sort_lattice_points(&mut points, bounds_min, bounds_max);
                 control = Some(points);
             }
@@ -463,23 +436,15 @@ fn sort_lattice_points(points: &mut [Vec3], min: Vec3, max: Vec3) {
     points.sort_by(|a, b| {
         let na = (*a - min) / size;
         let nb = (*b - min) / size;
-        let ord = na
-            .z
-            .partial_cmp(&nb.z)
-            .unwrap_or(Ordering::Equal);
+        let ord = na.z.partial_cmp(&nb.z).unwrap_or(Ordering::Equal);
         if ord != Ordering::Equal {
             return ord;
         }
-        let ord = na
-            .y
-            .partial_cmp(&nb.y)
-            .unwrap_or(Ordering::Equal);
+        let ord = na.y.partial_cmp(&nb.y).unwrap_or(Ordering::Equal);
         if ord != Ordering::Equal {
             return ord;
         }
-        na.x
-            .partial_cmp(&nb.x)
-            .unwrap_or(Ordering::Equal)
+        na.x.partial_cmp(&nb.x).unwrap_or(Ordering::Equal)
     });
 }
 

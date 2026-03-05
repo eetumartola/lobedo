@@ -5,8 +5,8 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
 pub const NAME: &str = "Volume from Geometry";
@@ -58,10 +58,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -163,7 +160,11 @@ pub fn apply_to_geometry(
         }
         if has_tris {
             let inside = is_inside_mesh(pos, &triangles);
-            let signed_mesh = if inside { -unsigned_dist } else { unsigned_dist };
+            let signed_mesh = if inside {
+                -unsigned_dist
+            } else {
+                unsigned_dist
+            };
             if signed_dist.is_infinite() || signed_mesh < signed_dist {
                 signed_dist = signed_mesh;
             }

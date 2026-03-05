@@ -35,8 +35,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
             .with_help("Merge points within this radius."),
-        ParamSpec::bool("unfuse", "Unfuse")
-            .with_help("Split shared points into unique points."),
+        ParamSpec::bool("unfuse", "Unfuse").with_help("Split shared points into unique points."),
     ]
 }
 
@@ -46,7 +45,10 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
         let sources = if mesh.indices.is_empty() {
             (0..mesh.positions.len()).collect::<Vec<_>>()
         } else {
-            mesh.indices.iter().map(|idx| *idx as usize).collect::<Vec<_>>()
+            mesh.indices
+                .iter()
+                .map(|idx| *idx as usize)
+                .collect::<Vec<_>>()
         };
         Ok(unfuse_mesh(&mesh, &sources).0)
     } else {
@@ -88,8 +90,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
                 curves = input.curves.clone();
             }
         } else {
-            let (fused, mapping) =
-                fuse_mesh(&mesh, params.get_float("radius", DEFAULT_RADIUS));
+            let (fused, mapping) = fuse_mesh(&mesh, params.get_float("radius", DEFAULT_RADIUS));
             if !input.curves.is_empty() {
                 for curve in &input.curves {
                     let mut indices = Vec::with_capacity(curve.indices.len());
@@ -242,11 +243,7 @@ fn unfuse_mesh(mesh: &Mesh, point_sources: &[usize]) -> (Mesh, Vec<usize>) {
     (out, point_sources.to_vec())
 }
 
-fn remap_attributes_fused(
-    mesh: &Mesh,
-    mapping: &[u32],
-    clusters: &[Cluster],
-) -> MeshAttributes {
+fn remap_attributes_fused(mesh: &Mesh, mapping: &[u32], clusters: &[Cluster]) -> MeshAttributes {
     let mut out = MeshAttributes::default();
     for (name, storage) in mesh.attributes.map(AttributeDomain::Vertex) {
         out.map_mut(AttributeDomain::Vertex)
@@ -410,11 +407,7 @@ fn remap_uvs_fused(mesh: &Mesh, mapping: &[u32], count: usize) -> Option<Vec<[f3
     Some(accum)
 }
 
-fn remap_normals_fused(
-    mesh: &Mesh,
-    mapping: &[u32],
-    count: usize,
-) -> Option<Vec<[f32; 3]>> {
+fn remap_normals_fused(mesh: &Mesh, mapping: &[u32], count: usize) -> Option<Vec<[f32; 3]>> {
     let normals = mesh.normals.as_ref()?;
     if normals.len() != mesh.positions.len() {
         return None;
@@ -553,7 +546,11 @@ fn remap_normals_unfused(mesh: &Mesh, point_sources: &[usize]) -> Option<Vec<[f3
     if normals.len() != mesh.positions.len() {
         return None;
     }
-    Some(remap_storage_values(normals, point_sources, [0.0, 1.0, 0.0]))
+    Some(remap_storage_values(
+        normals,
+        point_sources,
+        [0.0, 1.0, 0.0],
+    ))
 }
 
 fn remap_storage_values<T: Copy>(values: &[T], sources: &[usize], default: T) -> Vec<T> {

@@ -73,11 +73,7 @@ pub(super) fn add_builtin_node_checked(
     ))
 }
 
-pub(super) fn core_input_pin(
-    graph: &Graph,
-    node_id: NodeId,
-    input_index: usize,
-) -> Option<PinId> {
+pub(super) fn core_input_pin(graph: &Graph, node_id: NodeId, input_index: usize) -> Option<PinId> {
     graph.node(node_id)?.inputs.get(input_index).copied()
 }
 

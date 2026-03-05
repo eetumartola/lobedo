@@ -1,77 +1,77 @@
-pub mod attribute_math;
-pub mod attribute_utils;
+pub mod attribute_expand;
 pub mod attribute_from_feature;
 pub mod attribute_from_volume;
+pub mod attribute_math;
 pub mod attribute_noise;
 pub mod attribute_promote;
 pub mod attribute_transfer;
-pub mod attribute_expand;
-pub mod box_node;
+pub mod attribute_utils;
 pub mod boolean;
 pub mod boolean_geo;
+pub mod box_node;
 pub mod circle;
-pub mod cylindrical_unwrap;
 pub mod color;
 pub mod copy_to_points;
 pub mod copy_transform;
 pub mod curve;
+pub mod cylindrical_unwrap;
+pub mod delete;
+pub mod depth_image;
+pub mod depth_to_splats;
 pub mod erosion_noise;
+pub mod expand_utils;
 pub mod ffd;
-pub mod fuse;
 pub mod file;
+pub mod fuse;
 pub mod gltf_output;
+pub mod grid;
 pub mod group;
 pub mod group_expand;
-pub mod grid;
 pub mod group_utils;
-pub mod expand_utils;
-pub mod merge;
+pub mod image;
+pub mod image_preview;
 pub mod material;
+pub mod merge;
 pub mod noise;
 pub mod normal;
-pub mod polyframe;
 pub mod obj_output;
 pub mod output;
+pub mod polyframe;
 pub mod prune;
 pub mod ray;
 pub mod read_splats;
 pub mod regularize;
 pub mod resample;
-pub mod splat_to_mesh;
+pub mod scatter;
+pub mod smooth;
+pub mod sphere;
+pub mod splat_cluster;
 pub mod splat_deform;
 pub mod splat_delight;
-pub mod splat_lighting_utils;
-pub mod splat_integrate;
+pub mod splat_divide;
 pub mod splat_heal;
-pub mod splat_cluster;
+pub mod splat_integrate;
+pub mod splat_lighting_utils;
 pub mod splat_lod;
 pub mod splat_merge;
-pub mod splat_utils;
 pub mod splat_outlier;
 pub mod splat_outlier_sdf;
+pub mod splat_to_mesh;
+pub mod splat_utils;
 pub mod sweep;
-pub mod volume_from_geo;
-pub mod volume_from_splats;
-pub mod volume_combine;
-pub mod volume_blur;
-pub mod volume_to_mesh;
-pub mod write_splats;
-pub mod worldlabs_generate;
-pub mod delete;
-pub mod depth_image;
-pub mod depth_to_splats;
-pub mod scatter;
-pub mod sphere;
-pub mod smooth;
-pub mod splat_divide;
 pub mod transform;
 pub mod tube;
 pub mod uv_texture;
 pub mod uv_unwrap;
 pub mod uv_view;
+pub mod volume_blur;
+pub mod volume_combine;
+pub mod volume_from_geo;
+pub mod volume_from_splats;
+pub mod volume_to_mesh;
+pub mod worldlabs_generate;
 pub mod wrangle;
-pub mod image;
-pub mod image_preview;
+pub mod write_splats;
 
 use std::collections::BTreeMap;
 
@@ -106,11 +106,7 @@ pub fn image_out(name: &str) -> PinDefinition {
     }
 }
 
-pub fn require_mesh_input(
-    inputs: &[Mesh],
-    index: usize,
-    message: &str,
-) -> Result<Mesh, String> {
+pub fn require_mesh_input(inputs: &[Mesh], index: usize, message: &str) -> Result<Mesh, String> {
     inputs
         .get(index)
         .cloned()

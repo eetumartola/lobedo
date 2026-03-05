@@ -1,5 +1,5 @@
-use crate::splat::SplatGeo;
 use crate::assets;
+use crate::splat::SplatGeo;
 
 #[allow(clippy::excessive_precision)]
 const SH_C0: f32 = 0.28209479177387814;
@@ -86,7 +86,6 @@ pub fn load_splat_ply_with_mode(path: &str, mode: SplatLoadMode) -> Result<Splat
     }
 }
 
-
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(dead_code)]
 pub fn save_splat_ply(path: &str, splats: &SplatGeo) -> Result<(), String> {
@@ -118,8 +117,7 @@ pub fn save_splat_ply_with_format(
             writeln!(file, "format ascii 1.0").map_err(|err| err.to_string())?
         }
         SplatSaveFormat::BinaryLittle => {
-            writeln!(file, "format binary_little_endian 1.0")
-                .map_err(|err| err.to_string())?
+            writeln!(file, "format binary_little_endian 1.0").map_err(|err| err.to_string())?
         }
     }
     writeln!(file, "element vertex {}", normalized.len()).map_err(|err| err.to_string())?;
@@ -199,27 +197,22 @@ pub fn save_splat_ply_with_format(
                     c1 = (c1 - 0.5) / SH_C0;
                     c2 = (c2 - 0.5) / SH_C0;
                 }
-                for value in [
-                    x, y, z, opacity, sx, sy, sz, r0, r1, r2, r3, c0, c1, c2,
-                ] {
+                for value in [x, y, z, opacity, sx, sy, sz, r0, r1, r2, r3, c0, c1, c2] {
                     buffer.extend_from_slice(&value.to_le_bytes());
                 }
                 if normalized.sh_coeffs > 0 {
                     let base = idx * normalized.sh_coeffs;
                     for coeff in 0..normalized.sh_coeffs {
-                        buffer.extend_from_slice(
-                            &normalized.sh_rest[base + coeff][0].to_le_bytes(),
-                        );
+                        buffer
+                            .extend_from_slice(&normalized.sh_rest[base + coeff][0].to_le_bytes());
                     }
                     for coeff in 0..normalized.sh_coeffs {
-                        buffer.extend_from_slice(
-                            &normalized.sh_rest[base + coeff][1].to_le_bytes(),
-                        );
+                        buffer
+                            .extend_from_slice(&normalized.sh_rest[base + coeff][1].to_le_bytes());
                     }
                     for coeff in 0..normalized.sh_coeffs {
-                        buffer.extend_from_slice(
-                            &normalized.sh_rest[base + coeff][2].to_le_bytes(),
-                        );
+                        buffer
+                            .extend_from_slice(&normalized.sh_rest[base + coeff][2].to_le_bytes());
                     }
                 }
                 file.write_all(&buffer).map_err(|err| err.to_string())?;
@@ -356,8 +349,8 @@ fn parse_header_bytes(data: &[u8]) -> Result<(PlyHeader, usize), String> {
             continue;
         }
         let line_bytes = &data[line_start..idx];
-        let line_str = std::str::from_utf8(line_bytes)
-            .map_err(|_| "PLY header is not ASCII".to_string())?;
+        let line_str =
+            std::str::from_utf8(line_bytes).map_err(|_| "PLY header is not ASCII".to_string())?;
         let line = line_str.trim_end_matches('\r').trim();
         if line == "end_header" {
             header_end = Some(idx + 1);
@@ -404,7 +397,11 @@ fn parse_ascii_vertices(
         }
         let values: Vec<f32> = line
             .split_whitespace()
-            .map(|token| token.parse::<f32>().map_err(|_| "Invalid PLY value".to_string()))
+            .map(|token| {
+                token
+                    .parse::<f32>()
+                    .map_err(|_| "Invalid PLY value".to_string())
+            })
             .collect::<Result<Vec<_>, _>>()?;
         if values.len() < header.vertex_properties.len() {
             return Err("PLY vertex row has too few values".to_string());
@@ -455,10 +452,11 @@ fn parse_binary_vertices(
 
 fn read_scalar(data: &[u8], data_type: PlyScalarType, little_endian: bool) -> Result<f32, String> {
     let value = match data_type {
-        PlyScalarType::Int8 => data
-            .first()
-            .copied()
-            .ok_or_else(|| "Invalid PLY data".to_string())? as i8 as f32,
+        PlyScalarType::Int8 => {
+            data.first()
+                .copied()
+                .ok_or_else(|| "Invalid PLY data".to_string())? as i8 as f32
+        }
         PlyScalarType::Uint8 => data
             .first()
             .copied()
@@ -554,14 +552,16 @@ fn fill_splat_from_values(
         splats.opacity[read] = values[idx];
     }
 
-    if let (Some(sx), Some(sy), Some(sz)) = (indices.scale[0], indices.scale[1], indices.scale[2])
-    {
+    if let (Some(sx), Some(sy), Some(sz)) = (indices.scale[0], indices.scale[1], indices.scale[2]) {
         splats.scales[read] = [values[sx], values[sy], values[sz]];
     }
 
-    if let (Some(r0), Some(r1), Some(r2), Some(r3)) =
-        (indices.rot[0], indices.rot[1], indices.rot[2], indices.rot[3])
-    {
+    if let (Some(r0), Some(r1), Some(r2), Some(r3)) = (
+        indices.rot[0],
+        indices.rot[1],
+        indices.rot[2],
+        indices.rot[3],
+    ) {
         splats.rotations[read] = [values[r0], values[r1], values[r2], values[r3]];
     }
 
@@ -575,7 +575,8 @@ fn fill_splat_from_values(
             ];
         }
         splats.sh0[read] = sh0;
-    } else if let (Some(r), Some(g), Some(b)) = (indices.color[0], indices.color[1], indices.color[2])
+    } else if let (Some(r), Some(g), Some(b)) =
+        (indices.color[0], indices.color[1], indices.color[2])
     {
         let mut color = [values[r], values[g], values[b]];
         if color.iter().any(|v| *v > 1.5) {
@@ -587,7 +588,10 @@ fn fill_splat_from_values(
     if splats.sh_coeffs > 0 && indices.sh_rest.len() >= splats.sh_coeffs * 3 {
         let base = read * splats.sh_coeffs;
         for coeff in 0..splats.sh_coeffs {
-            let r = indices.sh_rest.get(coeff).and_then(|idx| idx.map(|i| values[i]));
+            let r = indices
+                .sh_rest
+                .get(coeff)
+                .and_then(|idx| idx.map(|i| values[i]));
             let g = indices
                 .sh_rest
                 .get(coeff + splats.sh_coeffs)
@@ -680,7 +684,9 @@ impl SplatPropertyIndices {
 }
 
 fn parse_sh_rest_index(name: &str) -> Option<usize> {
-    let suffix = name.strip_prefix("f_rest_").or_else(|| name.strip_prefix("sh_rest_"))?;
+    let suffix = name
+        .strip_prefix("f_rest_")
+        .or_else(|| name.strip_prefix("sh_rest_"))?;
     suffix.parse::<usize>().ok()
 }
 
@@ -714,11 +720,7 @@ end_header
         let splats = parse_splat_ply_bytes(data.as_bytes()).expect("parse");
         assert_eq!(splats.len(), 2);
         assert!((splats.opacity[0] - 0.5).abs() < 1.0e-6);
-        let expected = [
-            0.4 * SH_C0 + 0.5,
-            0.5 * SH_C0 + 0.5,
-            0.6 * SH_C0 + 0.5,
-        ];
+        let expected = [0.4 * SH_C0 + 0.5, 0.5 * SH_C0 + 0.5, 0.6 * SH_C0 + 0.5];
         assert_eq!(splats.sh0[1], expected);
     }
 

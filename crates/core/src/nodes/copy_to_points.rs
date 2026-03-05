@@ -2,14 +2,13 @@ use std::collections::BTreeMap;
 
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
-use crate::attributes::{
-    AttributeDomain, AttributeRef, AttributeStorage, StringTableAttribute,
-};
+use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, StringTableAttribute};
 use crate::geometry::merge_splats;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    attribute_utils::parse_attribute_list, geometry_in, geometry_out,
+    attribute_utils::parse_attribute_list,
+    geometry_in, geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
@@ -37,7 +36,10 @@ pub fn default_params() -> NodeParams {
             ("rotate_deg".to_string(), ParamValue::Vec3([0.0, 0.0, 0.0])),
             ("scale".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
             ("inherit".to_string(), ParamValue::String("Cd".to_string())),
-            ("copy_attr".to_string(), ParamValue::String("copynr".to_string())),
+            (
+                "copy_attr".to_string(),
+                ParamValue::String("copynr".to_string()),
+            ),
             ("copy_attr_class".to_string(), ParamValue::Int(0)),
             ("group".to_string(), ParamValue::String(String::new())),
             ("group_type".to_string(), ParamValue::Int(0)),
@@ -46,10 +48,8 @@ pub fn default_params() -> NodeParams {
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
-    let mut specs = vec![
-        ParamSpec::bool("align_to_normals", "Align to Normals")
-            .with_help("Align copies to template normals."),
-    ];
+    let mut specs = vec![ParamSpec::bool("align_to_normals", "Align to Normals")
+        .with_help("Align copies to template normals.")];
     specs.extend(param_templates::transform_params(false));
     specs.push(
         ParamSpec::string("inherit", "Inherit Attributes")
@@ -59,27 +59,24 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::string("copy_attr", "Copy Attribute")
             .with_help("Name of the per-copy index attribute."),
     );
-    specs.push(ParamSpec::int_enum(
-        "copy_attr_class",
-        "Copy Attribute Class",
-        vec![(0, "Point"), (1, "Vertex"), (2, "Primitive")],
-    )
-    .with_help("Attribute class for the per-copy index."));
     specs.push(
-        ParamSpec::string("group", "Group")
-            .with_help("Restrict to a template point group."),
+        ParamSpec::int_enum(
+            "copy_attr_class",
+            "Copy Attribute Class",
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive")],
+        )
+        .with_help("Attribute class for the per-copy index."),
     );
-    specs.push(ParamSpec::int_enum(
-        "group_type",
-        "Group Type",
-        vec![
-            (0, "Auto"),
-            (1, "Vertex"),
-            (2, "Point"),
-            (3, "Primitive"),
-        ],
-    )
-    .with_help("Group domain to use."));
+    specs
+        .push(ParamSpec::string("group", "Group").with_help("Restrict to a template point group."));
+    specs.push(
+        ParamSpec::int_enum(
+            "group_type",
+            "Group Type",
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
+        )
+        .with_help("Group domain to use."),
+    );
     specs
 }
 
@@ -142,9 +139,8 @@ struct CopySettings {
 }
 
 fn copy_settings(params: &NodeParams) -> CopySettings {
-    let rot = Vec3::from(params.get_vec3("rotate_deg", [0.0, 0.0, 0.0]))
-        * std::f32::consts::PI
-        / 180.0;
+    let rot =
+        Vec3::from(params.get_vec3("rotate_deg", [0.0, 0.0, 0.0])) * std::f32::consts::PI / 180.0;
     CopySettings {
         align_to_normals: params.get_bool("align_to_normals", true),
         user_quat: Quat::from_euler(EulerRot::XYZ, rot.x, rot.y, rot.z),
@@ -322,12 +318,7 @@ fn compute_splats_from_template(
         splats.transform(matrix);
         apply_inherit_attributes_splats(&mut splats, &inherit_sources, idx)?;
         if !copy_attr.is_empty() {
-            apply_copy_index_attribute_splats(
-                &mut splats,
-                &copy_attr,
-                copy_attr_domain,
-                copy_idx,
-            )?;
+            apply_copy_index_attribute_splats(&mut splats, &copy_attr, copy_attr_domain, copy_idx)?;
         }
         *slot = splats;
         Ok::<(), String>(())
@@ -446,12 +437,12 @@ fn sample_inherit_value(source: &InheritSource<'_>, point_index: usize) -> Optio
         AttributeRef::Vec2(values) => {
             InheritValue::Vec2(values.get(index).copied().unwrap_or([0.0, 0.0]))
         }
-        AttributeRef::Vec3(values) => InheritValue::Vec3(
-            values.get(index).copied().unwrap_or([0.0, 0.0, 0.0]),
-        ),
-        AttributeRef::Vec4(values) => InheritValue::Vec4(
-            values.get(index).copied().unwrap_or([0.0, 0.0, 0.0, 0.0]),
-        ),
+        AttributeRef::Vec3(values) => {
+            InheritValue::Vec3(values.get(index).copied().unwrap_or([0.0, 0.0, 0.0]))
+        }
+        AttributeRef::Vec4(values) => {
+            InheritValue::Vec4(values.get(index).copied().unwrap_or([0.0, 0.0, 0.0, 0.0]))
+        }
         AttributeRef::StringTable(values) => InheritValue::StringTable {
             values: values.values.clone(),
             index: values.indices.get(index).copied().unwrap_or(0),
@@ -654,6 +645,3 @@ fn sample_pscale(
     }
     1.0
 }
-
-
-

@@ -2,7 +2,9 @@ use glam::{Mat3, Mat4, Quat, Vec3};
 
 use crate::attributes::{AttributeDomain, AttributeStorage, StringTableAttribute};
 
-use super::math::{eigen_decomposition_symmetric, mat3_is_finite, rotation_from_linear, rotation_from_matrix};
+use super::math::{
+    eigen_decomposition_symmetric, mat3_is_finite, rotation_from_linear, rotation_from_matrix,
+};
 use super::sh::{build_sh_rotation_matrices, rotate_sh_bands};
 use super::{SplatGeo, SPLAT_LOG_SCALE_MAX, SPLAT_LOG_SCALE_MIN};
 
@@ -300,10 +302,7 @@ impl SplatGeo {
                     .iter()
                     .map(|&idx| values.get(idx).copied().unwrap_or(false))
                     .collect();
-                output
-                    .groups
-                    .map_mut(domain)
-                    .insert(name.clone(), filtered);
+                output.groups.map_mut(domain).insert(name.clone(), filtered);
             }
         }
 

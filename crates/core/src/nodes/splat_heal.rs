@@ -61,29 +61,47 @@ pub fn default_params() -> NodeParams {
                 "heal_shape".to_string(),
                 ParamValue::String(DEFAULT_HEAL_SHAPE.to_string()),
             ),
-            ("heal_center".to_string(), ParamValue::Vec3(DEFAULT_HEAL_CENTER)),
+            (
+                "heal_center".to_string(),
+                ParamValue::Vec3(DEFAULT_HEAL_CENTER),
+            ),
             ("heal_size".to_string(), ParamValue::Vec3(DEFAULT_HEAL_SIZE)),
             ("method".to_string(), ParamValue::Int(DEFAULT_METHOD)),
             (
                 "preview_surface".to_string(),
                 ParamValue::Bool(DEFAULT_PREVIEW_SURFACE),
             ),
-            ("voxel_size".to_string(), ParamValue::Float(DEFAULT_VOXEL_SIZE)),
+            (
+                "voxel_size".to_string(),
+                ParamValue::Float(DEFAULT_VOXEL_SIZE),
+            ),
             (
                 "voxel_size_max".to_string(),
                 ParamValue::Int(DEFAULT_MAX_VOXEL_DIM),
             ),
             ("n_sigma".to_string(), ParamValue::Float(DEFAULT_N_SIGMA)),
-            ("density_iso".to_string(), ParamValue::Float(DEFAULT_DENSITY_ISO)),
+            (
+                "density_iso".to_string(),
+                ParamValue::Float(DEFAULT_DENSITY_ISO),
+            ),
             (
                 "bounds_padding".to_string(),
                 ParamValue::Float(DEFAULT_BOUNDS_PADDING),
             ),
-            ("close_radius".to_string(), ParamValue::Int(DEFAULT_CLOSE_RADIUS)),
-            ("fill_stride".to_string(), ParamValue::Int(DEFAULT_FILL_STRIDE)),
+            (
+                "close_radius".to_string(),
+                ParamValue::Int(DEFAULT_CLOSE_RADIUS),
+            ),
+            (
+                "fill_stride".to_string(),
+                ParamValue::Int(DEFAULT_FILL_STRIDE),
+            ),
             ("max_new".to_string(), ParamValue::Int(DEFAULT_MAX_NEW)),
             ("sdf_band".to_string(), ParamValue::Float(DEFAULT_SDF_BAND)),
-            ("sdf_close".to_string(), ParamValue::Float(DEFAULT_SDF_CLOSE)),
+            (
+                "sdf_close".to_string(),
+                ParamValue::Float(DEFAULT_SDF_CLOSE),
+            ),
             (
                 "search_radius".to_string(),
                 ParamValue::Float(DEFAULT_SEARCH_RADIUS),
@@ -92,7 +110,10 @@ pub fn default_params() -> NodeParams {
                 "min_distance".to_string(),
                 ParamValue::Float(DEFAULT_MIN_DISTANCE),
             ),
-            ("scale_mul".to_string(), ParamValue::Float(DEFAULT_SCALE_MUL)),
+            (
+                "scale_mul".to_string(),
+                ParamValue::Float(DEFAULT_SCALE_MUL),
+            ),
             (
                 "opacity_mul".to_string(),
                 ParamValue::Float(DEFAULT_OPACITY_MUL),
@@ -104,24 +125,21 @@ pub fn default_params() -> NodeParams {
                 "shell_radius".to_string(),
                 ParamValue::Float(DEFAULT_SHELL_RADIUS),
             ),
-            ("blur_iters".to_string(), ParamValue::Int(DEFAULT_BLUR_ITERS)),
+            (
+                "blur_iters".to_string(),
+                ParamValue::Int(DEFAULT_BLUR_ITERS),
+            ),
         ]),
     }
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict healing."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict healing."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::string_enum(
@@ -167,12 +185,10 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::float_slider("sdf_close", "SDF Close", -2.0, 2.0)
             .with_help("SDF offset to close small gaps.")
             .visible_when_int("method", 1),
-        ParamSpec::float_slider("search_radius", "Search Radius", 0.0, 10.0).with_help(
-            "Neighbor search radius for copying attributes (<=0 = auto).",
-        ),
-        ParamSpec::float_slider("min_distance", "Min Distance", 0.0, 10.0).with_help(
-            "Minimum distance to existing splats (<=0 = auto).",
-        ),
+        ParamSpec::float_slider("search_radius", "Search Radius", 0.0, 10.0)
+            .with_help("Neighbor search radius for copying attributes (<=0 = auto)."),
+        ParamSpec::float_slider("min_distance", "Min Distance", 0.0, 10.0)
+            .with_help("Minimum distance to existing splats (<=0 = auto)."),
         ParamSpec::float_slider("scale_mul", "Scale Mult", 0.1, 10.0)
             .with_help("Scale multiplier for new splats."),
         ParamSpec::float_slider("opacity_mul", "Opacity Mult", 0.0, 2.0)
@@ -197,10 +213,7 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(input)
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -431,23 +444,25 @@ fn build_preview_surface(
                 .iter()
                 .map(|value| if *value != 0 { 1.0 } else { 0.0 })
                 .collect();
-            let mesh = crate::nodes::splat_to_mesh::marching_cubes(
-                &values,
-                &density.spec,
-                0.5,
-                true,
-            )?;
+            let mesh =
+                crate::nodes::splat_to_mesh::marching_cubes(&values, &density.spec, 0.5, true)?;
             Ok(Some(mesh))
         }
     }
 }
 
-fn build_density_grid(params: &NodeParams, source: &SplatGeo) -> Result<crate::nodes::splat_to_mesh::SplatGrid, String> {
+fn build_density_grid(
+    params: &NodeParams,
+    source: &SplatGeo,
+) -> Result<crate::nodes::splat_to_mesh::SplatGrid, String> {
     let grid_params = grid_params_from(params, 0);
     build_splat_grid(&grid_params, source, SplatOutputMode::Mesh)
 }
 
-fn build_sdf_grid(params: &NodeParams, source: &SplatGeo) -> Result<crate::nodes::splat_to_mesh::SplatGrid, String> {
+fn build_sdf_grid(
+    params: &NodeParams,
+    source: &SplatGeo,
+) -> Result<crate::nodes::splat_to_mesh::SplatGrid, String> {
     let grid_params = grid_params_from(params, 1);
     build_splat_grid(&grid_params, source, SplatOutputMode::Sdf)
 }
@@ -510,7 +525,11 @@ fn occupancy_from_grid(values: &[f32], iso: f32, inside_is_greater: bool) -> Vec
     let mut occ = vec![0u8; values.len()];
     parallel::for_each_indexed_mut(&mut occ, |idx, slot| {
         let value = values.get(idx).copied().unwrap_or(0.0);
-        let inside = if inside_is_greater { value >= iso } else { value <= iso };
+        let inside = if inside_is_greater {
+            value >= iso
+        } else {
+            value <= iso
+        };
         *slot = if inside { 1 } else { 0 };
     });
     occ
@@ -673,8 +692,7 @@ fn collect_new_splats(
         if !heal_bounds_contains(params, pos_world) {
             continue;
         }
-        if let Some((hit_idx, dist)) = hash.nearest(&source.positions, pos_world, search_radius)
-        {
+        if let Some((hit_idx, dist)) = hash.nearest(&source.positions, pos_world, search_radius) {
             if min_distance > 0.0 && dist < min_distance {
                 continue;
             }
@@ -838,16 +856,28 @@ fn append_new_splats(
         output.sh_coeffs = max_coeffs;
     }
 
-    let scale_mul = if scale_mul.is_finite() { scale_mul.max(1.0e-6) } else { 1.0 };
+    let scale_mul = if scale_mul.is_finite() {
+        scale_mul.max(1.0e-6)
+    } else {
+        1.0
+    };
     let log_scale_offset = scale_mul.ln();
-    let opacity_mul = if opacity_mul.is_finite() { opacity_mul.max(0.0) } else { 1.0 };
+    let opacity_mul = if opacity_mul.is_finite() {
+        opacity_mul.max(0.0)
+    } else {
+        1.0
+    };
 
     for new_splat in new_splats {
         let src = new_splat.source_index;
         output.positions.push(new_splat.position);
-        output
-            .rotations
-            .push(source.rotations.get(src).copied().unwrap_or([0.0, 0.0, 0.0, 1.0]));
+        output.rotations.push(
+            source
+                .rotations
+                .get(src)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
+        );
 
         let log_scale = source.scales.get(src).copied().unwrap_or([0.0, 0.0, 0.0]);
         let mut log_scale = Vec3::from(log_scale) + Vec3::splat(log_scale_offset);

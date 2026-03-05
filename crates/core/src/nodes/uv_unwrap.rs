@@ -62,12 +62,28 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
     let mut tri_normals = Vec::with_capacity(tri_count);
     let mut tri_areas = Vec::with_capacity(tri_count);
     for tri in tri_indices.chunks_exact(3) {
-        let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
-        let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
-        let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
+        let p0 = mesh
+            .positions
+            .get(tri[0] as usize)
+            .copied()
+            .unwrap_or([0.0, 0.0, 0.0]);
+        let p1 = mesh
+            .positions
+            .get(tri[1] as usize)
+            .copied()
+            .unwrap_or([0.0, 0.0, 0.0]);
+        let p2 = mesh
+            .positions
+            .get(tri[2] as usize)
+            .copied()
+            .unwrap_or([0.0, 0.0, 0.0]);
         let n = (Vec3::from(p1) - Vec3::from(p0)).cross(Vec3::from(p2) - Vec3::from(p0));
         let area = n.length() * 0.5;
-        let n = if n.length_squared() > 1.0e-6 { n.normalize() } else { Vec3::Y };
+        let n = if n.length_squared() > 1.0e-6 {
+            n.normalize()
+        } else {
+            Vec3::Y
+        };
         tri_normals.push(n);
         tri_areas.push(area);
     }
@@ -97,9 +113,21 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
         for &tri_idx in &island.tris {
             let base = tri_idx * 3;
             let tri = &tri_indices[base..base + 3];
-            let p0 = mesh.positions.get(tri[0] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
-            let p1 = mesh.positions.get(tri[1] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
-            let p2 = mesh.positions.get(tri[2] as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
+            let p0 = mesh
+                .positions
+                .get(tri[0] as usize)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0]);
+            let p1 = mesh
+                .positions
+                .get(tri[1] as usize)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0]);
+            let p2 = mesh
+                .positions
+                .get(tri[2] as usize)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0]);
             let uvs = project_triangle_uvs(
                 Vec3::from(p0),
                 Vec3::from(p1),
@@ -114,7 +142,12 @@ fn apply_uv_unwrap(params: &NodeParams, mesh: &mut Mesh) {
             uv_list.push(uvs);
         }
         total_area += area.max(area_sum * 0.5);
-        island_uvs.push(IslandUv { min, max, tris: island.tris.clone(), uvs: uv_list });
+        island_uvs.push(IslandUv {
+            min,
+            max,
+            tris: island.tris.clone(),
+            uvs: uv_list,
+        });
     }
 
     let mut row_width = total_area.sqrt().max(1.0e-3);
@@ -236,11 +269,7 @@ fn build_islands(tri_indices: &[u32], normals: &[Vec3], cos_threshold: f32) -> V
         std::collections::HashMap::new();
 
     for (tri_idx, tri) in tri_indices.chunks_exact(3).enumerate() {
-        let edges = [
-            (tri[0], tri[1]),
-            (tri[1], tri[2]),
-            (tri[2], tri[0]),
-        ];
+        let edges = [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])];
         for (a, b) in edges {
             let key = if a < b { (a, b) } else { (b, a) };
             edge_map.entry(key).or_default().push(tri_idx);

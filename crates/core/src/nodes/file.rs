@@ -1,13 +1,13 @@
-use std::collections::BTreeMap;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
-use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::assets;
+use crate::attributes::{AttributeDomain, AttributeStorage};
+use crate::gltf_io;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::geometry_out;
 use crate::param_spec::{ParamPathKind, ParamSpec};
-use crate::gltf_io;
+use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
 
 pub const NAME: &str = "File";
 
@@ -68,24 +68,24 @@ fn load_obj_mesh(path: &str) -> Result<Mesh, String> {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-    if assets::is_url(path) {
-        return Err(format!("Failed to download URL: {path}"));
-    }
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(format!("File not found: {}", path.display()));
-    }
+        if assets::is_url(path) {
+            return Err(format!("Failed to download URL: {path}"));
+        }
+        let path = Path::new(path);
+        if !path.exists() {
+            return Err(format!("File not found: {}", path.display()));
+        }
 
-    let (models, _) = {
-        let options = tobj::LoadOptions {
-            triangulate: true,
-            single_index: true,
-            ..Default::default()
+        let (models, _) = {
+            let options = tobj::LoadOptions {
+                triangulate: true,
+                single_index: true,
+                ..Default::default()
+            };
+            tobj::load_obj(path, &options).map_err(|err| format!("OBJ load failed: {err}"))?
         };
-        tobj::load_obj(path, &options).map_err(|err| format!("OBJ load failed: {err}"))?
-    };
 
-    build_mesh_from_models(models)
+        build_mesh_from_models(models)
     }
 }
 
@@ -186,4 +186,3 @@ fn build_mesh_from_models(models: Vec<tobj::Model>) -> Result<Mesh, String> {
 
     Ok(mesh)
 }
-

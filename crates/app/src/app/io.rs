@@ -16,8 +16,10 @@ use crate::node_graph::WriteRequest;
 use crate::node_graph::WriteRequestKind;
 
 const DEFAULT_GRAPH_PATH: &str = "graphs/default.json";
-const DEFAULT_GRAPH_JSON: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../graphs/default.json"));
+const DEFAULT_GRAPH_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../graphs/default.json"
+));
 
 impl LobedoApp {
     pub(super) fn new_project(&mut self) {

@@ -67,7 +67,11 @@ impl SplatGeo {
                 implicit: true,
             });
         }
-        for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+        for domain in [
+            AttributeDomain::Point,
+            AttributeDomain::Primitive,
+            AttributeDomain::Detail,
+        ] {
             for (name, storage) in self.attributes.map(domain) {
                 list.push(AttributeInfo {
                     name: name.clone(),
@@ -87,9 +91,7 @@ impl SplatGeo {
             ("Cd", AttributeDomain::Point)
             | ("Cd", AttributeDomain::Primitive)
             | ("sh0", AttributeDomain::Point)
-            | ("sh0", AttributeDomain::Primitive) => {
-                Some(AttributeRef::Vec3(self.sh0.as_slice()))
-            }
+            | ("sh0", AttributeDomain::Primitive) => Some(AttributeRef::Vec3(self.sh0.as_slice())),
             ("opacity", AttributeDomain::Point) | ("opacity", AttributeDomain::Primitive) => {
                 Some(AttributeRef::Float(self.opacity.as_slice()))
             }

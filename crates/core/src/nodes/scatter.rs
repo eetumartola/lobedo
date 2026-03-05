@@ -31,7 +31,10 @@ pub fn default_params() -> NodeParams {
         values: BTreeMap::from([
             ("count".to_string(), ParamValue::Int(100)),
             ("seed".to_string(), ParamValue::Int(1)),
-            ("density_attr".to_string(), ParamValue::String("density".to_string())),
+            (
+                "density_attr".to_string(),
+                ParamValue::String("density".to_string()),
+            ),
             ("density_min".to_string(), ParamValue::Float(0.0)),
             ("density_max".to_string(), ParamValue::Float(1.0)),
             ("inherit".to_string(), ParamValue::String("Cd".to_string())),
@@ -43,10 +46,8 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::int_slider("count", "Count", 0, 1000)
-            .with_help("Number of points to scatter."),
-        ParamSpec::int_slider("seed", "Seed", 0, 100)
-            .with_help("Random seed."),
+        ParamSpec::int_slider("count", "Count", 0, 1000).with_help("Number of points to scatter."),
+        ParamSpec::int_slider("seed", "Seed", 0, 100).with_help("Random seed."),
         ParamSpec::string("density_attr", "Density Attribute")
             .with_help("Optional density attribute for weighting."),
         ParamSpec::float_slider("density_min", "Density Min", 0.0, 1.0)
@@ -55,17 +56,11 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Maximum mapped density value (1->max)."),
         ParamSpec::string("inherit", "Inherit Attributes")
             .with_help("Attributes to inherit from the source."),
-        ParamSpec::string("group", "Group")
-            .with_help("Restrict scattering to a group."),
+        ParamSpec::string("group", "Group").with_help("Restrict scattering to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -254,13 +249,16 @@ fn scatter_points(
         let base = tri_index * 3;
         let i0 = *tri_indices
             .get(base)
-            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
+            .ok_or_else(|| "scatter triangle index out of range".to_string())?
+            as usize;
         let i1 = *tri_indices
             .get(base + 1)
-            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
+            .ok_or_else(|| "scatter triangle index out of range".to_string())?
+            as usize;
         let i2 = *tri_indices
             .get(base + 2)
-            .ok_or_else(|| "scatter triangle index out of range".to_string())? as usize;
+            .ok_or_else(|| "scatter triangle index out of range".to_string())?
+            as usize;
         let p0 = Vec3::from(input.positions[i0]);
         let p1 = Vec3::from(input.positions[i1]);
         let p2 = Vec3::from(input.positions[i2]);
@@ -332,13 +330,14 @@ fn scatter_curves(
         if indices.len() < 2 {
             continue;
         }
-        let seg_count = if curve.closed { indices.len() } else { indices.len() - 1 };
+        let seg_count = if curve.closed {
+            indices.len()
+        } else {
+            indices.len() - 1
+        };
         for i in 0..seg_count {
             let a = indices.get(i).copied().unwrap_or(0) as usize;
-            let b = indices
-                .get((i + 1) % indices.len())
-                .copied()
-                .unwrap_or(0) as usize;
+            let b = indices.get((i + 1) % indices.len()).copied().unwrap_or(0) as usize;
             let Some(p0) = positions.get(a) else { continue };
             let Some(p1) = positions.get(b) else { continue };
             let p0 = Vec3::from(*p0);
@@ -506,12 +505,31 @@ struct InheritSource<'a> {
 }
 
 enum InheritBuffer {
-    Float { name: String, values: Vec<f32> },
-    Int { name: String, values: Vec<i32> },
-    Vec2 { name: String, values: Vec<[f32; 2]> },
-    Vec3 { name: String, values: Vec<[f32; 3]> },
-    Vec4 { name: String, values: Vec<[f32; 4]> },
-    StringTable { name: String, values: Vec<String>, indices: Vec<u32> },
+    Float {
+        name: String,
+        values: Vec<f32>,
+    },
+    Int {
+        name: String,
+        values: Vec<i32>,
+    },
+    Vec2 {
+        name: String,
+        values: Vec<[f32; 2]>,
+    },
+    Vec3 {
+        name: String,
+        values: Vec<[f32; 3]>,
+    },
+    Vec4 {
+        name: String,
+        values: Vec<[f32; 4]>,
+    },
+    StringTable {
+        name: String,
+        values: Vec<String>,
+        indices: Vec<u32>,
+    },
 }
 
 fn mesh_density_source<'a>(mesh: &'a Mesh, name: &str) -> Option<DensitySource<'a>> {
@@ -689,18 +707,34 @@ fn apply_mesh_inherit(
             (AttributeDomain::Detail, attr, InheritBuffer::Vec4 { values, .. }) => {
                 values.push(sample_vec4_single(*attr, 0));
             }
-            (AttributeDomain::Point, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Point,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 let idx = select_string_index(values, point_indices, weights);
                 indices.push(idx);
             }
-            (AttributeDomain::Vertex, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Vertex,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 let idx = select_string_index(values, corner_indices, weights);
                 indices.push(idx);
             }
-            (AttributeDomain::Primitive, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Primitive,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 indices.push(select_string_single(values, face_index));
             }
-            (AttributeDomain::Detail, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Detail,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 indices.push(select_string_single(values, 0));
             }
             _ => {}
@@ -747,7 +781,11 @@ fn apply_curve_inherit(
             (AttributeDomain::Detail, attr, InheritBuffer::Vec4 { values, .. }) => {
                 values.push(sample_vec4_single(*attr, 0));
             }
-            (AttributeDomain::Point, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Point,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 let idx = if t < 0.5 {
                     select_string_single(values, a)
                 } else {
@@ -755,7 +793,11 @@ fn apply_curve_inherit(
                 };
                 indices.push(idx);
             }
-            (AttributeDomain::Detail, AttributeRef::StringTable(values), InheritBuffer::StringTable { indices, .. }) => {
+            (
+                AttributeDomain::Detail,
+                AttributeRef::StringTable(values),
+                InheritBuffer::StringTable { indices, .. },
+            ) => {
                 indices.push(select_string_single(values, 0));
             }
             _ => {}
@@ -767,8 +809,12 @@ fn apply_inherit_buffers(mesh: &mut Mesh, buffers: Vec<InheritBuffer>) -> Result
     for buffer in buffers {
         match buffer {
             InheritBuffer::Float { name, values } => {
-                mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Float(values))
-                    .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
+                mesh.set_attribute(
+                    AttributeDomain::Point,
+                    name,
+                    AttributeStorage::Float(values),
+                )
+                .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
             InheritBuffer::Int { name, values } => {
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Int(values))
@@ -786,7 +832,11 @@ fn apply_inherit_buffers(mesh: &mut Mesh, buffers: Vec<InheritBuffer>) -> Result
                 mesh.set_attribute(AttributeDomain::Point, name, AttributeStorage::Vec4(values))
                     .map_err(|err| format!("Scatter inherit error: {err:?}"))?;
             }
-            InheritBuffer::StringTable { name, values, indices } => {
+            InheritBuffer::StringTable {
+                name,
+                values,
+                indices,
+            } => {
                 mesh.set_attribute(
                     AttributeDomain::Point,
                     name,
@@ -857,19 +907,17 @@ fn sample_vec2_single(attr: AttributeRef<'_>, index: usize) -> [f32; 2] {
             .copied()
             .map(|v| [v as f32, v as f32])
             .unwrap_or([0.0; 2]),
-        AttributeRef::Vec3(values) => values
-            .get(index)
-            .map(|v| [v[0], v[1]])
-            .unwrap_or([0.0; 2]),
-        AttributeRef::Vec4(values) => values
-            .get(index)
-            .map(|v| [v[0], v[1]])
-            .unwrap_or([0.0; 2]),
+        AttributeRef::Vec3(values) => values.get(index).map(|v| [v[0], v[1]]).unwrap_or([0.0; 2]),
+        AttributeRef::Vec4(values) => values.get(index).map(|v| [v[0], v[1]]).unwrap_or([0.0; 2]),
         AttributeRef::StringTable(_) => [0.0; 2],
     }
 }
 
-fn sample_vec2_weighted(attr: AttributeRef<'_>, indices: [usize; 3], weights: [f32; 3]) -> [f32; 2] {
+fn sample_vec2_weighted(
+    attr: AttributeRef<'_>,
+    indices: [usize; 3],
+    weights: [f32; 3],
+) -> [f32; 2] {
     let a = sample_vec2_single(attr, indices[0]);
     let b = sample_vec2_single(attr, indices[1]);
     let c = sample_vec2_single(attr, indices[2]);
@@ -882,10 +930,7 @@ fn sample_vec2_weighted(attr: AttributeRef<'_>, indices: [usize; 3], weights: [f
 fn sample_vec2_line(attr: AttributeRef<'_>, a: usize, b: usize, t: f32) -> [f32; 2] {
     let va = sample_vec2_single(attr, a);
     let vb = sample_vec2_single(attr, b);
-    [
-        va[0] * (1.0 - t) + vb[0] * t,
-        va[1] * (1.0 - t) + vb[1] * t,
-    ]
+    [va[0] * (1.0 - t) + vb[0] * t, va[1] * (1.0 - t) + vb[1] * t]
 }
 
 fn sample_vec3_single(attr: AttributeRef<'_>, index: usize) -> [f32; 3] {
@@ -913,7 +958,11 @@ fn sample_vec3_single(attr: AttributeRef<'_>, index: usize) -> [f32; 3] {
     }
 }
 
-fn sample_vec3_weighted(attr: AttributeRef<'_>, indices: [usize; 3], weights: [f32; 3]) -> [f32; 3] {
+fn sample_vec3_weighted(
+    attr: AttributeRef<'_>,
+    indices: [usize; 3],
+    weights: [f32; 3],
+) -> [f32; 3] {
     let a = sample_vec3_single(attr, indices[0]);
     let b = sample_vec3_single(attr, indices[1]);
     let c = sample_vec3_single(attr, indices[2]);
@@ -959,7 +1008,11 @@ fn sample_vec4_single(attr: AttributeRef<'_>, index: usize) -> [f32; 4] {
     }
 }
 
-fn sample_vec4_weighted(attr: AttributeRef<'_>, indices: [usize; 3], weights: [f32; 3]) -> [f32; 4] {
+fn sample_vec4_weighted(
+    attr: AttributeRef<'_>,
+    indices: [usize; 3],
+    weights: [f32; 3],
+) -> [f32; 4] {
     let a = sample_vec4_single(attr, indices[0]);
     let b = sample_vec4_single(attr, indices[1]);
     let c = sample_vec4_single(attr, indices[2]);
@@ -986,7 +1039,11 @@ fn select_string_single(values: &StringTableAttribute, index: usize) -> u32 {
     values.indices.get(index).copied().unwrap_or(0)
 }
 
-fn select_string_index(values: &StringTableAttribute, indices: [usize; 3], weights: [f32; 3]) -> u32 {
+fn select_string_index(
+    values: &StringTableAttribute,
+    indices: [usize; 3],
+    weights: [f32; 3],
+) -> u32 {
     let mut max_i = 0;
     if weights[1] > weights[max_i] {
         max_i = 1;
@@ -1039,4 +1096,3 @@ impl XorShift32 {
         value as f32 / u32::MAX as f32
     }
 }
-

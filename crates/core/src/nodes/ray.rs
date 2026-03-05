@@ -13,11 +13,9 @@ use crate::nodes::{
         existing_vec3_attr_mesh, existing_vec3_attr_splats, existing_vec4_attr_mesh,
         existing_vec4_attr_splats, parse_attribute_list,
     },
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
 use crate::parallel;
 use crate::param_spec::ParamSpec;
@@ -67,19 +65,13 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Accumulated splat density threshold (0 disables)."),
         ParamSpec::bool("apply_transform", "Apply Transform")
             .with_help("Move points to hit location."),
-        ParamSpec::string("attr", "Attributes")
-            .with_help("Attribute(s) to import from the hit."),
+        ParamSpec::string("attr", "Attributes").with_help("Attribute(s) to import from the hit."),
         ParamSpec::string("hit_group", "Hit Group").with_help("Group name to mark hits."),
         ParamSpec::string("group", "Group").with_help("Restrict source points to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -119,7 +111,11 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         splats.push(splat);
     }
 
-    let curves = if meshes.is_empty() { Vec::new() } else { source.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        source.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -197,9 +193,7 @@ fn apply_to_mesh_with_targets(
     let mask = mask.as_deref();
     let point_normals = point_normals.as_deref();
     parallel::for_each_indexed_mut(&mut hits, |idx, slot| {
-        if mask
-            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-        {
+        if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
             return;
         }
         let origin = Vec3::from(positions[idx]);
@@ -217,18 +211,16 @@ fn apply_to_mesh_with_targets(
             RayMethod::Closest => {
                 find_closest_hit(origin, max_distance, target_meshes, target_splats)
             }
-            _ => dir
-                .and_then(normalize_vec)
-                .and_then(|dir| {
-                    find_ray_hit(
-                        origin,
-                        dir,
-                        max_distance,
-                        splat_density,
-                        target_meshes,
-                        target_splats,
-                    )
-                }),
+            _ => dir.and_then(normalize_vec).and_then(|dir| {
+                find_ray_hit(
+                    origin,
+                    dir,
+                    max_distance,
+                    splat_density,
+                    target_meshes,
+                    target_splats,
+                )
+            }),
         };
         *slot = hit;
     });
@@ -243,13 +235,7 @@ fn apply_to_mesh_with_targets(
     }
 
     apply_hit_group(mesh.groups.map_mut(AttributeDomain::Point), params, &hits);
-    apply_hit_attributes_mesh(
-        mesh,
-        &hits,
-        target_meshes,
-        target_splats,
-        params,
-    )?;
+    apply_hit_attributes_mesh(mesh, &hits, target_meshes, target_splats, params)?;
     Ok(())
 }
 
@@ -283,9 +269,7 @@ fn apply_to_splats_with_targets(
     let mask = mask.as_deref();
     let point_normals = point_normals.as_deref();
     parallel::for_each_indexed_mut(&mut hits, |idx, slot| {
-        if mask
-            .is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false))
-        {
+        if mask.is_some_and(|mask| !mask.get(idx).copied().unwrap_or(false)) {
             return;
         }
         let origin = Vec3::from(positions[idx]);
@@ -303,18 +287,16 @@ fn apply_to_splats_with_targets(
             RayMethod::Closest => {
                 find_closest_hit(origin, max_distance, target_meshes, target_splats)
             }
-            _ => dir
-                .and_then(normalize_vec)
-                .and_then(|dir| {
-                    find_ray_hit(
-                        origin,
-                        dir,
-                        max_distance,
-                        splat_density,
-                        target_meshes,
-                        target_splats,
-                    )
-                }),
+            _ => dir.and_then(normalize_vec).and_then(|dir| {
+                find_ray_hit(
+                    origin,
+                    dir,
+                    max_distance,
+                    splat_density,
+                    target_meshes,
+                    target_splats,
+                )
+            }),
         };
         *slot = hit;
     });
@@ -328,13 +310,7 @@ fn apply_to_splats_with_targets(
     }
 
     apply_hit_group(splats.groups.map_mut(AttributeDomain::Point), params, &hits);
-    apply_hit_attributes_splats(
-        splats,
-        &hits,
-        target_meshes,
-        target_splats,
-        params,
-    )?;
+    apply_hit_attributes_splats(splats, &hits, target_meshes, target_splats, params)?;
     Ok(())
 }
 
@@ -379,10 +355,11 @@ fn apply_hit_attributes_mesh(
         };
         match attr_type {
             AttributeType::Float => {
-                let mut out =
-                    existing_float_attr_mesh(mesh, AttributeDomain::Point, &name, count);
+                let mut out = existing_float_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Float(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -397,7 +374,9 @@ fn apply_hit_attributes_mesh(
             AttributeType::Int => {
                 let mut out = existing_int_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Int(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -412,7 +391,9 @@ fn apply_hit_attributes_mesh(
             AttributeType::Vec2 => {
                 let mut out = existing_vec2_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec2(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -427,7 +408,9 @@ fn apply_hit_attributes_mesh(
             AttributeType::Vec3 => {
                 let mut out = existing_vec3_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec3(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -442,7 +425,9 @@ fn apply_hit_attributes_mesh(
             AttributeType::Vec4 => {
                 let mut out = existing_vec4_attr_mesh(mesh, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec4(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -484,7 +469,9 @@ fn apply_hit_attributes_splats(
                 let mut out =
                     existing_float_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Float(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -501,7 +488,9 @@ fn apply_hit_attributes_splats(
                 let mut out =
                     existing_int_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Int(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -518,7 +507,9 @@ fn apply_hit_attributes_splats(
                 let mut out =
                     existing_vec2_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec2(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -535,7 +526,9 @@ fn apply_hit_attributes_splats(
                 let mut out =
                     existing_vec3_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec3(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -552,7 +545,9 @@ fn apply_hit_attributes_splats(
                 let mut out =
                     existing_vec4_attr_splats(splats, AttributeDomain::Point, &name, count);
                 for (idx, hit) in hits.iter().enumerate() {
-                    let Some(hit) = hit else { continue; };
+                    let Some(hit) = hit else {
+                        continue;
+                    };
                     if let Some(AttributeValue::Vec4(value)) =
                         sample_hit_value(&name, hit, target_meshes, target_splats)
                     {
@@ -642,8 +637,7 @@ fn find_ray_hit(
         }
     }
     for (splat_set, splats) in target_splats.iter().enumerate() {
-        let Some(hit) =
-            ray_hit_splats(origin, dir, max_distance, splat_density, splats, splat_set)
+        let Some(hit) = ray_hit_splats(origin, dir, max_distance, splat_density, splats, splat_set)
         else {
             continue;
         };
@@ -1112,9 +1106,7 @@ fn mesh_point_normals(mesh: &Mesh) -> Option<Vec<Vec3>> {
 }
 
 fn splat_point_normals(splats: &SplatGeo) -> Option<Vec<Vec3>> {
-    let Some(AttributeRef::Vec3(values)) =
-        splats.attribute(AttributeDomain::Point, "N")
-    else {
+    let Some(AttributeRef::Vec3(values)) = splats.attribute(AttributeDomain::Point, "N") else {
         return None;
     };
     if values.len() != splats.positions.len() {
@@ -1128,9 +1120,21 @@ fn splat_radius(scale: Option<[f32; 3]>) -> f32 {
         return 1.0;
     };
     let s = Vec3::new(
-        if scale[0].is_finite() { scale[0].exp() } else { 0.0 },
-        if scale[1].is_finite() { scale[1].exp() } else { 0.0 },
-        if scale[2].is_finite() { scale[2].exp() } else { 0.0 },
+        if scale[0].is_finite() {
+            scale[0].exp()
+        } else {
+            0.0
+        },
+        if scale[1].is_finite() {
+            scale[1].exp()
+        } else {
+            0.0
+        },
+        if scale[2].is_finite() {
+            scale[2].exp()
+        } else {
+            0.0
+        },
     );
     let max_sigma = s.x.max(s.y).max(s.z);
     let radius = max_sigma * 3.0;
@@ -1370,11 +1374,7 @@ fn lerp_f32(values: &[f32], indices: [usize; 3], barycentric: [f32; 3]) -> Optio
     Some(a * barycentric[0] + b * barycentric[1] + c * barycentric[2])
 }
 
-fn lerp_vec2(
-    values: &[[f32; 2]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 2]> {
+fn lerp_vec2(values: &[[f32; 2]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 2]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;
@@ -1384,11 +1384,7 @@ fn lerp_vec2(
     ])
 }
 
-fn lerp_vec3(
-    values: &[[f32; 3]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 3]> {
+fn lerp_vec3(values: &[[f32; 3]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 3]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;
@@ -1399,11 +1395,7 @@ fn lerp_vec3(
     ])
 }
 
-fn lerp_vec4(
-    values: &[[f32; 4]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 4]> {
+fn lerp_vec4(values: &[[f32; 4]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 4]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;

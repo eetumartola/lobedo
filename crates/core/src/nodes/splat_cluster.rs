@@ -6,10 +6,8 @@ use crate::attributes::{AttributeDomain, AttributeStorage};
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
-    require_mesh_input,
-    splat_utils::{split_splats_by_group, splat_cell_key, SpatialHash},
+    geometry_in, geometry_out, require_mesh_input,
+    splat_utils::{splat_cell_key, split_splats_by_group, SpatialHash},
 };
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
@@ -41,7 +39,10 @@ pub fn default_params() -> NodeParams {
                 "attr".to_string(),
                 ParamValue::String(DEFAULT_ATTR.to_string()),
             ),
-            ("cell_size".to_string(), ParamValue::Float(DEFAULT_CELL_SIZE)),
+            (
+                "cell_size".to_string(),
+                ParamValue::Float(DEFAULT_CELL_SIZE),
+            ),
             ("eps".to_string(), ParamValue::Float(DEFAULT_EPS)),
             ("min_pts".to_string(), ParamValue::Int(DEFAULT_MIN_PTS)),
         ]),
@@ -50,23 +51,16 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict clustering."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict clustering."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::int_enum("method", "Method", vec![(0, "Grid"), (1, "DBSCAN")])
             .with_help("Clustering method (Grid or DBSCAN)."),
-        ParamSpec::string("attr", "Attribute")
-            .with_help("Attribute name to store cluster ids."),
+        ParamSpec::string("attr", "Attribute").with_help("Attribute name to store cluster ids."),
         ParamSpec::float_slider("cell_size", "Cell Size", 0.0, 10.0)
             .with_help("Grid cell size (<=0 = auto).")
             .visible_when_int("method", 0),

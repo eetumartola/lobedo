@@ -3,9 +3,9 @@ use glam::Vec3;
 
 use lobedo_core::{encode_curve_points, parse_curve_points, BuiltinNodeKind, NodeId, ParamValue};
 
-use super::{GizmoAxis, LobedoApp};
 use super::viewport_tools_gizmo::{axis_color, axis_dir, gizmo_scale};
 use super::viewport_tools_math::{project_world_to_screen, viewport_view_proj};
+use super::{GizmoAxis, LobedoApp};
 
 const FFD_MIN_AXIS_SIZE: f32 = 1.0e-6;
 
@@ -69,7 +69,11 @@ impl LobedoApp {
         if self
             .project
             .graph
-            .set_param(node_id, "lattice_points".to_string(), ParamValue::String(encoded))
+            .set_param(
+                node_id,
+                "lattice_points".to_string(),
+                ParamValue::String(encoded),
+            )
             .is_ok()
         {
             self.mark_eval_dirty();
@@ -148,13 +152,25 @@ fn default_ffd_points(
     let size = (max - min).max(Vec3::splat(FFD_MIN_AXIS_SIZE));
     let mut points = Vec::with_capacity(res_x * res_y * res_z);
     for z in 0..res_z {
-        let tz = if res_z > 1 { z as f32 / (res_z - 1) as f32 } else { 0.0 };
+        let tz = if res_z > 1 {
+            z as f32 / (res_z - 1) as f32
+        } else {
+            0.0
+        };
         let pz = min.z + size.z * tz;
         for y in 0..res_y {
-            let ty = if res_y > 1 { y as f32 / (res_y - 1) as f32 } else { 0.0 };
+            let ty = if res_y > 1 {
+                y as f32 / (res_y - 1) as f32
+            } else {
+                0.0
+            };
             let py = min.y + size.y * ty;
             for x in 0..res_x {
-                let tx = if res_x > 1 { x as f32 / (res_x - 1) as f32 } else { 0.0 };
+                let tx = if res_x > 1 {
+                    x as f32 / (res_x - 1) as f32
+                } else {
+                    0.0
+                };
                 let px = min.x + size.x * tx;
                 points.push([px, py, pz]);
             }
@@ -167,7 +183,12 @@ fn ffd_point_index(res_x: usize, res_y: usize, x: usize, y: usize, z: usize) -> 
     x + res_x * (y + res_y * z)
 }
 
-pub(super) fn draw_ffd_lattice_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node_id: NodeId) {
+pub(super) fn draw_ffd_lattice_overlay(
+    app: &LobedoApp,
+    ui: &egui::Ui,
+    rect: Rect,
+    node_id: NodeId,
+) {
     let Some(node) = app.project.graph.node(node_id) else {
         return;
     };
@@ -231,7 +252,12 @@ pub(super) fn draw_ffd_lattice_overlay(app: &LobedoApp, ui: &egui::Ui, rect: Rec
     }
 }
 
-pub(super) fn draw_ffd_lattice_handles(app: &LobedoApp, ui: &egui::Ui, rect: Rect, node_id: NodeId) {
+pub(super) fn draw_ffd_lattice_handles(
+    app: &LobedoApp,
+    ui: &egui::Ui,
+    rect: Rect,
+    node_id: NodeId,
+) {
     let Some(node) = app.project.graph.node(node_id) else {
         return;
     };

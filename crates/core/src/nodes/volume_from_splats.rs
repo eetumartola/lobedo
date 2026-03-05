@@ -5,8 +5,8 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::nodes::{geometry_in, geometry_out};
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
 
 pub const NAME: &str = "Volume from Splats";
@@ -40,7 +40,10 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("mode".to_string(), ParamValue::String("sdf".to_string())),
-            ("fill_mode".to_string(), ParamValue::String("fill".to_string())),
+            (
+                "fill_mode".to_string(),
+                ParamValue::String("fill".to_string()),
+            ),
             (
                 "shape".to_string(),
                 ParamValue::String("ellipsoid".to_string()),
@@ -55,7 +58,10 @@ pub fn default_params() -> NodeParams {
                 "radius_scale".to_string(),
                 ParamValue::Float(DEFAULT_RADIUS_SCALE),
             ),
-            ("min_radius".to_string(), ParamValue::Float(DEFAULT_MIN_RADIUS)),
+            (
+                "min_radius".to_string(),
+                ParamValue::Float(DEFAULT_MIN_RADIUS),
+            ),
             (
                 "fill_shell".to_string(),
                 ParamValue::Float(DEFAULT_FILL_SHELL_VOXELS),
@@ -81,10 +87,7 @@ pub fn default_params() -> NodeParams {
                 "ellipsoid_blend".to_string(),
                 ParamValue::Float(DEFAULT_ELLIPSOID_BLEND),
             ),
-            (
-                "outlier_filter".to_string(),
-                ParamValue::Bool(false),
-            ),
+            ("outlier_filter".to_string(), ParamValue::Bool(false)),
             (
                 "outlier_radius".to_string(),
                 ParamValue::Float(DEFAULT_OUTLIER_RADIUS),
@@ -105,10 +108,18 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::string_enum("mode", "Mode", vec![("density", "Density"), ("sdf", "SDF")])
             .with_help("Volume type to generate (density or SDF)."),
-        ParamSpec::string_enum("fill_mode", "Fill", vec![("shell", "Shell"), ("fill", "Fill")])
-            .with_help("Shell keeps a surface band; Fill tags the interior of closed splat shells."),
-        ParamSpec::string_enum("shape", "Shape", vec![("ellipsoid", "Ellipsoid"), ("sphere", "Sphere")])
-            .with_help("Distance shape used per splat."),
+        ParamSpec::string_enum(
+            "fill_mode",
+            "Fill",
+            vec![("shell", "Shell"), ("fill", "Fill")],
+        )
+        .with_help("Shell keeps a surface band; Fill tags the interior of closed splat shells."),
+        ParamSpec::string_enum(
+            "shape",
+            "Shape",
+            vec![("ellipsoid", "Ellipsoid"), ("sphere", "Sphere")],
+        )
+        .with_help("Distance shape used per splat."),
         ParamSpec::int_slider("max_dim", "Max Dim", 8, 512)
             .with_help("Largest voxel dimension (grid resolution)."),
         ParamSpec::float_slider("padding", "Padding", 0.0, 10.0)
@@ -166,10 +177,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     .collect()
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -188,9 +196,7 @@ pub fn apply_to_geometry(
     let radius_scale = params
         .get_float("radius_scale", DEFAULT_RADIUS_SCALE)
         .max(0.0);
-    let min_radius = params
-        .get_float("min_radius", DEFAULT_MIN_RADIUS)
-        .max(0.0);
+    let min_radius = params.get_float("min_radius", DEFAULT_MIN_RADIUS).max(0.0);
     let density_scale = params
         .get_float("density_scale", DEFAULT_DENSITY_SCALE)
         .max(0.0);
@@ -214,8 +220,7 @@ pub fn apply_to_geometry(
     let outlier_min_neighbors = params
         .get_int("outlier_min_neighbors", DEFAULT_OUTLIER_MIN_NEIGHBORS)
         .max(1) as usize;
-    let outlier_min_opacity = params
-        .get_float("outlier_min_opacity", DEFAULT_OUTLIER_MIN_OPACITY);
+    let outlier_min_opacity = params.get_float("outlier_min_opacity", DEFAULT_OUTLIER_MIN_OPACITY);
 
     let gather_settings = SplatGatherSettings {
         radius_mode,
@@ -544,30 +549,28 @@ fn flood_fill_inside(
     let mut outside = vec![false; total];
     let mut stack = Vec::new();
 
-    let push_if_outside = |idx: usize,
-                           unsigned: &[f32],
-                           outside: &mut [bool],
-                           stack: &mut Vec<usize>| {
-        if idx >= outside.len() {
-            return;
-        }
-        if outside[idx] {
-            return;
-        }
-        let dist = unsigned.get(idx).copied().unwrap_or(0.0);
-        let mut shell_thresh = shell;
-        if normal_bias > 0.0 {
-            if let Some(grad) = grad {
-                let g = grad.get(idx).copied().unwrap_or(1.0).clamp(0.0, 2.0);
-                let expand = (1.0 - g).clamp(0.0, 1.0);
-                shell_thresh *= 1.0 + normal_bias * expand;
+    let push_if_outside =
+        |idx: usize, unsigned: &[f32], outside: &mut [bool], stack: &mut Vec<usize>| {
+            if idx >= outside.len() {
+                return;
             }
-        }
-        if dist > shell_thresh {
-            outside[idx] = true;
-            stack.push(idx);
-        }
-    };
+            if outside[idx] {
+                return;
+            }
+            let dist = unsigned.get(idx).copied().unwrap_or(0.0);
+            let mut shell_thresh = shell;
+            if normal_bias > 0.0 {
+                if let Some(grad) = grad {
+                    let g = grad.get(idx).copied().unwrap_or(1.0).clamp(0.0, 2.0);
+                    let expand = (1.0 - g).clamp(0.0, 1.0);
+                    shell_thresh *= 1.0 + normal_bias * expand;
+                }
+            }
+            if dist > shell_thresh {
+                outside[idx] = true;
+                stack.push(idx);
+            }
+        };
 
     for z in 0..dim_z {
         for y in 0..dim_y {

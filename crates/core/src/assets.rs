@@ -9,14 +9,20 @@ use crate::graph::NodeId;
 #[cfg(target_arch = "wasm32")]
 use crate::progress::{current_progress_context, ProgressEvent, ProgressSink};
 
-static ASSET_STORE: OnceLock<Mutex<HashMap<String, Vec<u8>>>> = OnceLock::new();
-static URL_STORE: OnceLock<Mutex<HashMap<String, Vec<u8>>>> = OnceLock::new();
+const MAX_ASSET_STORE_ENTRIES: usize = 256;
+const MAX_ASSET_STORE_BYTES: usize = 256 * 1024 * 1024;
+const MAX_URL_STORE_ENTRIES: usize = 128;
+const MAX_URL_STORE_BYTES: usize = 512 * 1024 * 1024;
+
+static ASSET_STORE: OnceLock<Mutex<ByteCacheState>> = OnceLock::new();
+static URL_STORE: OnceLock<Mutex<ByteCacheState>> = OnceLock::new();
 #[cfg(target_arch = "wasm32")]
 static URL_PENDING: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 #[cfg(target_arch = "wasm32")]
 static URL_PROGRESS: OnceLock<Mutex<HashMap<String, UrlProgressEntry>>> = OnceLock::new();
 static NEXT_ASSET_ID: AtomicUsize = AtomicUsize::new(1);
 static URL_REVISION: AtomicUsize = AtomicUsize::new(0);
+static CACHE_TICK: AtomicUsize = AtomicUsize::new(1);
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, JsValue};
@@ -25,6 +31,69 @@ use wasm_bindgen_futures::JsFuture;
 #[cfg(target_arch = "wasm32")]
 use web_sys::Response;
 
+#[derive(Default)]
+struct ByteCacheState {
+    entries: HashMap<String, ByteCacheEntry>,
+    total_bytes: usize,
+}
+
+struct ByteCacheEntry {
+    data: Vec<u8>,
+    last_access: usize,
+}
+
+fn next_cache_tick() -> usize {
+    CACHE_TICK.fetch_add(1, Ordering::Relaxed)
+}
+
+fn insert_cached_bytes(
+    state: &mut ByteCacheState,
+    key: String,
+    data: Vec<u8>,
+    max_entries: usize,
+    max_bytes: usize,
+) {
+    let last_access = next_cache_tick();
+    if let Some(old) = state.entries.remove(&key) {
+        state.total_bytes = state.total_bytes.saturating_sub(old.data.len());
+    }
+    state.total_bytes = state.total_bytes.saturating_add(data.len());
+    state
+        .entries
+        .insert(key.clone(), ByteCacheEntry { data, last_access });
+    trim_cached_bytes(state, max_entries, max_bytes, Some(key.as_str()));
+}
+
+fn get_cached_bytes(state: &mut ByteCacheState, key: &str) -> Option<Vec<u8>> {
+    let entry = state.entries.get_mut(key)?;
+    entry.last_access = next_cache_tick();
+    Some(entry.data.clone())
+}
+
+fn trim_cached_bytes(
+    state: &mut ByteCacheState,
+    max_entries: usize,
+    max_bytes: usize,
+    protected: Option<&str>,
+) {
+    while (state.entries.len() > max_entries || state.total_bytes > max_bytes)
+        && state.entries.len() > 1
+    {
+        let oldest_key = state
+            .entries
+            .iter()
+            .filter(|(key, _)| Some(key.as_str()) != protected)
+            .min_by_key(|(_, entry)| entry.last_access)
+            .map(|(key, _)| key.clone());
+        let Some(oldest_key) = oldest_key else {
+            break;
+        };
+        if let Some(old) = state.entries.remove(&oldest_key) {
+            state.total_bytes = state.total_bytes.saturating_sub(old.data.len());
+        }
+    }
+}
+
 pub fn store_bytes(name: String, data: Vec<u8>) -> String {
     let id = NEXT_ASSET_ID.fetch_add(1, Ordering::Relaxed);
     let key = if name.trim().is_empty() {
@@ -32,8 +101,15 @@ pub fn store_bytes(name: String, data: Vec<u8>) -> String {
     } else {
         format!("mem://{id}::{name}")
     };
-    let store = ASSET_STORE.get_or_init(|| Mutex::new(HashMap::new()));
-    store.lock().expect("asset store lock").insert(key.clone(), data);
+    let store = ASSET_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+    let mut guard = store.lock().expect("asset store lock");
+    insert_cached_bytes(
+        &mut guard,
+        key.clone(),
+        data,
+        MAX_ASSET_STORE_ENTRIES,
+        MAX_ASSET_STORE_BYTES,
+    );
     key
 }
 
@@ -43,19 +119,23 @@ pub fn store_bytes_with_key(key: String, data: Vec<u8>) -> String {
     } else {
         format!("mem://{key}")
     };
-    let store = ASSET_STORE.get_or_init(|| Mutex::new(HashMap::new()));
-    store.lock().expect("asset store lock").insert(key.clone(), data);
+    let store = ASSET_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+    let mut guard = store.lock().expect("asset store lock");
+    insert_cached_bytes(
+        &mut guard,
+        key.clone(),
+        data,
+        MAX_ASSET_STORE_ENTRIES,
+        MAX_ASSET_STORE_BYTES,
+    );
     key
 }
 
 pub fn load_bytes(path: &str) -> Option<Vec<u8>> {
     if path.starts_with("mem://") {
-        let store = ASSET_STORE.get_or_init(|| Mutex::new(HashMap::new()));
-        return store
-            .lock()
-            .expect("asset store lock")
-            .get(path)
-            .cloned();
+        let store = ASSET_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+        let mut guard = store.lock().expect("asset store lock");
+        return get_cached_bytes(&mut guard, path);
     }
     if is_url(path) {
         return load_url_bytes(path);
@@ -75,13 +155,8 @@ pub fn url_revision() -> usize {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn load_url_bytes(path: &str) -> Option<Vec<u8>> {
-    if let Some(data) = URL_STORE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("url store lock")
-        .get(path)
-        .cloned()
-    {
+    let store = URL_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+    if let Some(data) = get_cached_bytes(&mut store.lock().expect("url store lock"), path) {
         return Some(data);
     }
     let response = ureq::get(path).call().ok()?;
@@ -89,24 +164,22 @@ fn load_url_bytes(path: &str) -> Option<Vec<u8>> {
     let mut data = Vec::new();
     use std::io::Read;
     reader.read_to_end(&mut data).ok()?;
-    URL_STORE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("url store lock")
-        .insert(path.to_string(), data.clone());
+    let mut guard = store.lock().expect("url store lock");
+    insert_cached_bytes(
+        &mut guard,
+        path.to_string(),
+        data.clone(),
+        MAX_URL_STORE_ENTRIES,
+        MAX_URL_STORE_BYTES,
+    );
     URL_REVISION.fetch_add(1, Ordering::Relaxed);
     Some(data)
 }
 
 #[cfg(target_arch = "wasm32")]
 fn load_url_bytes(path: &str) -> Option<Vec<u8>> {
-    if let Some(data) = URL_STORE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("url store lock")
-        .get(path)
-        .cloned()
-    {
+    let store = URL_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+    if let Some(data) = get_cached_bytes(&mut store.lock().expect("url store lock"), path) {
         return Some(data);
     }
     register_url_progress(path);
@@ -160,11 +233,15 @@ fn start_url_fetch(path: String) {
             }
         };
         let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-        URL_STORE
-            .get_or_init(|| Mutex::new(HashMap::new()))
-            .lock()
-            .expect("url store lock")
-            .insert(path.clone(), bytes);
+        let store = URL_STORE.get_or_init(|| Mutex::new(ByteCacheState::default()));
+        let mut guard = store.lock().expect("url store lock");
+        insert_cached_bytes(
+            &mut guard,
+            path.clone(),
+            bytes,
+            MAX_URL_STORE_ENTRIES,
+            MAX_URL_STORE_BYTES,
+        );
         URL_REVISION.fetch_add(1, Ordering::Relaxed);
         clear_pending(&path);
         finish_url_progress(&path);
@@ -231,7 +308,9 @@ fn begin_url_progress(path: &str) {
         entry.listeners.clone()
     };
     for listener in listeners {
-        (listener.sink)(ProgressEvent::Start { node: listener.node });
+        (listener.sink)(ProgressEvent::Start {
+            node: listener.node,
+        });
     }
 }
 
@@ -245,7 +324,9 @@ fn finish_url_progress(path: &str) {
         .map(|entry| entry.listeners)
         .unwrap_or_default();
     for listener in listeners {
-        (listener.sink)(ProgressEvent::Finish { node: listener.node });
+        (listener.sink)(ProgressEvent::Finish {
+            node: listener.node,
+        });
     }
 }
 
@@ -255,4 +336,47 @@ fn defer_progress_start(node: NodeId, sink: ProgressSink) {
         let _ = JsFuture::from(js_sys::Promise::resolve(&JsValue::NULL)).await;
         (sink)(ProgressEvent::Start { node });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn byte_cache_evicts_oldest_entry_limit() {
+        let mut state = ByteCacheState::default();
+        insert_cached_bytes(&mut state, "a".to_string(), vec![1], 2, 1024);
+        insert_cached_bytes(&mut state, "b".to_string(), vec![2], 2, 1024);
+        insert_cached_bytes(&mut state, "c".to_string(), vec![3], 2, 1024);
+
+        assert!(!state.entries.contains_key("a"));
+        assert!(state.entries.contains_key("b"));
+        assert!(state.entries.contains_key("c"));
+    }
+
+    #[test]
+    fn byte_cache_get_refreshes_lru_order() {
+        let mut state = ByteCacheState::default();
+        insert_cached_bytes(&mut state, "a".to_string(), vec![1], 2, 1024);
+        insert_cached_bytes(&mut state, "b".to_string(), vec![2], 2, 1024);
+
+        let cached = get_cached_bytes(&mut state, "a");
+        assert_eq!(cached, Some(vec![1]));
+
+        insert_cached_bytes(&mut state, "c".to_string(), vec![3], 2, 1024);
+        assert!(state.entries.contains_key("a"));
+        assert!(!state.entries.contains_key("b"));
+        assert!(state.entries.contains_key("c"));
+    }
+
+    #[test]
+    fn byte_cache_evicts_oldest_byte_limit() {
+        let mut state = ByteCacheState::default();
+        insert_cached_bytes(&mut state, "a".to_string(), vec![0; 6], 8, 10);
+        insert_cached_bytes(&mut state, "b".to_string(), vec![0; 6], 8, 10);
+
+        assert!(!state.entries.contains_key("a"));
+        assert!(state.entries.contains_key("b"));
+        assert_eq!(state.total_bytes, 6);
+    }
 }

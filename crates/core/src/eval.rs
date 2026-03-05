@@ -306,7 +306,10 @@ pub fn collect_dirty_nodes(
         };
 
         if let Some(reason) = dirty_reason {
-            dirty.push(DirtyNodeReport { node: node_id, reason });
+            dirty.push(DirtyNodeReport {
+                node: node_id,
+                reason,
+            });
         }
     }
 
@@ -400,8 +403,9 @@ pub fn node_dirty(
         if !initialized {
             true
         } else {
-            let last_param_version =
-                node_state.map(|state| state.last_param_version).unwrap_or(0);
+            let last_param_version = node_state
+                .map(|state| state.last_param_version)
+                .unwrap_or(0);
             let last_upstream_signature = node_state
                 .map(|state| state.last_upstream_signature)
                 .unwrap_or(0);
@@ -472,9 +476,7 @@ mod tests {
             name: name.to_string(),
             category: "Eval".to_string(),
             inputs: (0..inputs).map(|i| make_pin(&format!("in{i}"))).collect(),
-            outputs: (0..outputs)
-                .map(|i| make_pin(&format!("out{i}")))
-                .collect(),
+            outputs: (0..outputs).map(|i| make_pin(&format!("out{i}"))).collect(),
         }
     }
 

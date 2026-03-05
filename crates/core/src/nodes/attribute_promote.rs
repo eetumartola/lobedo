@@ -68,7 +68,7 @@ pub fn default_params() -> NodeParams {
             ("piece_attr".to_string(), ParamValue::String(String::new())),
             ("promotion".to_string(), ParamValue::Int(2)),
             ("rename".to_string(), ParamValue::Bool(false)),
-            ("new_name".to_string(), ParamValue::String(String::new())),        
+            ("new_name".to_string(), ParamValue::String(String::new())),
             ("delete_original".to_string(), ParamValue::Bool(false)),
         ]),
     }
@@ -81,23 +81,13 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "source_domain",
             "Original Class",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Class of the source attribute."),
         ParamSpec::int_enum(
             "target_domain",
             "New Class",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Class to promote into."),
         ParamSpec::string("piece_attr", "Piece Attribute")
@@ -130,8 +120,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
 }
 
 pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
-    let mut input =
-        require_mesh_input(inputs, 0, "Attribute Promote requires a mesh input")?;
+    let mut input = require_mesh_input(inputs, 0, "Attribute Promote requires a mesh input")?;
     apply_to_mesh(params, &mut input)?;
     Ok(input)
 }
@@ -194,10 +183,7 @@ pub(crate) fn apply_to_mesh(params: &NodeParams, mesh: &mut Mesh) -> Result<(), 
     Ok(())
 }
 
-pub(crate) fn apply_to_splats(
-    params: &NodeParams,
-    splats: &mut SplatGeo,
-) -> Result<(), String> {
+pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
     let attr_expr = params.get_string("attr", "");
     let source_domain = source_domain_from_params(params);
     let target_domain = target_domain_from_params(params);
@@ -281,11 +267,7 @@ fn target_domain_from_params(params: &NodeParams) -> AttributeDomain {
     }
 }
 
-fn collect_attribute_names_mesh(
-    mesh: &Mesh,
-    domain: AttributeDomain,
-    expr: &str,
-) -> Vec<String> {
+fn collect_attribute_names_mesh(mesh: &Mesh, domain: AttributeDomain, expr: &str) -> Vec<String> {
     let patterns = parse_attribute_list(expr);
     if patterns.is_empty() {
         return Vec::new();
@@ -360,29 +342,19 @@ fn promote_attribute(
 ) -> Option<AttributeStorage> {
     match attr {
         AttributeRef::Float(values) => Some(AttributeStorage::Float(promote_f32(
-            values,
-            mapping,
-            method,
+            values, mapping, method,
         ))),
-        AttributeRef::Int(values) => Some(AttributeStorage::Int(promote_i32(
-            values,
-            mapping,
-            method,
-        ))),
+        AttributeRef::Int(values) => {
+            Some(AttributeStorage::Int(promote_i32(values, mapping, method)))
+        }
         AttributeRef::Vec2(values) => Some(AttributeStorage::Vec2(promote_vec2(
-            values,
-            mapping,
-            method,
+            values, mapping, method,
         ))),
         AttributeRef::Vec3(values) => Some(AttributeStorage::Vec3(promote_vec3(
-            values,
-            mapping,
-            method,
+            values, mapping, method,
         ))),
         AttributeRef::Vec4(values) => Some(AttributeStorage::Vec4(promote_vec4(
-            values,
-            mapping,
-            method,
+            values, mapping, method,
         ))),
         AttributeRef::StringTable(values) => Some(AttributeStorage::StringTable(
             promote_string_table(values, mapping, method),
@@ -408,14 +380,8 @@ fn promote_f32(values: &[f32], mapping: &[Vec<usize>], method: PromotionMethod) 
             continue;
         }
         out[i] = match method {
-            PromotionMethod::Max => list
-                .iter()
-                .copied()
-                .fold(f32::NEG_INFINITY, f32::max),
-            PromotionMethod::Min => list
-                .iter()
-                .copied()
-                .fold(f32::INFINITY, f32::min),
+            PromotionMethod::Max => list.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+            PromotionMethod::Min => list.iter().copied().fold(f32::INFINITY, f32::min),
             PromotionMethod::Average => list.iter().sum::<f32>() / list.len() as f32,
             PromotionMethod::Mode => mode_f32(&list),
             PromotionMethod::Median => median_f32(&mut list),
@@ -456,15 +422,11 @@ fn promote_i32(values: &[i32], mapping: &[Vec<usize>], method: PromotionMethod) 
             PromotionMethod::Mode => mode_i32(&list),
             PromotionMethod::Median => median_i32(&mut list),
             PromotionMethod::Sum => list.iter().map(|v| *v as i64).sum::<i64>() as i32,
-            PromotionMethod::SumSquares => list
-                .iter()
-                .map(|v| (*v as i64) * (*v as i64))
-                .sum::<i64>() as i32,
+            PromotionMethod::SumSquares => {
+                list.iter().map(|v| (*v as i64) * (*v as i64)).sum::<i64>() as i32
+            }
             PromotionMethod::RootMeanSquare => {
-                let sum_sq = list
-                    .iter()
-                    .map(|v| (*v as f32) * (*v as f32))
-                    .sum::<f32>();
+                let sum_sq = list.iter().map(|v| (*v as f32) * (*v as f32)).sum::<f32>();
                 (sum_sq / list.len() as f32).sqrt().round() as i32
             }
             PromotionMethod::First => *list.first().unwrap_or(&0),

@@ -47,7 +47,8 @@ impl MaterialLibrary {
 
     pub fn merge(&mut self, other: &MaterialLibrary) {
         for material in other.materials.values() {
-            self.materials.insert(material.name.clone(), material.clone());
+            self.materials
+                .insert(material.name.clone(), material.clone());
         }
     }
 }

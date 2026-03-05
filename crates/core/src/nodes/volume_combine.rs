@@ -28,7 +28,10 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("op".to_string(), ParamValue::Int(DEFAULT_OP)),
-            ("resolution".to_string(), ParamValue::Int(DEFAULT_RESOLUTION)),
+            (
+                "resolution".to_string(),
+                ParamValue::Int(DEFAULT_RESOLUTION),
+            ),
         ]),
     }
 }
@@ -57,10 +60,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(left) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -86,12 +86,7 @@ pub fn apply_to_geometry(
     Ok(output)
 }
 
-fn combine_volumes(
-    a: &Volume,
-    b: &Volume,
-    op: i32,
-    resolution: i32,
-) -> Result<Volume, String> {
+fn combine_volumes(a: &Volume, b: &Volume, op: i32, resolution: i32) -> Result<Volume, String> {
     let (a_min, a_max) = a.world_bounds();
     let (b_min, b_max) = b.world_bounds();
     let min = a_min.min(b_min);

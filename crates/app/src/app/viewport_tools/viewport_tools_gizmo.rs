@@ -3,9 +3,9 @@ use glam::{EulerRot, Mat3, Mat4, Quat, Vec3};
 
 use lobedo_core::{BuiltinNodeKind, NodeId, ParamValue};
 
-use super::{BoxDrag, BoxHandle, GizmoAxis, GizmoHit, TransformDrag, TransformMode};
-use super::LobedoApp;
 use super::viewport_tools_math::{project_world_to_screen, raycast_plane, viewport_view_proj};
+use super::LobedoApp;
+use super::{BoxDrag, BoxHandle, GizmoAxis, GizmoHit, TransformDrag, TransformMode};
 
 pub(super) struct TransformParams {
     pub(super) translate: [f32; 3],
@@ -186,13 +186,18 @@ pub(super) fn pick_gizmo_hit(
         let dir = basis * axis_dir(axis);
         let end_world = origin + dir * scale;
         let end_screen = project_world_to_screen(view_proj, rect, end_world)?;
-        let dist = super::viewport_tools_math::distance_to_segment(mouse, origin_screen, end_screen);
+        let dist =
+            super::viewport_tools_math::distance_to_segment(mouse, origin_screen, end_screen);
         if dist < best_dist {
             best_dist = dist;
             best = Some(GizmoHit::Axis(axis));
         }
     }
-    if best_dist <= threshold { best } else { None }
+    if best_dist <= threshold {
+        best
+    } else {
+        None
+    }
 }
 
 pub(super) fn apply_transform_drag(
@@ -440,7 +445,11 @@ fn draw_rotation_ring(
     axis_color_key: GizmoAxis,
 ) {
     let axis_dir = axis_world.normalize_or_zero();
-    let helper = if axis_dir.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let helper = if axis_dir.x.abs() < 0.9 {
+        Vec3::X
+    } else {
+        Vec3::Y
+    };
     let u = axis_dir.cross(helper).normalize_or_zero();
     let v = axis_dir.cross(u).normalize_or_zero();
     let steps = 32;
@@ -467,7 +476,11 @@ fn rotation_ring_points(
     radius: f32,
 ) -> Vec<Pos2> {
     let axis_dir = axis_world.normalize_or_zero();
-    let helper = if axis_dir.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let helper = if axis_dir.x.abs() < 0.9 {
+        Vec3::X
+    } else {
+        Vec3::Y
+    };
     let u = axis_dir.cross(helper).normalize_or_zero();
     let v = axis_dir.cross(u).normalize_or_zero();
     let steps = 32;
@@ -488,12 +501,48 @@ fn box_handle_positions(center: Vec3, size: Vec3) -> Vec<(BoxHandle, Vec3)> {
     let mut half = size.abs() * 0.5;
     half = Vec3::new(half.x.max(0.001), half.y.max(0.001), half.z.max(0.001));
     handles.push((BoxHandle::Center, center));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::X, sign: 1.0 }, center + Vec3::X * half.x));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::X, sign: -1.0 }, center - Vec3::X * half.x));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::Y, sign: 1.0 }, center + Vec3::Y * half.y));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::Y, sign: -1.0 }, center - Vec3::Y * half.y));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::Z, sign: 1.0 }, center + Vec3::Z * half.z));
-    handles.push((BoxHandle::Face { axis: GizmoAxis::Z, sign: -1.0 }, center - Vec3::Z * half.z));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::X,
+            sign: 1.0,
+        },
+        center + Vec3::X * half.x,
+    ));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::X,
+            sign: -1.0,
+        },
+        center - Vec3::X * half.x,
+    ));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::Y,
+            sign: 1.0,
+        },
+        center + Vec3::Y * half.y,
+    ));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::Y,
+            sign: -1.0,
+        },
+        center - Vec3::Y * half.y,
+    ));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::Z,
+            sign: 1.0,
+        },
+        center + Vec3::Z * half.z,
+    ));
+    handles.push((
+        BoxHandle::Face {
+            axis: GizmoAxis::Z,
+            sign: -1.0,
+        },
+        center - Vec3::Z * half.z,
+    ));
     handles
 }
 

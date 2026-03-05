@@ -26,8 +26,14 @@ pub enum ParamRange {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParamOption {
-    Int { value: i32, label: &'static str },
-    String { value: &'static str, label: &'static str },
+    Int {
+        value: i32,
+        label: &'static str,
+    },
+    String {
+        value: &'static str,
+        label: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,11 +48,26 @@ pub enum ParamPathKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamCondition {
-    Bool { key: &'static str, value: bool },
-    Int { key: &'static str, value: i32 },
-    IntIn { key: &'static str, values: Vec<i32> },
-    String { key: &'static str, value: &'static str },
-    StringIn { key: &'static str, values: Vec<&'static str> },
+    Bool {
+        key: &'static str,
+        value: bool,
+    },
+    Int {
+        key: &'static str,
+        value: i32,
+    },
+    IntIn {
+        key: &'static str,
+        values: Vec<i32>,
+    },
+    String {
+        key: &'static str,
+        value: &'static str,
+    },
+    StringIn {
+        key: &'static str,
+        values: Vec<&'static str>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -104,8 +125,7 @@ impl ParamSpec {
             .into_iter()
             .map(|(value, label)| ParamOption::Int { value, label })
             .collect();
-        Self::new(key, label, ParamKind::Int)
-            .with_options(options, true)
+        Self::new(key, label, ParamKind::Int).with_options(options, true)
     }
 
     pub fn bool(key: &'static str, label: &'static str) -> Self {
@@ -145,8 +165,7 @@ impl ParamSpec {
             .into_iter()
             .map(|(value, label)| ParamOption::String { value, label })
             .collect();
-        Self::new(key, label, ParamKind::String)
-            .with_options(options, true)
+        Self::new(key, label, ParamKind::String).with_options(options, true)
     }
 
     pub fn with_help(mut self, help: &'static str) -> Self {
@@ -205,15 +224,12 @@ impl ParamSpec {
     }
 
     pub fn visible_when_string(mut self, key: &'static str, value: &'static str) -> Self {
-        self.visible_when.push(ParamCondition::String { key, value });
+        self.visible_when
+            .push(ParamCondition::String { key, value });
         self
     }
 
-    pub fn visible_when_string_in(
-        mut self,
-        key: &'static str,
-        values: &[&'static str],
-    ) -> Self {
+    pub fn visible_when_string_in(mut self, key: &'static str, values: &[&'static str]) -> Self {
         self.visible_when.push(ParamCondition::StringIn {
             key,
             values: values.to_vec(),
@@ -279,7 +295,11 @@ impl ParamCondition {
                     ParamValue::String(v) => Some(v.as_str()),
                     _ => None,
                 })
-                .map(|v| values.iter().any(|candidate| v.eq_ignore_ascii_case(candidate)))
+                .map(|v| {
+                    values
+                        .iter()
+                        .any(|candidate| v.eq_ignore_ascii_case(candidate))
+                })
                 .unwrap_or(false),
         }
     }

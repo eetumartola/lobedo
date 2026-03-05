@@ -77,14 +77,7 @@ fn apply_uv_texture(params: &NodeParams, mesh: &mut Mesh) {
     if mesh.indices.is_empty() {
         let mut uvs = Vec::with_capacity(mesh.positions.len());
         for position in &mesh.positions {
-            let uv = project_uv(
-                Vec3::from(*position),
-                None,
-                projection,
-                axis,
-                min,
-                size,
-            );
+            let uv = project_uv(Vec3::from(*position), None, projection, axis, min, size);
             uvs.push(apply_uv_scale_offset(uv, scale, offset));
         }
         let _ = mesh.set_attribute(
@@ -123,11 +116,7 @@ fn apply_uv_texture(params: &NodeParams, mesh: &mut Mesh) {
             let corner_idx = *tri_corners
                 .get(base + corner_offset)
                 .unwrap_or(&(base + corner_offset));
-            let position = mesh
-                .positions
-                .get(idx)
-                .copied()
-                .unwrap_or([0.0, 0.0, 0.0]);
+            let position = mesh.positions.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
             let uv = project_uv(
                 Vec3::from(position),
                 tri_normal,
@@ -286,12 +275,31 @@ fn compute_face_normals(mesh: &Mesh) -> Vec<Vec3> {
             normal.z += (a.x - b.x) * (a.y + b.y);
         }
         if normal.length_squared() <= 1.0e-6 && count >= 3 {
-            let a = Vec3::from(*mesh.positions.get(mesh.indices[cursor] as usize).unwrap_or(&[0.0, 0.0, 0.0]));
-            let b = Vec3::from(*mesh.positions.get(mesh.indices[cursor + 1] as usize).unwrap_or(&[0.0, 0.0, 0.0]));
-            let c = Vec3::from(*mesh.positions.get(mesh.indices[cursor + 2] as usize).unwrap_or(&[0.0, 0.0, 0.0]));
+            let a = Vec3::from(
+                *mesh
+                    .positions
+                    .get(mesh.indices[cursor] as usize)
+                    .unwrap_or(&[0.0, 0.0, 0.0]),
+            );
+            let b = Vec3::from(
+                *mesh
+                    .positions
+                    .get(mesh.indices[cursor + 1] as usize)
+                    .unwrap_or(&[0.0, 0.0, 0.0]),
+            );
+            let c = Vec3::from(
+                *mesh
+                    .positions
+                    .get(mesh.indices[cursor + 2] as usize)
+                    .unwrap_or(&[0.0, 0.0, 0.0]),
+            );
             normal = (b - a).cross(c - a);
         }
-        normals.push(if normal.length_squared() > 1.0e-6 { normal.normalize() } else { Vec3::Y });
+        normals.push(if normal.length_squared() > 1.0e-6 {
+            normal.normalize()
+        } else {
+            Vec3::Y
+        });
         cursor += count;
     }
     normals

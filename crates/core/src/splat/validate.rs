@@ -130,11 +130,7 @@ impl SplatGeo {
         {
             return Err("SplatGeo rotations contain non-finite values".to_string());
         }
-        if self
-            .rotations
-            .iter()
-            .any(|r| !rotation_is_normalized(*r))
-        {
+        if self.rotations.iter().any(|r| !rotation_is_normalized(*r)) {
             return Err("SplatGeo rotations are not normalized".to_string());
         }
         if self
@@ -144,11 +140,7 @@ impl SplatGeo {
         {
             return Err("SplatGeo scales contain non-finite values".to_string());
         }
-        if self
-            .scales
-            .iter()
-            .any(|s| !log_scale_in_range(*s))
-        {
+        if self.scales.iter().any(|s| !log_scale_in_range(*s)) {
             return Err("SplatGeo scales out of range".to_string());
         }
         if self.opacity.iter().any(|value| !value.is_finite()) {
@@ -181,20 +173,20 @@ impl SplatGeo {
         for domain in [AttributeDomain::Point, AttributeDomain::Primitive] {
             for (name, values) in self.groups.map(domain) {
                 if values.len() != count {
-                    return Err(format!(
-                        "SplatGeo group '{name}' has invalid length"
-                    ));
+                    return Err(format!("SplatGeo group '{name}' has invalid length"));
                 }
             }
         }
-        for domain in [AttributeDomain::Point, AttributeDomain::Primitive, AttributeDomain::Detail] {
+        for domain in [
+            AttributeDomain::Point,
+            AttributeDomain::Primitive,
+            AttributeDomain::Detail,
+        ] {
             let expected = self.attribute_domain_len(domain);
             for (name, storage) in self.attributes.map(domain) {
                 let actual = storage.len();
                 if expected != 0 && actual != expected {
-                    return Err(format!(
-                        "SplatGeo attribute '{name}' has invalid length"
-                    ));
+                    return Err(format!("SplatGeo attribute '{name}' has invalid length"));
                 }
             }
         }

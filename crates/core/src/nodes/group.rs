@@ -39,21 +39,15 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     let mut specs = param_templates::selection_shape_specs(true, true);
+    specs.push(ParamSpec::string("group", "Group").with_help("Name of the group to create."));
     specs.push(
-        ParamSpec::string("group", "Group")
-            .with_help("Name of the group to create."),
+        ParamSpec::int_enum(
+            "domain",
+            "Domain",
+            vec![(1, "Vertex"), (0, "Point"), (2, "Primitive"), (3, "Detail")],
+        )
+        .with_help("Group domain (vertex/point/primitive)."),
     );
-    specs.push(ParamSpec::int_enum(
-        "domain",
-        "Domain",
-        vec![
-            (1, "Vertex"),
-            (0, "Point"),
-            (2, "Primitive"),
-            (3, "Detail"),
-        ],
-    )
-    .with_help("Group domain (vertex/point/primitive)."));
     specs.push(
         ParamSpec::string("base_group", "Base Group")
             .with_help("Optional source group to filter first."),
@@ -279,7 +273,9 @@ fn attribute_range_mask_mesh(
         return Err("Group attribute selection requires an attribute name".to_string());
     }
     let Some(values) = mesh.attribute(domain, attr) else {
-        return Err(format!("Group attribute selection missing attribute '{attr}'"));
+        return Err(format!(
+            "Group attribute selection missing attribute '{attr}'"
+        ));
     };
     let len = mesh.attribute_domain_len(domain);
     let mut mask = vec![false; len];
@@ -302,7 +298,9 @@ fn attribute_range_mask_splats(
         return Err("Group attribute selection requires an attribute name".to_string());
     }
     let Some(values) = splats.attribute(domain, attr) else {
-        return Err(format!("Group attribute selection missing attribute '{attr}'"));
+        return Err(format!(
+            "Group attribute selection missing attribute '{attr}'"
+        ));
     };
     let len = splats.attribute_domain_len(domain);
     let mut mask = vec![false; len];
@@ -318,9 +316,7 @@ fn attribute_value(values: AttributeRef<'_>, index: usize) -> Option<f32> {
     match values {
         AttributeRef::Float(list) => list.get(index).copied(),
         AttributeRef::Int(list) => list.get(index).copied().map(|v| v as f32),
-        AttributeRef::Vec2(list) => list
-            .get(index)
-            .map(|v| Vec3::new(v[0], v[1], 0.0).length()),
+        AttributeRef::Vec2(list) => list.get(index).map(|v| Vec3::new(v[0], v[1], 0.0).length()),
         AttributeRef::Vec3(list) => list.get(index).map(|v| Vec3::from(*v).length()),
         AttributeRef::Vec4(list) => list
             .get(index)
@@ -332,8 +328,8 @@ fn attribute_value(values: AttributeRef<'_>, index: usize) -> Option<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
     use crate::mesh::make_box;
+    use std::collections::BTreeMap;
 
     #[test]
     fn group_box_includes_primitives() {
@@ -349,7 +345,11 @@ mod tests {
         };
 
         apply_to_mesh(&params, &mut mesh).expect("group");
-        let group = mesh.groups.map(AttributeDomain::Primitive).get("keep").unwrap();
+        let group = mesh
+            .groups
+            .map(AttributeDomain::Primitive)
+            .get("keep")
+            .unwrap();
         let count = group.iter().filter(|v| **v).count();
         assert_eq!(count, mesh.face_count());
     }

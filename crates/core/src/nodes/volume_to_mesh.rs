@@ -5,8 +5,8 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
+use crate::nodes::{geometry_in, geometry_out};
 use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume};
 
@@ -53,10 +53,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };

@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 
 use egui::{
-    Color32, Context, FontId, Frame, Id, Margin, Order, Pos2, Rect, RichText,
-    ScrollArea, Vec2,
+    Color32, Context, FontId, Frame, Id, Margin, Order, Pos2, Rect, RichText, ScrollArea, Vec2,
 };
 use lobedo_core::{builtin_kind_from_id, builtin_kind_from_name, help_summary, node_help_page};
 
@@ -82,17 +81,15 @@ fn show_param_section(ui: &mut egui::Ui, title: &str, params: &[(&str, &str)]) {
         ui.label("None.");
         ui.add_space(4.0);
     } else {
-        ScrollArea::vertical()
-            .max_height(240.0)
-            .show(ui, |ui| {
-                for (name, desc) in params {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(*name).strong());
-                        ui.label(*desc);
-                    });
-                    ui.add_space(2.0);
-                }
-            });
+        ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
+            for (name, desc) in params {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(*name).strong());
+                    ui.label(*desc);
+                });
+                ui.add_space(2.0);
+            }
+        });
     }
 }
 
@@ -179,5 +176,4 @@ pub fn show_help_tooltip(ctx: &Context, anchor: Rect, text: &str) {
                 ui.label(egui::RichText::new(text).font(font).color(Color32::WHITE));
             });
         });
-
 }

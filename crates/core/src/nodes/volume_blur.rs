@@ -23,7 +23,10 @@ pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
             ("radius".to_string(), ParamValue::Float(DEFAULT_RADIUS)),
-            ("iterations".to_string(), ParamValue::Int(DEFAULT_ITERATIONS)),
+            (
+                "iterations".to_string(),
+                ParamValue::Int(DEFAULT_ITERATIONS),
+            ),
         ]),
     }
 }
@@ -37,10 +40,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -48,9 +48,7 @@ pub fn apply_to_geometry(
         return Err("Volume Blur requires a volume input".to_string());
     }
     let radius = params.get_float("radius", DEFAULT_RADIUS).max(0.0);
-    let iterations = params
-        .get_int("iterations", DEFAULT_ITERATIONS)
-        .max(0);
+    let iterations = params.get_int("iterations", DEFAULT_ITERATIONS).max(0);
     let mut output = input.clone();
     output.volumes = input
         .volumes

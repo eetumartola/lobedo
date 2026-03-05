@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Mutex, OnceLock};
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread;
 use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::SystemTime;
-#[cfg(not(target_arch = "wasm32"))]
-use std::thread;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
@@ -15,10 +16,9 @@ use std::time::Instant;
 use web_time::Instant;
 
 use lobedo_core::{
-    build_skirt_preview_mesh, evaluate_geometry_graph_with_progress,
-    scene_mesh_from_mesh, scene_snapshot_from_geometry, BuiltinNodeKind, Geometry,
-    GeometryEvalState, Mesh, NodeId, ProgressSink, SceneDrawable, SceneSnapshot, ShadingMode,
-    SplatShadingMode,
+    build_skirt_preview_mesh, evaluate_geometry_graph_with_progress, scene_mesh_from_mesh,
+    scene_snapshot_from_geometry, BuiltinNodeKind, Geometry, GeometryEvalState, Mesh, NodeId,
+    ProgressSink, SceneDrawable, SceneSnapshot, ShadingMode, SplatShadingMode,
 };
 use render::{
     RenderMaterial, RenderMesh, RenderScene, RenderTexture, SelectionShape, ViewportDebug,
@@ -52,13 +52,11 @@ impl LobedoApp {
         let Some(display_node) = self.project.graph.display_node() else {
             return self.node_graph.set_dirty_nodes(all_nodes);
         };
-        let dirty_nodes: HashSet<_> = lobedo_core::collect_dirty_nodes_full(
-            &self.project.graph,
-            &self.eval_state_snapshot,
-        )
-        .ok()
-        .map(|entries| entries.into_iter().map(|entry| entry.node).collect())
-        .unwrap_or_default();
+        let dirty_nodes: HashSet<_> =
+            lobedo_core::collect_dirty_nodes_full(&self.project.graph, &self.eval_state_snapshot)
+                .ok()
+                .map(|entries| entries.into_iter().map(|entry| entry.node).collect())
+                .unwrap_or_default();
         let _ = display_node;
         self.node_graph.set_dirty_nodes(dirty_nodes)
     }
@@ -294,14 +292,14 @@ impl LobedoApp {
             self.last_preview_key = None;
             return;
         };
-        let selection = selection_shape_for_node(
-            &self.project.graph,
-            self.node_graph.selected_node_id(),
-        );
-        let selection_key = self
-            .node_graph
-            .selected_node_id()
-            .and_then(|node_id| self.project.graph.node(node_id).map(|node| (node_id, node.param_version)));
+        let selection =
+            selection_shape_for_node(&self.project.graph, self.node_graph.selected_node_id());
+        let selection_key = self.node_graph.selected_node_id().and_then(|node_id| {
+            self.project
+                .graph
+                .node(node_id)
+                .map(|node| (node_id, node.param_version))
+        });
         let mut scene = scene;
         let mut changed = false;
 
@@ -358,11 +356,7 @@ impl LobedoApp {
             splat_tile_binning: self.project.settings.render_debug.splat_tile_binning,
             splat_tile_size: self.project.settings.render_debug.splat_tile_size,
             splat_tile_threshold: self.project.settings.render_debug.splat_tile_threshold,
-            splat_rebuild_fps_enabled: self
-                .project
-                .settings
-                .render_debug
-                .splat_rebuild_fps_enabled,
+            splat_rebuild_fps_enabled: self.project.settings.render_debug.splat_rebuild_fps_enabled,
             splat_rebuild_fps: self.project.settings.render_debug.splat_rebuild_fps,
             splat_frustum_cull: self.project.settings.render_debug.splat_frustum_cull,
             splat_sort_bucket_count: self.project.settings.render_debug.splat_sort_bucket_count,
@@ -403,8 +397,12 @@ fn run_eval_job(
     let mut error_messages = HashMap::new();
     let mut report = lobedo_core::EvalReport::default();
     let mut output: Option<Geometry> = None;
-    match evaluate_geometry_graph_with_progress(&graph, display_node, &mut eval_state, progress.clone())
-    {
+    match evaluate_geometry_graph_with_progress(
+        &graph,
+        display_node,
+        &mut eval_state,
+        progress.clone(),
+    ) {
         Ok(result) => {
             report = result.report;
             merge_error_state(&report, &mut error_nodes, &mut error_messages);
@@ -434,12 +432,8 @@ fn run_eval_job(
                 &mut error_messages,
                 progress.clone(),
             );
-            let preview = splat_merge_preview_mesh(
-                &graph,
-                selected_node,
-                &mut eval_state,
-                progress.clone(),
-            );
+            let preview =
+                splat_merge_preview_mesh(&graph, selected_node, &mut eval_state, progress.clone());
             let merged_template = merge_optional_meshes(template_mesh.clone(), preview);
             let selection_shape = selection_shape_for_node(&graph, selected_node);
             scene = Some(scene_to_render_with_template(
@@ -474,9 +468,7 @@ pub(super) fn scene_to_render_with_template(
     selection_shape: Option<SelectionShape>,
 ) -> RenderScene {
     let mesh_has_colors = scene.drawables.iter().any(|drawable| match drawable {
-        SceneDrawable::Mesh(mesh) => {
-            mesh.colors.is_some() || mesh.corner_colors.is_some()
-        }
+        SceneDrawable::Mesh(mesh) => mesh.colors.is_some() || mesh.corner_colors.is_some(),
         _ => false,
     });
 
@@ -504,6 +496,8 @@ fn render_mesh_from_mesh(mesh: &Mesh) -> RenderMesh {
 }
 
 const MAX_MATERIAL_TEXTURES: usize = 64;
+const MAX_TEXTURE_CACHE_ENTRIES: usize = 128;
+const MAX_TEXTURE_CACHE_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Clone, PartialEq, Eq)]
 enum TextureCacheToken {
@@ -516,13 +510,89 @@ enum TextureCacheToken {
 struct TextureCacheEntry {
     token: TextureCacheToken,
     texture: RenderTexture,
+    last_access: usize,
+    byte_len: usize,
 }
 
-static TEXTURE_CACHE: OnceLock<Mutex<HashMap<String, TextureCacheEntry>>> = OnceLock::new();
+#[derive(Default)]
+struct TextureCacheState {
+    entries: HashMap<String, TextureCacheEntry>,
+    total_bytes: usize,
+}
 
-fn render_materials_from_scene(
-    scene: &SceneSnapshot,
-) -> (Vec<RenderMaterial>, Vec<RenderTexture>) {
+static TEXTURE_CACHE: OnceLock<Mutex<TextureCacheState>> = OnceLock::new();
+static TEXTURE_CACHE_TICK: AtomicUsize = AtomicUsize::new(1);
+
+fn next_texture_cache_tick() -> usize {
+    TEXTURE_CACHE_TICK.fetch_add(1, Ordering::Relaxed)
+}
+
+fn cached_texture(path: &str, token: &TextureCacheToken) -> Option<RenderTexture> {
+    let cache = TEXTURE_CACHE.get()?;
+    let mut guard = cache.lock().expect("texture cache lock");
+    let entry = guard.entries.get_mut(path)?;
+    if &entry.token != token {
+        return None;
+    }
+    entry.last_access = next_texture_cache_tick();
+    Some(entry.texture.clone())
+}
+
+fn insert_cached_texture(path: String, token: TextureCacheToken, texture: RenderTexture) {
+    let cache = TEXTURE_CACHE.get_or_init(|| Mutex::new(TextureCacheState::default()));
+    let mut guard = cache.lock().expect("texture cache lock");
+    let last_access = next_texture_cache_tick();
+    let byte_len = texture.pixels.len();
+    if let Some(old) = guard.entries.remove(&path) {
+        guard.total_bytes = guard.total_bytes.saturating_sub(old.byte_len);
+    }
+    guard.total_bytes = guard.total_bytes.saturating_add(byte_len);
+    guard.entries.insert(
+        path.clone(),
+        TextureCacheEntry {
+            token,
+            texture,
+            last_access,
+            byte_len,
+        },
+    );
+    trim_texture_cache(&mut guard, Some(path.as_str()));
+}
+
+fn trim_texture_cache(state: &mut TextureCacheState, protected: Option<&str>) {
+    trim_texture_cache_with_limits(
+        state,
+        protected,
+        MAX_TEXTURE_CACHE_ENTRIES,
+        MAX_TEXTURE_CACHE_BYTES,
+    );
+}
+
+fn trim_texture_cache_with_limits(
+    state: &mut TextureCacheState,
+    protected: Option<&str>,
+    max_entries: usize,
+    max_bytes: usize,
+) {
+    while (state.entries.len() > max_entries || state.total_bytes > max_bytes)
+        && state.entries.len() > 1
+    {
+        let oldest_key = state
+            .entries
+            .iter()
+            .filter(|(key, _)| Some(key.as_str()) != protected)
+            .min_by_key(|(_, entry)| entry.last_access)
+            .map(|(key, _)| key.clone());
+        let Some(oldest_key) = oldest_key else {
+            break;
+        };
+        if let Some(old) = state.entries.remove(&oldest_key) {
+            state.total_bytes = state.total_bytes.saturating_sub(old.byte_len);
+        }
+    }
+}
+
+fn render_materials_from_scene(scene: &SceneSnapshot) -> (Vec<RenderMaterial>, Vec<RenderTexture>) {
     let mut materials = Vec::new();
     let mut textures = Vec::new();
     let mut texture_lookup: HashMap<String, usize> = HashMap::new();
@@ -545,9 +615,7 @@ fn render_materials_from_scene(
                     }
                 }
             } else if !texture_lookup.contains_key(path) {
-                tracing::warn!(
-                    "texture limit ({MAX_MATERIAL_TEXTURES}) reached; skipping {path}"
-                );
+                tracing::warn!("texture limit ({MAX_MATERIAL_TEXTURES}) reached; skipping {path}");
             }
         }
 
@@ -576,12 +644,8 @@ fn render_materials_from_scene(
 fn load_render_texture(path: &str) -> Option<RenderTexture> {
     let token = texture_cache_token(path);
     if let Some(token) = token.as_ref() {
-        if let Some(cache) = TEXTURE_CACHE.get() {
-            if let Some(entry) = cache.lock().expect("texture cache lock").get(path) {
-                if &entry.token == token {
-                    return Some(entry.texture.clone());
-                }
-            }
+        if let Some(texture) = cached_texture(path, token) {
+            return Some(texture);
         }
     }
 
@@ -601,11 +665,7 @@ fn load_render_texture(path: &str) -> Option<RenderTexture> {
     };
 
     if let Some(token) = token {
-        let cache = TEXTURE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-        cache
-            .lock()
-            .expect("texture cache lock")
-            .insert(path.to_string(), TextureCacheEntry { token, texture: texture.clone() });
+        insert_cached_texture(path.to_string(), token, texture.clone());
     }
 
     Some(texture)
@@ -705,8 +765,9 @@ fn splat_merge_preview_mesh(
     let geo_a = evaluate_geometry_graph_with_progress(graph, input_a, state, progress.clone())
         .ok()?
         .output?;
-    let geo_b =
-        evaluate_geometry_graph_with_progress(graph, input_b, state, progress).ok()?.output?;
+    let geo_b = evaluate_geometry_graph_with_progress(graph, input_b, state, progress)
+        .ok()?
+        .output?;
     let splats_a = geo_a.merged_splats()?;
     let splats_b = geo_b.merged_splats()?;
     build_skirt_preview_mesh(&node.params, &splats_a, &splats_b)
@@ -753,7 +814,7 @@ fn selection_shape_for_node(
     let node = graph.node(node_id)?;
     match node.builtin_kind() {
         Some(BuiltinNodeKind::Box) => {
-            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);       
+            let center = node.params.get_vec3("center", [0.0, 0.0, 0.0]);
             let size = node.params.get_vec3("size", [1.0, 1.0, 1.0]);
             Some(SelectionShape::Box { center, size })
         }
@@ -811,5 +872,61 @@ fn selection_shape_from_params(params: &lobedo_core::NodeParams) -> Option<Selec
             })
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_texture(byte_len: usize) -> RenderTexture {
+        RenderTexture {
+            width: byte_len.max(1) as u32,
+            height: 1,
+            pixels: vec![0; byte_len.max(1)],
+        }
+    }
+
+    #[test]
+    fn texture_cache_trim_evicts_oldest_entry() {
+        let mut state = TextureCacheState::default();
+        state.entries.insert(
+            "a".to_string(),
+            TextureCacheEntry {
+                token: TextureCacheToken::Static,
+                texture: sample_texture(8),
+                last_access: 1,
+                byte_len: 8,
+            },
+        );
+        state.total_bytes += 8;
+        state.entries.insert(
+            "b".to_string(),
+            TextureCacheEntry {
+                token: TextureCacheToken::Static,
+                texture: sample_texture(8),
+                last_access: 2,
+                byte_len: 8,
+            },
+        );
+        state.total_bytes += 8;
+        state.total_bytes = MAX_TEXTURE_CACHE_BYTES + 1;
+        trim_texture_cache_with_limits(&mut state, Some("b"), 8, MAX_TEXTURE_CACHE_BYTES);
+
+        assert!(!state.entries.contains_key("a"));
+        assert!(state.entries.contains_key("b"));
+    }
+
+    #[test]
+    fn texture_cache_entry_size_tracks_pixels() {
+        let texture = sample_texture(32);
+        let entry = TextureCacheEntry {
+            token: TextureCacheToken::Static,
+            byte_len: texture.pixels.len(),
+            texture,
+            last_access: 1,
+        };
+
+        assert_eq!(entry.byte_len, 32);
     }
 }

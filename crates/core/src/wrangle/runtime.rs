@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use glam::Vec3;
 
+use super::parser::{parse_program, BinaryOp, Expr, Statement, UnaryOp};
+use super::value::Value;
 use crate::attributes::{AttributeDomain, AttributeRef, AttributeStorage, AttributeType};
 use crate::mesh::Mesh;
 use crate::nodes::recompute_mesh_normals;
@@ -9,8 +11,6 @@ use crate::parallel;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
 use crate::volume_sampling::VolumeSampler;
-use super::parser::{BinaryOp, Expr, Statement, UnaryOp, parse_program};
-use super::value::Value;
 
 #[allow(clippy::too_many_arguments)]
 pub fn apply_wrangle(
@@ -38,17 +38,16 @@ pub fn apply_wrangle(
         }
     }
 
-    let mut ctx =
-        WrangleContext::new(
-            mesh,
-            domain,
-            mask,
-            secondary_mesh,
-            primary_splats,
-            secondary_splats,
-            primary_volume,
-            secondary_volume,
-        );
+    let mut ctx = WrangleContext::new(
+        mesh,
+        domain,
+        mask,
+        secondary_mesh,
+        primary_splats,
+        secondary_splats,
+        primary_volume,
+        secondary_volume,
+    );
     for stmt in program.statements {
         ctx.apply_statement(stmt)?;
     }
@@ -285,11 +284,7 @@ impl<'a> MeshQueryCache<'a> {
                 let point = self.mesh.indices.get(idx).copied().unwrap_or(0) as usize;
                 self.mesh.positions.get(point).copied().unwrap_or([0.0; 3])
             }
-            AttributeDomain::Primitive => self
-                .prim_centers
-                .get(idx)
-                .copied()
-                .unwrap_or([0.0; 3]),
+            AttributeDomain::Primitive => self.prim_centers.get(idx).copied().unwrap_or([0.0; 3]),
             AttributeDomain::Detail => self.detail_center,
         }
     }
@@ -378,7 +373,9 @@ impl<'a> WrangleContext<'a> {
 
         let target_type = self.target_type(&target).or_else(|| {
             let idx = self.first_selected_index().unwrap_or(0);
-            self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
+            self.eval_expr(&expr, idx)
+                .ok()
+                .map(|value| value.data_type())
         });
 
         let default_value = target_type
@@ -513,12 +510,7 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn eval_args(
-        &self,
-        args: &[Expr],
-        idx: usize,
-        expected: usize,
-    ) -> Result<Vec<Value>, String> {
+    fn eval_args(&self, args: &[Expr], idx: usize, expected: usize) -> Result<Vec<Value>, String> {
         if args.len() != expected {
             return Err(format!(
                 "Expected {} argument(s), got {}",
@@ -577,7 +569,9 @@ impl<'a> WrangleContext<'a> {
             _ => return Err("Input index must be 0 or 1".to_string()),
         };
         Ok(Value::Float(
-            sampler.map(|sampler| sampler.sample_world(pos)).unwrap_or(0.0),
+            sampler
+                .map(|sampler| sampler.sample_world(pos))
+                .unwrap_or(0.0),
         ))
     }
 
@@ -596,12 +590,7 @@ impl<'a> WrangleContext<'a> {
         }
     }
 
-    fn query_primary_attr(
-        &self,
-        domain: AttributeDomain,
-        name: &str,
-        idx: usize,
-    ) -> Value {
+    fn query_primary_attr(&self, domain: AttributeDomain, name: &str, idx: usize) -> Value {
         if name.eq_ignore_ascii_case("P") {
             return Value::Vec3(self.read_p_for_domain(domain, idx));
         }
@@ -614,12 +603,7 @@ impl<'a> WrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_secondary_attr(
-        &self,
-        domain: AttributeDomain,
-        name: &str,
-        idx: usize,
-    ) -> Value {
+    fn query_secondary_attr(&self, domain: AttributeDomain, name: &str, idx: usize) -> Value {
         let Some(query) = self.secondary_query.as_ref() else {
             return default_query_value(name);
         };
@@ -886,12 +870,9 @@ impl<'a> SplatQueryCache<'a> {
 
     fn read_p(&self, domain: AttributeDomain, idx: usize) -> [f32; 3] {
         match domain {
-            AttributeDomain::Point | AttributeDomain::Primitive => self
-                .splats
-                .positions
-                .get(idx)
-                .copied()
-                .unwrap_or([0.0; 3]),
+            AttributeDomain::Point | AttributeDomain::Primitive => {
+                self.splats.positions.get(idx).copied().unwrap_or([0.0; 3])
+            }
             AttributeDomain::Detail => self.detail_center,
             AttributeDomain::Vertex => [0.0; 3],
         }
@@ -965,7 +946,9 @@ impl<'a> SplatWrangleContext<'a> {
 
         let target_type = self.target_type(&target).or_else(|| {
             let idx = self.first_selected_index().unwrap_or(0);
-            self.eval_expr(&expr, idx).ok().map(|value| value.data_type())
+            self.eval_expr(&expr, idx)
+                .ok()
+                .map(|value| value.data_type())
         });
 
         let default_value = target_type
@@ -1099,12 +1082,7 @@ impl<'a> SplatWrangleContext<'a> {
         }
     }
 
-    fn eval_args(
-        &self,
-        args: &[Expr],
-        idx: usize,
-        expected: usize,
-    ) -> Result<Vec<Value>, String> {
+    fn eval_args(&self, args: &[Expr], idx: usize, expected: usize) -> Result<Vec<Value>, String> {
         if args.len() != expected {
             return Err(format!(
                 "Expected {} argument(s), got {}",
@@ -1178,7 +1156,9 @@ impl<'a> SplatWrangleContext<'a> {
             _ => return Err("Input index must be 0 or 1".to_string()),
         };
         Ok(Value::Float(
-            sampler.map(|sampler| sampler.sample_world(pos)).unwrap_or(0.0),
+            sampler
+                .map(|sampler| sampler.sample_world(pos))
+                .unwrap_or(0.0),
         ))
     }
 
@@ -1223,12 +1203,7 @@ impl<'a> SplatWrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_primary_attr(
-        &self,
-        domain: AttributeDomain,
-        name: &str,
-        idx: usize,
-    ) -> Value {
+    fn query_primary_attr(&self, domain: AttributeDomain, name: &str, idx: usize) -> Value {
         if name.eq_ignore_ascii_case("P") {
             return Value::Vec3(self.read_p_for_domain(domain, idx));
         }
@@ -1241,12 +1216,7 @@ impl<'a> SplatWrangleContext<'a> {
         default_query_value(name)
     }
 
-    fn query_secondary_attr(
-        &self,
-        domain: AttributeDomain,
-        name: &str,
-        idx: usize,
-    ) -> Value {
+    fn query_secondary_attr(&self, domain: AttributeDomain, name: &str, idx: usize) -> Value {
         let Some(query) = self.secondary_query.as_ref() else {
             return default_query_value(name);
         };

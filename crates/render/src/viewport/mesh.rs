@@ -12,8 +12,7 @@ pub(crate) struct Vertex {
     pub(crate) material: u32,
 }
 
-pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32x2, 4 => Uint32];
+pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32x2, 4 => Uint32];
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -389,11 +388,7 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
     let mut billboards = Vec::with_capacity(inputs.positions.len());
     for (idx, pos) in inputs.positions.iter().enumerate() {
         let center = inputs.world_transform * Vec3::from(*pos);
-        let scale = inputs
-            .scales
-            .get(idx)
-            .copied()
-            .unwrap_or([1.0, 1.0, 1.0]);
+        let scale = inputs.scales.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]);
         if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite() {
             continue;
         }
@@ -414,7 +409,8 @@ pub(crate) fn splat_billboards(inputs: SplatBillboardInputs<'_>) -> Vec<SplatBil
         let rot = Mat3::from_quat(quat);
         let scale = Vec3::from(scale);
         let cov_local = Mat3::from_diagonal(scale * scale);
-        let cov_world = inputs.world_transform * (rot * cov_local * rot.transpose())
+        let cov_world = inputs.world_transform
+            * (rot * cov_local * rot.transpose())
             * inputs.world_transform.transpose();
         let cov_view = view_rot * cov_world * view_rot.transpose();
         let cov_cam = flip * cov_view * flip;
@@ -609,7 +605,8 @@ pub(crate) fn curve_vertices(points: &[[f32; 3]], closed: bool) -> Vec<LineVerte
         return Vec::new();
     }
     let color = [0.35, 0.85, 0.95];
-    let mut lines = Vec::with_capacity(points.len().saturating_sub(1) * 2 + if closed { 2 } else { 0 });
+    let mut lines =
+        Vec::with_capacity(points.len().saturating_sub(1) * 2 + if closed { 2 } else { 0 });
     for segment in points.windows(2) {
         lines.push(LineVertex {
             position: segment[0],
@@ -706,8 +703,22 @@ pub(crate) fn selection_shape_vertices(shape: &SelectionShape) -> Vec<LineVertex
             );
             circle_vertices(center, Vec3::X, Vec3::Y, radii.x, radii.y, color)
                 .into_iter()
-                .chain(circle_vertices(center, Vec3::X, Vec3::Z, radii.x, radii.z, color))
-                .chain(circle_vertices(center, Vec3::Y, Vec3::Z, radii.y, radii.z, color))
+                .chain(circle_vertices(
+                    center,
+                    Vec3::X,
+                    Vec3::Z,
+                    radii.x,
+                    radii.z,
+                    color,
+                ))
+                .chain(circle_vertices(
+                    center,
+                    Vec3::Y,
+                    Vec3::Z,
+                    radii.y,
+                    radii.z,
+                    color,
+                ))
                 .collect()
         }
         SelectionShape::Plane {

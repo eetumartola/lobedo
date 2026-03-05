@@ -9,6 +9,7 @@ mod viewport_tools_gizmo;
 mod viewport_tools_math;
 mod viewport_tools_selection;
 
+use super::LobedoApp;
 use viewport_tools_curve::{draw_curve_handles, draw_curve_overlay, pick_curve_handle};
 use viewport_tools_ffd::{draw_ffd_lattice_handles, draw_ffd_lattice_overlay, pick_ffd_handle};
 use viewport_tools_gizmo::{
@@ -18,10 +19,9 @@ use viewport_tools_gizmo::{
 };
 use viewport_tools_math::{camera_forward, raycast_plane, raycast_plane_y, viewport_view_proj};
 use viewport_tools_selection::{
-    draw_group_selection_overlay, group_selection_settings, pick_selection_index,
-    selection_action, selection_indices_in_rect,
+    draw_group_selection_overlay, group_selection_settings, pick_selection_index, selection_action,
+    selection_indices_in_rect,
 };
-use super::LobedoApp;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum TransformMode {
@@ -306,17 +306,15 @@ impl LobedoApp {
                                 )
                             } else if let Some(pos) = pointer_pos.or(select.drag_start) {
                                 let mut picked = BTreeSet::new();
-                                if let Some(index) =
-                                    pick_selection_index(
-                                        scene,
-                                        domain,
-                                        view_proj,
-                                        rect,
-                                        pos,
-                                        self.camera_state(),
-                                        allow_backface,
-                                    )
-                                {
+                                if let Some(index) = pick_selection_index(
+                                    scene,
+                                    domain,
+                                    view_proj,
+                                    rect,
+                                    pos,
+                                    self.camera_state(),
+                                    allow_backface,
+                                ) {
                                     picked.insert(index);
                                 }
                                 picked
@@ -346,13 +344,9 @@ impl LobedoApp {
             }
             if primary_clicked {
                 if let Some(pos) = pointer_pos {
-                    if let Some(hit) = raycast_plane_y(
-                        self.camera_state(),
-                        rect,
-                        ctx.pixels_per_point(),
-                        pos,
-                        0.0,
-                    ) {
+                    if let Some(hit) =
+                        raycast_plane_y(self.camera_state(), rect, ctx.pixels_per_point(), pos, 0.0)
+                    {
                         let snapshot = self.snapshot_undo();
                         if self.append_curve_point(curve.node_id, hit) {
                             self.queue_undo_snapshot(snapshot, false);
@@ -393,8 +387,7 @@ impl LobedoApp {
                                 pos,
                                 axis,
                             ) {
-                                let new_point =
-                                    drag.start_point + axis_dir(axis) * delta_world;
+                                let new_point = drag.start_point + axis_dir(axis) * delta_world;
                                 self.update_curve_point(edit.node_id, drag.index, new_point);
                             }
                         }
@@ -499,8 +492,7 @@ impl LobedoApp {
                                 pos,
                                 axis,
                             ) {
-                                let new_point =
-                                    drag.start_point + axis_dir(axis) * delta_world;
+                                let new_point = drag.start_point + axis_dir(axis) * delta_world;
                                 self.update_ffd_point(edit.node_id, drag.index, new_point);
                             }
                         }
@@ -574,18 +566,11 @@ impl LobedoApp {
             if let Some(pos) = pointer_pos {
                 if primary_down && self.viewport_tools.box_drag.is_none() {
                     if let Some(params) = box_params(&self.project.graph, node_id) {
-                        let view_proj = viewport_view_proj(
-                            self.camera_state(),
-                            rect,
-                            ctx.pixels_per_point(),
-                        );
-                        if let Some(handle) = pick_box_handle(
-                            view_proj,
-                            rect,
-                            pos,
-                            params.center,
-                            params.size,
-                        ) {
+                        let view_proj =
+                            viewport_view_proj(self.camera_state(), rect, ctx.pixels_per_point());
+                        if let Some(handle) =
+                            pick_box_handle(view_proj, rect, pos, params.center, params.size)
+                        {
                             let snapshot = self.snapshot_undo();
                             self.queue_undo_snapshot(snapshot, true);
                             let start_hit = match handle {
@@ -633,11 +618,8 @@ impl LobedoApp {
 
         if let Some(node_id) = self.selected_transform_node() {
             if let Some(pos) = pointer_pos {
-                let view_proj = viewport_view_proj(
-                    self.camera_state(),
-                    rect,
-                    ctx.pixels_per_point(),
-                );
+                let view_proj =
+                    viewport_view_proj(self.camera_state(), rect, ctx.pixels_per_point());
                 let origin = transform_origin(&self.project.graph, node_id);
                 if let Some(origin) = origin {
                     if primary_down && self.viewport_tools.transform_drag.is_none() {
@@ -782,8 +764,7 @@ impl LobedoApp {
             _ => None,
         }
     }
-
-    }
+}
 
 pub(super) fn input_node_for(
     graph: &lobedo_core::Graph,

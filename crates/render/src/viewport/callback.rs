@@ -15,8 +15,8 @@ use super::mesh::{
     SplatInstance,
 };
 use super::pipeline::{
-    apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, SplatComputeParams,
-    Uniforms, SPLAT_BUCKET_CHUNK,
+    apply_scene_to_pipeline, ensure_offscreen_targets, PipelineState, SplatComputeParams, Uniforms,
+    SPLAT_BUCKET_CHUNK,
 };
 use super::{
     ViewportDebug, ViewportSceneState, ViewportShadingMode, ViewportSplatShadingMode,
@@ -62,11 +62,7 @@ impl CallbackTrait for ViewportCallback {
         callback_resources: &mut CallbackResources,
     ) -> Vec<egui_wgpu::wgpu::CommandBuffer> {
         if callback_resources.get::<PipelineState>().is_none() {
-            callback_resources.insert(PipelineState::new(
-                device,
-                queue,
-                self.target_format,
-            ));
+            callback_resources.insert(PipelineState::new(device, queue, self.target_format));
         }
 
         let view_proj = camera_view_proj(self.camera, self.rect, screen_descriptor);
@@ -190,12 +186,7 @@ impl CallbackTrait for ViewportCallback {
                 base_color: pipeline.base_color,
                 _pad4: 0.0,
                 light_params: [1.0, 0.45, 0.5, 0.15],
-                debug_params: [
-                    shading_mode,
-                    debug_min,
-                    debug_max,
-                    self.debug.point_size,
-                ],
+                debug_params: [shading_mode, debug_min, debug_max, self.debug.point_size],
                 shadow_params: [
                     if shadow_enabled { 1.0 } else { 0.0 },
                     shadow_bias,
@@ -288,9 +279,7 @@ impl CallbackTrait for ViewportCallback {
                             index_counts,
                         } => {
                             shadow_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                            for (buffer, count) in
-                                index_buffers.iter().zip(index_counts.iter())
-                            {
+                            for (buffer, count) in index_buffers.iter().zip(index_counts.iter()) {
                                 if *count == 0 {
                                     continue;
                                 }
@@ -305,9 +294,7 @@ impl CallbackTrait for ViewportCallback {
                             vertex_buffers,
                             vertex_counts,
                         } => {
-                            for (buffer, count) in
-                                vertex_buffers.iter().zip(vertex_counts.iter())
-                            {
+                            for (buffer, count) in vertex_buffers.iter().zip(vertex_counts.iter()) {
                                 if *count == 0 {
                                     continue;
                                 }
@@ -328,14 +315,12 @@ impl CallbackTrait for ViewportCallback {
                     let up_delta = up - Vec3::from(pipeline.splat_last_up);
                     let camera_delta = camera_pos - Vec3::from(pipeline.splat_last_camera_pos);
                     let viewport_changed = pipeline.splat_last_viewport != [width, height];
-                    let use_full_sh = matches!(
-                        self.debug.splat_shading_mode,
-                        ViewportSplatShadingMode::FullSh
-                    ) && matches!(self.debug.shading_mode, ViewportShadingMode::Lit);
-                    let bucket_count = self
-                        .debug
-                        .splat_sort_bucket_count
-                        .clamp(256, 16_384);
+                    let use_full_sh =
+                        matches!(
+                            self.debug.splat_shading_mode,
+                            ViewportSplatShadingMode::FullSh
+                        ) && matches!(self.debug.shading_mode, ViewportShadingMode::Lit);
+                    let bucket_count = self.debug.splat_sort_bucket_count.clamp(256, 16_384);
                     let log_depth = self.debug.splat_sort_log_depth;
                     let settings_changed = use_full_sh != pipeline.splat_last_full_sh
                         || bucket_count != pipeline.splat_last_bucket_count
@@ -351,10 +336,7 @@ impl CallbackTrait for ViewportCallback {
                         .last_splat_rebuild
                         .map(|last| (now - last).as_secs_f32())
                         .unwrap_or(f32::INFINITY);
-                    let rebuild_fps = self
-                        .debug
-                        .splat_rebuild_fps
-                        .max(1.0);
+                    let rebuild_fps = self.debug.splat_rebuild_fps.max(1.0);
                     let interval = if self.debug.splat_rebuild_fps_enabled {
                         1.0 / rebuild_fps
                     } else {
@@ -409,11 +391,7 @@ impl CallbackTrait for ViewportCallback {
                                     timestamp_writes: None,
                                 },
                             );
-                            compute_pass.set_bind_group(
-                                0,
-                                &pipeline.splat_gpu.bind_group,
-                                &[],
-                            );
+                            compute_pass.set_bind_group(0, &pipeline.splat_gpu.bind_group, &[]);
                             compute_pass.set_pipeline(&pipeline.splat_gpu.clear_pipeline);
                             compute_pass.dispatch_workgroups(clear_groups, 1, 1);
                             compute_pass.set_pipeline(&pipeline.splat_gpu.count_pipeline);
@@ -492,8 +470,7 @@ impl CallbackTrait for ViewportCallback {
                                 index_counts,
                             } => {
                                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                                for (buffer, count) in
-                                    index_buffers.iter().zip(index_counts.iter())
+                                for (buffer, count) in index_buffers.iter().zip(index_counts.iter())
                                 {
                                     if *count == 0 {
                                         continue;
@@ -587,10 +564,7 @@ impl CallbackTrait for ViewportCallback {
                     .last_splat_rebuild
                     .map(|last| (now - last).as_secs_f32())
                     .unwrap_or(f32::INFINITY);
-                let rebuild_fps = self
-                    .debug
-                    .splat_rebuild_fps
-                    .max(1.0);
+                let rebuild_fps = self.debug.splat_rebuild_fps.max(1.0);
                 let interval = if self.debug.splat_rebuild_fps_enabled {
                     1.0 / rebuild_fps
                 } else {
@@ -602,22 +576,17 @@ impl CallbackTrait for ViewportCallback {
                     || !self.debug.splat_rebuild_fps_enabled
                     || elapsed >= interval;
                 if use_gpu_splats {
-                    let splat_pipeline = if matches!(
-                        self.debug.shading_mode,
-                        ViewportShadingMode::SplatOverdraw
-                    ) {
-                        &pipeline.splat_overdraw_pipeline
-                    } else {
-                        &pipeline.splat_pipeline
-                    };
+                    let splat_pipeline =
+                        if matches!(self.debug.shading_mode, ViewportShadingMode::SplatOverdraw) {
+                            &pipeline.splat_overdraw_pipeline
+                        } else {
+                            &pipeline.splat_pipeline
+                        };
                     render_pass.set_pipeline(splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                     render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
-                    render_pass.set_vertex_buffer(
-                        1,
-                        pipeline.splat_gpu.instances_buffer.slice(..),
-                    );
+                    render_pass.set_vertex_buffer(1, pipeline.splat_gpu.instances_buffer.slice(..));
                     render_pass.draw_indirect(&pipeline.splat_gpu.indirect_buffer, 0);
                     gpu_splats_active = true;
                 } else if needs_rebuild && allow_rebuild {
@@ -658,7 +627,8 @@ impl CallbackTrait for ViewportCallback {
                         &temp_colors
                     } else {
                         let cache_len = pipeline.splat_positions.len();
-                        let cache_invalid = pipeline.splat_color_cache_scene != pipeline.scene_version
+                        let cache_invalid = pipeline.splat_color_cache_scene
+                            != pipeline.scene_version
                             || pipeline.splat_color_cache_len != cache_len
                             || pipeline.splat_color_cache_sh0_is_coeff != sh0_is_coeff;
                         if cache_invalid {
@@ -718,8 +688,7 @@ impl CallbackTrait for ViewportCallback {
                             .get(idx)
                             .copied()
                             .unwrap_or([1.0, 1.0, 1.0]);
-                        if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite()
-                        {
+                        if !scale[0].is_finite() || !scale[1].is_finite() || !scale[2].is_finite() {
                             return None;
                         }
                         let rotation = pipeline
@@ -732,10 +701,7 @@ impl CallbackTrait for ViewportCallback {
                         } else {
                             [0.0, 0.0, 0.0, 1.0]
                         };
-                        let color = base_colors
-                            .get(idx)
-                            .copied()
-                            .unwrap_or([1.0, 1.0, 1.0]);
+                        let color = base_colors.get(idx).copied().unwrap_or([1.0, 1.0, 1.0]);
                         let alpha = pipeline
                             .splat_opacity
                             .get(idx)
@@ -779,12 +745,7 @@ impl CallbackTrait for ViewportCallback {
                         let mut bins: Vec<Vec<usize>> = vec![Vec::new(); tile_count];
                         let width_f = width as f32;
                         let height_f = height as f32;
-                        let corners = [
-                            (-1.0, -1.0),
-                            (1.0, -1.0),
-                            (1.0, 1.0),
-                            (-1.0, 1.0),
-                        ];
+                        let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
                         let pad_px = 2.0;
                         for (idx, billboard) in billboards.iter().enumerate() {
                             let center = Vec3::from(billboard.center);
@@ -803,16 +764,12 @@ impl CallbackTrait for ViewportCallback {
                                 let corner = ndc + axis1 * sx + axis2 * sy;
                                 let px = (corner.x * 0.5 + 0.5) * width_f;
                                 let py = (0.5 - corner.y * 0.5) * height_f;
-                            min_x = min_x.min(px);
-                            max_x = max_x.max(px);
-                            min_y = min_y.min(py);
-                            max_y = max_y.max(py);
+                                min_x = min_x.min(px);
+                                max_x = max_x.max(px);
+                                min_y = min_y.min(py);
+                                max_y = max_y.max(py);
                             }
-                            if max_x < 0.0
-                                || max_y < 0.0
-                                || min_x > width_f
-                                || min_y > height_f
-                            {
+                            if max_x < 0.0 || max_y < 0.0 || min_x > width_f || min_y > height_f {
                                 continue;
                             }
                             min_x = (min_x - pad_px).clamp(0.0, width_f - 1.0);
@@ -865,9 +822,7 @@ impl CallbackTrait for ViewportCallback {
                                 }
                                 let bytes = bytemuck::cast_slice(&instances);
                                 let buffer_index = buffers.len();
-                                let buffer = match pipeline
-                                    .splat_instance_buffers
-                                    .get(buffer_index)
+                                let buffer = match pipeline.splat_instance_buffers.get(buffer_index)
                                 {
                                     Some(existing) if existing.size() >= bytes.len() as u64 => {
                                         queue.write_buffer(existing, 0, bytes);
@@ -909,9 +864,7 @@ impl CallbackTrait for ViewportCallback {
                             }
                         } else {
                             order.reserve(pipeline.splat_positions.len());
-                            for (idx, position) in
-                                pipeline.splat_positions.iter().enumerate()
-                            {
+                            for (idx, position) in pipeline.splat_positions.iter().enumerate() {
                                 let center = Vec3::from(*position);
                                 let depth = (center - camera_pos).dot(forward);
                                 order.push((idx, depth));
@@ -920,8 +873,7 @@ impl CallbackTrait for ViewportCallback {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
                             order.sort_by(|a, b| {
-                                b.1.partial_cmp(&a.1)
-                                    .unwrap_or(std::cmp::Ordering::Equal)
+                                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
                             });
                         }
                         for chunk in order.chunks(max_instances) {
@@ -937,10 +889,7 @@ impl CallbackTrait for ViewportCallback {
                             }
                             let bytes = bytemuck::cast_slice(&instances);
                             let buffer_index = buffers.len();
-                            let buffer = match pipeline
-                                .splat_instance_buffers
-                                .get(buffer_index)
-                            {
+                            let buffer = match pipeline.splat_instance_buffers.get(buffer_index) {
                                 Some(existing) if existing.size() >= bytes.len() as u64 => {
                                     queue.write_buffer(existing, 0, bytes);
                                     existing.clone()
@@ -970,14 +919,12 @@ impl CallbackTrait for ViewportCallback {
                     pipeline.last_splat_rebuild = Some(now);
                 }
                 if !use_gpu_splats && !pipeline.splat_instance_buffers.is_empty() {
-                    let splat_pipeline = if matches!(
-                        self.debug.shading_mode,
-                        ViewportShadingMode::SplatOverdraw
-                    ) {
-                        &pipeline.splat_overdraw_pipeline
-                    } else {
-                        &pipeline.splat_pipeline
-                    };
+                    let splat_pipeline =
+                        if matches!(self.debug.shading_mode, ViewportShadingMode::SplatOverdraw) {
+                            &pipeline.splat_overdraw_pipeline
+                        } else {
+                            &pipeline.splat_pipeline
+                        };
                     render_pass.set_pipeline(splat_pipeline);
                     render_pass.set_bind_group(0, &pipeline.uniform_bind_group, &[]);
                     render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
@@ -995,12 +942,8 @@ impl CallbackTrait for ViewportCallback {
                             if *count == 0 {
                                 continue;
                             }
-                            render_pass.set_scissor_rect(
-                                scissor[0],
-                                scissor[1],
-                                scissor[2],
-                                scissor[3],
-                            );
+                            render_pass
+                                .set_scissor_rect(scissor[0], scissor[1], scissor[2], scissor[3]);
                             render_pass.set_vertex_buffer(1, buffer.slice(..));
                             render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                         }
@@ -1030,10 +973,7 @@ impl CallbackTrait for ViewportCallback {
                 render_pass.set_bind_group(1, &pipeline.material_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, pipeline.splat_corner_buffer.slice(..));
                 if gpu_splats_active {
-                    render_pass.set_vertex_buffer(
-                        1,
-                        pipeline.splat_gpu.instances_buffer.slice(..),
-                    );
+                    render_pass.set_vertex_buffer(1, pipeline.splat_gpu.instances_buffer.slice(..));
                     render_pass.draw_indirect(&pipeline.splat_gpu.indirect_buffer, 0);
                 } else {
                     let use_scissors = !pipeline.splat_scissors.is_empty()
@@ -1049,12 +989,8 @@ impl CallbackTrait for ViewportCallback {
                             if *count == 0 {
                                 continue;
                             }
-                            render_pass.set_scissor_rect(
-                                scissor[0],
-                                scissor[1],
-                                scissor[2],
-                                scissor[3],
-                            );
+                            render_pass
+                                .set_scissor_rect(scissor[0], scissor[1], scissor[2], scissor[3]);
                             render_pass.set_vertex_buffer(1, buffer.slice(..));
                             render_pass.draw(0..pipeline.splat_corner_count, 0..*count);
                         }

@@ -8,8 +8,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask},
     require_mesh_input,
 };
@@ -58,26 +57,17 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
-        ParamSpec::string("normal", "Normal")
-            .with_help("Normal attribute name to write."),
-        ParamSpec::string("tangent", "Tangent")
-            .with_help("Tangent attribute name to write."),
-        ParamSpec::string("bitangent", "Bitangent")
-            .with_help("Bitangent attribute name to write."),
-        ParamSpec::bool("coherent", "Coherent")
-            .with_help("Keep curve frame directions coherent."),
+        ParamSpec::string("normal", "Normal").with_help("Normal attribute name to write."),
+        ParamSpec::string("tangent", "Tangent").with_help("Tangent attribute name to write."),
+        ParamSpec::string("bitangent", "Bitangent").with_help("Bitangent attribute name to write."),
+        ParamSpec::bool("coherent", "Coherent").with_help("Keep curve frame directions coherent."),
     ]
 }
 
-pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {  
+pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     let mut input = require_mesh_input(inputs, 0, "PolyFrame requires a mesh input")?;
     apply_polyframe(params, &mut input, &[])?;
     Ok(input)
@@ -117,9 +107,7 @@ fn apply_polyframe(params: &NodeParams, input: &mut Mesh, curves: &[Curve]) -> R
     }
 
     let normal_name = params.get_string("normal", DEFAULT_NORMAL_NAME).trim();
-    let tangent_name = params
-        .get_string("tangent", DEFAULT_TANGENT_NAME)
-        .trim();
+    let tangent_name = params.get_string("tangent", DEFAULT_TANGENT_NAME).trim();
     let bitangent_name = params
         .get_string("bitangent", DEFAULT_BITANGENT_NAME)
         .trim();
@@ -528,7 +516,11 @@ fn build_curve_bitangents(
     }
 
     if closed {
-        for window in anchors.iter().zip(anchors.iter().cycle().skip(1)).take(anchors.len()) {
+        for window in anchors
+            .iter()
+            .zip(anchors.iter().cycle().skip(1))
+            .take(anchors.len())
+        {
             let (start_idx, end_idx) = (*window.0, *window.1);
             let start = oriented[start_idx];
             let end = oriented[end_idx];

@@ -5,9 +5,9 @@ use glam::Vec3;
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_to_mesh::{marching_cubes, sanitize_grid, GridSpec};
 use crate::nodes::volume_from_geo;
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::volume::{try_alloc_f32, Volume, VolumeKind};
@@ -34,7 +34,10 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("mode".to_string(), ParamValue::String(DEFAULT_MODE.to_string())),
+            (
+                "mode".to_string(),
+                ParamValue::String(DEFAULT_MODE.to_string()),
+            ),
             ("op".to_string(), ParamValue::Int(DEFAULT_OP)),
             ("max_dim".to_string(), ParamValue::Int(DEFAULT_MAX_DIM)),
             ("padding".to_string(), ParamValue::Float(DEFAULT_PADDING)),
@@ -57,9 +60,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
                 ("mesh_sdf", "Mesh-SDF"),
             ],
         )
-        .with_help(
-            "Auto picks mesh-mesh or mesh-SDF; mesh-SDF requires an SDF volume on input B.",
-        ),
+        .with_help("Auto picks mesh-mesh or mesh-SDF; mesh-SDF requires an SDF volume on input B."),
         ParamSpec::int_enum(
             "op",
             "Operation",
@@ -81,10 +82,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     boolean_mesh_mesh(params, &mesh_a, &mesh_b)
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(input_a) = inputs.first() else {
         return Ok(Geometry::default());
     };

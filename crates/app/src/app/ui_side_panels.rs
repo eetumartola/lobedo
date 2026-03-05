@@ -23,14 +23,8 @@ impl LobedoApp {
                         .default_open(true)
                         .show(ui, |ui| {
                             ui.label("Viewport overlays");
-                            ui.checkbox(
-                                &mut self.project.settings.render_debug.show_grid,
-                                "Grid",
-                            );
-                            ui.checkbox(
-                                &mut self.project.settings.render_debug.show_axes,
-                                "Axes",
-                            );
+                            ui.checkbox(&mut self.project.settings.render_debug.show_grid, "Grid");
+                            ui.checkbox(&mut self.project.settings.render_debug.show_axes, "Axes");
                             ui.checkbox(
                                 &mut self.project.settings.render_debug.show_normals,
                                 "Normals",
@@ -105,10 +99,7 @@ impl LobedoApp {
                                         (ShadingMode::SplatScale, "Splat Scale"),
                                         (ShadingMode::SplatOverdraw, "Splat Overdraw"),
                                     ] {
-                                        if ui
-                                            .selectable_label(*shading == mode, label)
-                                            .clicked()
-                                        {
+                                        if ui.selectable_label(*shading == mode, label).clicked() {
                                             *shading = mode;
                                         }
                                     }

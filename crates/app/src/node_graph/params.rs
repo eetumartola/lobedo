@@ -1,19 +1,19 @@
 use egui::Ui;
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
-#[cfg(not(target_arch = "wasm32"))]
-use rfd::FileDialog;
 #[cfg(target_arch = "wasm32")]
 use rfd::AsyncFileDialog;
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
 #[cfg(target_arch = "wasm32")]
 use std::sync::{Mutex, OnceLock};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
 use lobedo_core::{
-    parse_color_gradient, BuiltinNodeKind, ColorGradient, ParamKind, ParamOption, ParamRange,
-    ParamSpec, ParamValue, ParamWidget, ParamPathKind,
+    parse_color_gradient, BuiltinNodeKind, ColorGradient, ParamKind, ParamOption, ParamPathKind,
+    ParamRange, ParamSpec, ParamValue, ParamWidget,
 };
 
 use super::help::{param_help, show_help_tooltip};
@@ -34,8 +34,7 @@ pub(super) fn edit_param(
                 let mut changed = false;
                 let height = ui.spacing().interact_size.y;
                 let controls_width = ui.available_width();
-                let (spacing, value_width, slider_width) =
-                    slider_layout_widths(controls_width);
+                let (spacing, value_width, slider_width) = slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                 if ui
@@ -74,8 +73,7 @@ pub(super) fn edit_param(
                 let mut changed = false;
                 let height = ui.spacing().interact_size.y;
                 let controls_width = ui.available_width();
-                let (spacing, value_width, slider_width) =
-                    slider_layout_widths(controls_width);
+                let (spacing, value_width, slider_width) = slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                 if ui
@@ -218,8 +216,7 @@ pub(super) fn edit_param_with_spec(
                 let mut changed = false;
                 let height = ui.spacing().interact_size.y;
                 let controls_width = ui.available_width();
-                let (spacing, value_width, slider_width) =
-                    slider_layout_widths(controls_width);
+                let (spacing, value_width, slider_width) = slider_layout_widths(controls_width);
                 let prev_spacing = ui.spacing().item_spacing;
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                 if ui
@@ -281,8 +278,7 @@ pub(super) fn edit_param_with_spec(
                     let mut changed = false;
                     let height = ui.spacing().interact_size.y;
                     let controls_width = ui.available_width();
-                    let (spacing, value_width, slider_width) =
-                        slider_layout_widths(controls_width);
+                    let (spacing, value_width, slider_width) = slider_layout_widths(controls_width);
                     let prev_spacing = ui.spacing().item_spacing;
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, prev_spacing.y);
                     if ui
@@ -500,10 +496,7 @@ pub(super) fn edit_group_row(
             controls_width.max(160.0)
         };
         if ui
-            .add_sized(
-                [text_width, height],
-                egui::TextEdit::singleline(&mut group),
-            )
+            .add_sized([text_width, height], egui::TextEdit::singleline(&mut group))
             .changed()
         {
             changed = true;
@@ -549,8 +542,7 @@ fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut St
 
     let selected_id = ui.make_persistent_id((node_name, label, "gradient_selected"));
     let drag_id = ui.make_persistent_id((node_name, label, "gradient_drag"));
-    let mut selected =
-        ui.data_mut(|d| d.get_temp::<usize>(selected_id).unwrap_or(0));
+    let mut selected = ui.data_mut(|d| d.get_temp::<usize>(selected_id).unwrap_or(0));
     if selected >= stops.len() {
         selected = stops.len().saturating_sub(1);
     }
@@ -560,8 +552,10 @@ fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut St
     let width = ui.available_width().max(160.0);
     let bar_total_height = 28.0;
     let bar_height = 16.0;
-    let (bar_area, response) =
-        ui.allocate_exact_size(egui::vec2(width, bar_total_height), egui::Sense::click_and_drag());
+    let (bar_area, response) = ui.allocate_exact_size(
+        egui::vec2(width, bar_total_height),
+        egui::Sense::click_and_drag(),
+    );
     let bar_rect = egui::Rect::from_min_size(bar_area.min, egui::vec2(width, bar_height));
     let handle_y = bar_rect.max.y + 6.0;
     let handle_radius = 6.0;
@@ -638,7 +632,11 @@ fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut St
                 let t = ((pos.x - bar_rect.min.x) / bar_rect.width()).clamp(0.0, 1.0);
                 let color = gradient.sample(t);
                 stops.push(lobedo_core::ColorStop { pos: t, color });
-                stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+                stops.sort_by(|a, b| {
+                    a.pos
+                        .partial_cmp(&b.pos)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 selected = find_stop_index(&stops, t);
                 changed = true;
             }
@@ -649,7 +647,11 @@ fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut St
             if let Some(stop) = stops.get_mut(selected) {
                 stop.pos = ((pos.x - bar_rect.min.x) / bar_rect.width()).clamp(0.0, 1.0);
                 let pos_marker = stop.pos;
-                stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+                stops.sort_by(|a, b| {
+                    a.pos
+                        .partial_cmp(&b.pos)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 selected = find_stop_index(&stops, pos_marker);
                 changed = true;
             }
@@ -690,14 +692,20 @@ fn edit_gradient_field(ui: &mut Ui, node_name: &str, label: &str, value: &mut St
             let (min_idx, max_idx) = endpoints_for(&stops);
             if stops.len() > 2 && selected != min_idx && selected != max_idx {
                 stops.remove(selected);
-                selected = selected.saturating_sub(1).min(stops.len().saturating_sub(1));
+                selected = selected
+                    .saturating_sub(1)
+                    .min(stops.len().saturating_sub(1));
                 changed = true;
             }
         } else if let Some(stop) = stops.get_mut(selected) {
             stop.color = stop_color;
             stop.pos = stop_pos.clamp(0.0, 1.0);
             let pos_marker = stop.pos;
-            stops.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap_or(std::cmp::Ordering::Equal));
+            stops.sort_by(|a, b| {
+                a.pos
+                    .partial_cmp(&b.pos)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             selected = find_stop_index(&stops, pos_marker);
         }
     }
@@ -762,11 +770,7 @@ fn color32_from_rgb(color: [f32; 3]) -> egui::Color32 {
     )
 }
 
-fn edit_path_field(
-    ui: &mut Ui,
-    kind: Option<PathPickerKind>,
-    value: &mut String,
-) -> bool {
+fn edit_path_field(ui: &mut Ui, kind: Option<PathPickerKind>, value: &mut String) -> bool {
     let height = ui.spacing().interact_size.y;
     let spacing = 6.0;
     let button_width = height;
@@ -912,14 +916,14 @@ fn open_path_picker_button(
 
 #[cfg(not(target_arch = "wasm32"))]
 fn open_path_picker(kind: PathPickerKind, current: &str) -> Option<String> {
-        let (label, extensions, is_save, default_name) = match kind {
+    let (label, extensions, is_save, default_name) = match kind {
         PathPickerKind::ReadMesh => ("Mesh", &["obj", "gltf", "glb"][..], false, "model.obj"),
         PathPickerKind::WriteObj => ("OBJ", &["obj"][..], true, "output.obj"),
         PathPickerKind::WriteGltf => ("glTF", &["glb", "gltf"][..], true, "output.glb"),
         PathPickerKind::ReadSplat => ("Splat", &["ply", "spz"][..], false, "splats.ply"),
         PathPickerKind::WriteSplat => ("PLY", &["ply"][..], true, "output.ply"),
         PathPickerKind::ReadTexture => ("Image", &["png", "jpg", "jpeg"][..], false, "texture.png"),
-        };
+    };
     let mut dialog = FileDialog::new().add_filter(label, extensions);
     if !current.trim().is_empty() {
         let path = Path::new(current);
@@ -971,10 +975,8 @@ fn param_row_with_height_label(
     let label_width = label_width_for(ui, label).min((total_width * 0.35).max(80.0));
     let controls_width = (total_width - label_width).max(120.0);
     let mut changed = false;
-    let (row_rect, _) = ui.allocate_exact_size(
-        egui::vec2(total_width, row_height),
-        egui::Sense::hover(),
-    );
+    let (row_rect, _) =
+        ui.allocate_exact_size(egui::vec2(total_width, row_height), egui::Sense::hover());
     let label_rect = egui::Rect::from_min_size(row_rect.min, egui::vec2(label_width, row_height));
     let controls_rect = egui::Rect::from_min_size(
         egui::pos2(row_rect.min.x + label_width, row_rect.min.y),
@@ -1093,12 +1095,7 @@ fn group_type_options(spec: Option<&ParamSpec>) -> Vec<(i32, &'static str)> {
         }
     }
     if options.is_empty() {
-        options = vec![
-            (0, "Auto"),
-            (1, "Vertex"),
-            (2, "Point"),
-            (3, "Primitive"),
-        ];
+        options = vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")];
     }
     options
 }
@@ -1106,6 +1103,3 @@ fn group_type_options(spec: Option<&ParamSpec>) -> Vec<(i32, &'static str)> {
 fn display_label(_node_name: &str, _node_kind: Option<BuiltinNodeKind>, key: &str) -> String {
     key.to_string()
 }
-
-
-

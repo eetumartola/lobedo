@@ -6,8 +6,8 @@ use glam::{Mat3, Vec3};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::nodes::splat_utils::splat_cell_key;
+use crate::nodes::{geometry_in, geometry_out, require_mesh_input};
 use crate::parallel;
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
@@ -30,20 +30,16 @@ pub fn definition() -> NodeDefinition {
 
 pub fn default_params() -> NodeParams {
     NodeParams {
-        values: BTreeMap::from([(
-            "allow_new".to_string(),
-            ParamValue::Bool(false),
-        ), (
-            "derive_rot_scale".to_string(),
-            ParamValue::Bool(true),
-        )]),
+        values: BTreeMap::from([
+            ("allow_new".to_string(), ParamValue::Bool(false)),
+            ("derive_rot_scale".to_string(), ParamValue::Bool(true)),
+        ]),
     }
 }
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::bool("allow_new", "Allow New")
-            .with_help("Allow creation of new splats."),
+        ParamSpec::bool("allow_new", "Allow New").with_help("Allow creation of new splats."),
         ParamSpec::bool("derive_rot_scale", "Derive Rotation/Scale")
             .with_help("Infer rotation/scale from deformation."),
     ]
@@ -54,10 +50,7 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(input)
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(source) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -297,9 +290,7 @@ fn build_neighbors(positions: &[[f32; 3]]) -> Vec<Vec<usize>> {
                     (other, d)
                 })
                 .collect();
-            sorted.sort_by(|a, b| {
-                a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal)
-            });
+            sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
             list.clear();
             list.extend(sorted.into_iter().take(MAX_NEIGHBORS).map(|(idx, _)| idx));
         }
@@ -475,11 +466,7 @@ fn clamp_output_scales(
         src_sigma.z * max_ratio,
     );
     let mut log_scale = Vec3::from(output.scales[out_idx]);
-    let mut sigma = Vec3::new(
-        log_scale.x.exp(),
-        log_scale.y.exp(),
-        log_scale.z.exp(),
-    );
+    let mut sigma = Vec3::new(log_scale.x.exp(), log_scale.y.exp(), log_scale.z.exp());
     sigma = Vec3::new(
         sigma.x.min(max_sigma.x),
         sigma.y.min(max_sigma.y),
@@ -563,11 +550,7 @@ mod tests {
         source.opacity[0] = -3.0;
         source.opacity[1] = 1.5;
 
-        let target = vec![
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
-            [9.0, 0.0, 0.0],
-        ];
+        let target = vec![[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [9.0, 0.0, 0.0]];
         let out = deform_splats_with_mapping(&source, &target, true).0;
         assert_eq!(out.len(), 3);
         assert_eq!(out.positions, target);
@@ -602,8 +585,7 @@ mod tests {
             [0.0, 0.0, 4.0],
         ];
         let neighbors = build_neighbors(&source);
-        let estimate =
-            derive_linear(0, &source, &target, &neighbors).expect("linear");
+        let estimate = derive_linear(0, &source, &target, &neighbors).expect("linear");
         let cols = estimate.linear.to_cols_array();
         assert!((cols[0] - 2.0).abs() < 1.0e-3);
         assert!((cols[4] - 3.0).abs() < 1.0e-3);

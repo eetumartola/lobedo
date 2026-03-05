@@ -6,15 +6,14 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::{
-        domain_from_params, existing_float_attr_mesh, existing_float_attr_splats, mesh_sample_position,
-        splat_sample_position,
+        domain_from_params, existing_float_attr_mesh, existing_float_attr_splats,
+        mesh_sample_position, splat_sample_position,
     },
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mask_has_any, mesh_group_mask, splat_group_mask},
 };
-use crate::param_spec::ParamSpec;
 use crate::parallel;
+use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 use crate::volume::Volume;
 use crate::volume_sampling::VolumeSampler;
@@ -43,38 +42,24 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("attr", "Attribute")
-            .with_help("Attribute name (empty = volume)."),
+        ParamSpec::string("attr", "Attribute").with_help("Attribute name (empty = volume)."),
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to write."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let Some(target) = inputs.first() else {
         return Ok(Geometry::default());
     };
@@ -145,9 +130,7 @@ fn apply_to_mesh(
     let sampler = VolumeSampler::new(volume);
     let mesh_ref = &*mesh;
     parallel::for_each_indexed_mut(&mut values, |index, slot| {
-        if mask_ref
-            .is_some_and(|mask| !mask.get(index).copied().unwrap_or(false))
-        {
+        if mask_ref.is_some_and(|mask| !mask.get(index).copied().unwrap_or(false)) {
             return;
         }
         let pos = mesh_sample_position(mesh_ref, domain, index);
@@ -180,9 +163,7 @@ fn apply_to_splats(
     let sampler = VolumeSampler::new(volume);
     let splats_ref = &*splats;
     parallel::for_each_indexed_mut(&mut values, |index, slot| {
-        if mask_ref
-            .is_some_and(|mask| !mask.get(index).copied().unwrap_or(false))
-        {
+        if mask_ref.is_some_and(|mask| !mask.get(index).copied().unwrap_or(false)) {
             return;
         }
         let pos = splat_sample_position(splats_ref, domain, index);

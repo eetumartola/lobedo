@@ -3,12 +3,14 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use boolmesh::prelude::{compute_boolean, Manifold, OpType};
 use glam::Vec3;
 
-use crate::attributes::{AttributeDomain, AttributeStorage, AttributeType, MeshAttributes, StringTableAttribute};
+use crate::attributes::{
+    AttributeDomain, AttributeStorage, AttributeType, MeshAttributes, StringTableAttribute,
+};
 use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::{Mesh, MeshGroups};
-use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
 use crate::nodes::volume_to_mesh::volume_to_mesh;
+use crate::nodes::{geometry_in, geometry_out, recompute_mesh_normals, require_mesh_input};
 use crate::param_spec::ParamSpec;
 use crate::volume::{Volume, VolumeKind};
 use crate::volume_sampling::VolumeSampler;
@@ -29,7 +31,10 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("mode".to_string(), ParamValue::String(DEFAULT_MODE.to_string())),
+            (
+                "mode".to_string(),
+                ParamValue::String(DEFAULT_MODE.to_string()),
+            ),
             ("op".to_string(), ParamValue::Int(DEFAULT_OP)),
         ]),
     }
@@ -197,7 +202,10 @@ fn compact_triangle_mesh(positions: &[[f32; 3]], indices: &[u32]) -> Option<Mesh
         compact_indices.push(new_idx);
     }
 
-    Some(Mesh::with_positions_indices(compact_positions, compact_indices))
+    Some(Mesh::with_positions_indices(
+        compact_positions,
+        compact_indices,
+    ))
 }
 
 fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Result<Mesh, String> {
@@ -212,10 +220,10 @@ fn boolean_mesh_mesh(params: &NodeParams, mesh_a: &Mesh, mesh_b: &Mesh) -> Resul
         return Ok(trivial);
     }
 
-    let manifold_a = manifold_from_mesh(mesh_a)
-        .map_err(|err| format!("Boolean Geo input A: {err}"))?;
-    let manifold_b = manifold_from_mesh(mesh_b)
-        .map_err(|err| format!("Boolean Geo input B: {err}"))?;
+    let manifold_a =
+        manifold_from_mesh(mesh_a).map_err(|err| format!("Boolean Geo input A: {err}"))?;
+    let manifold_b =
+        manifold_from_mesh(mesh_b).map_err(|err| format!("Boolean Geo input B: {err}"))?;
     let manifold = match compute_boolean(&manifold_a, &manifold_b, op) {
         Ok(manifold) => manifold,
         Err(err) => {
@@ -383,7 +391,11 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
         let mut any_keep = false;
         let mut any_drop = false;
         for &dist in &face_dists {
-            let keep = if keep_inside { dist <= 0.0 } else { dist >= 0.0 };
+            let keep = if keep_inside {
+                dist <= 0.0
+            } else {
+                dist >= 0.0
+            };
             if keep {
                 any_keep = true;
             } else {
@@ -425,8 +437,7 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
                             dist: face_dists[i + 1],
                         },
                     ];
-                    let polygon =
-                        build_polygon_samples(&tri, &sampler, voxel, max_edge_samples);
+                    let polygon = build_polygon_samples(&tri, &sampler, voxel, max_edge_samples);
                     let clipped = clip_polygon(&polygon, keep_inside);
                     if clipped.len() < 3 {
                         continue;
@@ -450,7 +461,11 @@ fn clip_mesh_with_sdf(mesh: &Mesh, volume: &Volume, op: i32) -> Result<Mesh, Str
                 let out_idx = if let Some(existing) = point_map.get(&src_idx) {
                     *existing
                 } else {
-                    let pos = mesh.positions.get(src_idx).copied().unwrap_or([0.0, 0.0, 0.0]);
+                    let pos = mesh
+                        .positions
+                        .get(src_idx)
+                        .copied()
+                        .unwrap_or([0.0, 0.0, 0.0]);
                     out_positions.push(pos);
                     let idx = (out_positions.len() - 1) as u32;
                     point_map.insert(src_idx, idx);
@@ -683,8 +698,7 @@ fn append_mesh_with_defaults(dst: &mut Mesh, src: &Mesh) {
     let src_prims = src_face_counts.len();
 
     dst.positions.extend_from_slice(&src.positions);
-    dst.indices
-        .extend(src.indices.iter().map(|idx| idx + base));
+    dst.indices.extend(src.indices.iter().map(|idx| idx + base));
     dst.face_counts.extend(src_face_counts);
 
     if let Some(uvs) = &mut dst.uvs {
@@ -702,7 +716,11 @@ fn append_mesh_with_defaults(dst: &mut Mesh, src: &Mesh) {
         .cloned()
         .collect::<Vec<_>>();
     for name in point_names {
-        if let Some(storage) = dst.attributes.map_mut(AttributeDomain::Point).get_mut(&name) {
+        if let Some(storage) = dst
+            .attributes
+            .map_mut(AttributeDomain::Point)
+            .get_mut(&name)
+        {
             extend_attribute_storage(storage, src_points);
         }
     }
@@ -839,8 +857,16 @@ fn clip_polygon(input: &[ClipVertex], keep_inside: bool) -> Vec<ClipVertex> {
     for i in 0..len {
         let curr = input[i];
         let next = input[(i + 1) % len];
-        let curr_inside = if keep_inside { curr.dist <= 0.0 } else { curr.dist >= 0.0 };
-        let next_inside = if keep_inside { next.dist <= 0.0 } else { next.dist >= 0.0 };
+        let curr_inside = if keep_inside {
+            curr.dist <= 0.0
+        } else {
+            curr.dist >= 0.0
+        };
+        let next_inside = if keep_inside {
+            next.dist <= 0.0
+        } else {
+            next.dist >= 0.0
+        };
         if curr_inside && next_inside {
             output.push(next);
         } else if curr_inside && !next_inside {
@@ -885,7 +911,12 @@ impl<'a> SourceMesh<'a> {
         if triangulation.indices.is_empty() {
             return Err("Boolean Geo requires mesh inputs".to_string());
         }
-        let positions = mesh.positions.iter().copied().map(Vec3::from).collect::<Vec<_>>();
+        let positions = mesh
+            .positions
+            .iter()
+            .copied()
+            .map(Vec3::from)
+            .collect::<Vec<_>>();
         let mut triangles = Vec::new();
         let mut tri_bounds = Vec::new();
         let mut tri_to_face = Vec::new();
@@ -905,11 +936,22 @@ impl<'a> SourceMesh<'a> {
             let max = a.max(b).max(c);
             triangles.push(tri_idx);
             tri_bounds.push([min, max]);
-            tri_to_face.push(*triangulation.tri_to_face.get(tri_index).unwrap_or(&tri_index));
+            tri_to_face.push(
+                *triangulation
+                    .tri_to_face
+                    .get(tri_index)
+                    .unwrap_or(&tri_index),
+            );
             tri_corner_indices.push([
                 *triangulation.corner_indices.get(base).unwrap_or(&base),
-                *triangulation.corner_indices.get(base + 1).unwrap_or(&(base + 1)),
-                *triangulation.corner_indices.get(base + 2).unwrap_or(&(base + 2)),
+                *triangulation
+                    .corner_indices
+                    .get(base + 1)
+                    .unwrap_or(&(base + 1)),
+                *triangulation
+                    .corner_indices
+                    .get(base + 2)
+                    .unwrap_or(&(base + 2)),
             ]);
         }
         let point_uvs = mesh.uvs.as_ref().and_then(|uvs| {
@@ -1009,7 +1051,9 @@ fn transfer_attributes_from_sources(output: &mut Mesh, sources: &[SourceMesh<'_>
     output.attributes = attributes;
     output.groups = groups;
 
-    if let Some(AttributeStorage::Vec2(values)) = output.attributes.get(AttributeDomain::Point, "uv") {
+    if let Some(AttributeStorage::Vec2(values)) =
+        output.attributes.get(AttributeDomain::Point, "uv")
+    {
         if values.len() == output.positions.len() {
             output.uvs = Some(values.clone());
         }
@@ -1031,7 +1075,11 @@ fn build_corner_samples(output: &Mesh, sources: &[SourceMesh<'_>]) -> Vec<Option
         .indices
         .iter()
         .map(|idx| {
-            let pos = output.positions.get(*idx as usize).copied().unwrap_or([0.0, 0.0, 0.0]);
+            let pos = output
+                .positions
+                .get(*idx as usize)
+                .copied()
+                .unwrap_or([0.0, 0.0, 0.0]);
             nearest_triangle(Vec3::from(pos), sources)
         })
         .collect()
@@ -1490,11 +1538,7 @@ fn mesh_attribute_indices(
     match domain {
         AttributeDomain::Point => {
             let tri = source.triangles.get(tri_index)?;
-            Some([
-                tri[0] as usize,
-                tri[1] as usize,
-                tri[2] as usize,
-            ])
+            Some([tri[0] as usize, tri[1] as usize, tri[2] as usize])
         }
         AttributeDomain::Vertex => {
             let corners = source.tri_corner_indices.get(tri_index)?;
@@ -1528,11 +1572,7 @@ fn lerp_f32(values: &[f32], indices: [usize; 3], barycentric: [f32; 3]) -> Optio
     Some(a * barycentric[0] + b * barycentric[1] + c * barycentric[2])
 }
 
-fn lerp_vec2(
-    values: &[[f32; 2]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 2]> {
+fn lerp_vec2(values: &[[f32; 2]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 2]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;
@@ -1542,11 +1582,7 @@ fn lerp_vec2(
     ])
 }
 
-fn lerp_vec3(
-    values: &[[f32; 3]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 3]> {
+fn lerp_vec3(values: &[[f32; 3]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 3]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;
@@ -1557,11 +1593,7 @@ fn lerp_vec3(
     ])
 }
 
-fn lerp_vec4(
-    values: &[[f32; 4]],
-    indices: [usize; 3],
-    barycentric: [f32; 3],
-) -> Option<[f32; 4]> {
+fn lerp_vec4(values: &[[f32; 4]], indices: [usize; 3], barycentric: [f32; 3]) -> Option<[f32; 4]> {
     let a = values.get(indices[0])?;
     let b = values.get(indices[1])?;
     let c = values.get(indices[2])?;
@@ -1653,7 +1685,10 @@ mod tests {
         let cutter_volume = sphere_sdf_volume(1.0, [0.0, 0.0, 0.0], [48, 48, 48], 0.05);
         let params = NodeParams {
             values: BTreeMap::from([
-                ("mode".to_string(), ParamValue::String("mesh_sdf".to_string())),
+                (
+                    "mode".to_string(),
+                    ParamValue::String("mesh_sdf".to_string()),
+                ),
                 ("op".to_string(), ParamValue::Int(1)),
             ]),
         };
@@ -1675,12 +1710,7 @@ mod tests {
         assert_mesh_consistent(&mesh);
     }
 
-    fn sphere_sdf_volume(
-        radius: f32,
-        center: [f32; 3],
-        dims: [u32; 3],
-        voxel_size: f32,
-    ) -> Volume {
+    fn sphere_sdf_volume(radius: f32, center: [f32; 3], dims: [u32; 3], voxel_size: f32) -> Volume {
         let half = [
             (dims[0].saturating_sub(1)) as f32 * voxel_size * 0.5,
             (dims[1].saturating_sub(1)) as f32 * voxel_size * 0.5,

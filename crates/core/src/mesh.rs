@@ -468,12 +468,7 @@ impl Mesh {
             }
             let mut normal = Vec3::ZERO;
             for i in 0..count {
-                let p0 = Vec3::from(
-                    *self
-                        .positions
-                        .get(indices[i])
-                        .unwrap_or(&[0.0, 0.0, 0.0]),
-                );
+                let p0 = Vec3::from(*self.positions.get(indices[i]).unwrap_or(&[0.0, 0.0, 0.0]));
                 let p1 = Vec3::from(
                     *self
                         .positions
@@ -485,24 +480,9 @@ impl Mesh {
                 normal.z += (p0.x - p1.x) * (p0.y + p1.y);
             }
             if normal.length_squared() <= 0.0 && count >= 3 {
-                let p0 = Vec3::from(
-                    *self
-                        .positions
-                        .get(indices[0])
-                        .unwrap_or(&[0.0, 0.0, 0.0]),
-                );
-                let p1 = Vec3::from(
-                    *self
-                        .positions
-                        .get(indices[1])
-                        .unwrap_or(&[0.0, 0.0, 0.0]),
-                );
-                let p2 = Vec3::from(
-                    *self
-                        .positions
-                        .get(indices[2])
-                        .unwrap_or(&[0.0, 0.0, 0.0]),
-                );
+                let p0 = Vec3::from(*self.positions.get(indices[0]).unwrap_or(&[0.0, 0.0, 0.0]));
+                let p1 = Vec3::from(*self.positions.get(indices[1]).unwrap_or(&[0.0, 0.0, 0.0]));
+                let p2 = Vec3::from(*self.positions.get(indices[2]).unwrap_or(&[0.0, 0.0, 0.0]));
                 normal = (p1 - p0).cross(p2 - p0);
             }
             let normal = if normal.length_squared() > 0.0 {
@@ -710,9 +690,9 @@ fn merge_attributes(meshes: &[Mesh]) -> MeshAttributes {
                         AttributeStorage::Vec2(_) => AttributeStorage::Vec2(Vec::new()),
                         AttributeStorage::Vec3(_) => AttributeStorage::Vec3(Vec::new()),
                         AttributeStorage::Vec4(_) => AttributeStorage::Vec4(Vec::new()),
-                        AttributeStorage::StringTable(_) => {
-                            AttributeStorage::StringTable(StringTableAttribute::new(Vec::new(), Vec::new()))
-                        }
+                        AttributeStorage::StringTable(_) => AttributeStorage::StringTable(
+                            StringTableAttribute::new(Vec::new(), Vec::new()),
+                        ),
                     };
 
                     for mesh in meshes {
@@ -817,7 +797,11 @@ fn merge_string_table_attribute(
     }
 
     for &index in &source.indices {
-        let value = source.values.get(index as usize).cloned().unwrap_or_default();
+        let value = source
+            .values
+            .get(index as usize)
+            .cloned()
+            .unwrap_or_default();
         let entry = if let Some(&existing) = lookup.get(&value) {
             existing
         } else {

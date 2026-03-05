@@ -32,8 +32,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
             .with_help("Curve points encoded as x y z; x y z; ..."),
         ParamSpec::int_slider("subdivs", "Subdivs", 1, 64)
             .with_help("Subdivisions per segment for smoothing."),
-        ParamSpec::bool("closed", "Closed")
-            .with_help("Close the curve loop."),
+        ParamSpec::bool("closed", "Closed").with_help("Close the curve loop."),
     ]
 }
 

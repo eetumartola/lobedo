@@ -5,7 +5,9 @@ use glam::Vec3;
 use crate::attributes::AttributeDomain;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
-use crate::nodes::{geometry_in, geometry_out, require_mesh_input, splat_utils::split_splats_by_group};
+use crate::nodes::{
+    geometry_in, geometry_out, require_mesh_input, splat_utils::split_splats_by_group,
+};
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
 use crate::volume::{Volume, VolumeKind};
@@ -43,17 +45,11 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict culling."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict culling."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::float_slider("threshold", "Threshold", 0.0, 10.0)
@@ -70,7 +66,10 @@ pub fn compute(_params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(input)
 }
 
-pub fn apply_to_geometry(params: &NodeParams, inputs: &[crate::geometry::Geometry]) -> Result<crate::geometry::Geometry, String> {
+pub fn apply_to_geometry(
+    params: &NodeParams,
+    inputs: &[crate::geometry::Geometry],
+) -> Result<crate::geometry::Geometry, String> {
     let Some(input) = inputs.first() else {
         return Ok(crate::geometry::Geometry::default());
     };
@@ -139,7 +138,11 @@ pub fn apply_to_splats(
     let sampler = VolumeSampler::new(volume);
     let mut keep_flags = vec![true; splats.len()];
     for &idx in &selected {
-        let pos = splats.positions.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]);
+        let pos = splats
+            .positions
+            .get(idx)
+            .copied()
+            .unwrap_or([0.0, 0.0, 0.0]);
         let sdf_val = sampler.sample_world(Vec3::from(pos));
         let dist = sdf_val - iso;
         let measure = if use_abs { dist.abs() } else { dist };

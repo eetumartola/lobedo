@@ -337,9 +337,7 @@ impl Parser {
                                     self.pos += 1;
                                 }
                                 Some(Token::RParen) => break,
-                                _ => {
-                                    return Err("Expected ',' or ')' in function call".to_string())
-                                }
+                                _ => return Err("Expected ',' or ')' in function call".to_string()),
                             }
                         }
                     }

@@ -1,7 +1,6 @@
 use eframe::egui::{Pos2, Rect};
 use glam::{Mat4, Vec3};
 
-
 pub(super) fn viewport_view_proj(
     camera: render::CameraState,
     rect: Rect,

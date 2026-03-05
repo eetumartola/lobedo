@@ -222,8 +222,7 @@ mod tests {
         project.graph.add_link(from, to).unwrap();
 
         let data = serde_json::to_vec(&project).expect("serialize project");
-        let mut loaded: Project =
-            serde_json::from_slice(&data).expect("deserialize project");
+        let mut loaded: Project = serde_json::from_slice(&data).expect("deserialize project");
         assert!(loaded.graph.input_node(b, 0).is_none());
 
         loaded.migrate_to_latest();

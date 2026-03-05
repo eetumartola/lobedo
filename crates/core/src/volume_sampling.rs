@@ -32,12 +32,7 @@ pub fn outside_value(volume: &Volume) -> f32 {
     }
 }
 
-pub fn sample_volume(
-    volume: &Volume,
-    world_to_volume: Mat4,
-    world_pos: Vec3,
-    outside: f32,
-) -> f32 {
+pub fn sample_volume(volume: &Volume, world_to_volume: Mat4, world_pos: Vec3, outside: f32) -> f32 {
     let local = world_to_volume.transform_point3(world_pos);
     let origin = Vec3::from(volume.origin);
     let voxel = volume.voxel_size.max(1.0e-6);

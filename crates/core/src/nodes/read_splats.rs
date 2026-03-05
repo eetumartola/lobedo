@@ -31,7 +31,10 @@ pub fn default_params() -> NodeParams {
                 ParamValue::String("C:\\code\\lobedo\\geo\\CL.ply".to_string()),
             ),
             ("read_mode".to_string(), ParamValue::Int(0)),
-            (SPZ_FLIP_Y_KEY.to_string(), ParamValue::Bool(DEFAULT_SPZ_FLIP_Y)),
+            (
+                SPZ_FLIP_Y_KEY.to_string(),
+                ParamValue::Bool(DEFAULT_SPZ_FLIP_Y),
+            ),
             (FLIP_Z_KEY.to_string(), ParamValue::Bool(DEFAULT_FLIP_Z)),
         ]),
     }
@@ -67,7 +70,10 @@ pub fn compute(params: &NodeParams) -> Result<SplatGeo, String> {
     let spz_flip_y = params.get_bool(SPZ_FLIP_Y_KEY, DEFAULT_SPZ_FLIP_Y);
     let flip_z = params.get_bool(FLIP_Z_KEY, DEFAULT_FLIP_Z);
     let path_no_fragment = path.split('#').next().unwrap_or(path);
-    let path_no_query = path_no_fragment.split('?').next().unwrap_or(path_no_fragment);
+    let path_no_query = path_no_fragment
+        .split('?')
+        .next()
+        .unwrap_or(path_no_fragment);
     let lower = path_no_query.to_ascii_lowercase();
     if lower.ends_with(".spz") {
         let mut splats = load_splat_spz_with_mode(path, mode)?;
@@ -90,9 +96,7 @@ pub fn compute(params: &NodeParams) -> Result<SplatGeo, String> {
     // If the path has no extension, try both common splat formats.
     load_splat_ply_with_mode(path, mode).or_else(|ply_err| {
         let mut splats = load_splat_spz_with_mode(path, mode).map_err(|spz_err| {
-            format!(
-                "Failed to load splat '{path}'. Tried PLY ({ply_err}) and SPZ ({spz_err})."
-            )
+            format!("Failed to load splat '{path}'. Tried PLY ({ply_err}) and SPZ ({spz_err}).")
         })?;
         if spz_flip_y {
             splats.flip_y_axis();
@@ -103,4 +107,3 @@ pub fn compute(params: &NodeParams) -> Result<SplatGeo, String> {
         Ok(splats)
     })
 }
-

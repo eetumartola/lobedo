@@ -25,11 +25,17 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("name".to_string(), ParamValue::String(DEFAULT_NAME.to_string())),
+            (
+                "name".to_string(),
+                ParamValue::String(DEFAULT_NAME.to_string()),
+            ),
             ("base_color".to_string(), ParamValue::Vec3([1.0, 1.0, 1.0])),
             ("metallic".to_string(), ParamValue::Float(0.0)),
             ("roughness".to_string(), ParamValue::Float(0.5)),
-            ("base_color_tex".to_string(), ParamValue::String(String::new())),
+            (
+                "base_color_tex".to_string(),
+                ParamValue::String(String::new()),
+            ),
         ]),
     }
 }
@@ -38,12 +44,14 @@ pub fn param_specs() -> Vec<ParamSpec> {
     vec![
         ParamSpec::string("name", "Name").with_help("Material name."),
         ParamSpec::vec3("base_color", "Base Color").with_help("Base color (albedo)."),
-        ParamSpec::float_slider("metallic", "Metallic", 0.0, 1.0)
-            .with_help("Metallic factor."),
-        ParamSpec::float_slider("roughness", "Roughness", 0.0, 1.0)
-            .with_help("Roughness factor."),
-        ParamSpec::path("base_color_tex", "Base Color Texture", ParamPathKind::ReadTexture)
-            .with_help("Texture path or URL for base color."),
+        ParamSpec::float_slider("metallic", "Metallic", 0.0, 1.0).with_help("Metallic factor."),
+        ParamSpec::float_slider("roughness", "Roughness", 0.0, 1.0).with_help("Roughness factor."),
+        ParamSpec::path(
+            "base_color_tex",
+            "Base Color Texture",
+            ParamPathKind::ReadTexture,
+        )
+        .with_help("Texture path or URL for base color."),
     ]
 }
 
@@ -54,10 +62,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
-pub fn apply_to_geometry(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     let input = inputs.first().cloned().unwrap_or_default();
     let material = build_material(params);
     let name = material.name.clone();

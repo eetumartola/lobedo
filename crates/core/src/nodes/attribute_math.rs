@@ -7,11 +7,9 @@ use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
     attribute_utils::domain_from_params,
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
-    recompute_mesh_normals,
-    require_mesh_input,
+    recompute_mesh_normals, require_mesh_input,
 };
 use crate::param_spec::ParamSpec;
 use crate::splat::SplatGeo;
@@ -49,12 +47,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "domain",
             "Domain",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Attribute domain to operate on."),
         ParamSpec::int_enum(
@@ -63,19 +56,13 @@ pub fn param_specs() -> Vec<ParamSpec> {
             vec![(0, "Add"), (1, "Subtract"), (2, "Multiply"), (3, "Divide")],
         )
         .with_help("Math operation."),
-        ParamSpec::float_slider("value_f", "Value", -10.0, 10.0)
-            .with_help("Scalar operand."),
+        ParamSpec::float_slider("value_f", "Value", -10.0, 10.0).with_help("Scalar operand."),
         ParamSpec::vec3("value_v3", "Value Vec3").with_help("Vector operand."),
         ParamSpec::string("group", "Group").with_help("Restrict to a group."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -139,10 +126,7 @@ pub fn compute(params: &NodeParams, inputs: &[Mesh]) -> Result<Mesh, String> {
     Ok(input)
 }
 
-pub(crate) fn apply_to_splats(
-    params: &NodeParams,
-    splats: &mut SplatGeo,
-) -> Result<(), String> {
+pub(crate) fn apply_to_splats(params: &NodeParams, splats: &mut SplatGeo) -> Result<(), String> {
     let settings = attribute_math_settings(params);
 
     let attr_ref = match splats.attribute(settings.domain, &settings.attr) {
@@ -238,10 +222,7 @@ fn build_attribute_math_storage(
                     continue;
                 }
                 if let Some(slot) = next.get_mut(idx) {
-                    *slot = [
-                        apply_op_f(v[0], value_f, op),
-                        apply_op_f(v[1], value_f, op),
-                    ];
+                    *slot = [apply_op_f(v[0], value_f, op), apply_op_f(v[1], value_f, op)];
                 }
             }
             AttributeStorage::Vec2(next)
@@ -333,4 +314,3 @@ fn apply_op_i(value: i32, rhs: i32, op: i32) -> i32 {
         _ => value,
     }
 }
-

@@ -157,7 +157,6 @@ impl Default for NodeGraphState {
     }
 }
 
-
 pub(super) struct NodeMenuRequest {
     pub(super) node_id: NodeId,
     pub(super) screen_pos: Pos2,
@@ -433,12 +432,7 @@ impl NodeGraphState {
             .any(|rects| rects.hit_test(pos))
     }
 
-
-    pub(super) fn add_note(
-        &mut self,
-        settings: &mut ProjectSettings,
-        graph_pos: Pos2,
-    ) -> bool {
+    pub(super) fn add_note(&mut self, settings: &mut ProjectSettings, graph_pos: Pos2) -> bool {
         let id = settings.next_note_id.max(1);
         settings.next_note_id = id.saturating_add(1);
         settings.graph_notes.push(GraphNote {
@@ -450,11 +444,7 @@ impl NodeGraphState {
         true
     }
 
-    fn show_notes(
-        &mut self,
-        ui: &mut Ui,
-        settings: &mut ProjectSettings,
-    ) -> bool {
+    fn show_notes(&mut self, ui: &mut Ui, settings: &mut ProjectSettings) -> bool {
         if settings.graph_notes.is_empty() {
             return false;
         }
@@ -486,8 +476,10 @@ impl NodeGraphState {
                 note.size[1].max(NOTE_MIN_HEIGHT),
             );
             let note_rect_graph = Rect::from_min_size(note_pos, graph_size);
-            let note_rect =
-                Rect::from_min_max(to_global * note_rect_graph.min, to_global * note_rect_graph.max);
+            let note_rect = Rect::from_min_max(
+                to_global * note_rect_graph.min,
+                to_global * note_rect_graph.max,
+            );
             if !note_rect.intersects(note_ui.clip_rect()) {
                 continue;
             }
@@ -510,23 +502,16 @@ impl NodeGraphState {
                 );
                 let header_height = 18.0 * scale;
                 let header_bottom = note_rect.min.y + header_height;
-                let header_rect = Rect::from_min_max(
-                    note_rect.min,
-                    Pos2::new(note_rect.max.x, header_bottom),
-                );
+                let header_rect =
+                    Rect::from_min_max(note_rect.min, Pos2::new(note_rect.max.x, header_bottom));
                 painter.rect_filled(header_rect, 2.0, Color32::from_rgb(255, 226, 110));
             }
             let header_height = 18.0 * scale;
             let header_bottom = note_rect.min.y + header_height;
-            let header_rect = Rect::from_min_max(
-                note_rect.min,
-                Pos2::new(note_rect.max.x, header_bottom),
-            );
-            let header_resp = note_ui.interact(
-                header_rect,
-                id.with("header"),
-                Sense::click_and_drag(),
-            );
+            let header_rect =
+                Rect::from_min_max(note_rect.min, Pos2::new(note_rect.max.x, header_bottom));
+            let header_resp =
+                note_ui.interact(header_rect, id.with("header"), Sense::click_and_drag());
             if header_resp.dragged() {
                 drag_delta = header_resp.drag_motion();
                 hit_note = true;

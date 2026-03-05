@@ -31,14 +31,10 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0)
-            .with_help("Sphere radius."),
-        ParamSpec::int_slider("rows", "Rows", 3, 64)
-            .with_help("Latitude segments."),
-        ParamSpec::int_slider("cols", "Cols", 3, 128)
-            .with_help("Longitude segments."),
-        ParamSpec::vec3("center", "Center")
-            .with_help("Sphere center in world space."),
+        ParamSpec::float_slider("radius", "Radius", 0.0, 1000.0).with_help("Sphere radius."),
+        ParamSpec::int_slider("rows", "Rows", 3, 64).with_help("Latitude segments."),
+        ParamSpec::int_slider("cols", "Cols", 3, 128).with_help("Longitude segments."),
+        ParamSpec::vec3("center", "Center").with_help("Sphere center in world space."),
     ]
 }
 
@@ -56,4 +52,3 @@ pub fn compute(params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
     }
     Ok(mesh)
 }
-

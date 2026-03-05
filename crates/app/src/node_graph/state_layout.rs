@@ -21,9 +21,7 @@ impl NodeGraphState {
         let mut layout = NodeGraphLayout::default();
         for node in graph.nodes() {
             if let Some(pos) = node.position {
-                layout
-                    .positions
-                    .insert(node.id, Pos2::new(pos[0], pos[1]));
+                layout.positions.insert(node.id, Pos2::new(pos[0], pos[1]));
             }
         }
         self.restore_layout(graph, &layout);
@@ -118,7 +116,8 @@ impl NodeGraphState {
     ) -> Option<(egui_snarl::OutPinId, egui_snarl::InPinId)> {
         let from_pin = graph.pin(from)?;
         let to_pin = graph.pin(to)?;
-        if from_pin.kind != lobedo_core::PinKind::Output || to_pin.kind != lobedo_core::PinKind::Input
+        if from_pin.kind != lobedo_core::PinKind::Output
+            || to_pin.kind != lobedo_core::PinKind::Input
         {
             return None;
         }

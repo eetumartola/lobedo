@@ -33,7 +33,7 @@ impl LobedoApp {
                                     *shading = mode;
                                 }
                             }
-                    });
+                        });
                 });
                 ui.checkbox(
                     &mut self.project.settings.render_debug.splat_depth_prepass,
@@ -91,8 +91,8 @@ impl LobedoApp {
                         "Enable tile binning",
                     ),
                 );
-                let tile_settings_enabled = tile_ui_enabled
-                    && self.project.settings.render_debug.splat_tile_binning;
+                let tile_settings_enabled =
+                    tile_ui_enabled && self.project.settings.render_debug.splat_tile_binning;
                 ui.horizontal(|ui| {
                     ui.label("Tile size (px)");
                     ui.add_enabled(

@@ -37,21 +37,21 @@ fn coordinate_converter(from: CoordinateSystem, to: CoordinateSystem) -> Coordin
         flip_p: [x, y, z],
         flip_q: [y * z, x * z, x * y],
         flip_sh: [
-            y,              // 0
-            z,              // 1
-            x,              // 2
-            x * y,          // 3
-            y * z,          // 4
-            1.0,            // 5
-            x * z,          // 6
-            1.0,            // 7
-            y,              // 8
-            x * y * z,      // 9
-            y,              // 10
-            z,              // 11
-            x,              // 12
-            z,              // 13
-            x,              // 14
+            y,         // 0
+            z,         // 1
+            x,         // 2
+            x * y,     // 3
+            y * z,     // 4
+            1.0,       // 5
+            x * z,     // 6
+            1.0,       // 7
+            y,         // 8
+            x * y * z, // 9
+            y,         // 10
+            z,         // 11
+            x,         // 12
+            z,         // 13
+            x,         // 14
         ],
     }
 }
@@ -118,7 +118,10 @@ fn parse_splat_spz_bytes_with_mode(data: &[u8], mode: SplatLoadMode) -> Result<S
         let mut offset = 0usize;
         let header = parse_header(&decoded, &mut offset)?;
         if header.num_points > MAX_POINTS {
-            return Err(format!("SPZ contains too many points ({})", header.num_points));
+            return Err(format!(
+                "SPZ contains too many points ({})",
+                header.num_points
+            ));
         }
         if header.sh_degree > 3 {
             return Err(format!("Unsupported SPZ SH degree: {}", header.sh_degree));
@@ -128,21 +131,15 @@ fn parse_splat_spz_bytes_with_mode(data: &[u8], mode: SplatLoadMode) -> Result<S
         let uses_float16 = header.version == 1;
         let uses_smallest_three = header.version >= 3;
 
-        let position_bytes = header.num_points
-            * 3
-            * if uses_float16 { 2 } else { 3 };
+        let position_bytes = header.num_points * 3 * if uses_float16 { 2 } else { 3 };
         let alpha_bytes = header.num_points;
         let color_bytes = header.num_points * 3;
         let scale_bytes = header.num_points * 3;
         let rotation_bytes = header.num_points * if uses_smallest_three { 4 } else { 3 };
         let sh_bytes = header.num_points * sh_dim * 3;
 
-        let total = position_bytes
-            + alpha_bytes
-            + color_bytes
-            + scale_bytes
-            + rotation_bytes
-            + sh_bytes;
+        let total =
+            position_bytes + alpha_bytes + color_bytes + scale_bytes + rotation_bytes + sh_bytes;
         if decoded.len().saturating_sub(offset) < total {
             return Err("SPZ data is truncated".to_string());
         }
@@ -162,7 +159,13 @@ fn parse_splat_spz_bytes_with_mode(data: &[u8], mode: SplatLoadMode) -> Result<S
         let mut splats = SplatGeo::with_len_and_sh(header.num_points, sh_coeffs);
 
         let converter = coordinate_converter(CoordinateSystem::Rub, CoordinateSystem::Ruf);
-        decode_positions(&mut splats, positions, uses_float16, header.fractional_bits, converter)?;
+        decode_positions(
+            &mut splats,
+            positions,
+            uses_float16,
+            header.fractional_bits,
+            converter,
+        )?;
         decode_scales(&mut splats, scales);
         decode_rotations(&mut splats, rotations, uses_smallest_three, converter)?;
         decode_opacity(&mut splats, alphas);

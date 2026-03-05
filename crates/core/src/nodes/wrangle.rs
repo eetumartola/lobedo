@@ -5,8 +5,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::{mesh_group_mask, splat_group_mask},
     require_mesh_input,
 };
@@ -44,12 +43,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "mode",
             "Mode",
-            vec![
-                (0, "Point"),
-                (1, "Vertex"),
-                (2, "Primitive"),
-                (3, "Detail"),
-            ],
+            vec![(0, "Point"), (1, "Vertex"), (2, "Primitive"), (3, "Detail")],
         )
         .with_help("Domain to iterate over."),
         ParamSpec::code("code", "Code").with_help("Wrangle code snippet."),
@@ -57,12 +51,7 @@ pub fn param_specs() -> Vec<ParamSpec> {
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
     ]
@@ -179,7 +168,11 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         splats.push(splat);
     }
 
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -188,4 +181,3 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
         materials: input.materials.clone(),
     })
 }
-

@@ -29,9 +29,18 @@ pub fn definition() -> NodeDefinition {
 pub fn default_params() -> NodeParams {
     NodeParams {
         values: BTreeMap::from([
-            ("curve_points".to_string(), ParamValue::Int(DEFAULT_CURVE_POINTS)),
-            ("mesh_ratio".to_string(), ParamValue::Float(DEFAULT_MESH_RATIO)),
-            ("volume_max_dim".to_string(), ParamValue::Int(DEFAULT_VOLUME_MAX_DIM)),
+            (
+                "curve_points".to_string(),
+                ParamValue::Int(DEFAULT_CURVE_POINTS),
+            ),
+            (
+                "mesh_ratio".to_string(),
+                ParamValue::Float(DEFAULT_MESH_RATIO),
+            ),
+            (
+                "volume_max_dim".to_string(),
+                ParamValue::Int(DEFAULT_VOLUME_MAX_DIM),
+            ),
         ]),
     }
 }
@@ -64,8 +73,7 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
     let mut curves = Vec::new();
     if !input.curves.is_empty() {
         if let Some(mesh) = source_mesh.as_ref() {
-            let (curve_points, mut new_curves) =
-                resample_curves(mesh, &input.curves, params);
+            let (curve_points, mut new_curves) = resample_curves(mesh, &input.curves, params);
             if !curve_points.is_empty() {
                 let base_offset = mesh_out
                     .as_ref()
@@ -229,7 +237,9 @@ fn resample_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
         for &rep in &rep_indices {
             new_values.push(values.get(rep).copied().unwrap_or(false));
         }
-        out.groups.map_mut(AttributeDomain::Point).insert(name.clone(), new_values);
+        out.groups
+            .map_mut(AttributeDomain::Point)
+            .insert(name.clone(), new_values);
     }
 
     if !out.indices.is_empty() {
@@ -242,16 +252,24 @@ fn resample_mesh(params: &NodeParams, mesh: &Mesh) -> Mesh {
 fn remap_storage(storage: &AttributeStorage, reps: &[usize]) -> AttributeStorage {
     match storage {
         AttributeStorage::Float(values) => AttributeStorage::Float(
-            reps.iter().map(|&idx| values.get(idx).copied().unwrap_or(0.0)).collect(),
+            reps.iter()
+                .map(|&idx| values.get(idx).copied().unwrap_or(0.0))
+                .collect(),
         ),
         AttributeStorage::Int(values) => AttributeStorage::Int(
-            reps.iter().map(|&idx| values.get(idx).copied().unwrap_or(0)).collect(),
+            reps.iter()
+                .map(|&idx| values.get(idx).copied().unwrap_or(0))
+                .collect(),
         ),
         AttributeStorage::Vec2(values) => AttributeStorage::Vec2(
-            reps.iter().map(|&idx| values.get(idx).copied().unwrap_or([0.0, 0.0])).collect(),
+            reps.iter()
+                .map(|&idx| values.get(idx).copied().unwrap_or([0.0, 0.0]))
+                .collect(),
         ),
         AttributeStorage::Vec3(values) => AttributeStorage::Vec3(
-            reps.iter().map(|&idx| values.get(idx).copied().unwrap_or([0.0, 0.0, 0.0])).collect(),
+            reps.iter()
+                .map(|&idx| values.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]))
+                .collect(),
         ),
         AttributeStorage::Vec4(values) => AttributeStorage::Vec4(
             reps.iter()
@@ -268,10 +286,12 @@ fn remap_storage(storage: &AttributeStorage, reps: &[usize]) -> AttributeStorage
     }
 }
 
-fn resample_curves(mesh: &Mesh, curves: &[Curve], params: &NodeParams) -> (Vec<[f32; 3]>, Vec<Curve>) {
-    let target = params
-        .get_int("curve_points", DEFAULT_CURVE_POINTS)
-        .max(2) as usize;
+fn resample_curves(
+    mesh: &Mesh,
+    curves: &[Curve],
+    params: &NodeParams,
+) -> (Vec<[f32; 3]>, Vec<Curve>) {
+    let target = params.get_int("curve_points", DEFAULT_CURVE_POINTS).max(2) as usize;
     let mut positions = Vec::new();
     let mut out_curves = Vec::new();
     for curve in curves {
@@ -293,7 +313,11 @@ fn resample_polyline(points: &[[f32; 3]], closed: bool, target: usize) -> Vec<[f
         return points.to_vec();
     }
     let target = if closed { target.max(3) } else { target.max(2) };
-    let segment_count = if closed { points.len() } else { points.len() - 1 };
+    let segment_count = if closed {
+        points.len()
+    } else {
+        points.len() - 1
+    };
     let mut lengths = Vec::with_capacity(segment_count);
     let mut total = 0.0f32;
     for i in 0..segment_count {
@@ -320,7 +344,11 @@ fn resample_polyline(points: &[[f32; 3]], closed: bool, target: usize) -> Vec<[f
     let mut seg_accum = 0.0f32;
 
     for i in 0..target {
-        let dist = if closed { i as f32 * step } else { (i as f32 * step).min(total) };
+        let dist = if closed {
+            i as f32 * step
+        } else {
+            (i as f32 * step).min(total)
+        };
         while dist > seg_accum + seg_len && seg_index + 1 < lengths.len() {
             seg_accum += seg_len;
             seg_index += 1;
@@ -411,7 +439,11 @@ fn resample_volume(volume: &Volume, max_dim: u32) -> Result<Volume, String> {
         for y in 0..new_dims[1] {
             for x in 0..new_dims[0] {
                 let local = origin
-                    + Vec3::new(x as f32 * new_voxel, y as f32 * new_voxel, z as f32 * new_voxel);
+                    + Vec3::new(
+                        x as f32 * new_voxel,
+                        y as f32 * new_voxel,
+                        z as f32 * new_voxel,
+                    );
                 let world = volume.transform.transform_point3(local);
                 let value = sampler.sample_world(world);
                 let idx = (z * new_dims[0] * new_dims[1] + y * new_dims[0] + x) as usize;

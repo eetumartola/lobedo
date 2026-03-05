@@ -7,8 +7,7 @@ use crate::geometry::Geometry;
 use crate::graph::{NodeDefinition, NodeParams, ParamValue};
 use crate::mesh::Mesh;
 use crate::nodes::{
-    geometry_in,
-    geometry_out,
+    geometry_in, geometry_out,
     group_utils::splat_group_mask,
     require_mesh_input,
     splat_lighting_utils::{
@@ -17,10 +16,10 @@ use crate::nodes::{
 };
 use crate::parallel;
 use crate::param_spec::ParamSpec;
-#[cfg(not(target_arch = "wasm32"))]
-use rayon::prelude::*;
 use crate::splat::SplatGeo;
 use crate::volume::{Volume, VolumeKind};
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
 
 pub const NAME: &str = "Splat Integrate";
 
@@ -42,7 +41,11 @@ pub fn definition() -> NodeDefinition {
     NodeDefinition {
         name: NAME.to_string(),
         category: "Operators".to_string(),
-        inputs: vec![geometry_in("source"), geometry_in("target"), geometry_in("sdf")],
+        inputs: vec![
+            geometry_in("source"),
+            geometry_in("target"),
+            geometry_in("sdf"),
+        ],
         outputs: vec![geometry_out("out")],
     }
 }
@@ -76,17 +79,11 @@ pub fn default_params() -> NodeParams {
 
 pub fn param_specs() -> Vec<ParamSpec> {
     vec![
-        ParamSpec::string("group", "Group")
-            .with_help("Optional group to restrict integration."),
+        ParamSpec::string("group", "Group").with_help("Optional group to restrict integration."),
         ParamSpec::int_enum(
             "group_type",
             "Group Type",
-            vec![
-                (0, "Auto"),
-                (1, "Vertex"),
-                (2, "Point"),
-                (3, "Primitive"),
-            ],
+            vec![(0, "Auto"), (1, "Vertex"), (2, "Point"), (3, "Primitive")],
         )
         .with_help("Group domain to use."),
         ParamSpec::int_enum(
@@ -176,15 +173,14 @@ pub fn apply_to_geometry(params: &NodeParams, inputs: &[Geometry]) -> Result<Geo
 
     let mut splats = Vec::with_capacity(source.splats.len());
     for splat in &source.splats {
-        splats.push(apply_to_splats(
-            params,
-            splat,
-            target_splats.as_ref(),
-            sdf,
-        ));
+        splats.push(apply_to_splats(params, splat, target_splats.as_ref(), sdf));
     }
 
-    let curves = if meshes.is_empty() { Vec::new() } else { source.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        source.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -241,21 +237,26 @@ fn apply_to_splats_internal(
 
     match mode {
         0 => {
-            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
-                if !selected(mask, idx) {
-                    return;
-                }
-                if rest.is_empty() {
-                    let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
-                    sh0[0] *= ratio[0];
-                    sh0[1] *= ratio[1];
-                    sh0[2] *= ratio[2];
-                    return;
-                }
-                apply_ratio_to_arrays(sh0, rest, &ratios);
-                apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
-                clamp_sh_order_slice(rest, max_coeffs);
-            });
+            for_each_splat_mut(
+                &mut next_sh0,
+                &mut next_rest,
+                sh_coeffs,
+                |idx, sh0, rest| {
+                    if !selected(mask, idx) {
+                        return;
+                    }
+                    if rest.is_empty() {
+                        let ratio = ratios.first().copied().unwrap_or([1.0, 1.0, 1.0]);
+                        sh0[0] *= ratio[0];
+                        sh0[1] *= ratio[1];
+                        sh0[2] *= ratio[2];
+                        return;
+                    }
+                    apply_ratio_to_arrays(sh0, rest, &ratios);
+                    apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
+                    clamp_sh_order_slice(rest, max_coeffs);
+                },
+            );
         }
         1 => {
             let env_l2 = env_l2_from_coeffs(&target_env);
@@ -265,25 +266,26 @@ fn apply_to_splats_internal(
             } else {
                 estimate_splat_normals(splats)
             };
-            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
-                if !selected(mask, idx) {
-                    return;
-                }
-                let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
-                let irradiance = irradiance_from_env_l2(n, &env_l2);
-                let albedo = clamp_color(
-                    splat_dc_color_from(sh0, sh_coeffs),
-                    0.0,
-                    albedo_max,
-                );
-                let lit = multiply_color(albedo, irradiance);
-                set_splat_dc_color_into(sh0, sh_coeffs, lit);
-                if rest.is_empty() {
-                    return;
-                }
-                zero_sh_rest_slice(rest);
-                clamp_sh_order_slice(rest, max_coeffs);
-            });
+            for_each_splat_mut(
+                &mut next_sh0,
+                &mut next_rest,
+                sh_coeffs,
+                |idx, sh0, rest| {
+                    if !selected(mask, idx) {
+                        return;
+                    }
+                    let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
+                    let irradiance = irradiance_from_env_l2(n, &env_l2);
+                    let albedo = clamp_color(splat_dc_color_from(sh0, sh_coeffs), 0.0, albedo_max);
+                    let lit = multiply_color(albedo, irradiance);
+                    set_splat_dc_color_into(sh0, sh_coeffs, lit);
+                    if rest.is_empty() {
+                        return;
+                    }
+                    zero_sh_rest_slice(rest);
+                    clamp_sh_order_slice(rest, max_coeffs);
+                },
+            );
         }
         _ => {
             let env_l2 = env_l2_from_coeffs(&target_env);
@@ -293,28 +295,29 @@ fn apply_to_splats_internal(
             } else {
                 estimate_splat_normals(splats)
             };
-            for_each_splat_mut(&mut next_sh0, &mut next_rest, sh_coeffs, |idx, sh0, rest| {
-                if !selected(mask, idx) {
-                    return;
-                }
-                let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
-                let irradiance = irradiance_from_env_l2(n, &env_l2);
-                let albedo = clamp_color(
-                    splat_dc_color_from(sh0, sh_coeffs),
-                    0.0,
-                    albedo_max,
-                );
-                let lit = multiply_color(albedo, irradiance);
-                set_splat_dc_color_into(sh0, sh_coeffs, lit);
-                if rest.is_empty() {
-                    return;
-                }
-                if high_band_mode == 1 {
-                    apply_ratio_to_sh_rest_slice(rest, &ratios);
-                }
-                apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
-                clamp_sh_order_slice(rest, max_coeffs);
-            });
+            for_each_splat_mut(
+                &mut next_sh0,
+                &mut next_rest,
+                sh_coeffs,
+                |idx, sh0, rest| {
+                    if !selected(mask, idx) {
+                        return;
+                    }
+                    let n = normals.get(idx).copied().unwrap_or(Vec3::Y);
+                    let irradiance = irradiance_from_env_l2(n, &env_l2);
+                    let albedo = clamp_color(splat_dc_color_from(sh0, sh_coeffs), 0.0, albedo_max);
+                    let lit = multiply_color(albedo, irradiance);
+                    set_splat_dc_color_into(sh0, sh_coeffs, lit);
+                    if rest.is_empty() {
+                        return;
+                    }
+                    if high_band_mode == 1 {
+                        apply_ratio_to_sh_rest_slice(rest, &ratios);
+                    }
+                    apply_high_band_gain_slice(rest, max_coeffs, high_band_gain);
+                    clamp_sh_order_slice(rest, max_coeffs);
+                },
+            );
         }
     }
 
@@ -380,12 +383,7 @@ fn apply_ratio_to_sh_rest_slice(rest: &mut [[f32; 3]], ratios: &[[f32; 3]]) {
     }
 }
 
-fn for_each_splat_mut<F>(
-    sh0: &mut [[f32; 3]],
-    sh_rest: &mut [[f32; 3]],
-    sh_coeffs: usize,
-    f: F,
-)
+fn for_each_splat_mut<F>(sh0: &mut [[f32; 3]], sh_rest: &mut [[f32; 3]], sh_coeffs: usize, f: F)
 where
     F: Fn(usize, &mut [f32; 3], &mut [[f32; 3]]) + Sync + Send,
 {
@@ -503,7 +501,6 @@ fn uniform_env_coeffs(color: [f32; 3], sh_coeffs: usize) -> Vec<[f32; 3]> {
     };
     coeffs
 }
-
 
 fn eps_from_env(env: &[[f32; 3]], eps_scale: f32) -> f32 {
     let mut max_abs = 0.0f32;
@@ -624,14 +621,10 @@ mod tests {
         };
         let geo = apply_to_geometry(
             &params,
-            &[
-                Geometry::with_splats(source),
-                Geometry::with_splats(target),
-            ],
+            &[Geometry::with_splats(source), Geometry::with_splats(target)],
         )
         .expect("geometry");
         let out = geo.merged_splats().expect("splats");
         assert!(out.sh0[0][0] > 0.5);
     }
 }
-

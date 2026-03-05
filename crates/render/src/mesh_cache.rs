@@ -103,17 +103,15 @@ impl GpuMeshCache {
                     contents: vertices,
                     usage: wgpu::BufferUsages::VERTEX,
                 });
-                let max_indices =
-                    (max_buffer_size / std::mem::size_of::<u32>()).max(1);
+                let max_indices = (max_buffer_size / std::mem::size_of::<u32>()).max(1);
                 let mut index_buffers = Vec::new();
                 let mut index_counts = Vec::new();
                 for chunk in indices.chunks(max_indices) {
-                    let buffer =
-                        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: Some("lobedo_mesh_indices"),
-                            contents: bytemuck::cast_slice(chunk),
-                            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                        });
+                    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("lobedo_mesh_indices"),
+                        contents: bytemuck::cast_slice(chunk),
+                        usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                    });
                     index_buffers.push(buffer);
                     index_counts.push(chunk.len() as u32);
                 }
@@ -132,12 +130,11 @@ impl GpuMeshCache {
                         if chunk.is_empty() {
                             continue;
                         }
-                        let buffer = device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("lobedo_mesh_vertices"),
-                                contents: chunk,
-                                usage: wgpu::BufferUsages::VERTEX,
-                            });
+                        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("lobedo_mesh_vertices"),
+                            contents: chunk,
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
                         vertex_buffers.push(buffer);
                         vertex_counts.push((chunk.len() / vertex_stride) as u32);
                     }
@@ -148,15 +145,14 @@ impl GpuMeshCache {
                     for &index in indices {
                         let start = index as usize * vertex_stride;
                         if start + vertex_stride <= vertices.len() {
-                            chunk_bytes
-                                .extend_from_slice(&vertices[start..start + vertex_stride]);
+                            chunk_bytes.extend_from_slice(&vertices[start..start + vertex_stride]);
                         } else {
                             chunk_bytes.extend_from_slice(&zero_vertex);
                         }
                         count += 1;
                         if count == max_vertices {
-                            let buffer = device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            let buffer =
+                                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                     label: Some("lobedo_mesh_vertices"),
                                     contents: &chunk_bytes,
                                     usage: wgpu::BufferUsages::VERTEX,
@@ -168,12 +164,11 @@ impl GpuMeshCache {
                         }
                     }
                     if count > 0 {
-                        let buffer = device
-                            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                label: Some("lobedo_mesh_vertices"),
-                                contents: &chunk_bytes,
-                                usage: wgpu::BufferUsages::VERTEX,
-                            });
+                        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("lobedo_mesh_vertices"),
+                            contents: &chunk_bytes,
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
                         vertex_buffers.push(buffer);
                         vertex_counts.push(count as u32);
                     }

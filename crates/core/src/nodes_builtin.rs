@@ -1,6 +1,6 @@
 use crate::attributes::AttributeDomain;
-use crate::graph::{NodeDefinition, NodeParams};
 use crate::geometry::{merge_splats, Geometry};
+use crate::graph::{NodeDefinition, NodeParams};
 use crate::mesh::Mesh;
 use crate::nodes;
 use crate::parallel;
@@ -178,7 +178,10 @@ fn mesh_error_volume_to_mesh(_params: &NodeParams, _inputs: &[Mesh]) -> Result<M
     Err("Volume to Mesh expects volume geometry, not meshes".to_string())
 }
 
-fn mesh_error_attribute_from_volume(_params: &NodeParams, _inputs: &[Mesh]) -> Result<Mesh, String> {
+fn mesh_error_attribute_from_volume(
+    _params: &NodeParams,
+    _inputs: &[Mesh],
+) -> Result<Mesh, String> {
     Err("Attribute from Volume requires volume input, not meshes".to_string())
 }
 
@@ -193,11 +196,17 @@ fn geometry_error_image_preview(
     Err("Image Preview requires image input".to_string())
 }
 
-fn geometry_error_depth_image(_params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+fn geometry_error_depth_image(
+    _params: &NodeParams,
+    _inputs: &[Geometry],
+) -> Result<Geometry, String> {
     Err("Depth Image outputs images, not geometry".to_string())
 }
 
-fn geometry_error_depth_to_splats(_params: &NodeParams, _inputs: &[Geometry]) -> Result<Geometry, String> {
+fn geometry_error_depth_to_splats(
+    _params: &NodeParams,
+    _inputs: &[Geometry],
+) -> Result<Geometry, String> {
     Err("Depth to Splats requires image inputs".to_string())
 }
 
@@ -1293,7 +1302,9 @@ fn compute_geometry_worldlabs_generate(
     params: &NodeParams,
     _inputs: &[Geometry],
 ) -> Result<Geometry, String> {
-    Ok(Geometry::with_splats(nodes::worldlabs_generate::compute(params)?))
+    Ok(Geometry::with_splats(nodes::worldlabs_generate::compute(
+        params,
+    )?))
 }
 
 fn compute_geometry_merge(_params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
@@ -1402,10 +1413,7 @@ fn compute_splat_worldlabs_generate(
     nodes::worldlabs_generate::compute(params)
 }
 
-fn splat_error_not_output(
-    _params: &NodeParams,
-    _inputs: &[SplatGeo],
-) -> Result<SplatGeo, String> {
+fn splat_error_not_output(_params: &NodeParams, _inputs: &[SplatGeo]) -> Result<SplatGeo, String> {
     Err("Node does not produce splats".to_string())
 }
 
@@ -1419,7 +1427,11 @@ fn apply_mesh_unary(
     };
     let mut meshes = Vec::new();
     if let Some(mesh) = input.merged_mesh() {
-        meshes.push(compute_mesh_node(kind, params, std::slice::from_ref(&mesh))?);
+        meshes.push(compute_mesh_node(
+            kind,
+            params,
+            std::slice::from_ref(&mesh),
+        )?);
     }
 
     let mut splats: Vec<SplatGeo> = (0..input.splats.len())
@@ -1480,11 +1492,7 @@ fn apply_mesh_unary(
     })
 }
 
-fn apply_splat_only<F>(
-    params: &NodeParams,
-    inputs: &[Geometry],
-    op: F,
-) -> Result<Geometry, String>
+fn apply_splat_only<F>(params: &NodeParams, inputs: &[Geometry], op: F) -> Result<Geometry, String>
 where
     F: Fn(&NodeParams, &SplatGeo) -> Result<SplatGeo, String> + Sync + Send,
 {
@@ -1521,10 +1529,7 @@ where
     })
 }
 
-fn apply_attribute_transfer(
-    params: &NodeParams,
-    inputs: &[Geometry],
-) -> Result<Geometry, String> {
+fn apply_attribute_transfer(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, String> {
     nodes::attribute_transfer::apply_to_geometry(params, inputs)
 }
 
@@ -1653,7 +1658,11 @@ fn apply_group(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry, Str
         Ok::<(), String>(())
     })?;
 
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -1670,7 +1679,10 @@ fn apply_group_expand(params: &NodeParams, inputs: &[Geometry]) -> Result<Geomet
 
     let mut meshes = Vec::new();
     if let Some(mesh) = input.merged_mesh() {
-        meshes.push(nodes::group_expand::compute(params, std::slice::from_ref(&mesh))?);
+        meshes.push(nodes::group_expand::compute(
+            params,
+            std::slice::from_ref(&mesh),
+        )?);
     }
 
     let mut splats: Vec<SplatGeo> = (0..input.splats.len())
@@ -1684,7 +1696,11 @@ fn apply_group_expand(params: &NodeParams, inputs: &[Geometry]) -> Result<Geomet
         Ok::<(), String>(())
     })?;
 
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -1728,7 +1744,11 @@ fn apply_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geometry,
         volume.transform = matrix * volume.transform;
     });
 
-    let curves = if meshes.is_empty() { Vec::new() } else { input.curves.clone() };
+    let curves = if meshes.is_empty() {
+        Vec::new()
+    } else {
+        input.curves.clone()
+    };
     Ok(Geometry {
         meshes,
         splats,
@@ -1749,7 +1769,10 @@ fn apply_copy_transform(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
 
     let mut meshes = Vec::new();
     let base_mesh = input.merged_mesh();
-    let base_point_count = base_mesh.as_ref().map(|mesh| mesh.positions.len() as u32).unwrap_or(0);
+    let base_point_count = base_mesh
+        .as_ref()
+        .map(|mesh| mesh.positions.len() as u32)
+        .unwrap_or(0);
     if let Some(mesh) = base_mesh {
         let mut copies: Vec<Mesh> = (0..matrices.len()).map(|_| Mesh::default()).collect();
         parallel::for_each_indexed_mut(&mut copies, |idx, slot| {
@@ -1826,8 +1849,7 @@ fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
 
     if let Some(source) = source_mesh.as_ref() {
         if let Some(template) = template_mesh.as_ref() {
-            let mesh =
-                nodes::copy_to_points::compute(params, &[source.clone(), template.clone()])?;
+            let mesh = nodes::copy_to_points::compute(params, &[source.clone(), template.clone()])?;
             output.meshes.push(mesh);
         } else if let Some(template) = template_splats.as_ref() {
             let mesh = nodes::copy_to_points::compute_mesh_from_splats(params, source, template)?;
@@ -1840,17 +1862,13 @@ fn apply_copy_to_points(params: &NodeParams, inputs: &[Geometry]) -> Result<Geom
             output
                 .splats
                 .push(nodes::copy_to_points::compute_splats_from_mesh(
-                    params,
-                    source,
-                    template,
+                    params, source, template,
                 )?);
         } else if let Some(template) = template_splats.as_ref() {
             output
                 .splats
                 .push(nodes::copy_to_points::compute_splats_from_splats(
-                    params,
-                    source,
-                    template,
+                    params, source, template,
                 )?);
         } else if let Some(input) = inputs.first() {
             output.splats = input.splats.clone();
@@ -1909,7 +1927,10 @@ mod tests {
     #[test]
     fn transform_applies_scale() {
         let params = NodeParams {
-            values: BTreeMap::from([("scale".to_string(), crate::graph::ParamValue::Vec3([2.0, 2.0, 2.0]))]),
+            values: BTreeMap::from([(
+                "scale".to_string(),
+                crate::graph::ParamValue::Vec3([2.0, 2.0, 2.0]),
+            )]),
         };
         let input = make_box([1.0, 1.0, 1.0]);
         let mesh = compute_mesh_node(BuiltinNodeKind::Transform, &params, &[input]).unwrap();
@@ -1963,14 +1984,3 @@ mod tests {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

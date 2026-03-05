@@ -46,7 +46,10 @@ pub fn default_params() -> NodeParams {
             (INVERSE_KEY.to_string(), ParamValue::Bool(true)),
             (FULL_PROCESSING_KEY.to_string(), ParamValue::Bool(true)),
             (SEAM_ANGLE_DEG_KEY.to_string(), ParamValue::Float(0.0)),
-            (AXIS_MULT_KEY.to_string(), ParamValue::Vec3(DEFAULT_AXIS_MULT)),
+            (
+                AXIS_MULT_KEY.to_string(),
+                ParamValue::Vec3(DEFAULT_AXIS_MULT),
+            ),
             (
                 COVERAGE_BOOST_MAX_KEY.to_string(),
                 ParamValue::Float(DEFAULT_COVERAGE_BOOST_MAX),
@@ -132,7 +135,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
             if let Some(linear) = linear {
                 let coverage_boost = nonlinear_coverage_boost(
                     source,
-                    output.rotations.get(idx).copied().unwrap_or([1.0, 0.0, 0.0, 0.0]),
+                    output
+                        .rotations
+                        .get(idx)
+                        .copied()
+                        .unwrap_or([1.0, 0.0, 0.0, 0.0]),
                     output.scales.get(idx).copied().unwrap_or([0.0, 0.0, 0.0]),
                     linear,
                     coverage_settings,
@@ -157,7 +164,11 @@ pub fn apply_to_splats(params: &NodeParams, splats: &SplatGeo) -> Result<SplatGe
     Ok(output)
 }
 
-fn cylindrical_to_cartesian(source: Vec3, seam_angle: f32, axis_mult: Vec3) -> (Vec3, Option<Mat3>) {
+fn cylindrical_to_cartesian(
+    source: Vec3,
+    seam_angle: f32,
+    axis_mult: Vec3,
+) -> (Vec3, Option<Mat3>) {
     let axis_inv = Vec3::new(1.0 / axis_mult.x, 1.0 / axis_mult.y, 1.0 / axis_mult.z);
     let source_cyl = source * axis_inv;
     let theta = source_cyl.x + seam_angle;
@@ -175,7 +186,11 @@ fn cylindrical_to_cartesian(source: Vec3, seam_angle: f32, axis_mult: Vec3) -> (
     (target, valid_linear)
 }
 
-fn cartesian_to_cylindrical(source: Vec3, seam_angle: f32, axis_mult: Vec3) -> (Vec3, Option<Mat3>) {
+fn cartesian_to_cylindrical(
+    source: Vec3,
+    seam_angle: f32,
+    axis_mult: Vec3,
+) -> (Vec3, Option<Mat3>) {
     let x = source.x;
     let y = source.y;
     let z = source.z;
@@ -252,7 +267,11 @@ fn nonlinear_coverage_boost(
         Quat::IDENTITY
     };
     let rot = Mat3::from_quat(quat);
-    let axes = [rot.x_axis * sigma.x, rot.y_axis * sigma.y, rot.z_axis * sigma.z];
+    let axes = [
+        rot.x_axis * sigma.x,
+        rot.y_axis * sigma.y,
+        rot.z_axis * sigma.z,
+    ];
     let center = map_position(
         source,
         settings.inverse,
@@ -376,8 +395,8 @@ fn transform_normal(normal: [f32; 3], linear: Mat3) -> [f32; 3] {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use glam::{Vec3, Vec4};
+    use std::collections::BTreeMap;
     use std::f32::consts::PI;
 
     use crate::attributes::{AttributeDomain, AttributeStorage};
@@ -431,16 +450,17 @@ mod tests {
         let mut splats = SplatGeo::with_len(1);
         splats.positions[0] = [0.0, 1.0, 2.0];
         let params = NodeParams {
-            values: BTreeMap::from([(
-                super::SEAM_ANGLE_DEG_KEY.to_string(),
-                ParamValue::Float(90.0),
-            ), (
-                super::INVERSE_KEY.to_string(),
-                ParamValue::Bool(false),
-            ), (
-                super::AXIS_MULT_KEY.to_string(),
-                ParamValue::Vec3([1.0, 1.0, 1.0]),
-            )]),
+            values: BTreeMap::from([
+                (
+                    super::SEAM_ANGLE_DEG_KEY.to_string(),
+                    ParamValue::Float(90.0),
+                ),
+                (super::INVERSE_KEY.to_string(), ParamValue::Bool(false)),
+                (
+                    super::AXIS_MULT_KEY.to_string(),
+                    ParamValue::Vec3([1.0, 1.0, 1.0]),
+                ),
+            ]),
         };
 
         let output = apply_to_splats(&params, &splats).expect("seam");
@@ -458,10 +478,7 @@ mod tests {
         splats.scales[0] = [0.5, -0.1, 0.2];
         let params = NodeParams {
             values: BTreeMap::from([
-                (
-                    super::INVERSE_KEY.to_string(),
-                    ParamValue::Bool(false),
-                ),
+                (super::INVERSE_KEY.to_string(), ParamValue::Bool(false)),
                 (
                     super::FULL_PROCESSING_KEY.to_string(),
                     ParamValue::Bool(false),
@@ -533,10 +550,7 @@ mod tests {
         splats.rotations[0] = [1.0, 0.0, 0.0, 0.0];
         splats.scales[0] = [0.0, 0.0, 0.0];
         let params = NodeParams {
-            values: BTreeMap::from([(
-                super::INVERSE_KEY.to_string(),
-                ParamValue::Bool(false),
-            )]),
+            values: BTreeMap::from([(super::INVERSE_KEY.to_string(), ParamValue::Bool(false))]),
         };
 
         let output = apply_to_splats(&params, &splats).expect("axis mult");
@@ -559,7 +573,10 @@ mod tests {
         let out_scale = Vec3::from(output.scales[0]);
         assert!(out_rotation.is_finite());
         assert!(out_scale.is_finite());
-        assert!((out_rotation - in_rotation).length() > 1.0e-4 || (out_scale - in_scale).length() > 1.0e-4);
+        assert!(
+            (out_rotation - in_rotation).length() > 1.0e-4
+                || (out_scale - in_scale).length() > 1.0e-4
+        );
     }
 
     #[test]
@@ -634,7 +651,10 @@ mod tests {
                     ParamValue::Vec3(super::DEFAULT_AXIS_MULT),
                 ),
                 (super::INVERSE_KEY.to_string(), ParamValue::Bool(true)),
-                (super::FULL_PROCESSING_KEY.to_string(), ParamValue::Bool(true)),
+                (
+                    super::FULL_PROCESSING_KEY.to_string(),
+                    ParamValue::Bool(true),
+                ),
             ]),
         };
         let limited = apply_to_splats(&limited_params, &source).expect("limited");
