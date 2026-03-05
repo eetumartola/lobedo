@@ -154,8 +154,10 @@ pub fn node_help_page_for_kind(kind: BuiltinNodeKind) -> Option<NodeHelpPage> {
             name: "Depth to Splats",
             description: &[
                 "Converts color + depth images into a Gaussian splat model.",
-                "Normals are estimated from depth gradients and used to orient splats.",
+                "Normals and anisotropic footprint axes are estimated from local depth gradients.",
+                "Depth discontinuities are clamped to avoid splats overshooting across corners/edges.",
                 "Segmentation is optional and stored as a segment_id attribute on splats.",
+                "If segmentation is not connected, segment_id is set to 0 for all splats.",
             ],
             inputs: &[
                 "color: RGB image.",

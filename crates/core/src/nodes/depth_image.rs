@@ -37,9 +37,9 @@ const ORT_DYLIB_NAME: &str = "libonnxruntime.dylib";
 const ORT_DYLIB_NAME: &str = "onnxruntime.dll";
 
 #[cfg(not(target_arch = "wasm32"))]
-use ort::session::Session;
-#[cfg(not(target_arch = "wasm32"))]
 use ort::ep::ExecutionProvider;
+#[cfg(not(target_arch = "wasm32"))]
+use ort::session::Session;
 
 pub fn definition() -> NodeDefinition {
     NodeDefinition {
@@ -145,13 +145,20 @@ pub fn compute(
             );
             let cache = DEPTH_ERROR_CACHE.get_or_init(|| Mutex::new(None));
             if let Ok(mut guard) = cache.lock() {
-                *guard = Some(DepthErrorCache { signature, message: message.clone() });
+                *guard = Some(DepthErrorCache {
+                    signature,
+                    message: message.clone(),
+                });
             }
             return Err(message);
         }
         let mut depth = Vec::with_capacity(inv_depth.len());
         for value in inv_depth {
-            let inv = if value.is_finite() { value.max(DEPTH_EPS) } else { DEPTH_EPS };
+            let inv = if value.is_finite() {
+                value.max(DEPTH_EPS)
+            } else {
+                DEPTH_EPS
+            };
             let mut z = if inv > 0.0 { 1.0 / inv } else { 0.0 };
             if !z.is_finite() {
                 z = 0.0;
@@ -201,8 +208,8 @@ fn run_depthpro(
     directml_device_id: i32,
 ) -> Result<Vec<f32>, String> {
     use half::f16;
-    use image::{ImageBuffer, Luma, Rgb};
     use image::imageops::{crop_imm, overlay, resize, FilterType};
+    use image::{ImageBuffer, Luma, Rgb};
     use ort::value::Tensor;
 
     let model_path = find_model_path()?;
@@ -218,12 +225,11 @@ fn run_depthpro(
         1.0
     };
 
-    let input =
-        ImageBuffer::<Rgb<f32>, Vec<f32>>::from_vec(width, height, rgb.to_vec())
-            .ok_or_else(|| "Invalid RGB image buffer".to_string())?;
+    let input = ImageBuffer::<Rgb<f32>, Vec<f32>>::from_vec(width, height, rgb.to_vec())
+        .ok_or_else(|| "Invalid RGB image buffer".to_string())?;
 
-    let scale = (MODEL_INPUT_SIZE as f32 / width as f32)
-        .min(MODEL_INPUT_SIZE as f32 / height as f32);
+    let scale =
+        (MODEL_INPUT_SIZE as f32 / width as f32).min(MODEL_INPUT_SIZE as f32 / height as f32);
     let new_w = (width as f32 * scale).round().max(1.0) as u32;
     let new_h = (height as f32 * scale).round().max(1.0) as u32;
 
@@ -242,11 +248,8 @@ fn run_depthpro(
         );
     }
 
-    let mut padded = ImageBuffer::from_pixel(
-        MODEL_INPUT_SIZE,
-        MODEL_INPUT_SIZE,
-        Rgb([0.0, 0.0, 0.0]),
-    );
+    let mut padded =
+        ImageBuffer::from_pixel(MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, Rgb([0.0, 0.0, 0.0]));
     overlay(&mut padded, &resized, pad_x as i64, pad_y as i64);
 
     let mut input_data =
@@ -266,7 +269,12 @@ fn run_depthpro(
     }
 
     let input_tensor = Tensor::from_array((
-        [1usize, 3, MODEL_INPUT_SIZE as usize, MODEL_INPUT_SIZE as usize],
+        [
+            1usize,
+            3,
+            MODEL_INPUT_SIZE as usize,
+            MODEL_INPUT_SIZE as usize,
+        ],
         input_data.into_boxed_slice(),
     ))
     .map_err(|err| err.to_string())?;
@@ -373,8 +381,7 @@ fn run_sam(
         .as_mut()
         .ok_or_else(|| "SAM model cache unavailable".to_string())?;
 
-    let (input_data, new_w, new_h, scale) =
-        preprocess_sam_image(rgb, width, height, debug)?;
+    let (input_data, new_w, new_h, scale) = preprocess_sam_image(rgb, width, height, debug)?;
     let input_tensor = Tensor::from_array((
         [1usize, 3, SAM_INPUT_SIZE as usize, SAM_INPUT_SIZE as usize],
         input_data.into_boxed_slice(),
@@ -389,9 +396,8 @@ fn run_sam(
         vec![0.0f32; mask_size * mask_size].into_boxed_slice(),
     ))
     .map_err(|err| err.to_string())?;
-    let has_mask_input =
-        Tensor::from_array(([1usize], vec![0.0f32].into_boxed_slice()))
-            .map_err(|err| err.to_string())?;
+    let has_mask_input = Tensor::from_array(([1usize], vec![0.0f32].into_boxed_slice()))
+        .map_err(|err| err.to_string())?;
     let orig_im_size = Tensor::from_array((
         [2usize],
         vec![height as f32, width as f32].into_boxed_slice(),
@@ -412,16 +418,12 @@ fn run_sam(
         for gx in 0..grid {
             let x = (gx as f32 + 0.5) * step_x;
             let x_scaled = (x * scale).clamp(0.0, new_w as f32 - 1.0);
-            let point_coords = Tensor::from_array((
-                [1usize, 1, 2],
-                vec![x_scaled, y_scaled].into_boxed_slice(),
-            ))
-            .map_err(|err| err.to_string())?;
-            let point_labels = Tensor::from_array((
-                [1usize, 1],
-                vec![SAM_PROMPT_LABEL].into_boxed_slice(),
-            ))
-            .map_err(|err| err.to_string())?;
+            let point_coords =
+                Tensor::from_array(([1usize, 1, 2], vec![x_scaled, y_scaled].into_boxed_slice()))
+                    .map_err(|err| err.to_string())?;
+            let point_labels =
+                Tensor::from_array(([1usize, 1], vec![SAM_PROMPT_LABEL].into_boxed_slice()))
+                    .map_err(|err| err.to_string())?;
             let mask = run_sam_decoder(
                 &mut cache.decoder,
                 &embed_tensor,
@@ -463,7 +465,10 @@ fn run_sam(
 fn find_model_path() -> Result<PathBuf, String> {
     let dir = Path::new(MODEL_DIR);
     if !dir.exists() {
-        return Err(format!("DepthPro model directory not found: {}", dir.display()));
+        return Err(format!(
+            "DepthPro model directory not found: {}",
+            dir.display()
+        ));
     }
     let mut candidates = Vec::new();
     for entry in std::fs::read_dir(dir).map_err(|err| err.to_string())? {
@@ -523,17 +528,14 @@ fn find_sam_model_paths() -> Result<(PathBuf, PathBuf), String> {
     }
     let pick = |mut candidates: Vec<PathBuf>| -> Option<PathBuf> {
         candidates.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-        if let Some(non_quant) = candidates
-            .iter()
-            .find(|path| {
-                !path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("")
-                    .to_ascii_lowercase()
-                    .contains("quant")
-            })
-        {
+        if let Some(non_quant) = candidates.iter().find(|path| {
+            !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase()
+                .contains("quant")
+        }) {
             return Some(non_quant.clone());
         }
         candidates.into_iter().next()
@@ -566,9 +568,8 @@ fn preprocess_sam_image(
         1.0
     };
 
-    let input =
-        ImageBuffer::<Rgb<f32>, Vec<f32>>::from_vec(width, height, rgb.to_vec())
-            .ok_or_else(|| "Invalid RGB image buffer".to_string())?;
+    let input = ImageBuffer::<Rgb<f32>, Vec<f32>>::from_vec(width, height, rgb.to_vec())
+        .ok_or_else(|| "Invalid RGB image buffer".to_string())?;
     let max_side = width.max(height).max(1) as f32;
     let scale = SAM_INPUT_SIZE as f32 / max_side;
     let new_w = (width as f32 * scale).round().max(1.0) as u32;
@@ -580,11 +581,7 @@ fn preprocess_sam_image(
             width, height, new_w, new_h
         );
     }
-    let mut padded = ImageBuffer::from_pixel(
-        SAM_INPUT_SIZE,
-        SAM_INPUT_SIZE,
-        Rgb([0.0, 0.0, 0.0]),
-    );
+    let mut padded = ImageBuffer::from_pixel(SAM_INPUT_SIZE, SAM_INPUT_SIZE, Rgb([0.0, 0.0, 0.0]));
     overlay(&mut padded, &resized, 0, 0);
 
     let plane = (SAM_INPUT_SIZE * SAM_INPUT_SIZE) as usize;
@@ -606,11 +603,7 @@ fn preprocess_sam_image(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn build_sam_session(
-    path: &Path,
-    directml_device_id: i32,
-    debug: bool,
-) -> Result<Session, String> {
+fn build_sam_session(path: &Path, directml_device_id: i32, debug: bool) -> Result<Session, String> {
     let mut builder = Session::builder().map_err(|err| err.to_string())?;
     #[cfg(target_os = "windows")]
     {
@@ -721,8 +714,10 @@ fn run_sam_decoder(
         .map(|input| input.name().to_string())
         .collect();
     let input_count = input_names.len();
-    let mut provided: Vec<(std::borrow::Cow<'_, str>, ort::session::SessionInputValue<'_>)> =
-        Vec::new();
+    let mut provided: Vec<(
+        std::borrow::Cow<'_, str>,
+        ort::session::SessionInputValue<'_>,
+    )> = Vec::new();
     for name in &input_names {
         let key = name.to_ascii_lowercase();
         if key.contains("image") && key.contains("emb") {
@@ -826,9 +821,7 @@ fn run_sam_decoder(
         if let Some(iou_idx) = iou_index {
             if iou_idx < outputs.len() {
                 let iou_output = &outputs[iou_idx];
-                if let Ok((iou_shape, iou_data)) =
-                    iou_output.try_extract_tensor::<f32>()
-                {
+                if let Ok((iou_shape, iou_data)) = iou_output.try_extract_tensor::<f32>() {
                     if debug {
                         eprintln!("Depth Image debug: SAM IoU shape {:?}", iou_shape);
                     }
@@ -859,22 +852,61 @@ fn run_sam_decoder(
         return Err("SAM decoder mask output slice invalid".to_string());
     }
     let mask_slice = &mask_data[start..end];
-    let mut mask_image =
-        ImageBuffer::<Luma<f32>, Vec<f32>>::from_vec(mask_w as u32, mask_h as u32, mask_slice.to_vec())
-            .ok_or_else(|| "SAM mask buffer size mismatch".to_string())?;
+    let mut mask_image = ImageBuffer::<Luma<f32>, Vec<f32>>::from_vec(
+        mask_w as u32,
+        mask_h as u32,
+        mask_slice.to_vec(),
+    )
+    .ok_or_else(|| "SAM mask buffer size mismatch".to_string())?;
 
-    if mask_image.width() >= new_w && mask_image.height() >= new_h {
-        if mask_image.width() != new_w || mask_image.height() != new_h {
-            mask_image = crop_imm(&mask_image, 0, 0, new_w, new_h).to_image();
+    if mask_image.width() == width && mask_image.height() == height {
+        return Ok(mask_image.into_raw());
+    }
+
+    // SAM decoders may output masks in a square padded-canvas space (for example 256x256 or 1024x1024),
+    // even when the resized image is non-square. Crop the valid top-left region before upscaling.
+    if is_almost_square(mask_image.width(), mask_image.height())
+        && (new_w != SAM_INPUT_SIZE || new_h != SAM_INPUT_SIZE)
+    {
+        let (crop_w, crop_h) =
+            padded_canvas_crop_size(mask_image.width(), mask_image.height(), new_w, new_h);
+        if (crop_w < mask_image.width() || crop_h < mask_image.height()) && crop_w > 0 && crop_h > 0
+        {
+            if debug {
+                eprintln!(
+                    "Depth Image debug: SAM crop padded canvas {}x{} -> {}x{}",
+                    mask_image.width(),
+                    mask_image.height(),
+                    crop_w,
+                    crop_h
+                );
+            }
+            mask_image = crop_imm(&mask_image, 0, 0, crop_w, crop_h).to_image();
         }
-    } else if mask_image.width() != new_w || mask_image.height() != new_h {
+    }
+
+    if mask_image.width() != new_w || mask_image.height() != new_h {
         mask_image = resize(&mask_image, new_w, new_h, FilterType::Triangle);
     }
-    if new_w != width || new_h != height {
+    if mask_image.width() != width || mask_image.height() != height {
         mask_image = resize(&mask_image, width, height, FilterType::Triangle);
     }
 
     Ok(mask_image.into_raw())
+}
+
+fn is_almost_square(width: u32, height: u32) -> bool {
+    let max_side = width.max(height).max(1);
+    let delta = width.abs_diff(height);
+    delta * 20 <= max_side
+}
+
+fn padded_canvas_crop_size(mask_w: u32, mask_h: u32, new_w: u32, new_h: u32) -> (u32, u32) {
+    let crop_w = ((mask_w as f32 * new_w as f32 / SAM_INPUT_SIZE as f32).round() as u32)
+        .clamp(1, mask_w.max(1));
+    let crop_h = ((mask_h as f32 * new_h as f32 / SAM_INPUT_SIZE as f32).round() as u32)
+        .clamp(1, mask_h.max(1));
+    (crop_w, crop_h)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -993,7 +1025,9 @@ fn run_model_tensor(
     directml_device_id: i32,
 ) -> Result<Vec<half::f16>, String> {
     let store = DEPTH_MODEL.get_or_init(|| Mutex::new(None));
-    let mut guard = store.lock().map_err(|_| "Depth model lock poisoned".to_string())?;
+    let mut guard = store
+        .lock()
+        .map_err(|_| "Depth model lock poisoned".to_string())?;
     let needs_reload = guard
         .as_ref()
         .map(|cache| cache.path != path || cache.directml_device_id != directml_device_id)
@@ -1096,13 +1130,7 @@ fn input_signature(rgb: &[f32], width: u32, height: u32, debug: bool) -> u64 {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn resize_depth(
-    input: &[f32],
-    in_w: u32,
-    in_h: u32,
-    out_w: u32,
-    out_h: u32,
-) -> Vec<f32> {
+fn resize_depth(input: &[f32], in_w: u32, in_h: u32, out_w: u32, out_h: u32) -> Vec<f32> {
     if in_w == 0 || in_h == 0 || out_w == 0 || out_h == 0 {
         return Vec::new();
     }
@@ -1119,7 +1147,11 @@ fn resize_depth(
         let yy = y.clamp(0, (in_h - 1) as i32) as u32;
         let idx = (yy * in_w + xx) as usize;
         let value = input.get(idx).copied().unwrap_or(0.0);
-        if value.is_finite() { value } else { 0.0 }
+        if value.is_finite() {
+            value
+        } else {
+            0.0
+        }
     };
 
     for y in 0..out_h {
@@ -1147,4 +1179,30 @@ fn resize_depth(
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn padded_canvas_crop_size_respects_non_square_resize() {
+        let (crop_w, crop_h) = padded_canvas_crop_size(256, 256, 1024, 683);
+        assert_eq!(crop_w, 256);
+        assert_eq!(crop_h, 171);
+    }
+
+    #[test]
+    fn padded_canvas_crop_size_full_when_no_padding() {
+        let (crop_w, crop_h) = padded_canvas_crop_size(256, 256, 1024, 1024);
+        assert_eq!(crop_w, 256);
+        assert_eq!(crop_h, 256);
+    }
+
+    #[test]
+    fn is_almost_square_detects_squareish_masks() {
+        assert!(is_almost_square(256, 256));
+        assert!(is_almost_square(257, 256));
+        assert!(!is_almost_square(256, 171));
+    }
 }

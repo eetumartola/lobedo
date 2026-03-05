@@ -6,6 +6,7 @@ pub struct Material {
     pub base_color: [f32; 3],
     pub metallic: f32,
     pub roughness: f32,
+    pub unlit: bool,
     pub base_color_texture: Option<String>,
 }
 
@@ -16,6 +17,7 @@ impl Material {
             base_color: [1.0, 1.0, 1.0],
             metallic: 0.0,
             roughness: 0.5,
+            unlit: false,
             base_color_texture: None,
         }
     }

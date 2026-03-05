@@ -555,6 +555,7 @@ fn render_materials_from_scene(
             base_color: material.base_color,
             metallic: material.metallic,
             roughness: material.roughness,
+            unlit: material.unlit,
             base_color_texture,
         });
     }
@@ -564,6 +565,7 @@ fn render_materials_from_scene(
             base_color: [1.0, 1.0, 1.0],
             metallic: 0.0,
             roughness: 0.5,
+            unlit: false,
             base_color_texture: None,
         });
     }

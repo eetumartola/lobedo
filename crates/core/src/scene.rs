@@ -262,6 +262,7 @@ fn scene_material_from_material(material: &Material) -> SceneMaterial {
         base_color: material.base_color,
         metallic: material.metallic,
         roughness: material.roughness,
+        unlit: material.unlit,
         base_color_texture: material.base_color_texture.clone(),
     }
 }

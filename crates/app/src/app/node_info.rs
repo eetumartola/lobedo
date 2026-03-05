@@ -59,12 +59,7 @@ impl LobedoApp {
         }
     }
 
-    fn show_geometry_info(
-        &self,
-        ui: &mut egui::Ui,
-        geometry: &Geometry,
-        node: &lobedo_core::Node,
-    ) {
+    fn show_geometry_info(&self, ui: &mut egui::Ui, geometry: &Geometry, node: &lobedo_core::Node) {
         let splat_count: usize = geometry.splats.iter().map(|s| s.len()).sum();
         let volume_voxels: u64 = geometry
             .volumes
@@ -101,9 +96,7 @@ impl LobedoApp {
                 ui.end_row();
             });
 
-        if node.builtin_kind() == Some(BuiltinNodeKind::ReadSplats)
-            && !geometry.splats.is_empty()
-        {
+        if node.builtin_kind() == Some(BuiltinNodeKind::ReadSplats) && !geometry.splats.is_empty() {
             ui.separator();
             ui.heading("Splats");
             let splat_geo = &geometry.splats[0];
@@ -181,6 +174,7 @@ impl LobedoApp {
             ui.separator();
             self.show_mesh_info(ui, geometry);
         }
+        self.show_splat_attributes(ui, geometry);
     }
 
     fn show_groups_section(&self, ui: &mut egui::Ui, geometry: &Geometry) {
@@ -259,10 +253,7 @@ impl LobedoApp {
         let mesh = geometry.merged_mesh();
         let mesh_point_count = mesh.as_ref().map(|m| m.positions.len()).unwrap_or(0);
         let mesh_vertex_count = mesh.as_ref().map(|m| m.indices.len()).unwrap_or(0);
-        let mesh_prim_count = mesh
-            .as_ref()
-            .map(|m| m.face_count())
-            .unwrap_or(0);
+        let mesh_prim_count = mesh.as_ref().map(|m| m.face_count()).unwrap_or(0);
         let curve_vertex_count: usize = geometry.curves.iter().map(|c| c.indices.len()).sum();
         let curve_prim_count = geometry.curves.len();
         let point_count = mesh_point_count;
@@ -381,6 +372,69 @@ impl LobedoApp {
                 group.len()
             ));
             egui::Grid::new(format!("node_info_attr_{domain:?}"))
+                .num_columns(3)
+                .spacing([10.0, 4.0])
+                .show(ui, |ui| {
+                    for attr in group {
+                        let mut name = attr.name.clone();
+                        if attr.implicit {
+                            name.push_str(" (implicit)");
+                        }
+                        ui.label(name);
+                        ui.label(attribute_type_label(attr.data_type));
+                        ui.label(attr.len.to_string());
+                        ui.end_row();
+                    }
+                });
+            ui.add_space(8.0);
+        }
+    }
+
+    fn show_splat_attributes(&self, ui: &mut egui::Ui, geometry: &Geometry) {
+        let Some(splats) = geometry.merged_splats() else {
+            return;
+        };
+
+        let mut attrs = splats.list_attributes();
+        attrs.sort_by(|a, b| {
+            let domain_order = |domain| match domain {
+                AttributeDomain::Point => 0,
+                AttributeDomain::Primitive => 1,
+                AttributeDomain::Detail => 2,
+                AttributeDomain::Vertex => 3,
+            };
+            domain_order(a.domain)
+                .cmp(&domain_order(b.domain))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+
+        let has_any = attrs.iter().any(|attr| {
+            matches!(
+                attr.domain,
+                AttributeDomain::Point | AttributeDomain::Primitive | AttributeDomain::Detail
+            )
+        });
+        if !has_any {
+            return;
+        }
+
+        ui.separator();
+        ui.heading("Splat Attributes");
+        for domain in [
+            AttributeDomain::Point,
+            AttributeDomain::Primitive,
+            AttributeDomain::Detail,
+        ] {
+            let group: Vec<&AttributeInfo> = attrs.iter().filter(|a| a.domain == domain).collect();
+            if group.is_empty() {
+                continue;
+            }
+            ui.label(format!(
+                "{} Attributes ({})",
+                attribute_domain_label(domain),
+                group.len()
+            ));
+            egui::Grid::new(format!("node_info_splat_attr_{domain:?}"))
                 .num_columns(3)
                 .spacing([10.0, 4.0])
                 .show(ui, |ui| {

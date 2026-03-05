@@ -373,6 +373,11 @@ fn apply_materials_to_pipeline(
                 .base_color_texture
                 .and_then(|idx| uv_scales.get(idx).copied())
                 .unwrap_or([1.0, 1.0]);
+            let roughness = if material.unlit {
+                -1.0
+            } else {
+                material.roughness.clamp(0.0, 1.0)
+            };
             materials.push(MaterialGpu {
                 base_color: [
                     material.base_color[0],
@@ -380,12 +385,7 @@ fn apply_materials_to_pipeline(
                     material.base_color[2],
                     material.metallic,
                 ],
-                params: [
-                    material.roughness.clamp(0.0, 1.0),
-                    tex_index,
-                    uv_scale[0],
-                    uv_scale[1],
-                ],
+                params: [roughness, tex_index, uv_scale[0], uv_scale[1]],
             });
         }
     }

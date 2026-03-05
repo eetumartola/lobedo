@@ -4,6 +4,7 @@ pub struct SceneMaterial {
     pub base_color: [f32; 3],
     pub metallic: f32,
     pub roughness: f32,
+    pub unlit: bool,
     pub base_color_texture: Option<String>,
 }
 

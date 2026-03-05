@@ -498,7 +498,104 @@ fn build_splat_columns(splats: &SplatGeo, max_rows: usize) -> Vec<Column> {
         }
     }
 
+    append_splat_point_attribute_columns(splats, max_rows, &mut columns);
+
     columns
+}
+
+fn append_splat_point_attribute_columns(
+    splats: &SplatGeo,
+    max_rows: usize,
+    columns: &mut Vec<Column>,
+) {
+    let mut attrs: Vec<_> = splats
+        .list_attributes()
+        .into_iter()
+        .filter(|attr| attr.domain == AttributeDomain::Point && !attr.implicit)
+        .collect();
+    attrs.sort_by(|a, b| a.name.cmp(&b.name));
+
+    for attr in attrs {
+        let Some(values) = splats.attribute(AttributeDomain::Point, &attr.name) else {
+            continue;
+        };
+        match values {
+            AttributeRef::Float(data) => {
+                columns.push(Column {
+                    header: format!("{} {}", attr.name, attr_type_label(attr.data_type)),
+                    kind: ColumnKind::Float(
+                        (0..max_rows).map(|idx| data.get(idx).copied()).collect(),
+                    ),
+                    formatted: Vec::new(),
+                    width_chars: 0,
+                });
+            }
+            AttributeRef::Int(data) => {
+                columns.push(Column {
+                    header: format!("{} {}", attr.name, attr_type_label(attr.data_type)),
+                    kind: ColumnKind::Int(
+                        (0..max_rows).map(|idx| data.get(idx).copied()).collect(),
+                    ),
+                    formatted: Vec::new(),
+                    width_chars: 0,
+                });
+            }
+            AttributeRef::Vec2(data) => {
+                for (axis, idx) in [('x', 0usize), ('y', 1)] {
+                    columns.push(Column {
+                        header: format!("{}{}", attr.name, axis),
+                        kind: ColumnKind::Float(
+                            (0..max_rows)
+                                .map(|row| data.get(row).map(|v| v[idx]))
+                                .collect(),
+                        ),
+                        formatted: Vec::new(),
+                        width_chars: 0,
+                    });
+                }
+            }
+            AttributeRef::Vec3(data) => {
+                for (axis, idx) in [('x', 0usize), ('y', 1), ('z', 2)] {
+                    columns.push(Column {
+                        header: format!("{}{}", attr.name, axis),
+                        kind: ColumnKind::Float(
+                            (0..max_rows)
+                                .map(|row| data.get(row).map(|v| v[idx]))
+                                .collect(),
+                        ),
+                        formatted: Vec::new(),
+                        width_chars: 0,
+                    });
+                }
+            }
+            AttributeRef::Vec4(data) => {
+                for (axis, idx) in [('x', 0usize), ('y', 1), ('z', 2), ('w', 3)] {
+                    columns.push(Column {
+                        header: format!("{}{}", attr.name, axis),
+                        kind: ColumnKind::Float(
+                            (0..max_rows)
+                                .map(|row| data.get(row).map(|v| v[idx]))
+                                .collect(),
+                        ),
+                        formatted: Vec::new(),
+                        width_chars: 0,
+                    });
+                }
+            }
+            AttributeRef::StringTable(data) => {
+                columns.push(Column {
+                    header: format!("{} {}", attr.name, attr_type_label(attr.data_type)),
+                    kind: ColumnKind::Text(
+                        (0..max_rows)
+                            .map(|row| data.value(row).map(|value| value.to_string()))
+                            .collect(),
+                    ),
+                    formatted: Vec::new(),
+                    width_chars: 0,
+                });
+            }
+        }
+    }
 }
 
 fn format_float_cell(value: f32, int_width: usize, has_negative: bool) -> String {

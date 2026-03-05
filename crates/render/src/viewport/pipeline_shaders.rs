@@ -175,9 +175,6 @@ fn material_albedo(material_id: u32, uv: vec2<f32>, color: vec3<f32>) -> vec3<f3
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let mat = materials[input.material];
-    let albedo = material_albedo(input.material, input.uv, input.color);
-    let color = shade_surface(input.normal, input.world_pos, albedo, mat.base_color.w, mat.params.x);
     let mode = i32(uniforms.debug_params.x + 0.5);
     if mode == 1 {
         let normal = normalize(input.normal);
@@ -191,6 +188,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         let t = clamp((dist - near) / denom, 0.0, 1.0);
         return vec4<f32>(vec3<f32>(1.0 - t), 1.0);
     }
+
+    let mat = materials[input.material];
+    let albedo = material_albedo(input.material, input.uv, input.color);
+    let unlit = mat.params.x < 0.0;
+    if unlit {
+        return vec4<f32>(albedo, 1.0);
+    }
+    let color = shade_surface(input.normal, input.world_pos, albedo, mat.base_color.w, mat.params.x);
     return vec4<f32>(color, 1.0);
 }
 

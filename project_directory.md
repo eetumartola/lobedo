@@ -6,7 +6,7 @@ Functions: `setup_tracing` (L90-L92), `new` (L95-L135), `set_log_level` (L137-L1
 
 ## crates/app/src/app/eval.rs
 Description: Eval module.
-Functions: `refresh_dirty_nodes` (L47-L64), `mark_eval_dirty` (L66-L69), `queue_info_eval` (L71-L80), `cook_pending_info_nodes` (L82-L90), `cook_info_node` (L92-L101), `evaluate_if_needed` (L103-L147), `evaluate_graph` (L149-L184), `poll_eval_job` (L186-L205), `start_eval_job` (L208-L249), `apply_eval_result` (L251-L280), `apply_scene` (L282-L289), `sync_selection_overlay` (L291-L330), `viewport_debug` (L332-L376), `viewport_fps` (L378-L389), `run_eval_job` (L392-L469), `scene_to_render_with_template` (L471-L500), `render_mesh_from_mesh` (L502-L504), `render_materials_from_scene` (L523-L572), `load_render_texture` (L574-L610), `texture_cache_token` (L612-L629), `load_texture_bytes` (L631-L643), `collect_template_meshes` (L645-L680), `splat_merge_preview_mesh` (L682-L711), `merge_optional_meshes` (L713-L720), `merge_error_state` (L722-L744), `selection_shape_for_node` (L746-L779), `selection_shape_from_params` (L781-L813)
+Functions: `refresh_dirty_nodes` (L47-L64), `mark_eval_dirty` (L66-L69), `queue_info_eval` (L71-L80), `cook_pending_info_nodes` (L82-L90), `cook_info_node` (L92-L101), `evaluate_if_needed` (L103-L147), `evaluate_graph` (L149-L184), `poll_eval_job` (L186-L205), `start_eval_job` (L208-L249), `apply_eval_result` (L251-L280), `apply_scene` (L282-L289), `sync_selection_overlay` (L291-L330), `viewport_debug` (L332-L376), `viewport_fps` (L378-L389), `run_eval_job` (L392-L469), `scene_to_render_with_template` (L471-L500), `render_mesh_from_mesh` (L502-L504), `render_materials_from_scene` (L523-L574), `load_render_texture` (L576-L612), `texture_cache_token` (L614-L631), `load_texture_bytes` (L633-L645), `collect_template_meshes` (L647-L682), `splat_merge_preview_mesh` (L684-L713), `merge_optional_meshes` (L715-L722), `merge_error_state` (L724-L746), `selection_shape_for_node` (L748-L781), `selection_shape_from_params` (L783-L815)
 
 ## crates/app/src/app/io.rs
 Description: Io module.
@@ -18,11 +18,11 @@ Functions: `new` (L20-L24), `push_line` (L26-L32), `snapshot` (L34-L37), `make_w
 
 ## crates/app/src/app/node_info.rs
 Description: Node Info module.
-Functions: `show_node_info_panel` (L16-L60), `show_geometry_info` (L62-L184), `show_groups_section` (L186-L231), `show_group_table` (L233-L256), `show_mesh_info` (L258-L400), `attribute_type_label` (L403-L412), `attribute_domain_label` (L414-L421), `sh_order_label` (L423-L432)
+Functions: `show_node_info_panel` (L16-L60), `show_geometry_info` (L62-L178), `show_groups_section` (L180-L225), `show_group_table` (L227-L250), `show_mesh_info` (L252-L391), `show_splat_attributes` (L393-L454), `attribute_type_label` (L457-L466), `attribute_domain_label` (L468-L475), `sh_order_label` (L477-L486)
 
 ## crates/app/src/app/spreadsheet.rs
 Description: Spreadsheet module.
-Functions: `show_spreadsheet` (L10-L237), `attr_type_label` (L239-L248), `finalize` (L264-L322), `pixel_width` (L324-L326), `build_columns` (L329-L418), `build_splat_columns` (L420-L502), `format_float_cell` (L504-L516), `format_int_cell` (L518-L529), `draw_cell` (L531-L568)
+Functions: `show_spreadsheet` (L10-L237), `attr_type_label` (L239-L248), `finalize` (L264-L322), `pixel_width` (L324-L326), `build_columns` (L329-L418), `build_splat_columns` (L420-L504), `append_splat_point_attribute_columns` (L506-L599), `format_float_cell` (L601-L613), `format_int_cell` (L615-L626), `draw_cell` (L628-L665)
 
 ## crates/app/src/app/ui.rs
 Description: Ui module.
@@ -198,7 +198,7 @@ Functions: None
 
 ## crates/core/src/material.rs
 Description: Material module.
-Functions: `new` (L13-L21), `is_empty` (L30-L32), `insert` (L34-L36), `get` (L38-L40), `iter` (L42-L44), `merge` (L46-L50)
+Functions: `new` (L14-L23), `is_empty` (L32-L34), `insert` (L36-L38), `get` (L40-L42), `iter` (L44-L46), `merge` (L48-L52)
 
 ## crates/core/src/mesh.rs
 Description: Mesh module.
@@ -214,7 +214,7 @@ Functions: `make_box` (L5-L5), `make_grid` (L34-L34), `make_uv_sphere` (L73-L127
 
 ## crates/core/src/node_help.rs
 Description: Node Help module.
-Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L19), `node_help_page` (L21-L24), `node_help_page_for_kind` (L26-L789)
+Functions: `resolve_kind` (L13-L15), `help_summary` (L17-L19), `node_help_page` (L21-L24), `node_help_page_for_kind` (L26-L791)
 
 ## crates/core/src/node_help_io.rs
 Description: Node Help Io module.
@@ -302,11 +302,11 @@ Functions: `definition` (L19-L26), `default_params` (L28-L33), `param_specs` (L3
 
 ## crates/core/src/nodes/depth_image.rs
 Description: Depth Image module.
-Functions: `definition` (L44-L55), `default_params` (L57-L66), `param_specs` (L68-L80), `compute` (L82-L193), `run_depthpro` (L196-L322), `run_sam` (L325-L460), `find_model_path` (L463-L488), `find_sam_model_paths` (L491-L546), `preprocess_sam_image` (L549-L606), `build_sam_session` (L609-L633), `run_sam_encoder` (L642-L698), `run_sam_decoder` (L701-L878), `resolve_ort_dylib_path` (L922-L954), `ensure_ort_initialized` (L957-L986), `run_model_tensor` (L989-L1063), `finite_min_max` (L1065-L1083), `input_signature` (L1086-L1096), `resize_depth` (L1099-L1150)
+Functions: `definition` (L44-L55), `default_params` (L57-L66), `param_specs` (L68-L80), `compute` (L82-L200), `run_depthpro` (L203-L330), `run_sam` (L333-L462), `find_model_path` (L465-L493), `find_sam_model_paths` (L496-L548), `preprocess_sam_image` (L551-L603), `build_sam_session` (L606-L626), `run_sam_encoder` (L635-L691), `run_sam_decoder` (L694-L896), `is_almost_square` (L898-L902), `padded_canvas_crop_size` (L904-L910), `resolve_ort_dylib_path` (L954-L986), `ensure_ort_initialized` (L989-L1018), `run_model_tensor` (L1021-L1097), `finite_min_max` (L1099-L1117), `input_signature` (L1120-L1130), `resize_depth` (L1133-L1182), `padded_canvas_crop_size_respects_non_square_resize` (L1189-L1193), `padded_canvas_crop_size_full_when_no_padding` (L1196-L1200), `is_almost_square_detects_squareish_masks` (L1203-L1207)
 
 ## crates/core/src/nodes/depth_to_splats.rs
 Description: Depth To Splats module.
-Functions: `definition` (L23-L34), `default_params` (L36-L46), `param_specs` (L48-L61), `compute` (L63-L193), `unproject` (L195-L209), `normal_from_depth` (L212-L270), `depth_to_splats_writes_segment_id` (L277-L295)
+Functions: `definition` (L26-L37), `default_params` (L39-L55), `param_specs` (L57-L70), `compute` (L72-L199), `unproject` (L201-L207), `splat_frame_from_depth` (L210-L331), `pixel_ray` (L333-L339), `quat_from_frame` (L341-L385), `sample_depth_point` (L394-L418), `axis_tangent` (L420-L466), `tangent_plane_length` (L468-L471), `same_surface_depth` (L473-L478), `depth_to_splats_writes_segment_id` (L485-L503), `depth_to_splats_scales_are_anisotropic_on_slanted_depth` (L506-L536), `depth_to_splats_discontinuity_guard_limits_overshoot` (L539-L572)
 
 ## crates/core/src/nodes/erosion_noise.rs
 Description: Erosion Noise module.
@@ -354,7 +354,7 @@ Functions: `definition` (L13-L20), `default_params` (L22-L26), `param_specs` (L2
 
 ## crates/core/src/nodes/image_preview.rs
 Description: Image Preview module.
-Functions: `definition` (L16-L23), `default_params` (L25-L32), `param_specs` (L34-L41), `compute` (L43-L105), `image_hash` (L107-L127), `encode_preview_texture` (L129-L153), `finite_min_max` (L155-L173), `finite_min_max_u32` (L175-L187), `map_rgb` (L189-L202), `map_scalar_to_rgb` (L204-L214), `map_scalar_to_rgb_u32` (L216-L225), `normalize_range` (L227-L233)
+Functions: `definition` (L16-L23), `default_params` (L25-L33), `param_specs` (L35-L44), `compute` (L46-L128), `image_hash` (L130-L152), `encode_preview_texture` (L154-L184), `linear_to_srgb` (L186-L192), `finite_min_max` (L194-L212), `finite_min_max_u32` (L214-L226), `map_rgb` (L228-L241), `map_scalar_to_rgb` (L243-L253), `map_scalar_to_rgb_u32` (L255-L264), `normalize_range` (L266-L272), `linear_to_srgb_maps_mid_gray` (L279-L282), `image_hash_changes_when_srgb_toggle_changes` (L285-L290), `image_hash_changes_when_single_pixel_changes` (L293-L299)
 
 ## crates/core/src/nodes/material.rs
 Description: Material module.
@@ -558,7 +558,7 @@ Functions: `default` (L16-L22), `migrate_to_latest` (L26-L44), `default` (L61-L7
 
 ## crates/core/src/scene.rs
 Description: Scene module.
-Functions: `scene_snapshot_from_mesh` (L16-L16), `scene_snapshot_from_splats` (L24-L24), `scene_snapshot_from_geometry` (L32-L32), `scene_mesh_from_mesh` (L73-L75), `scene_mesh_from_mesh_with_materials` (L77-L197), `scene_splats_from_splats` (L199-L233), `scene_curve_from_curve` (L235-L235), `scene_volume_from_volume` (L242-L257), `scene_material_from_material` (L259-L267), `fallback_normals` (L269-L269), `attr_vec3` (L281-L281), `attr_vec2` (L289-L289), `mesh_uvs` (L298-L329), `mesh_materials` (L331-L356), `expand_primitive_vec3` (L358-L360), `expand_corner_attribute` (L375-L384), `scene_splats_negative_base_color_stays_non_coeff` (L392-L400)
+Functions: `scene_snapshot_from_mesh` (L16-L16), `scene_snapshot_from_splats` (L24-L24), `scene_snapshot_from_geometry` (L32-L32), `scene_mesh_from_mesh` (L73-L75), `scene_mesh_from_mesh_with_materials` (L77-L197), `scene_splats_from_splats` (L199-L233), `scene_curve_from_curve` (L235-L235), `scene_volume_from_volume` (L242-L257), `scene_material_from_material` (L259-L268), `fallback_normals` (L270-L270), `attr_vec3` (L282-L282), `attr_vec2` (L290-L290), `mesh_uvs` (L299-L330), `mesh_materials` (L332-L357), `expand_primitive_vec3` (L359-L361), `expand_corner_attribute` (L376-L385), `scene_splats_negative_base_color_stays_non_coeff` (L393-L401)
 
 ## crates/core/src/splat/attributes.rs
 Description: Attributes module.
@@ -642,7 +642,7 @@ Functions: `new` (L42-L49), `get` (L51-L59), `upload_or_update` (L61-L196), `sta
 
 ## crates/render/src/scene.rs
 Description: Scene module.
-Functions: `mesh` (L33-L38), `splats` (L40-L45), `curves` (L47-L55), `volume` (L57-L62)
+Functions: `mesh` (L34-L39), `splats` (L41-L46), `curves` (L48-L56), `volume` (L58-L63)
 
 ## crates/render/src/viewport/callback.rs
 Description: Callback module.
@@ -670,7 +670,7 @@ Functions: `apply_scene_to_pipeline` (L15-L223), `merged_scene_splats` (L225-L29
 
 ## crates/render/src/viewport/pipeline_shaders.rs
 Description: Pipeline Shaders module.
-Functions: `vs_main` (L88-L97), `shadow_factor` (L99-L127), `shade_surface` (L129-L161), `material_albedo` (L163-L174), `fs_main` (L177-L195), `vs_shadow` (L202-L206), `vs_line` (L219-L224), `fs_line` (L227-L229), `quat_to_mat3` (L249-L268), `is_finite_f32` (L270-L272), `is_finite_vec4` (L274-L276), `vs_splat` (L279-L374), `fs_splat` (L377-L416), `vs_volume` (L424-L439), `intersect_aabb` (L441-L448), `sample_volume_density` (L450-L474), `fs_volume` (L477-L519), `vs_blit` (L535-L550), `fs_blit` (L553-L555), `is_finite_f32` (L655-L657), `safe_normalize` (L659-L665), `sh_basis_l1` (L667-L672), `sh_basis_l2` (L674-L685), `sh_basis_l3` (L687-L700), `splat_color` (L702-L736), `depth_bucket` (L738-L756), `cs_clear` (L759-L777), `cs_count` (L780-L803), `cs_prefix_local` (L806-L830), `cs_prefix_chunk` (L833-L846), `cs_prefix_add` (L849-L859), `cs_scatter` (L862-L901), `create_main_shader` (L904-L909), `create_blit_shader` (L911-L916), `create_splat_compute_shader` (L918-L923)
+Functions: `vs_main` (L88-L97), `shadow_factor` (L99-L127), `shade_surface` (L129-L161), `material_albedo` (L163-L174), `fs_main` (L177-L200), `vs_shadow` (L207-L211), `vs_line` (L224-L229), `fs_line` (L232-L234), `quat_to_mat3` (L254-L273), `is_finite_f32` (L275-L277), `is_finite_vec4` (L279-L281), `vs_splat` (L284-L379), `fs_splat` (L382-L421), `vs_volume` (L429-L444), `intersect_aabb` (L446-L453), `sample_volume_density` (L455-L479), `fs_volume` (L482-L524), `vs_blit` (L540-L555), `fs_blit` (L558-L560), `is_finite_f32` (L660-L662), `safe_normalize` (L664-L670), `sh_basis_l1` (L672-L677), `sh_basis_l2` (L679-L690), `sh_basis_l3` (L692-L705), `splat_color` (L707-L741), `depth_bucket` (L743-L761), `cs_clear` (L764-L782), `cs_count` (L785-L808), `cs_prefix_local` (L811-L835), `cs_prefix_chunk` (L838-L851), `cs_prefix_add` (L854-L864), `cs_scatter` (L867-L906), `create_main_shader` (L909-L914), `create_blit_shader` (L916-L921), `create_splat_compute_shader` (L923-L928)
 
 ## crates/render/src/viewport/pipeline_targets.rs
 Description: Pipeline Targets module.
@@ -678,5 +678,5 @@ Functions: `create_offscreen_targets` (L5-L39), `create_shadow_targets` (L41-L63
 
 ## crates/scene/src/lib.rs
 Description: Lib module.
-Functions: `mesh` (L90-L95), `splats` (L97-L102), `curves` (L104-L112), `volume` (L114-L119)
+Functions: `mesh` (L91-L96), `splats` (L98-L103), `curves` (L105-L113), `volume` (L115-L120)
 
